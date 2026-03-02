@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import BottomNav from '../components/BottomNav';
 import AccountScreen from './AccountScreen';
 import ContactsScreen from './ContactsScreen';
+import RealEstateScreen from './RealEstateScreen';
 
 const TAB_NAMES = [
   'База недвижимости',
@@ -17,6 +18,9 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
   const [screenWithinAccount, setScreenWithinAccount] = useState('account'); // 'account' | 'contacts'
 
   const renderContent = () => {
+    if (activeTab === 0) {
+      return <RealEstateScreen />;
+    }
     if (activeTab === 3) {
       if (screenWithinAccount === 'contacts') {
         return <ContactsScreen onBack={() => setScreenWithinAccount('account')} />;

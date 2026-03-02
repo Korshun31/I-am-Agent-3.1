@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 const H_PADDING = Dimensions.get('window').width * 0.05;
 
 const TAB_KEYS = [
-  { key: 'base', labelKey: 'base', color: '#FFE066E6', icon: '🏠' },
+  { key: 'base', labelKey: 'base', color: '#FFE066E6', icon: require('../../assets/icon_base.png') },
   { key: 'bookings', labelKey: 'bookings', color: '#6FCF97E6', icon: require('../../assets/icon_bookings.png') },
   { key: 'calendar', labelKey: 'calendar', color: '#56CCF2E6', icon: require('../../assets/icon_calendar.png') },
   { key: 'account', labelKey: 'myAccount', color: '#EB5757E6', icon: require('../../assets/icon_account.png') },
