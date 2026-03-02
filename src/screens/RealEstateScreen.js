@@ -8,9 +8,16 @@ import {
   TextInput,
   Image,
   Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
   ActivityIndicator,
   Alert,
 } from 'react-native';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { getProperties, createProperty, updateProperty, deleteProperty } from '../services/propertiesService';
@@ -78,8 +85,8 @@ function PropertyItem({ item, expanded, onToggle, onPress, t }) {
       </View>
       {expanded && (
         <View style={styles.expandedContent}>
-          {item.photo_uri ? (
-            <Image source={{ uri: item.photo_uri }} style={styles.expandedPhoto} />
+          {Array.isArray(item.photos) && item.photos.length > 0 ? (
+            <Image source={{ uri: item.photos[0] }} style={styles.expandedPhoto} />
           ) : (
             <View style={[styles.expandedPhoto, styles.expandedPhotoPlaceholder]}>
               <Text style={styles.expandedPhotoPlaceholderText}>📷</Text>
@@ -160,7 +167,15 @@ export default function RealEstateScreen() {
     loadProperties();
   }, [loadProperties]);
 
+  const drawerAnimation = {
+    duration: 300,
+    create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+    update: { type: LayoutAnimation.Types.easeInEaseOut },
+    delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+  };
+
   const toggleExpandAll = () => {
+    LayoutAnimation.configureNext(drawerAnimation);
     if (!allExpanded) {
       setExpandedIds(new Set(sorted.map(p => p.id)));
       setAllExpanded(true);
@@ -171,6 +186,7 @@ export default function RealEstateScreen() {
   };
 
   const toggleItemExpand = (id) => {
+    LayoutAnimation.configureNext(drawerAnimation);
     setExpandedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -227,8 +243,8 @@ export default function RealEstateScreen() {
       <PropertyDetailScreen
         property={selectedProperty}
         onBack={() => setSelectedProperty(null)}
-        onEdit={() => {}}
         onDelete={() => handleDeleteProperty(selectedProperty)}
+        onPropertyUpdated={loadProperties}
       />
     );
   }

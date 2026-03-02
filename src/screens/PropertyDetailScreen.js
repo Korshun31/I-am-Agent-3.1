@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,20 @@ import {
   Linking,
   FlatList,
   Animated,
+  Alert,
+  Modal,
+  Dimensions,
+  StatusBar,
+  ActivityIndicator,
 } from 'react-native';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
-import { getProperties } from '../services/propertiesService';
+import { getProperties, updateProperty } from '../services/propertiesService';
+import { getContacts } from '../services/contactsService';
+import PropertyEditWizard from '../components/PropertyEditWizard';
+import ContactDetailScreen from './ContactDetailScreen';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
@@ -107,7 +117,208 @@ function ResortHouseItem({ item, expanded, onToggle }) {
   );
 }
 
-function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel }) {
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+
+function PhotoGalleryModal({ visible, photos, initialIndex, onClose }) {
+  const flatListRef = useRef(null);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [saveMenuOpen, setSaveMenuOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setCurrentIndex(initialIndex);
+      setSaveMenuOpen(false);
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({ index: initialIndex, animated: false });
+      }, 50);
+    }
+  }, [visible, initialIndex]);
+
+  const onViewableItemsChanged = useRef(({ viewableItems }) => {
+    if (viewableItems.length > 0) {
+      setCurrentIndex(viewableItems[0].index);
+    }
+  }).current;
+
+  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
+
+  const savePhotosToGallery = async (uris) => {
+    setSaving(true);
+    setSaveMenuOpen(false);
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Allow access to save photos');
+        setSaving(false);
+        return;
+      }
+      let saved = 0;
+      for (const uri of uris) {
+        try {
+          let localUri = uri;
+          if (uri.startsWith('http://') || uri.startsWith('https://')) {
+            const ext = uri.split('.').pop()?.split('?')[0] || 'jpg';
+            const fileName = `photo_${Date.now()}_${saved}.${ext}`;
+            const download = await FileSystem.downloadAsync(uri, FileSystem.cacheDirectory + fileName);
+            localUri = download.uri;
+          }
+          await MediaLibrary.saveToLibraryAsync(localUri);
+          saved++;
+        } catch {}
+      }
+      Alert.alert('✓', saved === 1 ? 'Photo saved' : `${saved} photos saved`);
+    } catch {
+      Alert.alert('Error', 'Failed to save');
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+      <View style={galleryStyles.backdrop}>
+        <StatusBar barStyle="light-content" />
+
+        <TouchableOpacity style={galleryStyles.closeBtn} onPress={onClose} activeOpacity={0.7}>
+          <Text style={galleryStyles.closeText}>✕</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={galleryStyles.saveBtn}
+          onPress={() => setSaveMenuOpen(!saveMenuOpen)}
+          activeOpacity={0.7}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <Text style={galleryStyles.saveBtnIcon}>↓</Text>
+          )}
+        </TouchableOpacity>
+
+        <FlatList
+          ref={flatListRef}
+          data={photos}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(_, i) => `gallery-${i}`}
+          getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
+          renderItem={({ item }) => (
+            <View style={galleryStyles.page}>
+              <Image source={{ uri: item }} style={galleryStyles.fullImage} resizeMode="contain" />
+            </View>
+          )}
+        />
+
+        <Text style={galleryStyles.counter}>{currentIndex + 1} / {photos.length}</Text>
+
+        {saveMenuOpen && (
+          <View style={galleryStyles.saveMenu}>
+            <TouchableOpacity
+              style={galleryStyles.saveMenuItem}
+              onPress={() => savePhotosToGallery([photos[currentIndex]])}
+              activeOpacity={0.7}
+            >
+              <Text style={galleryStyles.saveMenuIcon}>📷</Text>
+              <Text style={galleryStyles.saveMenuText}>Save this photo</Text>
+            </TouchableOpacity>
+            {photos.length > 1 && (
+              <TouchableOpacity
+                style={[galleryStyles.saveMenuItem, { borderBottomWidth: 0 }]}
+                onPress={() => savePhotosToGallery(photos)}
+                activeOpacity={0.7}
+              >
+                <Text style={galleryStyles.saveMenuIcon}>📦</Text>
+                <Text style={galleryStyles.saveMenuText}>Save all ({photos.length})</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+const galleryStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center' },
+  closeBtn: {
+    position: 'absolute', top: 54, right: 20, zIndex: 10,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  closeText: { fontSize: 20, color: '#FFF', fontWeight: '600' },
+  saveBtn: {
+    position: 'absolute', top: 54, left: 20, zIndex: 10,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  saveBtnIcon: { fontSize: 22, color: '#FFF', fontWeight: '700' },
+  page: { width: SCREEN_W, height: SCREEN_H, justifyContent: 'center', alignItems: 'center' },
+  fullImage: { width: SCREEN_W - 20, height: SCREEN_H * 0.7 },
+  counter: {
+    position: 'absolute', bottom: 50, alignSelf: 'center',
+    color: '#FFF', fontSize: 16, fontWeight: '600',
+    backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20,
+  },
+  saveMenu: {
+    position: 'absolute', top: 100, left: 20, zIndex: 20,
+    backgroundColor: 'rgba(40,40,40,0.95)', borderRadius: 14,
+    minWidth: 200, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12,
+  },
+  saveMenuItem: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 14, paddingHorizontal: 16,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  saveMenuIcon: { fontSize: 18, marginRight: 12 },
+  saveMenuText: { fontSize: 15, color: '#FFF', fontWeight: '500' },
+});
+
+function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
+  return (
+    <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
+      <Text style={styles.sectionTitle}>📷  {t('pdPhoto')}</Text>
+      {photos.length > 0 ? (
+        <FlatList
+          data={photos}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(_, i) => `photo-${i}`}
+          renderItem={({ item, index }) => (
+            <TouchableOpacity onPress={() => onPhotoPress(index)} activeOpacity={0.85}>
+              <Image source={{ uri: item }} style={styles.mediaThumb} resizeMode="cover" />
+            </TouchableOpacity>
+          )}
+          style={styles.mediaList}
+        />
+      ) : (<Text style={styles.emptyMedia}>{t('pdNoPhotos')}</Text>)}
+      <Text style={[styles.sectionTitle, { marginTop: 12 }]}>🎬  {t('pdVideo')}</Text>
+      {videos.length > 0 ? (
+        <FlatList
+          data={videos}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(_, i) => `video-${i}`}
+          renderItem={({ item }) => (
+            <TouchableOpacity onPress={() => onVideoPress(item)} activeOpacity={0.7}>
+              <View style={[styles.mediaThumb, styles.videoThumb]}>
+                <Text style={styles.videoPlayIcon}>▶</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+          style={styles.mediaList}
+        />
+      ) : (<Text style={styles.emptyMedia}>{t('pdNoVideos')}</Text>)}
+    </SectionBlock>
+  );
+}
+
+function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onPhotoPress, onVideoPress }) {
   const amenities = p.amenities || {};
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
@@ -115,7 +326,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel }) 
 
   return (
     <>
-      <SectionBlock color={typeColors.bg} border={typeColors.border}>
+      <SectionBlock color="rgba(255,204,0,0.2)" border="#FFCC00">
         <InfoRow label={t('propertyCode')} value={p.code} />
         <InfoRow label={t('pdCity')} value={p.city} />
         <InfoRow label={t('propDistrict')} value={p.district} />
@@ -135,22 +346,13 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel }) 
         </View>
         <InfoRow label={t('pdArea')} value={p.area != null ? `${p.area}  m2` : '—'} />
         <View style={styles.divider} />
-        <InfoRow label={t('pdOwner')} value={ownerName || '—'} isLink={!!ownerName} onPress={() => {}} />
+        <InfoRow label={t('pdOwner')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} />
         {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} /> : null}
         {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} /> : null}
         {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} /> : null}
       </SectionBlock>
 
-      <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
-        <Text style={styles.sectionTitle}>📷  {t('pdPhoto')}</Text>
-        {photos.length > 0 ? (
-          <FlatList data={photos} horizontal showsHorizontalScrollIndicator={false} keyExtractor={(_, i) => `photo-${i}`} renderItem={({ item }) => (<Image source={{ uri: item }} style={styles.mediaThumb} resizeMode="cover" />)} style={styles.mediaList} />
-        ) : (<Text style={styles.emptyMedia}>{t('pdNoPhotos')}</Text>)}
-        <Text style={[styles.sectionTitle, { marginTop: 12 }]}>🎬  {t('pdVideo')}</Text>
-        {videos.length > 0 ? (
-          <FlatList data={videos} horizontal showsHorizontalScrollIndicator={false} keyExtractor={(_, i) => `video-${i}`} renderItem={({ item }) => (<View style={[styles.mediaThumb, styles.videoThumb]}><Text style={styles.videoPlayIcon}>▶</Text></View>)} style={styles.mediaList} />
-        ) : (<Text style={styles.emptyMedia}>{t('pdNoVideos')}</Text>)}
-      </SectionBlock>
+      <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
 
       {p.description ? (
         <View style={styles.descriptionBlock}>
@@ -209,7 +411,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel }) 
   );
 }
 
-function ResortDetailContent({ p, t, typeColors }) {
+function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress }) {
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const ownerName = p.ownerName || '';
@@ -247,7 +449,7 @@ function ResortDetailContent({ p, t, typeColors }) {
 
   return (
     <>
-      <SectionBlock color={typeColors.bg} border={typeColors.border}>
+      <SectionBlock color="rgba(255,204,0,0.2)" border="#FFCC00">
         <InfoRow label={t('propertyCode')} value={p.code} />
         <InfoRow label={t('pdCity')} value={p.city} />
         <InfoRow label={t('propDistrict')} value={p.district} />
@@ -261,22 +463,13 @@ function ResortDetailContent({ p, t, typeColors }) {
         <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} />
         <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} />
         <View style={styles.divider} />
-        <InfoRow label={t('pdOwnerManager')} value={ownerName || '—'} isLink={!!ownerName} onPress={() => {}} />
+        <InfoRow label={t('pdOwnerManager')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} />
         {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} /> : null}
         {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} /> : null}
         {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} /> : null}
       </SectionBlock>
 
-      <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
-        <Text style={styles.sectionTitle}>📷  {t('pdPhoto')}</Text>
-        {photos.length > 0 ? (
-          <FlatList data={photos} horizontal showsHorizontalScrollIndicator={false} keyExtractor={(_, i) => `photo-${i}`} renderItem={({ item }) => (<Image source={{ uri: item }} style={styles.mediaThumb} resizeMode="cover" />)} style={styles.mediaList} />
-        ) : (<Text style={styles.emptyMedia}>{t('pdNoPhotos')}</Text>)}
-        <Text style={[styles.sectionTitle, { marginTop: 12 }]}>🎬  {t('pdVideo')}</Text>
-        {videos.length > 0 ? (
-          <FlatList data={videos} horizontal showsHorizontalScrollIndicator={false} keyExtractor={(_, i) => `video-${i}`} renderItem={({ item }) => (<View style={[styles.mediaThumb, styles.videoThumb]}><Text style={styles.videoPlayIcon}>▶</Text></View>)} style={styles.mediaList} />
-        ) : (<Text style={styles.emptyMedia}>{t('pdNoVideos')}</Text>)}
-      </SectionBlock>
+      <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
 
       {p.description ? (
         <View style={styles.descriptionBlock}>
@@ -374,7 +567,7 @@ function CondoApartmentItem({ item, expanded, onToggle }) {
   );
 }
 
-function CondoDetailContent({ p, t, typeColors }) {
+function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress }) {
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const [apartments, setApartments] = useState([]);
@@ -411,7 +604,7 @@ function CondoDetailContent({ p, t, typeColors }) {
 
   return (
     <>
-      <SectionBlock color={typeColors.bg} border={typeColors.border}>
+      <SectionBlock color="rgba(255,204,0,0.2)" border="#FFCC00">
         <InfoRow label={t('propertyCode')} value={p.code} />
         <InfoRow label={t('pdCity')} value={p.city} />
         <InfoRow label={t('propDistrict')} value={p.district} />
@@ -430,16 +623,7 @@ function CondoDetailContent({ p, t, typeColors }) {
         {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} /> : null}
       </SectionBlock>
 
-      <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
-        <Text style={styles.sectionTitle}>📷  {t('pdPhoto')}</Text>
-        {photos.length > 0 ? (
-          <FlatList data={photos} horizontal showsHorizontalScrollIndicator={false} keyExtractor={(_, i) => `photo-${i}`} renderItem={({ item }) => (<Image source={{ uri: item }} style={styles.mediaThumb} resizeMode="cover" />)} style={styles.mediaList} />
-        ) : (<Text style={styles.emptyMedia}>{t('pdNoPhotos')}</Text>)}
-        <Text style={[styles.sectionTitle, { marginTop: 12 }]}>🎬  {t('pdVideo')}</Text>
-        {videos.length > 0 ? (
-          <FlatList data={videos} horizontal showsHorizontalScrollIndicator={false} keyExtractor={(_, i) => `video-${i}`} renderItem={({ item }) => (<View style={[styles.mediaThumb, styles.videoThumb]}><Text style={styles.videoPlayIcon}>▶</Text></View>)} style={styles.mediaList} />
-        ) : (<Text style={styles.emptyMedia}>{t('pdNoVideos')}</Text>)}
-      </SectionBlock>
+      <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
 
       {p.description ? (
         <View style={styles.descriptionBlock}>
@@ -497,9 +681,40 @@ function CondoDetailContent({ p, t, typeColors }) {
   );
 }
 
-export default function PropertyDetailScreen({ property, onBack, onEdit, onDelete }) {
+export default function PropertyDetailScreen({ property, onBack, onDelete, onPropertyUpdated }) {
   const { t } = useLanguage();
-  const p = property;
+  const [p, setP] = useState(property);
+  const [wizardVisible, setWizardVisible] = useState(false);
+  const [ownerContact, setOwnerContact] = useState(null);
+  const [showOwner, setShowOwner] = useState(false);
+
+  const loadOwnerData = useCallback(async (prop) => {
+    if (!prop.owner_id) {
+      setP(prev => ({ ...prev, ownerName: '', ownerPhone1: '', ownerPhone2: '', ownerTelegram: '' }));
+      setOwnerContact(null);
+      return;
+    }
+    try {
+      const owners = await getContacts('owners');
+      const owner = owners.find(o => o.id === prop.owner_id);
+      if (owner) {
+        setOwnerContact(owner);
+        setP(prev => ({
+          ...prev,
+          ownerName: `${owner.name} ${owner.lastName}`.trim(),
+          ownerPhone1: owner.phone || '',
+          ownerPhone2: owner.extraPhones?.[0] || '',
+          ownerTelegram: owner.telegram || '',
+        }));
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    setP(property);
+    loadOwnerData(property);
+  }, [property, loadOwnerData]);
+
   const typeColors = BLOCK_COLORS[p.type] || BLOCK_COLORS.house;
 
   const formatPrice = (val) => {
@@ -514,6 +729,47 @@ export default function PropertyDetailScreen({ property, onBack, onEdit, onDelet
     if (p.water_price_type === 'fixed') return base + ' / ' + t('pdFixed');
     return base;
   };
+
+  const handleOwnerPress = () => {
+    if (ownerContact) setShowOwner(true);
+  };
+
+  const [galleryVisible, setGalleryVisible] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const allPhotos = Array.isArray(p.photos) ? p.photos : [];
+
+  const handlePhotoPress = (index) => {
+    setGalleryIndex(index);
+    setGalleryVisible(true);
+  };
+
+  const handleVideoPress = (url) => {
+    Linking.openURL(url).catch(() => Alert.alert('Error', 'Cannot open link'));
+  };
+
+  const handleWizardSave = async (updates) => {
+    try {
+      const updated = await updateProperty(p.id, updates);
+      const merged = { ...p, ...updated };
+      setP(merged);
+      setWizardVisible(false);
+      loadOwnerData(merged);
+      onPropertyUpdated?.();
+    } catch (e) {
+      throw e;
+    }
+  };
+
+  if (showOwner && ownerContact) {
+    return (
+      <ContactDetailScreen
+        contact={ownerContact}
+        onBack={() => setShowOwner(false)}
+        onContactUpdated={() => loadOwnerData(p)}
+        onContactDeleted={() => { setShowOwner(false); setOwnerContact(null); }}
+      />
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -531,7 +787,7 @@ export default function PropertyDetailScreen({ property, onBack, onEdit, onDelet
             <Image source={require('../../assets/trash-icon.png')} style={styles.actionIcon} resizeMode="contain" />
           </TouchableOpacity>
           <View style={styles.actionsRight}>
-            <TouchableOpacity style={styles.actionBtn} onPress={onEdit} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
               <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
@@ -545,15 +801,29 @@ export default function PropertyDetailScreen({ property, onBack, onEdit, onDelet
         </View>
 
         {p.type === 'resort' ? (
-          <ResortDetailContent p={p} t={t} typeColors={typeColors} />
+          <ResortDetailContent p={p} t={t} typeColors={typeColors} onOwnerPress={handleOwnerPress} onPhotoPress={handlePhotoPress} onVideoPress={handleVideoPress} />
         ) : p.type === 'condo' ? (
-          <CondoDetailContent p={p} t={t} typeColors={typeColors} />
+          <CondoDetailContent p={p} t={t} typeColors={typeColors} onOwnerPress={handleOwnerPress} onPhotoPress={handlePhotoPress} onVideoPress={handleVideoPress} />
         ) : (
-          <HouseDetailContent p={p} t={t} typeColors={typeColors} formatPrice={formatPrice} waterPriceLabel={waterPriceLabel} />
+          <HouseDetailContent p={p} t={t} typeColors={typeColors} formatPrice={formatPrice} waterPriceLabel={waterPriceLabel} onOwnerPress={handleOwnerPress} onPhotoPress={handlePhotoPress} onVideoPress={handleVideoPress} />
         )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      <PhotoGalleryModal
+        visible={galleryVisible}
+        photos={allPhotos}
+        initialIndex={galleryIndex}
+        onClose={() => setGalleryVisible(false)}
+      />
+
+      <PropertyEditWizard
+        visible={wizardVisible}
+        property={p}
+        onClose={() => setWizardVisible(false)}
+        onSave={handleWizardSave}
+      />
     </View>
   );
 }
@@ -638,12 +908,12 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginBottom: 4,
+    marginBottom: 10,
     flex: 1,
   },
   infoLabel: {
     fontSize: 13,
-    color: '#6B6B6B',
+    color: '#2C2C2C',
     width: 120,
   },
   infoColon: {
