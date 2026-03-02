@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "I am Agent",
+    "slug": "i-am-agent",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#F5F2EB"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.iamagent.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F5F2EB"
+      },
+      "package": "com.iamagent.app"
+    },
+    "web": {
+      "output": "single"
+    },
+    "plugins": [
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Приложение использует фото из галереи для аватара профиля."
+        }
+      ]
+    ]
+  }
+}
