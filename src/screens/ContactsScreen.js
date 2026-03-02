@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,13 @@ import {
   ScrollView,
   TextInput,
   Dimensions,
+  Alert,
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
+import AddContactModal from '../components/AddContactModal';
+import ContactDetailScreen from './ContactDetailScreen';
+import { getContacts, createContact } from '../services/contactsService';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -67,9 +71,70 @@ export default function ContactsScreen({ onBack }) {
   const [sidebarTabIndex, setSidebarTabIndex] = useState(1);
   const activeTab = SIDEBAR_TABS[sidebarTabIndex]?.key ?? 'clients';
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('name'); // 'name' | 'lastName' — группировка/сортировка списка
+  const [sortBy, setSortBy] = useState('name');
+  const [addContactVisible, setAddContactVisible] = useState(false);
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedContact, setSelectedContact] = useState(null);
+
+  const loadContacts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getContacts(activeTab);
+      setContacts(data);
+    } catch (e) {
+      console.error('Load contacts error:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    loadContacts();
+  }, [loadContacts]);
+
+  const handleSaveContact = async (data) => {
+    try {
+      await createContact(data);
+      loadContacts();
+    } catch (e) {
+      Alert.alert(t('error'), e.message);
+    }
+  };
+
+  const query = searchQuery.trim().toLowerCase();
+  const filteredContacts = query
+    ? contacts.filter(c =>
+        (c.name + ' ' + c.lastName).toLowerCase().includes(query) ||
+        (c.phone || '').includes(query)
+      )
+    : contacts;
+
+  const sortedContacts = [...filteredContacts].sort((a, b) => {
+    if (sortBy === 'lastName') {
+      return (a.lastName || '').localeCompare(b.lastName || '');
+    }
+    return (a.name || '').localeCompare(b.name || '');
+  });
 
   const emptyMessage = activeTab === 'clients' ? t('contactsEmptyClients') : t('contactsEmptyOwners');
+
+  if (selectedContact) {
+    return (
+      <ContactDetailScreen
+        contact={selectedContact}
+        onBack={() => setSelectedContact(null)}
+        onContactUpdated={(updated) => {
+          setContacts(prev => prev.map(c => c.id === updated.id ? updated : c));
+          setSelectedContact(updated);
+        }}
+        onContactDeleted={(id) => {
+          setContacts(prev => prev.filter(c => c.id !== id));
+          setSelectedContact(null);
+        }}
+      />
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -119,7 +184,7 @@ export default function ContactsScreen({ onBack }) {
               <Text style={[styles.sortBtnText, sortBy === 'lastName' && styles.sortBtnTextActive]}>{t('lastName')}</Text>
             </TouchableOpacity>
             <View style={styles.frame4Spacer} />
-            <TouchableOpacity style={styles.addBtn} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.addBtn} onPress={() => setAddContactVisible(true)} activeOpacity={0.85}>
               <Text style={styles.addBtnText}>+</Text>
             </TouchableOpacity>
           </View>
@@ -132,9 +197,24 @@ export default function ContactsScreen({ onBack }) {
               contentContainerStyle={styles.listScrollContent}
               keyboardShouldPersistTaps="handled"
             >
-              <View style={styles.emptyList}>
-                <Text style={styles.emptyText}>{emptyMessage}</Text>
-              </View>
+              {sortedContacts.length === 0 ? (
+                <View style={styles.emptyList}>
+                  <Text style={styles.emptyText}>{emptyMessage}</Text>
+                </View>
+              ) : (
+                sortedContacts.map((contact) => (
+                  <TouchableOpacity
+                    key={contact.id}
+                    style={styles.contactRow}
+                    activeOpacity={0.7}
+                    onPress={() => setSelectedContact(contact)}
+                  >
+                    <Text style={styles.contactName}>
+                      {contact.name}{contact.lastName ? ' ' + contact.lastName : ''}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
             </ScrollView>
           </View>
         </View>
@@ -182,6 +262,13 @@ export default function ContactsScreen({ onBack }) {
           </View>
         </View>
       </View>
+
+      <AddContactModal
+        visible={addContactVisible}
+        onClose={() => setAddContactVisible(false)}
+        contactType={activeTab}
+        onSave={handleSaveContact}
+      />
 
       {/* Тестовая сетка — слой с серыми полосками для визуализации фреймов */}
       {TEST_GRID_VISIBLE && (
@@ -326,6 +413,15 @@ const styles = StyleSheet.create({
   listScrollContent: {
     flexGrow: 1,
     paddingBottom: 100,
+  },
+  contactRow: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  contactName: {
+    fontSize: 16,
+    color: COLORS.title,
   },
   emptyList: {
     flexGrow: 1,

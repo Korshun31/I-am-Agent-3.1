@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import Logo, { COLORS } from '../components/Logo';
 import { useLanguage } from '../context/LanguageContext';
-import { saveAgent, getAgentByEmail, agentToUser } from '../services/agentsStorage';
+import { signUp } from '../services/authService';
 
 const fieldShadow = {
   shadowColor: '#000',
@@ -151,20 +151,18 @@ export default function Registration({ onBack, onSuccess }) {
                 Alert.alert(t('error'), t('enterPassword'));
                 return;
               }
+              if (pw.length < 6) {
+                Alert.alert(t('error'), t('passwordTooShort') || 'Password must be at least 6 characters');
+                return;
+              }
               if (pw !== passwordConfirm) {
                 Alert.alert(t('error'), t('passwordsMismatch'));
                 return;
               }
               setLoading(true);
               try {
-                const existing = await getAgentByEmail(em);
-                if (existing) {
-                  Alert.alert(t('error'), t('accountExists'));
-                  return;
-                }
-                const agent = { email: em, password: pw, name: (name || '').trim(), phone: '', telegram: '' };
-                await saveAgent(agent);
-                onSuccess?.(agentToUser(agent));
+                const userData = await signUp({ email: em, password: pw, name: (name || '').trim() });
+                onSuccess?.(userData);
               } catch (err) {
                 Alert.alert(t('error'), err?.message || t('saveFailed'));
               } finally {

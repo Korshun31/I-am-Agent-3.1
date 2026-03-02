@@ -121,7 +121,7 @@ function parseLocationString(str, csc) {
 /**
  * Модальное окно добавления/редактирования локации. Страна → Регион → Город.
  */
-export default function AddLocationsModal({ visible, onClose, onSave, onDelete, initialLocation, editIndex }) {
+export default function AddLocationsModal({ visible, onClose, onSave, onDelete, initialLocation, editIndex, editLocationData }) {
   const { t } = useLanguage();
   const [country, setCountry] = useState(null);
   const [region, setRegion] = useState(null);
@@ -157,7 +157,12 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
 
   useEffect(() => {
     if (visible) {
-      if (initialLocation && csc) {
+      if (editLocationData && csc) {
+        const parsed = parseLocationString(editLocationData.displayName || '', csc);
+        setCountry(parsed.country);
+        setRegion(parsed.region);
+        setCity(parsed.city);
+      } else if (initialLocation && csc) {
         const parsed = parseLocationString(initialLocation, csc);
         setCountry(parsed.country);
         setRegion(parsed.region);
@@ -168,16 +173,15 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
         setCity(null);
       }
     }
-  }, [visible, initialLocation, csc]);
+  }, [visible, initialLocation, editLocationData, csc]);
 
   const handleSave = () => {
     if (!country?.name) return;
-    const parts = [country.name];
-    if (region?.name) parts.push(region.name);
-    if (city?.name) parts.push(city.name);
-    const locationStr = parts.join(' / ');
-    onSave?.(locationStr);
-    onClose?.();
+    onSave?.({
+      country: country.name,
+      region: region?.name || '',
+      city: city?.name || '',
+    });
   };
 
   const handleCountrySelect = (c) => {
@@ -196,7 +200,6 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
     if (Platform.OS === 'web' || typeof Alert?.alert !== 'function') {
       if (typeof window !== 'undefined' && window.confirm?.(msg)) {
         onDelete?.();
-        onClose?.();
       }
     } else {
       Alert.alert(
@@ -204,7 +207,7 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
         t('deleteLocationConfirmMessage'),
         [
           { text: t('no'), style: 'cancel' },
-          { text: t('yes'), style: 'destructive', onPress: () => { onDelete?.(); onClose?.(); } },
+          { text: t('yes'), style: 'destructive', onPress: () => { onDelete?.(); } },
         ]
       );
     }

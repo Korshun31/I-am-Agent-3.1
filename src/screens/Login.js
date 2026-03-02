@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import Logo, { COLORS } from '../components/Logo';
-import { getAgentByEmail, agentToUser } from '../services/agentsStorage';
+import { signIn } from '../services/authService';
 
 // Тени в стиле макета: выраженные drop shadow, «слоистость»
 const inputShadow = {
@@ -100,20 +100,17 @@ export default function Login({ onSignUp, onLogin }) {
                 Alert.alert(t('error'), t('enterPassword'));
                 return;
               }
-              const agent = await getAgentByEmail(em);
-              if (!agent) {
-                Alert.alert(
-                  t('signUpFirstTitle'),
-                  t('createAccountFirst'),
-                  [{ text: 'OK', onPress: () => onSignUp?.() }]
-                );
-                return;
+              try {
+                const userData = await signIn({ email: em, password: pw });
+                onLogin?.(userData);
+              } catch (err) {
+                const msg = err?.message || '';
+                if (msg.includes('Invalid login credentials')) {
+                  Alert.alert(t('error'), t('wrongPassword'));
+                } else {
+                  Alert.alert(t('error'), msg || t('saveFailed'));
+                }
               }
-              if (agent.password !== pw) {
-                Alert.alert(t('error'), t('wrongPassword'));
-                return;
-              }
-              onLogin?.(agentToUser(agent));
             }}
           >
             <Text style={styles.loginButtonText}>{t('login')}</Text>

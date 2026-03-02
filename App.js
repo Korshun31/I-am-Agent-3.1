@@ -6,6 +6,7 @@ import Preloader from './src/screens/Preloader';
 import Login from './src/screens/Login';
 import Registration from './src/screens/Registration';
 import MainScreen from './src/screens/MainScreen';
+import { getCurrentUser, signOut } from './src/services/authService';
 
 const initialUser = { email: '', name: '', lastName: '', phone: '', telegram: '', documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '', photoUri: '' };
 
@@ -14,7 +15,20 @@ export default function App() {
   const [user, setUser] = useState(initialUser);
 
   useEffect(() => {
-    const timer = setTimeout(() => setScreen('login'), 2500);
+    async function checkSession() {
+      try {
+        const userData = await getCurrentUser();
+        if (userData) {
+          setUser(userData);
+          setScreen('main');
+        } else {
+          setScreen('login');
+        }
+      } catch {
+        setScreen('login');
+      }
+    }
+    const timer = setTimeout(checkSession, 2500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -49,7 +63,8 @@ export default function App() {
     }));
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try { await signOut(); } catch {}
     setUser(initialUser);
     setScreen('login');
   };

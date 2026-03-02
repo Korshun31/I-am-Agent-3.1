@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import {
   View,
@@ -18,66 +18,102 @@ import {
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const COLORS = {
   boxBg: 'rgba(255,255,255,0.72)',
   title: '#2C2C2C',
   inputBg: '#F5F2EB',
   border: '#E0D8CC',
-  saveBlue: '#5B8DEE',
   addPink: '#D85A6A',
   plusGreen: '#5DB87A',
+  saveGreen: '#2E7D32',
 };
 
-/**
- * Модальное окно редактирования данных пользователя (My details).
- * Поля: фото (заглушка), Имя, Фамилия, Номер документа, Телефон, кнопка «Добавить контакт».
- */
-export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave }) {
+export default function AddContactModal({ visible, onClose, onSave, contactType = 'clients', editContact = null }) {
   const { t } = useLanguage();
   const [name, setName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [documentNumber, setDocumentNumber] = useState('');
   const [phone, setPhone] = useState('');
-  const [extraPhones, setExtraPhones] = useState([]);
-  const [extraEmails, setExtraEmails] = useState([]);
+  const [email, setEmail] = useState('');
   const [telegram, setTelegram] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  const [documentNumber, setDocumentNumber] = useState('');
+  const [nationality, setNationality] = useState('');
+  const [birthday, setBirthday] = useState('');
   const [photoUri, setPhotoUri] = useState('');
+  const [extraPhones, setExtraPhones] = useState([]);
+  const [extraEmails, setExtraEmails] = useState([]);
   const [showAddContactChoices, setShowAddContactChoices] = useState(false);
-  const [showTelegramField, setShowTelegramField] = useState(false);
+  const [showTelegramField, setShowTelegramField] = useState(true);
   const [showWhatsappField, setShowWhatsappField] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const scrollRef = useRef(null);
 
   useEffect(() => {
     if (visible) {
-      setName(user.name || '');
-      setLastName(user.lastName || '');
-      setDocumentNumber(user.documentNumber || '');
-      setPhone(user.phone || '');
-      const extras = Array.isArray(user.extraPhones) ? [...user.extraPhones] : [];
-      setExtraPhones(extras);
-      const extEmails = Array.isArray(user.extraEmails) ? [...user.extraEmails] : [];
-      setExtraEmails(extEmails);
-      setTelegram(user.telegram || '');
-      setWhatsapp(user.whatsapp || '');
-      setPhotoUri(user.photoUri || '');
-      setShowAddContactChoices(false);
-      setShowTelegramField(!!(user.telegram || '').trim());
-      setShowWhatsappField(!!(user.whatsapp || '').trim());
+      setTimeout(() => {
+        scrollRef.current?.flashScrollIndicators();
+      }, 400);
     }
-  }, [visible, user.name, user.lastName, user.documentNumber, user.phone, user.extraPhones, user.extraEmails, user.telegram, user.whatsapp, user.photoUri]);
+  }, [visible]);
+
+  useEffect(() => {
+    if (visible) {
+      if (editContact) {
+        setName(editContact.name || '');
+        setLastName(editContact.lastName || '');
+        setPhone(editContact.phone || '');
+        setEmail(editContact.email || '');
+        setTelegram(editContact.telegram || '');
+        setWhatsapp(editContact.whatsapp || '');
+        setDocumentNumber(editContact.documentNumber || '');
+        setNationality(editContact.nationality || '');
+        setBirthday(editContact.birthday || '');
+        setPhotoUri(editContact.photoUri || '');
+        setExtraPhones(Array.isArray(editContact.extraPhones) ? [...editContact.extraPhones] : []);
+        setExtraEmails(Array.isArray(editContact.extraEmails) ? [...editContact.extraEmails] : []);
+        setShowTelegramField(!!(editContact.telegram || '').trim());
+        setShowWhatsappField(!!(editContact.whatsapp || '').trim());
+      } else {
+        setName('');
+        setLastName('');
+        setPhone('');
+        setEmail('');
+        setTelegram('');
+        setWhatsapp('');
+        setDocumentNumber('');
+        setNationality('');
+        setBirthday('');
+        setPhotoUri('');
+        setExtraPhones([]);
+        setExtraEmails([]);
+        setShowAddContactChoices(false);
+        setShowTelegramField(true);
+        setShowWhatsappField(false);
+      }
+    }
+  }, [visible, editContact]);
 
   const handleSave = () => {
+    if (!name.trim()) {
+      Alert.alert(t('error'), t('enterName') || 'Please enter a name.');
+      return;
+    }
     onSave?.({
       name: name.trim(),
       lastName: lastName.trim(),
-      documentNumber: documentNumber.trim(),
       phone: phone.trim(),
-      extraPhones: extraPhones.filter((p) => (p || '').trim()),
-      extraEmails: extraEmails.filter((e) => (e || '').trim()),
+      email: email.trim(),
       telegram: telegram.trim(),
       whatsapp: whatsapp.trim(),
+      documentNumber: documentNumber.trim(),
+      nationality: nationality.trim(),
+      birthday: birthday.trim(),
       photoUri: photoUri || '',
+      extraPhones: extraPhones.filter((p) => (p || '').trim()),
+      extraEmails: extraEmails.filter((e) => (e || '').trim()),
+      type: contactType,
     });
     onClose?.();
   };
@@ -86,11 +122,7 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          'Доступ к галерее',
-          'Чтобы выбрать фото, разрешите доступ к галерее в настройках.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert(t('galleryAccess'), t('galleryAccessMessage'), [{ text: 'OK' }]);
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -107,7 +139,7 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
         return;
       }
       const ext = uri.split('.').pop()?.toLowerCase() || 'jpg';
-      const dest = `${dir}avatar_${Date.now()}.${ext}`;
+      const dest = `${dir}contact_${Date.now()}.${ext}`;
       try {
         await FileSystem.copyAsync({ from: uri, to: dest });
         setPhotoUri(dest);
@@ -117,10 +149,6 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
     } catch (e) {
       Alert.alert(t('pickPhotoError'), e?.message || t('pickPhotoFailed'));
     }
-  };
-
-  const closeAddContactChoices = () => {
-    setShowAddContactChoices(false);
   };
 
   const addExtraPhone = () => {
@@ -158,17 +186,15 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
   };
 
   const confirmRemoveContact = (onConfirm) => {
-    Alert.alert(
-      t('removeContact'),
-      t('removeContactConfirm'),
-      [
-        { text: t('back'), style: 'cancel' },
-        { text: t('remove'), style: 'destructive', onPress: onConfirm },
-      ]
-    );
+    Alert.alert(t('removeContact'), t('removeContactConfirm'), [
+      { text: t('back'), style: 'cancel' },
+      { text: t('remove'), style: 'destructive', onPress: onConfirm },
+    ]);
   };
 
   if (!visible) return null;
+
+  const hasExtraFields = showAddContactChoices || extraPhones.length > 0 || extraEmails.length > 0 || showWhatsappField;
 
   return (
     <Modal transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
@@ -178,29 +204,38 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
         ) : (
           <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
         )}
-          <KeyboardAvoidingView
+        <KeyboardAvoidingView
           style={styles.keyboardWrap}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={40}
         >
-          <Pressable style={[styles.boxWrap, (showAddContactChoices || extraPhones.length > 0 || extraEmails.length > 0 || showTelegramField || showWhatsappField) && styles.boxWrapExpanded]} onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}>
+          <Pressable
+            style={[styles.boxWrap, hasExtraFields && styles.boxWrapExpanded]}
+            onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}
+          >
             <View style={styles.box}>
               <View style={styles.headerRow}>
                 <View style={styles.headerSpacer} />
-                <Text style={styles.title}>{t('myContacts')}</Text>
+                <Text style={styles.title}>
+                  {editContact
+                    ? (contactType === 'owners' ? t('editOwnerTitle') : t('editClientTitle'))
+                    : (contactType === 'owners' ? t('addOwnerTitle') : t('addClientTitle'))
+                  }
+                </Text>
                 <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
                   <Text style={styles.closeIcon}>✕</Text>
                 </TouchableOpacity>
               </View>
 
               <ScrollView
+                ref={scrollRef}
                 style={styles.scroll}
                 contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
+                showsVerticalScrollIndicator={true}
                 keyboardShouldPersistTaps="handled"
                 onScrollBeginDrag={Keyboard.dismiss}
+                indicatorStyle="black"
               >
-                {/* Фото: круг с иконкой и плюсом; по нажатию — выбор из галереи */}
                 <TouchableOpacity style={styles.photoWrap} onPress={pickImage} activeOpacity={0.8}>
                   <View style={styles.photoCircle}>
                     {photoUri ? (
@@ -232,61 +267,27 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder={t('documentNumber')}
-                  placeholderTextColor="#888"
-                  value={documentNumber}
-                  onChangeText={setDocumentNumber}
-                  keyboardType="numeric"
-                  returnKeyType="done"
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder={t('phone')}
+                  placeholder={t('phoneNumber')}
                   placeholderTextColor="#888"
                   value={phone}
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   returnKeyType="done"
                 />
-
-                {extraPhones.map((val, index) => (
-                  <View key={`phone-${index}`} style={styles.extraPhoneRow}>
-                      <TextInput
-                      style={[styles.input, styles.extraInput]}
-                      placeholder={t('extraPhone')}
-                      placeholderTextColor="#888"
-                      value={val}
-                      onChangeText={(t) => updateExtraPhone(index, t)}
-                      keyboardType="phone-pad"
-                      returnKeyType="done"
-                    />
-                    <TouchableOpacity style={styles.removeBtn} onPress={() => confirmRemoveContact(() => removeExtraPhone(index))} activeOpacity={0.8}>
-                      <Text style={styles.removeBtnText}>−</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-
-                {extraEmails.map((val, index) => (
-                  <View key={`email-${index}`} style={styles.extraPhoneRow}>
-                    <TextInput
-                      style={[styles.input, styles.extraInput]}
-                      placeholder={t('extraEmail')}
-                      placeholderTextColor="#888"
-                      value={val}
-                      onChangeText={(t) => updateExtraEmail(index, t)}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                    />
-                    <TouchableOpacity style={styles.removeBtn} onPress={() => confirmRemoveContact(() => removeExtraEmail(index))} activeOpacity={0.8}>
-                      <Text style={styles.removeBtnText}>−</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('email')}
+                  placeholderTextColor="#888"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
 
                 {showTelegramField ? (
                   <TextInput
                     style={styles.input}
-                    placeholder="Telegram"
+                    placeholder={t('telegram')}
                     placeholderTextColor="#888"
                     value={telegram}
                     onChangeText={setTelegram}
@@ -306,6 +307,40 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                   />
                 ) : null}
 
+                {extraPhones.map((val, index) => (
+                  <View key={`phone-${index}`} style={styles.extraRow}>
+                    <TextInput
+                      style={[styles.input, styles.extraInput]}
+                      placeholder={t('extraPhone')}
+                      placeholderTextColor="#888"
+                      value={val}
+                      onChangeText={(v) => updateExtraPhone(index, v)}
+                      keyboardType="phone-pad"
+                      returnKeyType="done"
+                    />
+                    <TouchableOpacity style={styles.removeBtn} onPress={() => confirmRemoveContact(() => removeExtraPhone(index))} activeOpacity={0.8}>
+                      <Text style={styles.removeBtnText}>−</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                {extraEmails.map((val, index) => (
+                  <View key={`email-${index}`} style={styles.extraRow}>
+                    <TextInput
+                      style={[styles.input, styles.extraInput]}
+                      placeholder={t('extraEmail')}
+                      placeholderTextColor="#888"
+                      value={val}
+                      onChangeText={(v) => updateExtraEmail(index, v)}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity style={styles.removeBtn} onPress={() => confirmRemoveContact(() => removeExtraEmail(index))} activeOpacity={0.8}>
+                      <Text style={styles.removeBtnText}>−</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
                 <View style={styles.addContactBlockWrap}>
                   {showAddContactChoices ? (
                     <View style={styles.addContactChoicesRow}>
@@ -315,13 +350,17 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                       <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addExtraEmail} activeOpacity={0.8}>
                         <Image source={require('../../assets/icon-contact-email.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addTelegramField} activeOpacity={0.8}>
-                        <Image source={require('../../assets/icon-contact-telegram.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addWhatsappField} activeOpacity={0.8}>
-                        <Image source={require('../../assets/icon-contact-whatsapp.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.addContactChoiceBtn} onPress={closeAddContactChoices} activeOpacity={0.8}>
+                      {!showTelegramField && (
+                        <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addTelegramField} activeOpacity={0.8}>
+                          <Image source={require('../../assets/icon-contact-telegram.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
+                        </TouchableOpacity>
+                      )}
+                      {!showWhatsappField && (
+                        <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addWhatsappField} activeOpacity={0.8}>
+                          <Image source={require('../../assets/icon-contact-whatsapp.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity style={styles.addContactChoiceBtn} onPress={() => setShowAddContactChoices(false)} activeOpacity={0.8}>
                         <Image source={require('../../assets/icon-contact-cancel.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
                       </TouchableOpacity>
                     </View>
@@ -336,7 +375,33 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                     </Pressable>
                   )}
                 </View>
+
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('numberIdPassport')}
+                  placeholderTextColor="#888"
+                  value={documentNumber}
+                  onChangeText={setDocumentNumber}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('nationality')}
+                  placeholderTextColor="#888"
+                  value={nationality}
+                  onChangeText={setNationality}
+                  autoCapitalize="words"
+                />
+                <TouchableOpacity
+                  style={styles.input}
+                  onPress={() => { Keyboard.dismiss(); setShowDatePicker(true); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={birthday ? styles.inputText : styles.inputPlaceholder}>
+                    {birthday || t('birthdayDate')}
+                  </Text>
+                </TouchableOpacity>
               </ScrollView>
+
               <TouchableOpacity style={styles.saveBtn} onPress={() => { Keyboard.dismiss(); handleSave(); }} activeOpacity={0.7}>
                 <Text style={styles.saveBtnText}>{t('save')}</Text>
               </TouchableOpacity>
@@ -344,6 +409,38 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
           </Pressable>
         </KeyboardAvoidingView>
       </Pressable>
+
+      {showDatePicker && (
+        <Modal transparent animationType="slide" statusBarTranslucent>
+          <Pressable style={styles.datePickerOverlay} onPress={() => setShowDatePicker(false)}>
+            <Pressable style={styles.datePickerContainer} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.datePickerHeader}>
+                <Text style={styles.datePickerTitle}>{t('birthdayDate')}</Text>
+                <TouchableOpacity onPress={() => setShowDatePicker(false)} activeOpacity={0.7}>
+                  <Text style={styles.datePickerDoneText}>OK</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={birthday ? new Date(birthday.split('.').reverse().join('-')) : new Date(1990, 0, 1)}
+                mode="date"
+                display="spinner"
+                maximumDate={new Date()}
+                minimumDate={new Date(1920, 0, 1)}
+                style={styles.datePickerSpinner}
+                onChange={(event, selectedDate) => {
+                  if (selectedDate) {
+                    const d = selectedDate;
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const yyyy = d.getFullYear();
+                    setBirthday(`${dd}.${mm}.${yyyy}`);
+                  }
+                }}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </Modal>
   );
 }
@@ -367,6 +464,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxHeight: '90%',
   },
+  boxWrapExpanded: {},
   box: {
     borderRadius: 20,
     overflow: 'hidden',
@@ -416,28 +514,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
     alignItems: 'center',
-  },
-  saveBtn: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-    marginTop: 4,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: 'rgba(46, 125, 50, 0.5)',
-    backgroundColor: 'rgba(46, 125, 50, 0.06)',
-  },
-  saveBtnText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2E7D32',
-  },
-  addContactBlockWrap: {
-    width: '100%',
-    marginTop: 12,
   },
   photoWrap: {
     marginBottom: 20,
@@ -499,10 +575,51 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  inputBeforeAddContact: {
-    marginBottom: 12,
+  inputText: {
+    fontSize: 16,
+    color: COLORS.title,
   },
-  extraPhoneRow: {
+  inputPlaceholder: {
+    fontSize: 16,
+    color: '#888',
+  },
+  datePickerOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  datePickerContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 30,
+    alignItems: 'center',
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0D8CC',
+  },
+  datePickerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#2C2C2C',
+  },
+  datePickerDoneText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#2E7D32',
+  },
+  datePickerSpinner: {
+    height: 200,
+    width: '100%',
+  },
+  extraRow: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
@@ -524,6 +641,11 @@ const styles = StyleSheet.create({
     color: '#C73E3E',
     fontWeight: '300',
   },
+  addContactBlockWrap: {
+    width: '100%',
+    marginTop: 0,
+    marginBottom: 4,
+  },
   addContactBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -532,7 +654,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 12,
     marginTop: 0,
-    marginBottom: 20,
+    marginBottom: 8,
     minHeight: 48,
     justifyContent: 'center',
   },
@@ -564,5 +686,23 @@ const styles = StyleSheet.create({
   addContactChoiceIcon: {
     width: 23,
     height: 23,
+  },
+  saveBtn: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    marginTop: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(46, 125, 50, 0.5)',
+    backgroundColor: 'rgba(46, 125, 50, 0.06)',
+  },
+  saveBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.saveGreen,
   },
 });

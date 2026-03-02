@@ -19,7 +19,8 @@ import NotificationsModal from '../components/NotificationsModal';
 import CurrencyModal from '../components/CurrencyModal';
 import AddLocationsModal from '../components/AddLocationsModal';
 import { useLanguage } from '../context/LanguageContext';
-import { getAgentByEmail, saveAgent, agentToUser } from '../services/agentsStorage';
+import { updateUserProfile, getCurrentUser } from '../services/authService';
+import { getLocations, createLocation, updateLocation, deleteLocation } from '../services/locationsService';
 
 const COLORS = {
   background: '#F5F2EB',
@@ -54,8 +55,7 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
   const [selectedCurrency, setSelectedCurrency] = useState('');
   const [addLocationsModalVisible, setAddLocationsModalVisible] = useState(false);
-  const [editLocationIndex, setEditLocationIndex] = useState(null);
-  const [editLocation, setEditLocation] = useState('');
+  const [editLocationData, setEditLocationData] = useState(null);
   const [locationsContentHeight, setLocationsContentHeight] = useState(0);
   const [settingsContentHeight, setSettingsContentHeight] = useState(0);
   const { language, setLanguage, t } = useLanguage();
@@ -130,22 +130,28 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
     });
   }, [locationsOpen, locationsHeight, locationsContentHeight]);
 
+  const loadLocations = async () => {
+    try {
+      const locs = await getLocations();
+      setLocations(locs);
+    } catch {}
+  };
+
   useEffect(() => {
     if (!email) return;
-    getAgentByEmail(email).then((agent) => {
-      if (!agent) return;
-      if (agent.language && ['en', 'th', 'ru'].includes(agent.language)) setLanguage(agent.language);
-      setNotificationSettings(agent.notificationSettings || {});
-      setSelectedCurrency(agent.selectedCurrency || '');
-      setLocations(Array.isArray(agent.locations) ? agent.locations : []);
-    });
+    getCurrentUser().then((profile) => {
+      if (!profile) return;
+      if (profile.language && ['en', 'th', 'ru'].includes(profile.language)) setLanguage(profile.language);
+      setNotificationSettings(profile.notificationSettings || {});
+      setSelectedCurrency(profile.selectedCurrency || '');
+    }).catch(() => {});
+    loadLocations();
   }, [email, setLanguage]);
 
   const saveAgentSettings = async (updates) => {
-    if (!email) return;
-    const agent = await getAgentByEmail(email);
-    if (!agent) return;
-    await saveAgent({ ...agent, ...updates });
+    try {
+      await updateUserProfile(updates);
+    } catch {}
   };
 
   return (
@@ -290,10 +296,10 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
           style={styles.locationsMeasureWrap}
           onLayout={(e) => setLocationsContentHeight(e.nativeEvent.layout.height)}
         >
-          {locations.map((loc, i) => (
-            <View key={i} style={styles.locationsItemWrap}>
+          {locations.map((loc) => (
+            <View key={loc.id} style={styles.locationsItemWrap}>
               <View style={styles.locationsItemPencilPlaceholder} />
-              <Text style={styles.locationsItem} numberOfLines={1}>{loc}</Text>
+              <Text style={styles.locationsItem} numberOfLines={1}>{loc.displayName}</Text>
             </View>
           ))}
           <TouchableOpacity style={styles.locationsAddRow} activeOpacity={0.7}>
@@ -317,26 +323,24 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
         </TouchableOpacity>
         <Animated.View style={[styles.locationsExpandedWrap, { height: locationsHeight, overflow: 'hidden' }]}>
           <View style={styles.locationsExpandedInner}>
-            {locations.map((loc, i) => (
+            {locations.map((loc) => (
               <TouchableOpacity
-                key={i}
+                key={loc.id}
                 style={styles.locationsItemWrap}
                 onPress={() => {
-                  setEditLocationIndex(i);
-                  setEditLocation(loc);
+                  setEditLocationData(loc);
                   setAddLocationsModalVisible(true);
                 }}
                 activeOpacity={0.7}
               >
                 <Image source={require('../../assets/pencil-icon.png')} style={styles.locationsItemPencil} resizeMode="contain" />
-                <Text style={styles.locationsItem} numberOfLines={1}>{loc}</Text>
+                <Text style={styles.locationsItem} numberOfLines={1}>{loc.displayName}</Text>
               </TouchableOpacity>
             ))}
             <TouchableOpacity
               style={styles.locationsAddRow}
               onPress={() => {
-                setEditLocationIndex(null);
-                setEditLocation('');
+                setEditLocationData(null);
                 setAddLocationsModalVisible(true);
               }}
               activeOpacity={0.7}
@@ -397,12 +401,10 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
       onClose={() => setEditModalVisible(false)}
       user={user}
       onSave={async (data) => {
-        if (!email) return;
-        const agent = await getAgentByEmail(email);
-        if (!agent) return;
-        const updated = { ...agent, ...data };
-        await saveAgent(updated);
-        onUserUpdate?.(agentToUser(updated));
+        try {
+          const updatedUser = await updateUserProfile(data);
+          onUserUpdate?.(updatedUser);
+        } catch {}
       }}
     />
 
@@ -443,29 +445,34 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
       visible={addLocationsModalVisible}
       onClose={() => {
         setAddLocationsModalVisible(false);
-        setEditLocationIndex(null);
-        setEditLocation('');
+        setEditLocationData(null);
       }}
-      initialLocation={editLocation}
-      editIndex={editLocationIndex}
-      onDelete={() => {
-        if (editLocationIndex === null) return;
-        const next = locations.filter((_, i) => i !== editLocationIndex);
-        setLocations(next);
-        setAddLocationsModalVisible(false);
-        setEditLocationIndex(null);
-        setEditLocation('');
-        saveAgentSettings({ locations: next });
+      editLocationData={editLocationData}
+      editIndex={editLocationData ? 0 : null}
+      onDelete={async () => {
+        if (!editLocationData?.id) return;
+        try {
+          await deleteLocation(editLocationData.id);
+          setAddLocationsModalVisible(false);
+          setEditLocationData(null);
+          loadLocations();
+        } catch (e) {
+          Alert.alert('Error', e.message);
+        }
       }}
-      onSave={(locationStr) => {
-        const next = editLocationIndex !== null
-          ? locations.map((l, i) => (i === editLocationIndex ? locationStr : l))
-          : [...locations, locationStr];
-        setLocations(next);
-        setAddLocationsModalVisible(false);
-        setEditLocationIndex(null);
-        setEditLocation('');
-        saveAgentSettings({ locations: next });
+      onSave={async ({ country, region, city }) => {
+        try {
+          if (editLocationData?.id) {
+            await updateLocation(editLocationData.id, { country, region, city });
+          } else {
+            await createLocation({ country, region, city });
+          }
+          setAddLocationsModalVisible(false);
+          setEditLocationData(null);
+          loadLocations();
+        } catch (e) {
+          Alert.alert('Error', e.message);
+        }
       }}
     />
     </>

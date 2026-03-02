@@ -31,7 +31,8 @@
         {
           "photosPermission": "Приложение использует фото из галереи для аватара профиля."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ]
   }
 }
