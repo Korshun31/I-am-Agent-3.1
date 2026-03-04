@@ -22,6 +22,7 @@ import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { getProperties, createProperty, updateProperty, deleteProperty } from '../services/propertiesService';
 import AddPropertyModal from '../components/AddPropertyModal';
+import FilterBottomSheet from '../components/FilterBottomSheet';
 import PropertyDetailScreen from './PropertyDetailScreen';
 
 const TYPE_COLORS = {
@@ -71,8 +72,13 @@ const COLORS = {
 function PropertyItem({ item, expanded, onToggle, onPress, t }) {
   const arrowAnim = useState(() => new Animated.Value(0))[0];
 
-  const colors = TYPE_COLORS[item.type] || TYPE_COLORS.house;
-  const icon = TYPE_ICONS[item.type] || TYPE_ICONS.house;
+  const cardType = item._parentType
+    ? item._parentType
+    : (item.type || 'house');
+  const colors = TYPE_COLORS[cardType] || TYPE_COLORS.house;
+  const icon = TYPE_ICONS[cardType] || TYPE_ICONS.house;
+  const displayName = item._parentName ? `${item._parentName} › ${item.name || item.code || ''}`.trim() : item.name;
+  const codeDisplay = item.code_suffix ? (item.code ? item.code + ' ' : '') + `(${item.code_suffix})` : item.code;
 
   useEffect(() => {
     Animated.timing(arrowAnim, {
@@ -96,9 +102,9 @@ function PropertyItem({ item, expanded, onToggle, onPress, t }) {
           ) : (
             <Image source={icon} style={styles.propertyIconImage} resizeMode="contain" />
           )}
-          <Text style={styles.propertyName} numberOfLines={1}>{item.name}</Text>
+          <Text style={styles.propertyName} numberOfLines={1}>{displayName}</Text>
         </TouchableOpacity>
-        <Text style={styles.propertyCode}>{item.code}</Text>
+        <Text style={styles.propertyCode}>{codeDisplay}</Text>
         <TouchableOpacity onPress={onToggle} activeOpacity={0.5} style={styles.expandBtn}>
           <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
             <Image source={require('../../assets/icon-arrow-down.png')} style={styles.expandArrowImage} resizeMode="contain" />
@@ -169,6 +175,8 @@ function PropertyItem({ item, expanded, onToggle, onPress, t }) {
 export default function RealEstateScreen() {
   const { t } = useLanguage();
   const [properties, setProperties] = useState([]);
+  const [filterVisible, setFilterVisible] = useState(false);
+  const [filterValues, setFilterValues] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -211,7 +219,7 @@ export default function RealEstateScreen() {
   const toggleExpandAll = () => {
     LayoutAnimation.configureNext(drawerAnimation);
     if (!allExpanded) {
-      setExpandedIds(new Set(sorted.map(p => p.id)));
+      setExpandedIds(new Set(listToShow.map(p => p.id)));
       setAllExpanded(true);
     } else {
       setExpandedIds(new Set());
@@ -257,15 +265,97 @@ export default function RealEstateScreen() {
   };
 
   const topLevel = properties.filter(p => !p.resort_id);
+  const children = properties.filter(p => p.resort_id);
+  const getParent = (id) => properties.find(pr => pr.id === id);
 
-  const filtered = searchQuery.trim()
-    ? topLevel.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
-        p.code.toLowerCase().includes(searchQuery.trim().toLowerCase())
-      )
-    : topLevel;
+  const filterFn = (p, parent) => {
+    if (!filterValues) return true;
+    const f = filterValues;
+    const cityVal = p.city ?? parent?.city;
+    const districtVal = p.district ?? parent?.district;
+    if (f.city && cityVal !== f.city) return false;
+    if (f.districts?.length > 0 && !f.districts.includes(districtVal)) return false;
+    const unitParentType = parent?.type;
+    if (f.types?.length > 0) {
+      const matches = f.types.some(t => {
+        if (t === 'house') return !p.resort_id && p.type === 'house';
+        if (t === 'resort') return unitParentType === 'resort';
+        if (t === 'condo') return unitParentType === 'condo';
+        return false;
+      });
+      if (!matches) return false;
+    }
+    if (f.bedrooms != null && (p.type !== 'house' || p.bedrooms !== f.bedrooms)) return false;
+    const price = p.price_monthly != null ? Number(p.price_monthly) : null;
+    if (f.priceMin != null && (price == null || price < f.priceMin)) return false;
+    if (f.priceMax != null && (price == null || price > f.priceMax)) return false;
+    if (f.pets === true && !p.pets_allowed) return false;
+    if (f.pets === false && p.pets_allowed) return false;
+    if (f.longTerm === true && !p.long_term_booking) return false;
+    if (f.amenities?.length > 0) {
+      const am = p.amenities || {};
+      if (!f.amenities.every(k => am[k])) return false;
+    }
+    return true;
+  };
 
-  const sorted = [...filtered].sort((a, b) => compareByCodeOrName(a, b));
+  const hasActiveFilter = filterValues && (
+    filterValues.city ||
+    (filterValues.districts?.length ?? 0) > 0 ||
+    (filterValues.types?.length ?? 0) > 0 ||
+    filterValues.bedrooms != null ||
+    filterValues.priceMin != null ||
+    filterValues.priceMax != null ||
+    filterValues.pets !== 'any' ||
+    filterValues.longTerm === true ||
+    (filterValues.amenities?.length ?? 0) > 0
+  );
+
+  const q = searchQuery.trim().toLowerCase();
+  const searchMatch = (p, parent) => !q || (
+    (p.name || '').toLowerCase().includes(q) ||
+    (p.code || '').toLowerCase().includes(q) ||
+    (p.code_suffix || '').toLowerCase().includes(q) ||
+    (parent?.name || '').toLowerCase().includes(q)
+  );
+
+  let listToShow;
+  if (hasActiveFilter) {
+    const flatUnits = [];
+    topLevel.filter(p => p.type === 'house').forEach(p => {
+      if (filterFn(p, null) && searchMatch(p, null)) flatUnits.push({ ...p, _parentName: null, _parentType: null });
+    });
+    children.forEach(p => {
+      const parent = getParent(p.resort_id);
+      if (filterFn(p, parent) && searchMatch(p, parent)) {
+        flatUnits.push({ ...p, _parentName: parent?.name || '', _parentType: parent?.type || null });
+      }
+    });
+    listToShow = [...flatUnits].sort((a, b) => {
+      const codeA = (a._parentName ? a._parentName + ' ' : '') + (a.code || '') + (a.code_suffix ? ` ${a.code_suffix}` : '');
+      const codeB = (b._parentName ? b._parentName + ' ' : '') + (b.code || '') + (b.code_suffix ? ` ${b.code_suffix}` : '');
+      return compareByCodeOrName({ code: codeA, name: a.name }, { code: codeB, name: b.name });
+    });
+  } else {
+    const searchFiltered = q
+      ? topLevel.filter(p =>
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.code || '').toLowerCase().includes(q)
+        )
+      : topLevel;
+    listToShow = [...searchFiltered].sort((a, b) => compareByCodeOrName(a, b));
+  }
+
+  const allCities = [
+    ...topLevel.map(p => p.city),
+    ...children.map(p => (getParent(p.resort_id)?.city ?? p.city)),
+  ].filter(Boolean);
+  const uniqueCities = [...new Set(allCities)].sort();
+  const allDistricts = [
+    ...topLevel.map(p => p.district),
+    ...children.map(p => (getParent(p.resort_id)?.district ?? p.district)),
+  ].filter(Boolean);
+  const uniqueDistricts = [...new Set(allDistricts)].sort();
 
   if (selectedProperty) {
     return (
@@ -284,8 +374,8 @@ export default function RealEstateScreen() {
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
         <Text style={styles.headerTitle}>{t('realEstate')}</Text>
-        <TouchableOpacity style={styles.filterBtn} activeOpacity={0.7}>
-          <Text style={styles.filterIcon}>⚙️</Text>
+        <TouchableOpacity style={[styles.filterBtn, hasActiveFilter && styles.filterBtnActive]} onPress={() => setFilterVisible(true)} activeOpacity={0.7}>
+          <Image source={require('../../assets/icon-filter.png')} style={[styles.filterIconImage, hasActiveFilter && styles.filterIconActive]} resizeMode="contain" />
         </TouchableOpacity>
       </View>
 
@@ -321,7 +411,7 @@ export default function RealEstateScreen() {
         <View style={styles.emptyWrap}>
           <ActivityIndicator size="large" color="#999" />
         </View>
-      ) : sorted.length === 0 ? (
+      ) : listToShow.length === 0 ? (
         <View style={styles.emptyWrap}>
           <Text style={styles.emptyText}>{t('realEstateEmpty')}</Text>
         </View>
@@ -331,7 +421,7 @@ export default function RealEstateScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         >
-          {sorted.map((item) => (
+          {listToShow.map((item) => (
             <PropertyItem key={item.id} item={item} expanded={expandedIds.has(item.id)} onToggle={() => toggleItemExpand(item.id)} onPress={() => navigateToProperty(item)} t={t} />
           ))}
         </ScrollView>
@@ -341,6 +431,15 @@ export default function RealEstateScreen() {
         visible={addModalVisible}
         onClose={() => setAddModalVisible(false)}
         onSave={handleSaveProperty}
+      />
+
+      <FilterBottomSheet
+        visible={filterVisible}
+        onClose={() => setFilterVisible(false)}
+        filter={filterValues}
+        onApply={setFilterValues}
+        cities={uniqueCities}
+        districts={uniqueDistricts}
       />
     </View>
   );
@@ -373,8 +472,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  filterIcon: {
-    fontSize: 22,
+  filterBtnActive: {
+    shadowColor: '#5DB87A',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  filterIconImage: {
+    width: 24,
+    height: 24,
+  },
+  filterIconActive: {
+    shadowColor: '#5DB87A',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
   },
   toolbarRow: {
     flexDirection: 'row',
