@@ -14,9 +14,11 @@ import {
   Alert,
   Image,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useLanguage } from '../context/LanguageContext';
 import { getLocations } from '../services/locationsService';
 import { getProperties } from '../services/propertiesService';
@@ -290,21 +292,51 @@ function StepComments({ data, setData, t }) {
   );
 }
 
+const MAX_PHOTO_SIDE = 1600;
+const PHOTO_QUALITY = 0.85;
+const MAX_PHOTOS_PER_PROPERTY = 10;
+
+async function resizePhotoIfNeeded(uri, width, height) {
+  const maxSide = Math.max(width || 0, height || 0);
+  if (maxSide <= MAX_PHOTO_SIDE) return uri;
+  const actions = width >= (height || 1)
+    ? [{ resize: { width: MAX_PHOTO_SIDE } }]
+    : [{ resize: { height: MAX_PHOTO_SIDE } }];
+  const { uri: resized } = await ImageManipulator.manipulateAsync(uri, actions, {
+    compress: PHOTO_QUALITY,
+    format: ImageManipulator.SaveFormat.JPEG,
+  });
+  return resized;
+}
+
 function StepMedia({ data, setData, t }) {
   const photos = Array.isArray(data.photos) ? data.photos : [];
   const videos = Array.isArray(data.videos) ? data.videos : [];
   const [videoUrl, setVideoUrl] = useState('');
+  const [processing, setProcessing] = useState(false);
 
   const pickPhoto = async () => {
+    const remain = MAX_PHOTOS_PER_PROPERTY - photos.length;
+    if (remain <= 0) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      quality: 0.7,
+      quality: 1,
       allowsMultipleSelection: true,
-      selectionLimit: 10,
+      selectionLimit: remain,
     });
     if (!result.canceled && result.assets?.length > 0) {
-      const newUris = result.assets.map(a => a.uri);
-      setData(d => ({ ...d, photos: [...(d.photos || []), ...newUris] }));
+      setProcessing(true);
+      try {
+        const uris = [];
+        const toProcess = result.assets.slice(0, remain);
+        for (const a of toProcess) {
+          const uri = await resizePhotoIfNeeded(a.uri, a.width, a.height);
+          uris.push(uri);
+        }
+        setData(d => ({ ...d, photos: [...(d.photos || []), ...uris].slice(0, MAX_PHOTOS_PER_PROPERTY) }));
+      } finally {
+        setProcessing(false);
+      }
     }
   };
 
@@ -343,11 +375,22 @@ function StepMedia({ data, setData, t }) {
             </TouchableOpacity>
           </View>
         ))}
-        <TouchableOpacity style={s.mediaAddBtn} onPress={pickPhoto} activeOpacity={0.7}>
-          <Text style={s.mediaAddIcon}>+</Text>
-          <Text style={s.mediaAddLabel}>{t('wizAddPhoto')}</Text>
+        {photos.length < MAX_PHOTOS_PER_PROPERTY && (
+        <TouchableOpacity style={s.mediaAddBtn} onPress={pickPhoto} activeOpacity={0.7} disabled={processing}>
+          {processing ? (
+            <ActivityIndicator size="small" color={COLORS.green} />
+          ) : (
+            <>
+              <Text style={s.mediaAddIcon}>+</Text>
+              <Text style={s.mediaAddLabel}>{t('wizAddPhoto')}</Text>
+            </>
+          )}
         </TouchableOpacity>
+        )}
       </View>
+      {photos.length >= MAX_PHOTOS_PER_PROPERTY && (
+        <Text style={s.mediaLimitNote}>{t('wizPhotoLimit')}</Text>
+      )}
 
       <Text style={[s.mediaSectionTitle, { marginTop: 20 }]}>🎬  {t('pdVideo')}</Text>
       {videos.map((url, i) => (
@@ -549,7 +592,7 @@ function buildUpdates(data) {
     market_distance: toNum(data.market_distance),
     description: data.description.trim(),
     comments: data.comments.trim(),
-    photos: data.photos || [],
+    photos: (data.photos || []).slice(0, MAX_PHOTOS_PER_PROPERTY),
     videos: data.videos || [],
     amenities: data.amenities,
     air_conditioners: toNum(data.air_conditioners),
@@ -936,6 +979,7 @@ const s = StyleSheet.create({
   },
   mediaAddIcon: { fontSize: 28, color: COLORS.green, fontWeight: '300', marginTop: -2 },
   mediaAddLabel: { fontSize: 10, color: '#999', marginTop: 2 },
+  mediaLimitNote: { fontSize: 12, color: '#999', fontStyle: 'italic', marginTop: 6 },
 
   videoRow: {
     flexDirection: 'row', alignItems: 'center', marginBottom: 8,

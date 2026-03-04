@@ -43,3 +43,20 @@ export async function uploadPhotos(localUris, onProgress) {
 export function isLocalUri(uri) {
   return uri && (uri.startsWith('file://') || uri.startsWith('ph://') || uri.startsWith('content://'));
 }
+
+export function isStorageUrl(url) {
+  return url && typeof url === 'string' && url.includes('/storage/') && url.includes(BUCKET);
+}
+
+export async function deletePhotoFromStorage(url) {
+  if (!url || !isStorageUrl(url)) return;
+  try {
+    const prefix = `/${BUCKET}/`;
+    const idx = url.indexOf(prefix);
+    if (idx === -1) return;
+    let path = url.slice(idx + prefix.length).split('?')[0];
+    path = decodeURIComponent(path);
+    if (!path) return;
+    await supabase.storage.from(BUCKET).remove([path]);
+  } catch {}
+}

@@ -20,6 +20,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { getProperties, updateProperty } from '../services/propertiesService';
+import { deletePhotoFromStorage } from '../services/storageService';
 import { getContacts } from '../services/contactsService';
 import PropertyEditWizard from '../components/PropertyEditWizard';
 import ContactDetailScreen from './ContactDetailScreen';
@@ -119,7 +120,7 @@ function ResortHouseItem({ item, expanded, onToggle }) {
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
-function PhotoGalleryModal({ visible, photos, initialIndex, onClose }) {
+function PhotoGalleryModal({ visible, photos, initialIndex, onClose, onDeletePhoto, t }) {
   const flatListRef = useRef(null);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
@@ -195,6 +196,32 @@ function PhotoGalleryModal({ visible, photos, initialIndex, onClose }) {
           )}
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={galleryStyles.deleteBtn}
+          onPress={() => {
+            if (photos.length === 0) return;
+            Alert.alert(
+              photos.length === 1 ? (t?.('pdDeletePhoto') || 'Delete photo?') : (t?.('pdDeleteThisPhoto') || 'Delete this photo?'),
+              '',
+              [
+                { text: t?.('cancel') || 'Cancel', style: 'cancel' },
+                {
+                  text: t?.('delete') || 'Delete',
+                  style: 'destructive',
+                  onPress: () => {
+                    const deletedUrl = photos[currentIndex];
+                    const next = photos.filter((_, i) => i !== currentIndex);
+                    onDeletePhoto?.(next, deletedUrl);
+                  },
+                },
+              ]
+            );
+          }}
+          activeOpacity={0.7}
+        >
+          <Image source={require('../../assets/trash-icon.png')} style={galleryStyles.deleteBtnIcon} resizeMode="contain" />
+        </TouchableOpacity>
+
         <FlatList
           ref={flatListRef}
           data={photos}
@@ -251,12 +278,19 @@ const galleryStyles = StyleSheet.create({
   },
   closeText: { fontSize: 20, color: '#FFF', fontWeight: '600' },
   saveBtn: {
-    position: 'absolute', top: 54, left: 20, zIndex: 10,
+    position: 'absolute', bottom: 60, left: 20, zIndex: 10,
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center', justifyContent: 'center',
   },
   saveBtnIcon: { fontSize: 22, color: '#FFF', fontWeight: '700' },
+  deleteBtn: {
+    position: 'absolute', bottom: 60, right: 20, zIndex: 10,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  deleteBtnIcon: { width: 20, height: 20, tintColor: '#FFF' },
   page: { width: SCREEN_W, height: SCREEN_H, justifyContent: 'center', alignItems: 'center' },
   fullImage: { width: SCREEN_W - 20, height: SCREEN_H * 0.7 },
   counter: {
@@ -265,7 +299,7 @@ const galleryStyles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20,
   },
   saveMenu: {
-    position: 'absolute', top: 100, left: 20, zIndex: 20,
+    position: 'absolute', bottom: 110, left: 20, zIndex: 20,
     backgroundColor: 'rgba(40,40,40,0.95)', borderRadius: 14,
     minWidth: 200, overflow: 'hidden',
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12,
@@ -278,6 +312,20 @@ const galleryStyles = StyleSheet.create({
   saveMenuIcon: { fontSize: 18, marginRight: 12 },
   saveMenuText: { fontSize: 15, color: '#FFF', fontWeight: '500' },
 });
+
+function getVideoThumbnailUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const u = url.trim();
+  let id = null;
+  const ytMatch = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (ytMatch) id = { type: 'youtube', id: ytMatch[1] };
+  const vimeoMatch = u.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (vimeoMatch) id = { type: 'vimeo', id: vimeoMatch[1] };
+  if (!id) return null;
+  if (id.type === 'youtube') return `https://img.youtube.com/vi/${id.id}/hqdefault.jpg`;
+  if (id.type === 'vimeo') return `https://vumbnail.com/${id.id}.jpg`;
+  return null;
+}
 
 function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
   return (
@@ -304,13 +352,21 @@ function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
           horizontal
           showsHorizontalScrollIndicator={false}
           keyExtractor={(_, i) => `video-${i}`}
-          renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => onVideoPress(item)} activeOpacity={0.7}>
-              <View style={[styles.mediaThumb, styles.videoThumb]}>
-                <Text style={styles.videoPlayIcon}>▶</Text>
-              </View>
-            </TouchableOpacity>
-          )}
+          renderItem={({ item }) => {
+            const thumbUri = getVideoThumbnailUrl(item);
+            return (
+              <TouchableOpacity onPress={() => onVideoPress(item)} activeOpacity={0.7}>
+                <View style={[styles.mediaThumb, styles.videoThumb]}>
+                  {thumbUri ? (
+                    <Image source={{ uri: thumbUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  ) : null}
+                  <View style={styles.videoPlayOverlay}>
+                    <Text style={styles.videoPlayIcon}>▶</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          }}
           style={styles.mediaList}
         />
       ) : (<Text style={styles.emptyMedia}>{t('pdNoVideos')}</Text>)}
@@ -743,12 +799,35 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     setGalleryVisible(true);
   };
 
+  const handlePhotoDelete = async (newPhotos, deletedUrl) => {
+    if (newPhotos.length === 0) {
+      setGalleryVisible(false);
+    } else {
+      setGalleryIndex(Math.min(galleryIndex, newPhotos.length - 1));
+    }
+    try {
+      await deletePhotoFromStorage(deletedUrl);
+      const updated = await updateProperty(p.id, { photos: newPhotos });
+      setP(prev => ({ ...prev, ...updated }));
+      onPropertyUpdated?.();
+    } catch (e) {
+      Alert.alert(t('error') || 'Error', e.message || 'Failed to delete');
+    }
+  };
+
   const handleVideoPress = (url) => {
     Linking.openURL(url).catch(() => Alert.alert('Error', 'Cannot open link'));
   };
 
   const handleWizardSave = async (updates) => {
     try {
+      const oldPhotos = Array.isArray(p.photos) ? p.photos : [];
+      const newPhotos = Array.isArray(updates.photos) ? updates.photos : [];
+      for (const url of oldPhotos) {
+        if (!newPhotos.includes(url)) {
+          await deletePhotoFromStorage(url);
+        }
+      }
       const updated = await updateProperty(p.id, updates);
       const merged = { ...p, ...updated };
       setP(merged);
@@ -816,6 +895,8 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         photos={allPhotos}
         initialIndex={galleryIndex}
         onClose={() => setGalleryVisible(false)}
+        onDeletePhoto={handlePhotoDelete}
+        t={t}
       />
 
       <PropertyEditWizard
@@ -958,6 +1039,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#333',
+    overflow: 'hidden',
+  },
+  videoPlayOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   videoPlayIcon: {
     fontSize: 28,
