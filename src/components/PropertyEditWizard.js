@@ -459,7 +459,7 @@ function StepAdditional({ data, setData, t, propertyType }) {
       {propertyType === 'house' && (
         <>
           <Field label={t('pdAirCon')} value={data.air_conditioners} onChangeText={v => setData(d => ({ ...d, air_conditioners: v }))} keyboardType="numeric" />
-          <Field label={t('pdInternetSpeed')} value={data.internet_speed} onChangeText={v => setData(d => ({ ...d, internet_speed: v }))} placeholder="300 mbt/s" />
+          <Field label={`${t('pdInternetSpeed')} (${t('pdInternetSpeedUnit')})`} value={data.internet_speed} onChangeText={v => setData(d => ({ ...d, internet_speed: v }))} placeholder="300" keyboardType="numeric" />
         </>
       )}
       <TouchableOpacity style={s.switchRow} onPress={() => setData(d => ({ ...d, pets_allowed: !d.pets_allowed }))} activeOpacity={0.7}>

@@ -39,11 +39,24 @@ const AMENITY_KEYS = [
   'kettle', 'toaster', 'coffee_machine', 'multi_cooker', 'blender',
 ];
 
-const AMENITY_ICONS = {
-  swimming_pool: '🏊', gym: '💪', parking: '🅿️', internet: '📶',
-  tv: '📺', washing_machine: '🫧', dishwasher: '🍽️', fridge: '🧊',
-  stove: '🔥', oven: '♨️', hood: '🌀', microwave: '📡',
-  kettle: '☕', toaster: '🍞', coffee_machine: '☕', multi_cooker: '🍲', blender: '🥤',
+const AMENITY_ICON_SOURCES = {
+  swimming_pool: require('../../assets/icon-amenity-parking.png'),      // file had pool img
+  gym: require('../../assets/icon-amenity-gym.png'),
+  parking: require('../../assets/icon-amenity-internet.png'),           // file had P img
+  internet: require('../../assets/icon-amenity-swimming_pool.png'),     // file had wifi img
+  tv: require('../../assets/icon-amenity-fridge.png'),                  // file had TV img
+  washing_machine: require('../../assets/icon-amenity-washing_machine.png'),
+  dishwasher: require('../../assets/icon-amenity-dishwasher.png'),
+  fridge: require('../../assets/icon-amenity-tv.png'),                  // file had fridge img
+  stove: require('../../assets/icon-amenity-stove.png'),
+  oven: require('../../assets/icon-amenity-hood.png'),                  // file had oven img
+  hood: require('../../assets/icon-amenity-oven.png'),                  // file had hood img
+  microwave: require('../../assets/icon-amenity-microwave.png'),
+  kettle: require('../../assets/icon-amenity-blender.png'),             // file had kettle img
+  toaster: require('../../assets/icon-amenity-toaster.png'),
+  coffee_machine: require('../../assets/icon-amenity-coffee_machine.png'),
+  multi_cooker: require('../../assets/icon-amenity-multi_cooker.png'),
+  blender: require('../../assets/icon-amenity-kettle.png'),             // file had blender img
 };
 
 function SectionBlock({ color, border, children }) {
@@ -70,10 +83,14 @@ function InfoRow({ label, value, isLink, onPress, style, labelBold }) {
   );
 }
 
-function PriceRow({ icon, label, value }) {
+function PriceRow({ icon, iconSource, label, value }) {
   return (
     <View style={styles.priceRow}>
-      <Text style={styles.priceIcon}>{icon}</Text>
+      {iconSource ? (
+        <Image source={iconSource} style={styles.priceIconImg} resizeMode="contain" />
+      ) : (
+        <Text style={styles.priceIcon}>{icon}</Text>
+      )}
       <Text style={styles.priceLabel}>{label}</Text>
       <Text style={styles.priceValue}>{value || '—'}</Text>
     </View>
@@ -431,20 +448,26 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
       </SectionBlock>
 
       <SectionBlock color="rgba(248,187,208,0.4)" border="#F48FB1">
-        <Text style={styles.sectionTitle}>{t('pdAmenities')}</Text>
+        <View style={styles.sectionTitleRow}>
+          <Image source={require('../../assets/icon-amenities.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdAmenities')}</Text>
+        </View>
         <View style={styles.amenitiesGrid}>
-          {AMENITY_KEYS.map((key) => (
+          {AMENITY_KEYS.filter((key) => amenities[key]).map((key) => (
             <View key={key} style={styles.amenityItem}>
-              <Text style={styles.amenityCheck}>{amenities[key] ? '✅' : '⬜'}</Text>
+              <Image source={AMENITY_ICON_SOURCES[key]} style={styles.amenityIconImg} resizeMode="contain" />
               <Text style={styles.amenityLabel}>{t(`amenity_${key}`)}</Text>
             </View>
           ))}
         </View>
+        {!AMENITY_KEYS.some((key) => amenities[key]) && (
+          <Text style={styles.amenityEmpty}>—</Text>
+        )}
       </SectionBlock>
 
       <SectionBlock color="rgba(224,224,224,0.4)" border="#BDBDBD">
-        <InfoRow label={t('pdAirCon')} value={p.air_conditioners != null ? `${p.air_conditioners}  pc` : '—'} />
-        <InfoRow label={t('pdInternetSpeed')} value={p.internet_speed || '—'} />
+        <InfoRow label={t('pdAirCon')} value={p.air_conditioners != null ? `${p.air_conditioners}  pc` : '—'} labelBold />
+        <InfoRow label={t('pdInternetSpeed')} value={p.internet_speed ? `${p.internet_speed} ${t('pdInternetSpeedUnit')}` : '—'} labelBold />
       </SectionBlock>
 
       <SectionBlock color="rgba(224,224,224,0.4)" border="#BDBDBD">
@@ -454,18 +477,20 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         </View>
       </SectionBlock>
 
+      {[p.price_monthly, p.booking_deposit, p.save_deposit, p.commission, p.electricity_price, p.water_price, p.gas_price, p.internet_price, p.cleaning_price, p.exit_cleaning_price].some(v => v != null) && (
       <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
-        <PriceRow icon="💰" label={t('pdPriceMonthly')} value={formatPrice(p.price_monthly)} />
-        <PriceRow icon="💳" label={t('pdBookingDeposit')} value={formatPrice(p.booking_deposit)} />
-        <PriceRow icon="🛡️" label={t('pdSaveDeposit')} value={formatPrice(p.save_deposit)} />
-        <PriceRow icon="💼" label={t('pdCommission')} value={formatPrice(p.commission)} />
-        <PriceRow icon="⚡" label={t('pdElectricity')} value={p.electricity_price != null ? `${p.electricity_price} Thb` : '—'} />
-        <PriceRow icon="💧" label={waterPriceLabel()} value={p.water_price != null ? `${p.water_price} Thb` : '—'} />
-        <PriceRow icon="🔥" label={t('pdGas')} value={p.gas_price != null ? `${p.gas_price} Thb` : '—'} />
-        <PriceRow icon="📶" label={t('pdInternetMonth')} value={formatPrice(p.internet_price)} />
-        <PriceRow icon="🧹" label={t('pdCleaning')} value={formatPrice(p.cleaning_price)} />
-        <PriceRow icon="🧹" label={t('pdExitCleaning')} value={formatPrice(p.exit_cleaning_price)} />
+        {p.price_monthly != null && <PriceRow iconSource={require('../../assets/icon-price-booking-deposit.png')} label={t('pdPriceMonthly')} value={formatPrice(p.price_monthly)} />}
+        {p.booking_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-monthly.png')} label={t('pdBookingDeposit')} value={formatPrice(p.booking_deposit)} />}
+        {p.save_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-commission.png')} label={t('pdSaveDeposit')} value={formatPrice(p.save_deposit)} />}
+        {p.commission != null && <PriceRow iconSource={require('../../assets/icon-price-save-deposit.png')} label={t('pdCommission')} value={formatPrice(p.commission)} />}
+        {p.electricity_price != null && <PriceRow iconSource={require('../../assets/icon-price-electricity.png')} label={t('pdElectricity')} value={`${p.electricity_price} Thb`} />}
+        {p.water_price != null && <PriceRow iconSource={require('../../assets/icon-price-water.png')} label={waterPriceLabel()} value={`${p.water_price} Thb`} />}
+        {p.gas_price != null && <PriceRow iconSource={require('../../assets/icon-price-gas.png')} label={t('pdGas')} value={`${p.gas_price} Thb`} />}
+        {p.internet_price != null && <PriceRow iconSource={require('../../assets/icon-price-exit-cleaning.png')} label={t('pdInternetMonth')} value={formatPrice(p.internet_price)} />}
+        {p.cleaning_price != null && <PriceRow iconSource={require('../../assets/icon-price-internet.png')} label={t('pdCleaning')} value={formatPrice(p.cleaning_price)} />}
+        {p.exit_cleaning_price != null && <PriceRow iconSource={require('../../assets/icon-price-cleaning.png')} label={t('pdExitCleaning')} value={formatPrice(p.exit_cleaning_price)} />}
       </SectionBlock>
+      )}
 
       {p.comments ? (
         <View style={styles.descriptionBlock}>
@@ -1119,13 +1144,19 @@ const styles = StyleSheet.create({
     width: '50%',
     marginBottom: 6,
   },
-  amenityCheck: {
-    fontSize: 14,
-    marginRight: 6,
+  amenityIconImg: {
+    width: 24,
+    height: 24,
+    marginRight: 10,
   },
   amenityLabel: {
     fontSize: 13,
     color: '#2C2C2C',
+  },
+  amenityEmpty: {
+    fontSize: 13,
+    color: '#999',
+    fontStyle: 'italic',
   },
   priceRow: {
     flexDirection: 'row',
@@ -1136,9 +1167,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     width: 26,
   },
+  priceIconImg: {
+    width: 24,
+    height: 24,
+    marginRight: 4,
+  },
   priceLabel: {
     fontSize: 13,
-    color: '#6B6B6B',
+    fontWeight: '700',
+    color: '#2C2C2C',
     flex: 1,
   },
   priceValue: {
