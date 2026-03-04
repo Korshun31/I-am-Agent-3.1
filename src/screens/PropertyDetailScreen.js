@@ -22,7 +22,9 @@ import { useLanguage } from '../context/LanguageContext';
 import { getProperties, updateProperty, createPropertyFull } from '../services/propertiesService';
 import { deletePhotoFromStorage } from '../services/storageService';
 import { getContacts } from '../services/contactsService';
+import { getBookings } from '../services/bookingsService';
 import PropertyEditWizard from '../components/PropertyEditWizard';
+import AddBookingModal from '../components/AddBookingModal';
 import ContactDetailScreen from './ContactDetailScreen';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
@@ -426,8 +428,40 @@ function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
   );
 }
 
-function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onOwner2Press, onPhotoPress, onVideoPress, resort }) {
+function formatBookingDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const day = String(d.getDate()).padStart(2, '0');
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const y = d.getFullYear();
+  return `${day}.${m}.${y}`;
+}
+
+/** Booking number: sequence within year, e.g. 1/26, 2/26. Year from check_in. */
+function getBookingNumber(booking, allBookings) {
+  const year = new Date(booking.checkIn).getFullYear();
+  const yearShort = year % 100;
+  const sameYear = allBookings
+    .filter(x => new Date(x.checkIn).getFullYear() === year)
+    .sort((a, b) => new Date(a.createdAt || a.checkIn) - new Date(b.createdAt || b.checkIn));
+  const idx = sameYear.findIndex(x => x.id === booking.id);
+  const seq = idx >= 0 ? idx + 1 : 0;
+  return `${seq}/${String(yearShort).padStart(2, '0')}`;
+}
+
+function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onOwner2Press, onPhotoPress, onVideoPress, resort, refreshBookingsTrigger }) {
   const amenities = p.amenities || {};
+  const [bookings, setBookings] = useState([]);
+
+  const loadBookings = useCallback(async () => {
+    try {
+      const data = await getBookings(p.id);
+      setBookings(data);
+    } catch {}
+  }, [p.id]);
+
+  useEffect(() => { loadBookings(); }, [loadBookings]);
+  useEffect(() => { if (refreshBookingsTrigger > 0) loadBookings(); }, [refreshBookingsTrigger, loadBookings]);
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const ownerName = p.ownerName || '';
@@ -492,7 +526,23 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
             <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
             <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
           </View>
-        <Text style={styles.emptyMedia}>{t('pdNoBookings')}</Text>
+        {bookings.length > 0 ? (
+          bookings.map((b) => {
+            const bookingNum = getBookingNumber(b, bookings);
+            const codePart = `${codeDisplay} ${bookingNum}`;
+            return (
+              <View key={b.id} style={styles.bookingItem}>
+                <Image source={require('../../assets/icon-booking.png')} style={styles.bookingItemIcon} resizeMode="contain" />
+                <Text style={styles.bookingItemCode} numberOfLines={1}>{codePart}</Text>
+                <Text style={styles.bookingItemDates}>
+                  {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
+                </Text>
+              </View>
+            );
+          })
+        ) : (
+          <Text style={styles.emptyMedia}>{t('pdNoBookings')}</Text>
+        )}
       </SectionBlock>
 
       <SectionBlock color="rgba(248,187,208,0.4)" border="#F48FB1">
@@ -842,6 +892,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const [wizardVisible, setWizardVisible] = useState(false);
   const [addHouseWizardVisible, setAddHouseWizardVisible] = useState(false);
   const [addApartmentWizardVisible, setAddApartmentWizardVisible] = useState(false);
+  const [addBookingVisible, setAddBookingVisible] = useState(false);
   const [refreshResortHousesTrigger, setRefreshResortHousesTrigger] = useState(0);
   const [refreshApartmentsTrigger, setRefreshApartmentsTrigger] = useState(0);
   const [newHouseIdToExpand, setNewHouseIdToExpand] = useState(null);
@@ -850,6 +901,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const [showOwner, setShowOwner] = useState(false);
   const [showOwner2, setShowOwner2] = useState(false);
   const [resort, setResort] = useState(null);
+  const [refreshBookingsTrigger, setRefreshBookingsTrigger] = useState(0);
 
   const loadResortData = useCallback(async (resortId) => {
     if (!resortId) { setResort(null); return; }
@@ -1080,6 +1132,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             onPress={() => {
               if (p.type === 'resort') setAddHouseWizardVisible(true);
               else if (p.type === 'condo') setAddApartmentWizardVisible(true);
+              else if (p.type === 'house') setAddBookingVisible(true);
             }}
           >
             {(p.type === 'resort' || p.type === 'condo') ? (
@@ -1128,6 +1181,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             onPhotoPress={handlePhotoPress}
             onVideoPress={handleVideoPress}
             resort={p.resort_id ? resort : null}
+            refreshBookingsTrigger={refreshBookingsTrigger}
           />
         )}
 
@@ -1166,6 +1220,17 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           parentResort={p}
           onClose={() => setAddApartmentWizardVisible(false)}
           onSave={handleAddApartmentSave}
+        />
+      )}
+      {p.type === 'house' && (
+        <AddBookingModal
+          visible={addBookingVisible}
+          property={p}
+          onClose={() => setAddBookingVisible(false)}
+          onSaved={() => {
+            setAddBookingVisible(false);
+            setRefreshBookingsTrigger(prev => prev + 1);
+          }}
         />
       )}
     </View>
@@ -1342,6 +1407,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#999',
     fontStyle: 'italic',
+  },
+  bookingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
+  },
+  bookingItemIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 10,
+    opacity: 0.8,
+  },
+  bookingItemCode: {
+    flex: 1,
+    fontSize: 15,
+    color: '#C45C6E',
+    fontWeight: '600',
+  },
+  bookingItemDates: {
+    fontSize: 14,
+    color: '#2C2C2C',
   },
   descriptionBlock: {
     marginBottom: 12,
