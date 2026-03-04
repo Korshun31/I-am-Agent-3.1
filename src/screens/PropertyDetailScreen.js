@@ -54,10 +54,10 @@ function SectionBlock({ color, border, children }) {
   );
 }
 
-function InfoRow({ label, value, isLink, onPress }) {
+function InfoRow({ label, value, isLink, onPress, style, labelBold }) {
   return (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel} numberOfLines={1}>{label}</Text>
+    <View style={[styles.infoRow, style]}>
+      <Text style={[styles.infoLabel, labelBold && styles.infoLabelBold]} numberOfLines={1}>{label}</Text>
       <Text style={styles.infoColon}>:</Text>
       {isLink ? (
         <TouchableOpacity onPress={onPress} style={styles.infoValueWrap}>
@@ -330,7 +330,10 @@ function getVideoThumbnailUrl(url) {
 function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
   return (
     <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
-      <Text style={styles.sectionTitle}>📷  {t('pdPhoto')}</Text>
+      <View style={styles.sectionTitleRow}>
+        <Image source={require('../../assets/icon-photo.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+        <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdPhoto')}</Text>
+      </View>
       {photos.length > 0 ? (
         <FlatList
           data={photos}
@@ -345,7 +348,10 @@ function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
           style={styles.mediaList}
         />
       ) : (<Text style={styles.emptyMedia}>{t('pdNoPhotos')}</Text>)}
-      <Text style={[styles.sectionTitle, { marginTop: 12 }]}>🎬  {t('pdVideo')}</Text>
+      <View style={[styles.sectionTitleRow, { marginTop: 12 }]}>
+        <Image source={require('../../assets/icon-video.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+        <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdVideo')}</Text>
+      </View>
       {videos.length > 0 ? (
         <FlatList
           data={videos}
@@ -383,42 +389,44 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
   return (
     <>
       <SectionBlock color="rgba(255,204,0,0.2)" border="#FFCC00">
-        <InfoRow label={t('propertyCode')} value={p.code} />
-        <InfoRow label={t('pdCity')} value={p.city} />
-        <InfoRow label={t('propDistrict')} value={p.district} />
+        <InfoRow label={t('propertyCode')} value={p.code} labelBold />
+        <InfoRow label={t('pdCity')} value={p.city} labelBold />
+        <InfoRow label={t('propDistrict')} value={p.district} labelBold />
         {p.google_maps_link ? (
-          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} />
+          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
         ) : (
-          <InfoRow label={t('pdLocation')} value="—" />
+          <InfoRow label={t('pdLocation')} value="—" labelBold />
         )}
         <View style={styles.divider} />
-        <View style={styles.twoColRow}>
-          <InfoRow label={t('propBedrooms')} value={p.bedrooms != null ? `${p.bedrooms}  pc` : '—'} />
-          <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} />
-        </View>
-        <View style={styles.twoColRow}>
-          <InfoRow label={t('pdBathrooms')} value={p.bathrooms != null ? `${p.bathrooms}  pc` : '—'} />
-          <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} />
-        </View>
-        <InfoRow label={t('pdArea')} value={p.area != null ? `${p.area}  m2` : '—'} />
+        <InfoRow label={t('propBedrooms')} value={p.bedrooms != null ? `${p.bedrooms}  pc` : '—'} labelBold />
+        <InfoRow label={t('pdBathrooms')} value={p.bathrooms != null ? `${p.bathrooms}  pc` : '—'} labelBold />
+        <InfoRow label={t('pdArea')} value={p.area != null ? `${p.area}  m2` : '—'} labelBold />
+        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} labelBold />
+        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} labelBold />
         <View style={styles.divider} />
-        <InfoRow label={t('pdOwner')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} />
-        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} /> : null}
-        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} /> : null}
-        {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} /> : null}
+        <InfoRow label={t('pdOwner')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} labelBold />
+        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} labelBold /> : null}
+        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} labelBold /> : null}
+        {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} labelBold /> : null}
       </SectionBlock>
 
       <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
 
       {p.description ? (
         <View style={styles.descriptionBlock}>
-          <Text style={styles.sectionTitle}>📝  {t('pdDescription')}</Text>
+          <View style={styles.sectionTitleRow}>
+            <Image source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdDescription')}</Text>
+          </View>
           <Text style={styles.descriptionText}>{p.description}</Text>
         </View>
       ) : null}
 
       <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
-        <Text style={styles.sectionTitle}>📅  {t('pdBookingList')}</Text>
+        <View style={styles.sectionTitleRow}>
+            <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
+          </View>
         <Text style={styles.emptyMedia}>{t('pdNoBookings')}</Text>
       </SectionBlock>
 
@@ -440,8 +448,10 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
       </SectionBlock>
 
       <SectionBlock color="rgba(224,224,224,0.4)" border="#BDBDBD">
-        <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : 'NO'} />
-        <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('yes') : 'NO'} />
+        <View style={styles.sectionBlockGap}>
+          <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : 'NO'} style={styles.infoRowNoMargin} labelBold />
+          <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('yes') : 'NO'} style={styles.infoRowNoMargin} labelBold />
+        </View>
       </SectionBlock>
 
       <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
@@ -506,51 +516,54 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
   return (
     <>
       <SectionBlock color="rgba(255,204,0,0.2)" border="#FFCC00">
-        <InfoRow label={t('propertyCode')} value={p.code} />
-        <InfoRow label={t('pdCity')} value={p.city} />
-        <InfoRow label={t('propDistrict')} value={p.district} />
+        <InfoRow label={t('propertyCode')} value={p.code} labelBold />
+        <InfoRow label={t('pdCity')} value={p.city} labelBold />
+        <InfoRow label={t('propDistrict')} value={p.district} labelBold />
         {p.google_maps_link ? (
-          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} />
+          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
         ) : (
-          <InfoRow label={t('pdLocation')} value="—" />
+          <InfoRow label={t('pdLocation')} value="—" labelBold />
         )}
         <View style={styles.divider} />
-        <InfoRow label={t('propHouses')} value={p.houses_count != null ? `${p.houses_count}  pc` : '—'} />
-        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} />
-        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} />
+        <InfoRow label={t('propHouses')} value={p.houses_count != null ? `${p.houses_count}  pc` : '—'} labelBold />
+        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} labelBold />
+        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} labelBold />
         <View style={styles.divider} />
-        <InfoRow label={t('pdOwnerManager')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} />
-        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} /> : null}
-        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} /> : null}
-        {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} /> : null}
+        <InfoRow label={t('pdOwnerManager')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} labelBold />
+        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} labelBold /> : null}
+        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} labelBold /> : null}
+        {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} labelBold /> : null}
       </SectionBlock>
 
       <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
 
       {p.description ? (
         <View style={styles.descriptionBlock}>
-          <Text style={styles.sectionTitle}>📝  {t('pdDescription')}</Text>
+          <View style={styles.sectionTitleRow}>
+            <Image source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdDescription')}</Text>
+          </View>
           <Text style={styles.descriptionText}>{p.description}</Text>
         </View>
       ) : null}
 
       <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
-        <Text style={styles.sectionTitle}>📅  {t('pdBookingList')}</Text>
+        <View style={styles.sectionTitleRow}>
+            <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
+          </View>
         <Text style={styles.emptyMedia}>{t('pdNoBookings')}</Text>
       </SectionBlock>
 
       {/* Houses toolbar */}
       <View style={styles.housesToolbar}>
         <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
-          <Text style={styles.actionCalendar}>📅</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
-          <Image source={require('../../assets/icon-add-property.png')} style={styles.actionIcon} resizeMode="contain" />
+          <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.housesToolbarIcon} resizeMode="contain" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={toggleAllHouses}>
           <Image
             source={allHousesExpanded ? require('../../assets/icon-folder-open.png') : require('../../assets/icon-folder-closed.png')}
-            style={styles.actionIcon}
+            style={styles.housesToolbarIcon}
             resizeMode="contain"
           />
         </TouchableOpacity>
@@ -571,8 +584,10 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
       )}
 
       <SectionBlock color="rgba(224,224,224,0.4)" border="#BDBDBD">
-        <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : 'NO'} />
-        <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('yes') : 'NO'} />
+        <View style={styles.sectionBlockGap}>
+          <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : 'NO'} style={styles.infoRowNoMargin} labelBold />
+          <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('yes') : 'NO'} style={styles.infoRowNoMargin} labelBold />
+        </View>
       </SectionBlock>
 
       {p.comments ? (
@@ -661,49 +676,52 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
   return (
     <>
       <SectionBlock color="rgba(255,204,0,0.2)" border="#FFCC00">
-        <InfoRow label={t('propertyCode')} value={p.code} />
-        <InfoRow label={t('pdCity')} value={p.city} />
-        <InfoRow label={t('propDistrict')} value={p.district} />
+        <InfoRow label={t('propertyCode')} value={p.code} labelBold />
+        <InfoRow label={t('pdCity')} value={p.city} labelBold />
+        <InfoRow label={t('propDistrict')} value={p.district} labelBold />
         {p.google_maps_link ? (
-          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} />
+          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
         ) : (
-          <InfoRow label={t('pdLocation')} value="—" />
+          <InfoRow label={t('pdLocation')} value="—" labelBold />
         )}
         <View style={styles.divider} />
-        <InfoRow label={t('propFloors')} value={p.floors != null ? `${p.floors}` : '—'} />
-        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} />
-        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} />
+        <InfoRow label={t('propFloors')} value={p.floors != null ? `${p.floors}` : '—'} labelBold />
+        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} labelBold />
+        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} labelBold />
         <View style={styles.divider} />
-        <InfoRow label={t('pdReception')} value={p.ownerName || '—'} />
-        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} /> : null}
-        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} /> : null}
+        <InfoRow label={t('pdReception')} value={p.ownerName || '—'} labelBold />
+        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} labelBold /> : null}
+        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} labelBold /> : null}
       </SectionBlock>
 
       <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
 
       {p.description ? (
         <View style={styles.descriptionBlock}>
-          <Text style={styles.sectionTitle}>📝  {t('pdDescription')}</Text>
+          <View style={styles.sectionTitleRow}>
+            <Image source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdDescription')}</Text>
+          </View>
           <Text style={styles.descriptionText}>{p.description}</Text>
         </View>
       ) : null}
 
       <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
-        <Text style={styles.sectionTitle}>📅  {t('pdBookingList')}</Text>
+        <View style={styles.sectionTitleRow}>
+            <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
+          </View>
         <Text style={styles.emptyMedia}>{t('pdNoBookings')}</Text>
       </SectionBlock>
 
       <View style={styles.housesToolbar}>
         <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
-          <Text style={styles.actionCalendar}>📅</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
-          <Image source={require('../../assets/icon-add-property.png')} style={styles.actionIcon} resizeMode="contain" />
+          <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.housesToolbarIcon} resizeMode="contain" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={toggleAll}>
           <Image
             source={allExpanded ? require('../../assets/icon-folder-open.png') : require('../../assets/icon-folder-closed.png')}
-            style={styles.actionIcon}
+            style={styles.housesToolbarIcon}
             resizeMode="contain"
           />
         </TouchableOpacity>
@@ -723,8 +741,10 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
       )}
 
       <SectionBlock color="rgba(224,224,224,0.4)" border="#BDBDBD">
-        <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : 'NO'} />
-        <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('yes') : 'NO'} />
+        <View style={styles.sectionBlockGap}>
+          <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : 'NO'} style={styles.infoRowNoMargin} labelBold />
+          <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('yes') : 'NO'} style={styles.infoRowNoMargin} labelBold />
+        </View>
       </SectionBlock>
 
       {p.comments ? (
@@ -860,25 +880,25 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         <View style={styles.backBtn} />
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.actionBtn} onPress={onDelete} activeOpacity={0.7}>
-            <Image source={require('../../assets/trash-icon.png')} style={styles.actionIcon} resizeMode="contain" />
+      <View style={styles.actionsRow}>
+        <TouchableOpacity style={styles.actionBtn} onPress={onDelete} activeOpacity={0.7}>
+          <Image source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
+        </TouchableOpacity>
+        <View style={styles.actionsRight}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
+            <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
           </TouchableOpacity>
-          <View style={styles.actionsRight}>
-            <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
-              <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
-              {(p.type === 'resort' || p.type === 'condo') ? (
-                <Image source={require('../../assets/icon-add-property.png')} style={styles.actionIcon} resizeMode="contain" />
-              ) : (
-                <Text style={styles.actionCalendar}>📅+</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
+            {(p.type === 'resort' || p.type === 'condo') ? (
+              <Image source={require('../../assets/icon-add-property.png')} style={styles.actionIconLg} resizeMode="contain" />
+            ) : (
+              <Image source={require('../../assets/icon-add-booking.png')} style={styles.actionIconLg} resizeMode="contain" />
+            )}
+          </TouchableOpacity>
         </View>
+      </View>
 
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {p.type === 'resort' ? (
           <ResortDetailContent p={p} t={t} typeColors={typeColors} onOwnerPress={handleOwnerPress} onPhotoPress={handlePhotoPress} onVideoPress={handleVideoPress} />
         ) : p.type === 'condo' ? (
@@ -952,6 +972,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 14,
+    paddingHorizontal: 20,
   },
   actionsRight: {
     flexDirection: 'row',
@@ -971,6 +992,10 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
   },
+  actionIconLg: {
+    width: 24,
+    height: 24,
+  },
   actionCalendar: {
     fontSize: 18,
   },
@@ -979,6 +1004,22 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     padding: 14,
     marginBottom: 12,
+  },
+  sectionBlockGap: {
+    gap: 10,
+  },
+  infoRowNoMargin: {
+    marginBottom: 0,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+  },
+  sectionTitleIcon: {
+    width: 22,
+    height: 22,
   },
   sectionTitle: {
     fontSize: 15,
@@ -995,7 +1036,10 @@ const styles = StyleSheet.create({
   infoLabel: {
     fontSize: 13,
     color: '#2C2C2C',
-    width: 120,
+    width: 165,
+  },
+  infoLabelBold: {
+    fontWeight: '700',
   },
   infoColon: {
     fontSize: 13,
@@ -1105,9 +1149,13 @@ const styles = StyleSheet.create({
   },
   housesToolbar: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 10,
+  },
+  housesToolbarIcon: {
+    width: 24,
+    height: 24,
   },
   resortHouseCard: {
     borderRadius: 14,

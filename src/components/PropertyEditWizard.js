@@ -15,6 +15,7 @@ import {
   Image,
   Dimensions,
   ActivityIndicator,
+  InteractionManager,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
@@ -56,7 +57,9 @@ function Field({ label, value, onChangeText, placeholder, keyboardType, multilin
         placeholderTextColor="#999"
         keyboardType={keyboardType || 'default'}
         returnKeyType={multiline ? 'default' : 'done'}
+        blurOnSubmit={!multiline}
         multiline={multiline}
+        onSubmitEditing={!multiline ? Keyboard.dismiss : undefined}
       />
     </View>
   );
@@ -365,7 +368,10 @@ function StepMedia({ data, setData, t }) {
 
   return (
     <>
-      <Text style={s.mediaSectionTitle}>📷  {t('pdPhoto')}</Text>
+      <View style={s.mediaSectionTitleRow}>
+        <Image source={require('../../assets/icon-photo.png')} style={s.mediaSectionTitleIcon} resizeMode="contain" />
+        <Text style={s.mediaSectionTitle}>{t('pdPhoto')}</Text>
+      </View>
       <View style={s.mediaGrid}>
         {photos.map((uri, i) => (
           <View key={i} style={s.mediaThumbWrap}>
@@ -392,7 +398,10 @@ function StepMedia({ data, setData, t }) {
         <Text style={s.mediaLimitNote}>{t('wizPhotoLimit')}</Text>
       )}
 
-      <Text style={[s.mediaSectionTitle, { marginTop: 20 }]}>🎬  {t('pdVideo')}</Text>
+      <View style={[s.mediaSectionTitleRow, { marginTop: 20 }]}>
+        <Image source={require('../../assets/icon-video.png')} style={s.mediaSectionTitleIcon} resizeMode="contain" />
+        <Text style={s.mediaSectionTitle}>{t('pdVideo')}</Text>
+      </View>
       {videos.map((url, i) => (
         <View key={i} style={s.videoRow}>
           <Text style={s.videoUrl} numberOfLines={1}>{url}</Text>
@@ -661,19 +670,28 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave 
     });
   };
 
-  const goNext = () => {
+  const runAfterKeyboardDismiss = (fn) => {
     Keyboard.dismiss();
-    if (isLast) {
-      handleSave();
-    } else {
-      animateTransition('next', () => setStep(s => s + 1));
-    }
+    InteractionManager.runAfterInteractions(() => {
+      fn();
+    });
+  };
+
+  const goNext = () => {
+    runAfterKeyboardDismiss(() => {
+      if (isLast) {
+        handleSave();
+      } else {
+        animateTransition('next', () => setStep(s => s + 1));
+      }
+    });
   };
 
   const goBack = () => {
-    Keyboard.dismiss();
-    if (isFirst) return;
-    animateTransition('back', () => setStep(s => s - 1));
+    runAfterKeyboardDismiss(() => {
+      if (isFirst) return;
+      animateTransition('back', () => setStep(s => s - 1));
+    });
   };
 
   const handleSave = async () => {
@@ -789,7 +807,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave 
                 {!isLast && (
                   <TouchableOpacity
                     style={s.navSaveIconBtn}
-                    onPress={handleSave}
+                    onPress={() => runAfterKeyboardDismiss(handleSave)}
                     activeOpacity={0.7}
                     disabled={saving}
                   >
@@ -962,7 +980,9 @@ const s = StyleSheet.create({
   },
   newDistrictBtnText: { fontSize: 20, color: '#FFF', fontWeight: '600', marginTop: -1 },
 
-  mediaSectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.title, marginBottom: 10 },
+  mediaSectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
+  mediaSectionTitleIcon: { width: 22, height: 22 },
+  mediaSectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.title },
   mediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   mediaThumbWrap: { width: 90, height: 90, borderRadius: 12, overflow: 'hidden', position: 'relative' },
   mediaThumb: { width: '100%', height: '100%' },

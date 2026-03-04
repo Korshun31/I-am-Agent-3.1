@@ -89,7 +89,7 @@ function PropertyItem({ item, expanded, onToggle, onPress, t }) {
             <Image source={{ uri: item.photos[0] }} style={styles.expandedPhoto} />
           ) : (
             <View style={[styles.expandedPhoto, styles.expandedPhotoPlaceholder]}>
-              <Text style={styles.expandedPhotoPlaceholderText}>📷</Text>
+              <Image source={require('../../assets/icon-photo.png')} style={styles.expandedPhotoPlaceholderIcon} resizeMode="contain" />
             </View>
           )}
           <View style={styles.expandedDetails}>
@@ -476,9 +476,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  expandedPhotoPlaceholderText: {
-    fontSize: 28,
-    opacity: 0.4,
+  expandedPhotoPlaceholderIcon: {
+    width: 36,
+    height: 36,
+    opacity: 0.5,
   },
   expandedDetails: {
     flex: 1,
