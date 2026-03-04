@@ -38,6 +38,28 @@ const TYPE_ICONS = {
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
+/** Parse code/name for sort: letter part + optional trailing digits (e.g. A1, B2, 30). */
+function parseSortKey(s) {
+  const str = String(s ?? '').trim();
+  const m = str.match(/^(.*?)(\d+)$/);
+  if (m) return { prefix: m[1], num: parseInt(m[2], 10) };
+  return { prefix: str, num: null };
+}
+
+/** Sort by code/name: alphabetically by prefix; if same prefix and both end with digits, by numbers ascending. */
+function compareByCodeOrName(a, b) {
+  const codeA = (a.code || a.name || '').trim();
+  const codeB = (b.code || b.name || '').trim();
+  const ka = parseSortKey(codeA);
+  const kb = parseSortKey(codeB);
+  const cmp = ka.prefix.localeCompare(kb.prefix);
+  if (cmp !== 0) return cmp;
+  if (ka.num != null && kb.num != null) return ka.num - kb.num;
+  if (ka.num != null) return 1;
+  if (kb.num != null) return -1;
+  return 0;
+}
+
 const COLORS = {
   background: '#F5F2EB',
   title: '#2C2C2C',
@@ -243,12 +265,7 @@ export default function RealEstateScreen() {
       )
     : topLevel;
 
-  const sorted = [...filtered].sort((a, b) => {
-    const typeOrder = { resort: 0, house: 1, condo: 2 };
-    const diff = (typeOrder[a.type] ?? 1) - (typeOrder[b.type] ?? 1);
-    if (diff !== 0) return diff;
-    return a.name.localeCompare(b.name);
-  });
+  const sorted = [...filtered].sort((a, b) => compareByCodeOrName(a, b));
 
   if (selectedProperty) {
     return (

@@ -348,7 +348,7 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
               <Text style={styles.locationsAddLink}>{t('locationsAddRemove')}</Text>
             </TouchableOpacity>
           </View>
-        </Animated.View>
+          </Animated.View>
       </View>
 
       {/* Contacts — переход на экран контактов */}

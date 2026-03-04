@@ -234,7 +234,9 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
         )}
       </View>
 
-      <Field label={t('pdLocation') + ' (Google Maps)'} value={data.google_maps_link} onChangeText={v => setData(d => ({ ...d, google_maps_link: v }))} placeholder="https://maps.google.com/..." />
+      {!isHouseInResort && (
+        <Field label={t('pdLocation') + ' (Google Maps)'} value={data.google_maps_link} onChangeText={v => setData(d => ({ ...d, google_maps_link: v }))} placeholder="https://maps.google.com/..." />
+      )}
 
       {/* Owner picker */}
       <View style={s.fieldWrap}>
@@ -591,8 +593,8 @@ function getStepsForType(type) {
   ];
   if (type === 'house') {
     base.push({ key: 'amenities', titleKey: 'wizStepAmenities' });
+    base.push({ key: 'additional', titleKey: 'wizStepAdditional' });
   }
-  base.push({ key: 'additional', titleKey: 'wizStepAdditional' });
   if (type === 'house') {
     base.push({ key: 'pricing', titleKey: 'wizStepPricing' });
   }
@@ -694,7 +696,7 @@ function buildUpdates(data) {
   };
 }
 
-export default function PropertyEditWizard({ visible, property, onClose, onSave }) {
+export default function PropertyEditWizard({ visible, property, onClose, onSave, parentResort }) {
   const { t } = useLanguage();
   const [step, setStep] = useState(0);
   const [data, setData] = useState({});

@@ -27,6 +27,26 @@ import ContactDetailScreen from './ContactDetailScreen';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
+/** Sort houses/apartments by internal code: numbers ascending (30,35,37), letters alphabetically */
+function sortByInternalCode(items) {
+  const key = (x) => String(x?.code_suffix ?? x?.code ?? '').trim();
+  return [...items].sort((a, b) => {
+    const sa = key(a);
+    const sb = key(b);
+    const aNum = parseFloat(sa);
+    const bNum = parseFloat(sb);
+    const aDigit = /^\d/.test(sa);
+    const bDigit = /^\d/.test(sb);
+    if (aDigit && bDigit) {
+      if (aNum !== bNum) return aNum - bNum;
+      return sa.localeCompare(sb);
+    }
+    if (aDigit && !bDigit) return -1;
+    if (!aDigit && bDigit) return 1;
+    return sa.localeCompare(sb);
+  });
+}
+
 const BLOCK_COLORS = {
   resort: { bg: 'rgba(168,230,163,0.7)', border: '#A8E6A3' },
   house:  { bg: '#FFF9C4', border: '#FFD54F' },
@@ -406,16 +426,18 @@ function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
   );
 }
 
-function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onPhotoPress, onVideoPress, resort }) {
+function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onOwner2Press, onPhotoPress, onVideoPress, resort }) {
   const amenities = p.amenities || {};
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const ownerName = p.ownerName || '';
+  const owner2Name = p.owner2Name || '';
+  const isApartment = resort?.type === 'condo';
   const beachDistance = p.beach_distance ?? resort?.beach_distance;
   const marketDistance = p.market_distance ?? resort?.market_distance;
   const city = p.city ?? resort?.city;
   const district = p.district ?? resort?.district;
-  const googleMapsLink = p.google_maps_link ?? resort?.google_maps_link;
+  const googleMapsLink = resort ? resort.google_maps_link : p.google_maps_link;
   const codeDisplay = resort
     ? (resort.code || '') + (p.code_suffix ? ` (${p.code_suffix})` : '')
     : p.code;
@@ -438,10 +460,19 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         <InfoRow label={t('propBeach')} value={beachDistance != null ? `${beachDistance}  m` : '—'} labelBold />
         <InfoRow label={t('propMarket')} value={marketDistance != null ? `${marketDistance}  m` : '—'} labelBold />
         <View style={styles.divider} />
-        <InfoRow label={t('pdOwner')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} labelBold />
+        <InfoRow label={isApartment ? t('pdReception') : t('pdOwner')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} labelBold />
         {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} labelBold /> : null}
         {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} labelBold /> : null}
         {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} labelBold /> : null}
+        {isApartment && (p.owner2Name || p.owner2Phone1 || p.owner2Phone2 || p.owner2Telegram) ? (
+          <>
+            <View style={styles.divider} />
+            <InfoRow label={t('pdOwnerContact')} value={owner2Name || '—'} isLink={!!owner2Name} onPress={onOwner2Press} labelBold />
+            {p.owner2Phone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.owner2Phone1} labelBold /> : null}
+            {p.owner2Phone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.owner2Phone2} labelBold /> : null}
+            {p.owner2Telegram ? <InfoRow label={t('telegram')} value={p.owner2Telegram} labelBold /> : null}
+          </>
+        ) : null}
       </SectionBlock>
 
       <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
@@ -530,7 +561,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
   const loadResortHouses = useCallback(async () => {
     try {
       const all = await getProperties();
-      setResortHouses(all.filter(h => h.resort_id === p.id));
+      setResortHouses(sortByInternalCode(all.filter(h => h.resort_id === p.id)));
     } catch {}
   }, [p.id]);
 
@@ -586,6 +617,14 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
 
       <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
 
+      <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
+        <View style={styles.sectionTitleRow}>
+            <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
+          </View>
+        <Text style={styles.emptyMedia}>{t('pdNoBookings')}</Text>
+      </SectionBlock>
+
       {p.description ? (
         <View style={styles.descriptionBlock}>
           <View style={styles.sectionTitleRow}>
@@ -595,14 +634,6 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
           <Text style={styles.descriptionText}>{p.description}</Text>
         </View>
       ) : null}
-
-      <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
-        <View style={styles.sectionTitleRow}>
-            <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
-            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
-          </View>
-        <Text style={styles.emptyMedia}>{t('pdNoBookings')}</Text>
-      </SectionBlock>
 
       {/* Houses toolbar */}
       <View style={styles.housesToolbar}>
@@ -634,13 +665,6 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
         <Text style={styles.emptyHouses}>{t('pdNoHouses')}</Text>
       )}
 
-      <SectionBlock color="rgba(224,224,224,0.4)" border="#BDBDBD">
-        <View style={styles.sectionBlockGap}>
-          <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : 'NO'} style={styles.infoRowNoMargin} labelBold />
-          <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('yes') : 'NO'} style={styles.infoRowNoMargin} labelBold />
-        </View>
-      </SectionBlock>
-
       {p.comments ? (
         <View style={styles.descriptionBlock}>
           <Text style={styles.sectionTitle}>💬  {t('pdComments')}</Text>
@@ -651,7 +675,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
   );
 }
 
-function CondoApartmentItem({ item, expanded, onToggle }) {
+function CondoApartmentItem({ item, expanded, onToggle, onPress }) {
   const arrowAnim = useState(() => new Animated.Value(0))[0];
 
   useEffect(() => {
@@ -667,12 +691,21 @@ function CondoApartmentItem({ item, expanded, onToggle }) {
     outputRange: ['180deg', '0deg'],
   });
 
+  const codeDisplay = (item.code_suffix ? `${item.code || ''} (${item.code_suffix})` : item.code) || '';
+
   return (
     <View style={[styles.resortHouseCard, { backgroundColor: '#BBDEFB', borderColor: '#64B5F6' }]}>
       <View style={styles.resortHouseRow}>
-        <Image source={require('../../assets/icon-property-condo.png')} style={styles.resortHouseIcon} resizeMode="contain" />
-        <Text style={styles.resortHouseName} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.resortHouseCode}>{item.code}</Text>
+        <TouchableOpacity
+          style={styles.resortHouseMainArea}
+          onPress={onPress}
+          activeOpacity={onPress ? 0.7 : 1}
+          disabled={!onPress}
+        >
+          <Image source={require('../../assets/icon-property-condo.png')} style={styles.resortHouseIcon} resizeMode="contain" />
+          <Text style={styles.resortHouseName} numberOfLines={1}>{item.name}</Text>
+          <Text style={styles.resortHouseCode}>{codeDisplay}</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={onToggle} activeOpacity={0.5} style={styles.resortHouseExpandBtn}>
           <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
             <Image source={require('../../assets/icon-arrow-down.png')} style={styles.resortHouseArrow} resizeMode="contain" />
@@ -689,7 +722,7 @@ function CondoApartmentItem({ item, expanded, onToggle }) {
   );
 }
 
-function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress }) {
+function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshApartmentsTrigger, onApartmentPress }) {
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const [apartments, setApartments] = useState([]);
@@ -699,11 +732,12 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
   const loadApartments = useCallback(async () => {
     try {
       const all = await getProperties();
-      setApartments(all.filter(a => a.resort_id === p.id));
+      setApartments(sortByInternalCode(all.filter(a => a.resort_id === p.id)));
     } catch {}
   }, [p.id]);
 
   useEffect(() => { loadApartments(); }, [loadApartments]);
+  useEffect(() => { if (refreshApartmentsTrigger > 0) loadApartments(); }, [refreshApartmentsTrigger, loadApartments]);
 
   const toggleExpand = (id) => {
     setExpandedIds(prev => {
@@ -747,6 +781,14 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
 
       <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
 
+      <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
+        <View style={styles.sectionTitleRow}>
+            <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
+          </View>
+        <Text style={styles.emptyMedia}>{t('pdNoBookings')}</Text>
+      </SectionBlock>
+
       {p.description ? (
         <View style={styles.descriptionBlock}>
           <View style={styles.sectionTitleRow}>
@@ -756,14 +798,6 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
           <Text style={styles.descriptionText}>{p.description}</Text>
         </View>
       ) : null}
-
-      <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
-        <View style={styles.sectionTitleRow}>
-            <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
-            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
-          </View>
-        <Text style={styles.emptyMedia}>{t('pdNoBookings')}</Text>
-      </SectionBlock>
 
       <View style={styles.housesToolbar}>
         <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
@@ -785,18 +819,12 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
             item={a}
             expanded={expandedIds.has(a.id)}
             onToggle={() => toggleExpand(a.id)}
+            onPress={onApartmentPress ? () => onApartmentPress(a) : undefined}
           />
         ))
       ) : (
         <Text style={styles.emptyHouses}>{t('pdNoApartments')}</Text>
       )}
-
-      <SectionBlock color="rgba(224,224,224,0.4)" border="#BDBDBD">
-        <View style={styles.sectionBlockGap}>
-          <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : 'NO'} style={styles.infoRowNoMargin} labelBold />
-          <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('yes') : 'NO'} style={styles.infoRowNoMargin} labelBold />
-        </View>
-      </SectionBlock>
 
       {p.comments ? (
         <View style={styles.descriptionBlock}>
@@ -813,10 +841,14 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const [p, setP] = useState(property);
   const [wizardVisible, setWizardVisible] = useState(false);
   const [addHouseWizardVisible, setAddHouseWizardVisible] = useState(false);
+  const [addApartmentWizardVisible, setAddApartmentWizardVisible] = useState(false);
   const [refreshResortHousesTrigger, setRefreshResortHousesTrigger] = useState(0);
+  const [refreshApartmentsTrigger, setRefreshApartmentsTrigger] = useState(0);
   const [newHouseIdToExpand, setNewHouseIdToExpand] = useState(null);
   const [ownerContact, setOwnerContact] = useState(null);
+  const [owner2Contact, setOwner2Contact] = useState(null);
   const [showOwner, setShowOwner] = useState(false);
+  const [showOwner2, setShowOwner2] = useState(false);
   const [resort, setResort] = useState(null);
 
   const loadResortData = useCallback(async (resortId) => {
@@ -829,24 +861,46 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   }, []);
 
   const loadOwnerData = useCallback(async (prop) => {
-    if (!prop.owner_id) {
-      setP(prev => ({ ...prev, ownerName: '', ownerPhone1: '', ownerPhone2: '', ownerTelegram: '' }));
-      setOwnerContact(null);
-      return;
-    }
     try {
       const owners = await getContacts('owners');
-      const owner = owners.find(o => o.id === prop.owner_id);
-      if (owner) {
-        setOwnerContact(owner);
-        setP(prev => ({
-          ...prev,
-          ownerName: `${owner.name} ${owner.lastName}`.trim(),
-          ownerPhone1: owner.phone || '',
-          ownerPhone2: owner.extraPhones?.[0] || '',
-          ownerTelegram: owner.telegram || '',
-        }));
+      const updates = {};
+      if (prop.owner_id) {
+        const owner = owners.find(o => o.id === prop.owner_id);
+        if (owner) {
+          setOwnerContact(owner);
+          Object.assign(updates, {
+            ownerName: `${owner.name} ${owner.lastName}`.trim(),
+            ownerPhone1: owner.phone || '',
+            ownerPhone2: owner.extraPhones?.[0] || '',
+            ownerTelegram: owner.telegram || '',
+          });
+        } else {
+          setOwnerContact(null);
+          Object.assign(updates, { ownerName: '', ownerPhone1: '', ownerPhone2: '', ownerTelegram: '' });
+        }
+      } else {
+        setOwnerContact(null);
+        Object.assign(updates, { ownerName: '', ownerPhone1: '', ownerPhone2: '', ownerTelegram: '' });
       }
+      if (prop.owner_id_2) {
+        const owner2 = owners.find(o => o.id === prop.owner_id_2);
+        if (owner2) {
+          setOwner2Contact(owner2);
+          Object.assign(updates, {
+            owner2Name: `${owner2.name} ${owner2.lastName}`.trim(),
+            owner2Phone1: owner2.phone || '',
+            owner2Phone2: owner2.extraPhones?.[0] || '',
+            owner2Telegram: owner2.telegram || '',
+          });
+        } else {
+          setOwner2Contact(null);
+          Object.assign(updates, { owner2Name: '', owner2Phone1: '', owner2Phone2: '', owner2Telegram: '' });
+        }
+      } else {
+        setOwner2Contact(null);
+        Object.assign(updates, { owner2Name: '', owner2Phone1: '', owner2Phone2: '', owner2Telegram: '' });
+      }
+      setP(prev => ({ ...prev, ...updates }));
     } catch {}
   }, []);
 
@@ -881,6 +935,10 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
   const handleOwnerPress = () => {
     if (ownerContact) setShowOwner(true);
+  };
+
+  const handleOwner2Press = () => {
+    if (owner2Contact) setShowOwner2(true);
   };
 
   const [galleryVisible, setGalleryVisible] = useState(false);
@@ -943,12 +1001,34 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     district: p.district || '',
   };
 
+  const draftApartmentInCondo = {
+    type: 'house',
+    resort_id: p.id,
+    name: '',
+    code: p.code || '',
+    city: p.city || '',
+    location_id: p.location_id || null,
+    owner_id: p.owner_id || null,
+    district: p.district || '',
+  };
+
   const handleAddHouseSave = async (updates) => {
     try {
       const created = await createPropertyFull({ ...updates, resort_id: p.id });
       setAddHouseWizardVisible(false);
       setNewHouseIdToExpand(created.id);
       setRefreshResortHousesTrigger(prev => prev + 1);
+      onPropertyUpdated?.();
+    } catch (e) {
+      throw e;
+    }
+  };
+
+  const handleAddApartmentSave = async (updates) => {
+    try {
+      await createPropertyFull({ ...updates, resort_id: p.id });
+      setAddApartmentWizardVisible(false);
+      setRefreshApartmentsTrigger(prev => prev + 1);
       onPropertyUpdated?.();
     } catch (e) {
       throw e;
@@ -962,6 +1042,16 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         onBack={() => setShowOwner(false)}
         onContactUpdated={() => loadOwnerData(p)}
         onContactDeleted={() => { setShowOwner(false); setOwnerContact(null); }}
+      />
+    );
+  }
+  if (showOwner2 && owner2Contact) {
+    return (
+      <ContactDetailScreen
+        contact={owner2Contact}
+        onBack={() => setShowOwner2(false)}
+        onContactUpdated={() => loadOwnerData(p)}
+        onContactDeleted={() => { setShowOwner2(false); setOwner2Contact(null); }}
       />
     );
   }
@@ -984,7 +1074,14 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
             <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={() => p.type === 'resort' && setAddHouseWizardVisible(true)}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            activeOpacity={0.7}
+            onPress={() => {
+              if (p.type === 'resort') setAddHouseWizardVisible(true);
+              else if (p.type === 'condo') setAddApartmentWizardVisible(true);
+            }}
+          >
             {(p.type === 'resort' || p.type === 'condo') ? (
               <Image source={require('../../assets/icon-add-property.png')} style={styles.actionIconLg} resizeMode="contain" />
             ) : (
@@ -1009,9 +1106,29 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             onHousePress={onSelectProperty ? (h) => onSelectProperty(h) : undefined}
           />
         ) : p.type === 'condo' ? (
-          <CondoDetailContent p={p} t={t} typeColors={typeColors} onOwnerPress={handleOwnerPress} onPhotoPress={handlePhotoPress} onVideoPress={handleVideoPress} />
+          <CondoDetailContent
+            p={p}
+            t={t}
+            typeColors={typeColors}
+            onOwnerPress={handleOwnerPress}
+            onPhotoPress={handlePhotoPress}
+            onVideoPress={handleVideoPress}
+            refreshApartmentsTrigger={refreshApartmentsTrigger}
+            onApartmentPress={onSelectProperty ? (a) => onSelectProperty(a) : undefined}
+          />
         ) : (
-          <HouseDetailContent p={p} t={t} typeColors={typeColors} formatPrice={formatPrice} waterPriceLabel={waterPriceLabel} onOwnerPress={handleOwnerPress} onPhotoPress={handlePhotoPress} onVideoPress={handleVideoPress} resort={p.resort_id ? resort : null} />
+          <HouseDetailContent
+            p={p}
+            t={t}
+            typeColors={typeColors}
+            formatPrice={formatPrice}
+            waterPriceLabel={waterPriceLabel}
+            onOwnerPress={handleOwnerPress}
+            onOwner2Press={handleOwner2Press}
+            onPhotoPress={handlePhotoPress}
+            onVideoPress={handleVideoPress}
+            resort={p.resort_id ? resort : null}
+          />
         )}
 
         <View style={{ height: 100 }} />
@@ -1029,6 +1146,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       <PropertyEditWizard
         visible={wizardVisible}
         property={p}
+        parentResort={p.resort_id ? resort : null}
         onClose={() => setWizardVisible(false)}
         onSave={handleWizardSave}
       />
@@ -1036,8 +1154,18 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         <PropertyEditWizard
           visible={addHouseWizardVisible}
           property={draftHouseInResort}
+          parentResort={p}
           onClose={() => setAddHouseWizardVisible(false)}
           onSave={handleAddHouseSave}
+        />
+      )}
+      {p.type === 'condo' && (
+        <PropertyEditWizard
+          visible={addApartmentWizardVisible}
+          property={draftApartmentInCondo}
+          parentResort={p}
+          onClose={() => setAddApartmentWizardVisible(false)}
+          onSave={handleAddApartmentSave}
         />
       )}
     </View>
