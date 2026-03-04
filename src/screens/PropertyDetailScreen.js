@@ -19,7 +19,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
-import { getProperties, updateProperty } from '../services/propertiesService';
+import { getProperties, updateProperty, createPropertyFull } from '../services/propertiesService';
 import { deletePhotoFromStorage } from '../services/storageService';
 import { getContacts } from '../services/contactsService';
 import PropertyEditWizard from '../components/PropertyEditWizard';
@@ -97,7 +97,7 @@ function PriceRow({ icon, iconSource, label, value }) {
   );
 }
 
-function ResortHouseItem({ item, expanded, onToggle }) {
+function ResortHouseItem({ item, expanded, onToggle, resortCode, onPress }) {
   const arrowAnim = useState(() => new Animated.Value(0))[0];
 
   useEffect(() => {
@@ -113,12 +113,21 @@ function ResortHouseItem({ item, expanded, onToggle }) {
     outputRange: ['180deg', '0deg'],
   });
 
+  const codeDisplay = (resortCode != null ? resortCode : item.code) + (item.code_suffix ? ` (${item.code_suffix})` : '');
+
   return (
     <View style={[styles.resortHouseCard, { backgroundColor: '#FFF9C4', borderColor: '#FFD54F' }]}>
       <View style={styles.resortHouseRow}>
-        <Image source={require('../../assets/icon-property-house.png')} style={styles.resortHouseIcon} resizeMode="contain" />
-        <Text style={styles.resortHouseName} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.resortHouseCode}>{item.code}</Text>
+        <TouchableOpacity
+          style={styles.resortHouseMainArea}
+          onPress={onPress}
+          activeOpacity={onPress ? 0.7 : 1}
+          disabled={!onPress}
+        >
+          <Image source={require('../../assets/icon-property-house.png')} style={styles.resortHouseIcon} resizeMode="contain" />
+          <Text style={styles.resortHouseName} numberOfLines={1}>{item.name}</Text>
+          <Text style={styles.resortHouseCode}>{codeDisplay}</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={onToggle} activeOpacity={0.5} style={styles.resortHouseExpandBtn}>
           <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
             <Image source={require('../../assets/icon-arrow-down.png')} style={styles.resortHouseArrow} resizeMode="contain" />
@@ -397,20 +406,28 @@ function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
   );
 }
 
-function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onPhotoPress, onVideoPress }) {
+function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onPhotoPress, onVideoPress, resort }) {
   const amenities = p.amenities || {};
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const ownerName = p.ownerName || '';
+  const beachDistance = p.beach_distance ?? resort?.beach_distance;
+  const marketDistance = p.market_distance ?? resort?.market_distance;
+  const city = p.city ?? resort?.city;
+  const district = p.district ?? resort?.district;
+  const googleMapsLink = p.google_maps_link ?? resort?.google_maps_link;
+  const codeDisplay = resort
+    ? (resort.code || '') + (p.code_suffix ? ` (${p.code_suffix})` : '')
+    : p.code;
 
   return (
     <>
       <SectionBlock color="rgba(255,204,0,0.2)" border="#FFCC00">
-        <InfoRow label={t('propertyCode')} value={p.code} labelBold />
-        <InfoRow label={t('pdCity')} value={p.city} labelBold />
-        <InfoRow label={t('propDistrict')} value={p.district} labelBold />
-        {p.google_maps_link ? (
-          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
+        <InfoRow label={t('propertyCode')} value={codeDisplay} labelBold />
+        <InfoRow label={t('pdCity')} value={city} labelBold />
+        <InfoRow label={t('propDistrict')} value={district} labelBold />
+        {googleMapsLink ? (
+          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(googleMapsLink)} labelBold />
         ) : (
           <InfoRow label={t('pdLocation')} value="—" labelBold />
         )}
@@ -418,8 +435,8 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         <InfoRow label={t('propBedrooms')} value={p.bedrooms != null ? `${p.bedrooms}  pc` : '—'} labelBold />
         <InfoRow label={t('pdBathrooms')} value={p.bathrooms != null ? `${p.bathrooms}  pc` : '—'} labelBold />
         <InfoRow label={t('pdArea')} value={p.area != null ? `${p.area}  m2` : '—'} labelBold />
-        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} labelBold />
-        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} labelBold />
+        <InfoRow label={t('propBeach')} value={beachDistance != null ? `${beachDistance}  m` : '—'} labelBold />
+        <InfoRow label={t('propMarket')} value={marketDistance != null ? `${marketDistance}  m` : '—'} labelBold />
         <View style={styles.divider} />
         <InfoRow label={t('pdOwner')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} labelBold />
         {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} labelBold /> : null}
@@ -502,7 +519,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
   );
 }
 
-function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress }) {
+function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshResortHousesTrigger, newHouseIdToExpand, onExpandedNewHouse, onHousePress }) {
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const ownerName = p.ownerName || '';
@@ -518,6 +535,13 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
   }, [p.id]);
 
   useEffect(() => { loadResortHouses(); }, [loadResortHouses]);
+  useEffect(() => { if (refreshResortHousesTrigger > 0) loadResortHouses(); }, [refreshResortHousesTrigger, loadResortHouses]);
+  useEffect(() => {
+    if (newHouseIdToExpand && resortHouses.some(h => h.id === newHouseIdToExpand)) {
+      setExpandedHouseIds(prev => new Set([...prev, newHouseIdToExpand]));
+      onExpandedNewHouse?.();
+    }
+  }, [newHouseIdToExpand, resortHouses, onExpandedNewHouse]);
 
   const toggleHouseExpand = (id) => {
     setExpandedHouseIds(prev => {
@@ -600,8 +624,10 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
           <ResortHouseItem
             key={h.id}
             item={h}
+            resortCode={p.code}
             expanded={expandedHouseIds.has(h.id)}
             onToggle={() => toggleHouseExpand(h.id)}
+            onPress={onHousePress ? () => onHousePress(h) : undefined}
           />
         ))
       ) : (
@@ -782,12 +808,25 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
   );
 }
 
-export default function PropertyDetailScreen({ property, onBack, onDelete, onPropertyUpdated }) {
+export default function PropertyDetailScreen({ property, onBack, onDelete, onPropertyUpdated, onSelectProperty }) {
   const { t } = useLanguage();
   const [p, setP] = useState(property);
   const [wizardVisible, setWizardVisible] = useState(false);
+  const [addHouseWizardVisible, setAddHouseWizardVisible] = useState(false);
+  const [refreshResortHousesTrigger, setRefreshResortHousesTrigger] = useState(0);
+  const [newHouseIdToExpand, setNewHouseIdToExpand] = useState(null);
   const [ownerContact, setOwnerContact] = useState(null);
   const [showOwner, setShowOwner] = useState(false);
+  const [resort, setResort] = useState(null);
+
+  const loadResortData = useCallback(async (resortId) => {
+    if (!resortId) { setResort(null); return; }
+    try {
+      const all = await getProperties();
+      const r = all.find(pr => pr.id === resortId);
+      setResort(r || null);
+    } catch { setResort(null); }
+  }, []);
 
   const loadOwnerData = useCallback(async (prop) => {
     if (!prop.owner_id) {
@@ -815,6 +854,15 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     setP(property);
     loadOwnerData(property);
   }, [property, loadOwnerData]);
+
+  useEffect(() => {
+    loadResortData(property?.resort_id);
+  }, [property?.resort_id, loadResortData]);
+
+  const scrollViewRef = useRef(null);
+  useEffect(() => {
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+  }, [property?.id]);
 
   const typeColors = BLOCK_COLORS[p.type] || BLOCK_COLORS.house;
 
@@ -884,6 +932,29 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     }
   };
 
+  const draftHouseInResort = {
+    type: 'house',
+    resort_id: p.id,
+    name: '',
+    code: p.code || '',
+    city: p.city || '',
+    location_id: p.location_id || null,
+    owner_id: p.owner_id || null,
+    district: p.district || '',
+  };
+
+  const handleAddHouseSave = async (updates) => {
+    try {
+      const created = await createPropertyFull({ ...updates, resort_id: p.id });
+      setAddHouseWizardVisible(false);
+      setNewHouseIdToExpand(created.id);
+      setRefreshResortHousesTrigger(prev => prev + 1);
+      onPropertyUpdated?.();
+    } catch (e) {
+      throw e;
+    }
+  };
+
   if (showOwner && ownerContact) {
     return (
       <ContactDetailScreen
@@ -913,7 +984,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
             <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={() => p.type === 'resort' && setAddHouseWizardVisible(true)}>
             {(p.type === 'resort' || p.type === 'condo') ? (
               <Image source={require('../../assets/icon-add-property.png')} style={styles.actionIconLg} resizeMode="contain" />
             ) : (
@@ -923,13 +994,24 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         </View>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollViewRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {p.type === 'resort' ? (
-          <ResortDetailContent p={p} t={t} typeColors={typeColors} onOwnerPress={handleOwnerPress} onPhotoPress={handlePhotoPress} onVideoPress={handleVideoPress} />
+          <ResortDetailContent
+            p={p}
+            t={t}
+            typeColors={typeColors}
+            onOwnerPress={handleOwnerPress}
+            onPhotoPress={handlePhotoPress}
+            onVideoPress={handleVideoPress}
+            refreshResortHousesTrigger={refreshResortHousesTrigger}
+            newHouseIdToExpand={newHouseIdToExpand}
+            onExpandedNewHouse={() => setNewHouseIdToExpand(null)}
+            onHousePress={onSelectProperty ? (h) => onSelectProperty(h) : undefined}
+          />
         ) : p.type === 'condo' ? (
           <CondoDetailContent p={p} t={t} typeColors={typeColors} onOwnerPress={handleOwnerPress} onPhotoPress={handlePhotoPress} onVideoPress={handleVideoPress} />
         ) : (
-          <HouseDetailContent p={p} t={t} typeColors={typeColors} formatPrice={formatPrice} waterPriceLabel={waterPriceLabel} onOwnerPress={handleOwnerPress} onPhotoPress={handlePhotoPress} onVideoPress={handleVideoPress} />
+          <HouseDetailContent p={p} t={t} typeColors={typeColors} formatPrice={formatPrice} waterPriceLabel={waterPriceLabel} onOwnerPress={handleOwnerPress} onPhotoPress={handlePhotoPress} onVideoPress={handleVideoPress} resort={p.resort_id ? resort : null} />
         )}
 
         <View style={{ height: 100 }} />
@@ -950,6 +1032,14 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         onClose={() => setWizardVisible(false)}
         onSave={handleWizardSave}
       />
+      {p.type === 'resort' && (
+        <PropertyEditWizard
+          visible={addHouseWizardVisible}
+          property={draftHouseInResort}
+          onClose={() => setAddHouseWizardVisible(false)}
+          onSave={handleAddHouseSave}
+        />
+      )}
     </View>
   );
 }
@@ -1205,6 +1295,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 14,
+  },
+  resortHouseMainArea: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
   },
   resortHouseIcon: {
     width: 28,

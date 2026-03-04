@@ -65,10 +65,11 @@ function Field({ label, value, onChangeText, placeholder, keyboardType, multilin
   );
 }
 
-function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, owners, onNewOwnerCreated }) {
+function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, owners, onNewOwnerCreated, resortId, resortCode }) {
   const [cityOpen, setCityOpen] = useState(false);
   const [districtOpen, setDistrictOpen] = useState(false);
   const [ownerOpen, setOwnerOpen] = useState(false);
+  const [owner2Open, setOwner2Open] = useState(false);
   const [addOwnerModal, setAddOwnerModal] = useState(false);
   const [newDistrict, setNewDistrict] = useState('');
 
@@ -76,6 +77,7 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
     if (except !== 'city') setCityOpen(false);
     if (except !== 'district') setDistrictOpen(false);
     if (except !== 'owner') setOwnerOpen(false);
+    if (except !== 'owner2') setOwner2Open(false);
   };
 
   const handleSelectLocation = (loc) => {
@@ -110,6 +112,16 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
     setOwnerOpen(false);
   };
 
+  const handleSelectOwner2 = (owner) => {
+    setData(d => ({ ...d, owner_id_2: owner.id, _owner2Name: `${owner.name} ${owner.lastName}`.trim() }));
+    setOwner2Open(false);
+  };
+
+  const handleClearOwner2 = () => {
+    setData(d => ({ ...d, owner_id_2: null, _owner2Name: '' }));
+    setOwner2Open(false);
+  };
+
   const handleNewOwnerSave = async (contactData) => {
     try {
       const newOwner = await createContact({ ...contactData, type: 'owners' });
@@ -122,11 +134,28 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
   };
 
   const ownerDisplay = data._ownerName || (owners || []).find(o => o.id === data.owner_id)?.name || '';
+  const owner2Display = data._owner2Name || (owners || []).find(o => o.id === data.owner_id_2)?.name || '';
+  const isHouseInResort = Boolean(resortId);
 
   return (
     <>
       <Field label={t('propertyName')} value={data.name} onChangeText={v => setData(d => ({ ...d, name: v }))} />
-      <Field label={t('propertyCode')} value={data.code} onChangeText={v => setData(d => ({ ...d, code: v }))} />
+      {isHouseInResort ? (
+        <>
+          <View style={s.fieldWrap}>
+            <Text style={s.fieldLabel}>{t('wizResortCode')}</Text>
+            <Text style={[s.pickerBtnText, { paddingVertical: 10 }]}>{resortCode || data.code || '—'}</Text>
+          </View>
+          <Field
+            label={t('wizInternalCodeSuffix')}
+            value={data.code_suffix}
+            onChangeText={v => setData(d => ({ ...d, code_suffix: v }))}
+            placeholder="72-А"
+          />
+        </>
+      ) : (
+        <Field label={t('propertyCode')} value={data.code} onChangeText={v => setData(d => ({ ...d, code: v }))} />
+      )}
 
       {/* City picker */}
       <View style={s.fieldWrap}>
@@ -250,6 +279,44 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
           </View>
         )}
       </View>
+
+      {isHouseInResort && (
+        <View style={s.fieldWrap}>
+          <Text style={s.fieldLabel}>{t('wizAdditionalOwner')}</Text>
+          <TouchableOpacity
+            style={s.pickerBtn}
+            onPress={() => { closeAllPickers('owner2'); setOwner2Open(!owner2Open); }}
+            activeOpacity={0.7}
+          >
+            <Text style={[s.pickerBtnText, !data.owner_id_2 && s.pickerBtnPlaceholder]}>
+              {owner2Display || t('wizSelectOwner')}
+            </Text>
+            <Text style={s.pickerArrow}>{owner2Open ? '▲' : '▼'}</Text>
+          </TouchableOpacity>
+          {owner2Open && (
+            <View style={s.pickerDropdown}>
+              {data.owner_id_2 && (
+                <TouchableOpacity style={s.pickerItemClear} onPress={handleClearOwner2} activeOpacity={0.7}>
+                  <Text style={s.pickerItemClearText}>✕  {t('wizClearOwner')}</Text>
+                </TouchableOpacity>
+              )}
+              {(owners || []).map(owner => (
+                <TouchableOpacity
+                  key={owner.id}
+                  style={[s.pickerItem, data.owner_id_2 === owner.id && s.pickerItemActive]}
+                  onPress={() => handleSelectOwner2(owner)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.pickerItemCity, data.owner_id_2 === owner.id && s.pickerItemCityActive]}>
+                    {`${owner.name} ${owner.lastName}`.trim()}
+                  </Text>
+                  {owner.phone ? <Text style={s.pickerItemSub}>{owner.phone}</Text> : null}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
 
       <AddContactModal
         visible={addOwnerModal}
@@ -541,10 +608,13 @@ function buildInitialData(p) {
   return {
     name: p.name || '',
     code: p.code || '',
+    code_suffix: p.code_suffix || '',
     city: p.city || '',
     location_id: p.location_id || null,
     owner_id: p.owner_id || null,
+    owner_id_2: p.owner_id_2 || null,
     _ownerName: '',
+    _owner2Name: '',
     district: p.district || '',
     google_maps_link: p.google_maps_link || '',
     bedrooms: toStr(p.bedrooms),
@@ -587,9 +657,11 @@ function buildUpdates(data) {
   return {
     name: data.name.trim(),
     code: data.code.trim(),
+    code_suffix: (data.code_suffix || '').trim(),
     city: data.city.trim(),
     location_id: data.location_id || null,
     owner_id: data.owner_id || null,
+    owner_id_2: data.owner_id_2 || null,
     district: data.district.trim(),
     google_maps_link: data.google_maps_link.trim(),
     bedrooms: toNum(data.bedrooms),
@@ -729,7 +801,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave 
 
   const renderStep = () => {
     switch (currentStep.key) {
-      case 'info': return <StepInfo data={data} setData={setData} t={t} propertyType={property.type} locations={locations} knownDistricts={knownDistricts} owners={owners} onNewOwnerCreated={loadOwners} />;
+      case 'info': return <StepInfo data={data} setData={setData} t={t} propertyType={property.type} locations={locations} knownDistricts={knownDistricts} owners={owners} onNewOwnerCreated={loadOwners} resortId={property?.resort_id} resortCode={property?.code} />;
       case 'chars': return <StepCharacteristics data={data} setData={setData} t={t} propertyType={property.type} />;
       case 'desc': return <StepDescription data={data} setData={setData} t={t} />;
       case 'media': return <StepMedia data={data} setData={setData} t={t} />;

@@ -39,6 +39,26 @@ export async function createProperty({ name, code, type, location_id, owner_id }
   return data;
 }
 
+/** Create a full property (e.g. house in resort) with all fields. */
+export async function createPropertyFull(updates) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('Not authenticated');
+
+  const row = {
+    agent_id: session.user.id,
+    ...updates,
+  };
+
+  const { data, error } = await supabase
+    .from('properties')
+    .insert(row)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function updateProperty(id, updates) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');

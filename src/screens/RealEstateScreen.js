@@ -153,6 +153,18 @@ export default function RealEstateScreen() {
   const [allExpanded, setAllExpanded] = useState(false);
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [selectedProperty, setSelectedProperty] = useState(null);
+  const [backTarget, setBackTarget] = useState(null);
+
+  const navigateToProperty = (property) => {
+    setBackTarget(selectedProperty);
+    setSelectedProperty(property);
+  };
+
+  const handleBack = () => {
+    const target = backTarget;
+    setBackTarget(null);
+    setSelectedProperty(target ?? null);
+  };
 
   const loadProperties = useCallback(async () => {
     setLoading(true);
@@ -242,9 +254,10 @@ export default function RealEstateScreen() {
     return (
       <PropertyDetailScreen
         property={selectedProperty}
-        onBack={() => setSelectedProperty(null)}
+        onBack={handleBack}
         onDelete={() => handleDeleteProperty(selectedProperty)}
         onPropertyUpdated={loadProperties}
+        onSelectProperty={navigateToProperty}
       />
     );
   }
@@ -302,7 +315,7 @@ export default function RealEstateScreen() {
           showsVerticalScrollIndicator={false}
         >
           {sorted.map((item) => (
-            <PropertyItem key={item.id} item={item} expanded={expandedIds.has(item.id)} onToggle={() => toggleItemExpand(item.id)} onPress={() => setSelectedProperty(item)} t={t} />
+            <PropertyItem key={item.id} item={item} expanded={expandedIds.has(item.id)} onToggle={() => toggleItemExpand(item.id)} onPress={() => navigateToProperty(item)} t={t} />
           ))}
         </ScrollView>
       )}
