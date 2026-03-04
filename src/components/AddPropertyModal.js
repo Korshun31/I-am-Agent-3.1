@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Image,
   Platform,
   Pressable,
   KeyboardAvoidingView,
@@ -25,9 +26,9 @@ const COLORS = {
 };
 
 const PROPERTY_TYPES = [
-  { key: 'resort', color: '#C8E6C9', borderColor: '#81C784', icon: '🏘️' },
-  { key: 'house',  color: '#FFF9C4', borderColor: '#FFD54F', icon: '🏡' },
-  { key: 'condo',  color: '#BBDEFB', borderColor: '#64B5F6', icon: '🏢' },
+  { key: 'resort', color: '#C8E6C9', borderColor: '#81C784', icon: require('../../assets/icon-property-resort.png') },
+  { key: 'house', color: '#FFF9C4', borderColor: '#FFD54F', icon: require('../../assets/icon-property-house.png') },
+  { key: 'condo', color: '#BBDEFB', borderColor: '#64B5F6', icon: require('../../assets/icon-property-condo.png') },
 ];
 
 export default function AddPropertyModal({ visible, onClose, onSave, editProperty = null }) {
@@ -130,7 +131,7 @@ export default function AddPropertyModal({ visible, onClose, onSave, editPropert
                         onPress={() => setType(pt.key)}
                         activeOpacity={0.7}
                       >
-                        <Text style={[styles.typeBtnIcon, !isActive && styles.typeBtnIconInactive]}>{pt.icon}</Text>
+                        <Image source={pt.icon} style={[styles.typeBtnIcon, !isActive && styles.typeBtnIconInactive]} resizeMode="contain" />
                         <Text style={[
                           styles.typeBtnLabel,
                           isActive && styles.typeBtnLabelActive,
@@ -278,7 +279,8 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   typeBtnIcon: {
-    fontSize: 26,
+    width: 32,
+    height: 32,
     marginBottom: 4,
   },
   typeBtnIconInactive: {

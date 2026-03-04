@@ -285,12 +285,16 @@ export default function RealEstateScreen() {
       });
       if (!matches) return false;
     }
-    if (f.bedrooms != null && (p.type !== 'house' || p.bedrooms !== f.bedrooms)) return false;
+    if (f.bedrooms?.length > 0) {
+      const br = p.bedrooms;
+      if (br == null) return false;
+      const matches = f.bedrooms.some(b => b === 5 ? br >= 5 : br === b);
+      if (!matches) return false;
+    }
     const price = p.price_monthly != null ? Number(p.price_monthly) : null;
     if (f.priceMin != null && (price == null || price < f.priceMin)) return false;
     if (f.priceMax != null && (price == null || price > f.priceMax)) return false;
     if (f.pets === true && !p.pets_allowed) return false;
-    if (f.pets === false && p.pets_allowed) return false;
     if (f.longTerm === true && !p.long_term_booking) return false;
     if (f.amenities?.length > 0) {
       const am = p.amenities || {};
@@ -303,10 +307,10 @@ export default function RealEstateScreen() {
     filterValues.city ||
     (filterValues.districts?.length ?? 0) > 0 ||
     (filterValues.types?.length ?? 0) > 0 ||
-    filterValues.bedrooms != null ||
+    (filterValues.bedrooms?.length ?? 0) > 0 ||
     filterValues.priceMin != null ||
     filterValues.priceMax != null ||
-    filterValues.pets !== 'any' ||
+    filterValues.pets === true ||
     filterValues.longTerm === true ||
     (filterValues.amenities?.length ?? 0) > 0
   );
