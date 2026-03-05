@@ -258,10 +258,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={40}
         >
-          <Pressable
-            style={s.boxWrap}
-            onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}
-          >
+          <View style={s.boxWrap} pointerEvents="box-none">
             <View style={s.box}>
               <View style={s.headerRow}>
                 <View style={s.headerSpacer} />
@@ -276,7 +273,10 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                 contentContainerStyle={s.scrollContent}
                 showsVerticalScrollIndicator={true}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
                 onScrollBeginDrag={Keyboard.dismiss}
+                scrollEventThrottle={16}
+                nestedScrollEnabled
                 indicatorStyle="black"
               >
                 {step === 1 ? (
@@ -458,7 +458,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                 )}
               </ScrollView>
             </View>
-          </Pressable>
+          </View>
         </KeyboardAvoidingView>
       </Pressable>
 

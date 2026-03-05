@@ -532,7 +532,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
             const codePart = `${codeDisplay} ${bookingNum}`;
             return (
               <View key={b.id} style={styles.bookingItem}>
-                <Image source={require('../../assets/icon-booking.png')} style={styles.bookingItemIcon} resizeMode="contain" />
+                <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{codePart}</Text>
                 <Text style={styles.bookingItemDates}>
                   {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
@@ -1419,7 +1419,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     marginRight: 10,
-    opacity: 0.8,
   },
   bookingItemCode: {
     flex: 1,
@@ -1430,6 +1429,7 @@ const styles = StyleSheet.create({
   bookingItemDates: {
     fontSize: 14,
     color: '#2C2C2C',
+    fontWeight: '700',
   },
   descriptionBlock: {
     marginBottom: 12,
