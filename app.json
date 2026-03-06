@@ -13,13 +13,19 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.iamagent.app"
+      "bundleIdentifier": "com.iamagent.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#F5F2EB"
       },
-      "package": "com.iamagent.app"
+      "package": "com.iamagent.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "single"
@@ -33,6 +39,11 @@
         }
       ],
       "@react-native-community/datetimepicker"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4352a2f7-8095-491c-a013-10e4b34221bf"
+      }
+    }
   }
 }
