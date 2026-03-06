@@ -1,0 +1,80 @@
+diff --git a/node_modules/react-native-calendar-range-picker/dist/CalendarList.js b/node_modules/react-native-calendar-range-picker/dist/CalendarList.js
+index 3b5f44b..a72c49b 100644
+--- a/node_modules/react-native-calendar-range-picker/dist/CalendarList.js
++++ b/node_modules/react-native-calendar-range-picker/dist/CalendarList.js
+@@ -15,7 +15,7 @@ var CalendarList = function (_a) {
+     }, []);
+     var handleRenderItem = useCallback(function (_a) {
+         var item = _a.item;
+-        return (<View style={[
++        return (<View pointerEvents="box-none" style={[
+             { height: LAYOUT_HEIGHT, backgroundColor: '#fff' },
+             style === null || style === void 0 ? void 0 : style.monthOverlayContainer,
+         ]}>
+@@ -26,7 +26,7 @@ var CalendarList = function (_a) {
+         { position: 'relative', backgroundColor: '#fff' },
+         style === null || style === void 0 ? void 0 : style.container,
+     ]}>
+-      <View style={{
++      <View pointerEvents="none" style={{
+         top: 0,
+         left: 0,
+         right: 0,
+diff --git a/node_modules/react-native-calendar-range-picker/dist/Month.js b/node_modules/react-native-calendar-range-picker/dist/Month.js
+index 8723e38..c26d1ef 100644
+--- a/node_modules/react-native-calendar-range-picker/dist/Month.js
++++ b/node_modules/react-native-calendar-range-picker/dist/Month.js
+@@ -11,8 +11,8 @@ function Month(_a) {
+         var result = [];
+         var dayNames = locale.dayNames;
+         for (var i = 0; i < dayNames.length; i++) {
+-            result.push(<View key={i} style={styles.dayNameContainer}>
+-          <Text style={[styles.dayName, style === null || style === void 0 ? void 0 : style.dayNameText]}>
++            result.push(<View pointerEvents="none" key={i} style={styles.dayNameContainer}>
++          <Text pointerEvents="none" style={[styles.dayName, style === null || style === void 0 ? void 0 : style.dayNameText]}>
+             {dayNames[i]}
+           </Text>
+         </View>);
+@@ -28,16 +28,16 @@ function Month(_a) {
+         }
+         return result;
+     };
+-    return (<View style={[styles.monthContainer, style === null || style === void 0 ? void 0 : style.monthContainer]}>
+-      <View style={styles.monthNameContainer}>
+-        <Text style={[styles.monthName, style === null || style === void 0 ? void 0 : style.monthNameText]}>
++    return (<View pointerEvents="box-none" style={[styles.monthContainer, style === null || style === void 0 ? void 0 : style.monthContainer]}>
++      <View pointerEvents="none" style={styles.monthNameContainer}>
++        <Text pointerEvents="none" style={[styles.monthName, style === null || style === void 0 ? void 0 : style.monthNameText]}>
+           {isMonthFirst ? <Text>{locale.monthNames[month - 1]} </Text> : null}
+           {year}
+           {locale.year}
+           {!isMonthFirst ? <Text> {locale.monthNames[month - 1]}</Text> : null}
+         </Text>
+       </View>
+-      <View style={styles.dayNamesContainer}>{renderDayNames()}</View>
++      <View pointerEvents="none" style={styles.dayNamesContainer}>{renderDayNames()}</View>
+       {renderWeeks()}
+     </View>);
+ }
+diff --git a/node_modules/react-native-calendar-range-picker/dist/Week.js b/node_modules/react-native-calendar-range-picker/dist/Week.js
+index 3ea542c..761b7e4 100644
+--- a/node_modules/react-native-calendar-range-picker/dist/Week.js
++++ b/node_modules/react-native-calendar-range-picker/dist/Week.js
+@@ -13,7 +13,7 @@ function Week(_a) {
+                 alignItems: "center",
+             }} onPress={function () { return handlePress(day.date || ""); }} activeOpacity={1} key={day.date || i}>
+           <Day day={day} locale={locale} disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} style={style}/>
+-        </TouchableOpacity>) : (<View style={{ flex: 1, height: is6Weeks ? 45 : 50 }} key={i}/>);
++        </TouchableOpacity>) : (<View pointerEvents="none" style={{ flex: 1, height: is6Weeks ? 45 : 50 }} key={i}/>);
+             result.push(DayComponent);
+         };
+         for (var i = 0; i < 7; i++) {
+@@ -21,7 +21,7 @@ function Week(_a) {
+         }
+         return result;
+     };
+-    return <View style={[styles.weekContainer, style === null || style === void 0 ? void 0 : style.weekContainer]}>{renderDayNames()}</View>;
++    return <View pointerEvents="box-none" style={[styles.weekContainer, style === null || style === void 0 ? void 0 : style.weekContainer]}>{renderDayNames()}</View>;
+ }
+ function areEqual(prevProps, nextProps) {
+     if (JSON.stringify(prevProps.week) === JSON.stringify(nextProps.week))

@@ -6,9 +6,12 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "postinstall": "patch-package && node scripts/patch-calendar-eu-week.js"
   },
   "dependencies": {
+    "dayjs": "^1.11.10",
+    "react-native-calendar-range-picker": "file:./react-native-calendar-range-picker-1.6.0.tgz",
     "@expo/metro-runtime": "~6.1.2",
     "@react-native-async-storage/async-storage": "^3.0.1",
     "@react-native-community/datetimepicker": "8.4.4",
@@ -29,7 +32,8 @@
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.0"
+    "@babel/core": "^7.25.0",
+    "patch-package": "^8.0.0"
   },
   "private": true
 }

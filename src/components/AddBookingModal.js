@@ -13,9 +13,11 @@ import {
   Keyboard,
   ActivityIndicator,
   Alert,
+  Dimensions,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { BlurView } from 'expo-blur';
+import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
 import { getContacts, createContact } from '../services/contactsService';
 import { createBooking } from '../services/bookingsService';
@@ -89,8 +91,14 @@ function CheckRow({ label, checked, onPress }) {
   );
 }
 
+const CALENDAR_LOCALES = {
+  en: { monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], dayNames: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], today: 'Today', year: '' },
+  ru: { monthNames: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], dayNames: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], today: 'Сегодня', year: ' г.' },
+  th: { monthNames: ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'], dayNames: ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'], today: 'วันนี้', year: '' },
+};
+
 export default function AddBookingModal({ visible, onClose, onSaved, property }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [step, setStep] = useState(1);
   const [notMyCustomer, setNotMyCustomer] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
@@ -104,7 +112,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
   // Step 2
   const [checkIn, setCheckIn] = useState(null);
   const [checkOut, setCheckOut] = useState(null);
-  const [datePickerFor, setDatePickerFor] = useState(null); // 'checkIn' | 'checkOut'
+  const [datePickerFor, setDatePickerFor] = useState(null); // 'checkIn' | 'checkOut' (legacy)
   const [priceMonthly, setPriceMonthly] = useState('');
   const [totalPrice, setTotalPrice] = useState('');
   const [bookingDeposit, setBookingDeposit] = useState('');
@@ -151,7 +159,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
   }, [visible]);
 
   useEffect(() => {
-    if (step === 2 && property) {
+    if (step === 3 && property) {
       setPriceMonthly(property.price_monthly != null ? String(property.price_monthly) : '');
       setBookingDeposit(property.booking_deposit != null ? String(property.booking_deposit) : '');
       setSaveDeposit(property.save_deposit != null ? String(property.save_deposit) : '');
@@ -200,9 +208,22 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
     setStep(2);
   };
 
+  const handleNextFromDates = () => {
+    Keyboard.dismiss();
+    if (!checkIn || !checkOut) {
+      Alert.alert(t('error'), t('bookingSelectDates'));
+      return;
+    }
+    if (checkIn >= checkOut) {
+      Alert.alert(t('error'), t('bookingCheckIn') + ' / ' + t('bookingCheckOut'));
+      return;
+    }
+    setStep(3);
+  };
+
   const handleBack = () => {
     Keyboard.dismiss();
-    setStep(1);
+    setStep(s => (s === 1 ? 1 : s - 1));
   };
 
   const handleSave = async () => {
@@ -258,8 +279,8 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={40}
         >
-          <View style={s.boxWrap} pointerEvents="box-none">
-            <View style={s.box}>
+          <View style={[s.boxWrap, step === 3 && s.boxWrapStep3]} pointerEvents="box-none">
+            <View style={[s.box, step === 3 && s.boxStep3]}>
               <View style={s.headerRow}>
                 <View style={s.headerSpacer} />
                 <Text style={s.title}>{t('addBookingTitle')}</Text>
@@ -269,9 +290,8 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
               </View>
 
               <ScrollView
-                style={s.scroll}
-                contentContainerStyle={s.scrollContent}
-                showsVerticalScrollIndicator={true}
+                style={[s.scroll, step === 3 && s.scrollStep3]}
+                contentContainerStyle={[s.scrollContent, step === 2 && s.scrollContentStep2]}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
                 onScrollBeginDrag={Keyboard.dismiss}
@@ -321,33 +341,78 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                       placeholderTextColor="#999"
                       editable={!notMyCustomer}
                     />
+                  </>
+                ) : step === 2 ? (
+                  <>
+                    <Text style={[s.fieldLabel, s.fieldLabelStep2]}>{t('bookingDates')}</Text>
+                    <View style={s.dateRowReadonlyStep2}>
+                      <View style={s.dateField}>
+                        <Text style={[s.dateFieldText, !checkIn && s.dateFieldPlaceholder]}>{checkIn ? formatDateDisplay(checkIn) : t('bookingCheckIn')}</Text>
+                      </View>
+                      <Text style={s.dateDash}>—</Text>
+                      <View style={s.dateField}>
+                        <Text style={[s.dateFieldText, !checkOut && s.dateFieldPlaceholder]}>{checkOut ? formatDateDisplay(checkOut) : t('bookingCheckOut')}</Text>
+                      </View>
+                    </View>
 
-                    <TouchableOpacity style={s.nextBtn} onPress={handleNext} activeOpacity={0.7}>
-                      <Text style={s.nextBtnText}>{t('next')}</Text>
-                      <Text style={s.nextBtnArrow}>→</Text>
-                    </TouchableOpacity>
+                    <View style={[s.calendarInline, s.calendarInlineStep2]}>
+                      <CalendarRangePicker
+                        locale={CALENDAR_LOCALES[language] || CALENDAR_LOCALES.en}
+                        startDate={checkIn ? formatDateYMD(checkIn) : null}
+                        endDate={checkOut ? formatDateYMD(checkOut) : null}
+                        onChange={({ startDate, endDate }) => {
+                          if (startDate) setCheckIn(new Date(startDate));
+                          if (endDate) setCheckOut(new Date(endDate));
+                        }}
+                        pastYearRange={1}
+                        futureYearRange={2}
+                        isMonthFirst={false}
+                        disabledBeforeToday
+                        style={{
+                          container: { backgroundColor: 'transparent' },
+                          monthOverlayContainer: {
+                            width: Math.round((Math.min(Dimensions.get('window').width - 72, 368)) * 0.8),
+                            height: 360,
+                            backgroundColor: 'rgba(255,255,255,0.95)',
+                            borderRadius: 12,
+                            marginRight: 16,
+                            overflow: 'hidden',
+                          },
+                          monthNameContainer: { justifyContent: 'center', paddingLeft: 0 },
+                          monthNameText: { textAlign: 'center' },
+                        }}
+                        flatListProps={(() => {
+                          const w = Math.round((Math.min(Dimensions.get('window').width - 72, 368)) * 0.8);
+                          const slot = w + 16;
+                          const boxWidth = Math.min(400, Dimensions.get('window').width - 40);
+                          const viewportW = boxWidth - 40;
+                          const padH = Math.max(20, (viewportW - w) / 2);
+                          const monthCount = (1 + 2) * 12;
+                          return {
+                            horizontal: true,
+                            nestedScrollEnabled: true,
+                            snapToOffsets: Array.from({ length: monthCount }, (_, i) => i * slot),
+                            snapToAlignment: 'center',
+                            decelerationRate: 'fast',
+                            getItemLayout: (_, index) => ({ length: slot, offset: slot * index, index }),
+                            contentContainerStyle: { paddingHorizontal: padH },
+                            showsHorizontalScrollIndicator: false,
+                          };
+                        })()}
+                      />
+                    </View>
                   </>
                 ) : (
                   <>
                     <Text style={s.fieldLabel}>{t('bookingDates')}</Text>
-                    <View style={s.dateRow}>
-                      <TouchableOpacity
-                        style={s.dateField}
-                        onPress={() => setDatePickerFor('checkIn')}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[s.dateFieldText, !checkIn && s.dateFieldPlaceholder]}>{checkIn ? formatDateDisplay(checkIn) : t('bookingCheckIn')}</Text>
-                        <Text style={s.chevron}>▽</Text>
-                      </TouchableOpacity>
+                    <View style={s.dateRowReadonly}>
+                      <View style={s.dateField}>
+                        <Text style={s.dateFieldText}>{checkIn ? formatDateDisplay(checkIn) : '—'}</Text>
+                      </View>
                       <Text style={s.dateDash}>—</Text>
-                      <TouchableOpacity
-                        style={s.dateField}
-                        onPress={() => setDatePickerFor('checkOut')}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[s.dateFieldText, !checkOut && s.dateFieldPlaceholder]}>{checkOut ? formatDateDisplay(checkOut) : t('bookingCheckOut')}</Text>
-                        <Text style={s.chevron}>▽</Text>
-                      </TouchableOpacity>
+                      <View style={s.dateField}>
+                        <Text style={s.dateFieldText}>{checkOut ? formatDateDisplay(checkOut) : '—'}</Text>
+                      </View>
                     </View>
 
                     <Text style={s.fieldLabel}>{t('pdPriceMonthly')}</Text>
@@ -433,30 +498,50 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                       placeholderTextColor="#999"
                       multiline
                     />
-
-                    <View style={s.step2Buttons}>
-                      <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
-                        <Text style={s.backBtnArrow}>←</Text>
-                        <Text style={s.backBtnText}>{t('wizBack')}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[s.saveBtn, saving && s.saveBtnDisabled]}
-                        onPress={handleSave}
-                        activeOpacity={0.7}
-                        disabled={saving}
-                      >
-                        {saving ? (
-                          <ActivityIndicator size="small" color={COLORS.saveGreen} />
-                        ) : (
-                          <>
-                            <Text style={s.saveBtnText}>{t('save')}</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    </View>
                   </>
                 )}
               </ScrollView>
+
+              <View style={s.footerNav}>
+                {step === 1 ? (
+                  <View style={s.stepNavRow}>
+                    <TouchableOpacity style={s.nextBtn} onPress={handleNext} activeOpacity={0.7}>
+                      <Text style={s.nextBtnText}>{t('next')}</Text>
+                      <Text style={s.nextBtnArrow}>→</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : step === 2 ? (
+                  <View style={s.stepNavRow}>
+                    <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
+                      <Text style={s.backBtnArrow}>←</Text>
+                      <Text style={s.backBtnText}>{t('wizBack')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.nextBtn} onPress={handleNextFromDates} activeOpacity={0.7}>
+                      <Text style={s.nextBtnText}>{t('next')}</Text>
+                      <Text style={s.nextBtnArrow}>→</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={s.stepNavRow}>
+                    <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
+                      <Text style={s.backBtnArrow}>←</Text>
+                      <Text style={s.backBtnText}>{t('wizBack')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[s.saveBtn, saving && s.saveBtnDisabled]}
+                      onPress={handleSave}
+                      activeOpacity={0.7}
+                      disabled={saving}
+                    >
+                      {saving ? (
+                        <ActivityIndicator size="small" color={COLORS.saveGreen} />
+                      ) : (
+                        <Text style={s.saveBtnText}>{t('save')}</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -611,15 +696,21 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   keyboardWrap: {
+    flex: 1,
     width: '100%',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   boxWrap: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 400,
     maxHeight: '85%',
+    alignSelf: 'center',
   },
+  boxWrapStep3: { height: '85%' },
   box: {
+    flexShrink: 1,
+    minHeight: 0,
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: COLORS.boxBg,
@@ -631,6 +722,7 @@ const s = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
+  boxStep3: { flex: 1 },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -660,13 +752,24 @@ const s = StyleSheet.create({
     color: '#E85D4C',
     fontWeight: '600',
   },
-  scroll: { maxHeight: 500 },
-  scrollContent: { padding: 20 },
+  scroll: { flexShrink: 1 },
+  scrollStep3: { flex: 1, minHeight: 0 },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 0,
+    flexGrow: 0,
+  },
+  scrollContentStep2: {
+    padding: 14,
+    paddingBottom: 14,
+    flexGrow: 0,
+  },
   fieldLabel: {
     fontSize: 12,
     color: '#888',
     marginBottom: 4,
   },
+  fieldLabelStep2: { marginBottom: 14 },
   readOnlyField: {
     backgroundColor: COLORS.inputBg,
     borderRadius: 12,
@@ -688,7 +791,7 @@ const s = StyleSheet.create({
     height: 22,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderColor: '#9A9090',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -733,6 +836,7 @@ const s = StyleSheet.create({
     color: '#999',
   },
   nextBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -746,6 +850,8 @@ const s = StyleSheet.create({
   nextBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.saveGreen },
   nextBtnArrow: { fontSize: 18, color: COLORS.saveGreen, fontWeight: '700' },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  dateRowReadonly: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  dateRowReadonlyStep2: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   dateField: {
     flex: 1,
     flexDirection: 'row',
@@ -763,6 +869,14 @@ const s = StyleSheet.create({
   dateDash: { fontSize: 16, color: '#888' },
   inputMultiline: { minHeight: 80 },
   step2Buttons: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  footerNav: {
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 28,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.06)',
+  },
+  stepNavRow: { flexDirection: 'row', gap: 12 },
   backBtn: {
     flex: 1,
     flexDirection: 'row',
@@ -771,8 +885,8 @@ const s = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.inputBg,
+    borderColor: 'rgba(232, 93, 76, 0.5)',
+    backgroundColor: 'rgba(232, 93, 76, 0.06)',
     gap: 8,
   },
   backBtnArrow: { fontSize: 18, color: '#E85D4C', fontWeight: '700' },
@@ -787,9 +901,14 @@ const s = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(46, 125, 50, 0.5)',
     backgroundColor: 'rgba(46, 125, 50, 0.06)',
+    gap: 8,
   },
   saveBtnDisabled: { opacity: 0.7 },
   saveBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.saveGreen },
+  calendarInline: {
+    marginBottom: 16,
+  },
+  calendarInlineStep2: { marginBottom: 14 },
   datePickerOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -821,7 +940,7 @@ const s = StyleSheet.create({
   },
   pickerBox: {
     width: '100%',
-    maxWidth: 340,
+    maxWidth: 400,
     maxHeight: '80%',
     backgroundColor: COLORS.boxBg,
     borderRadius: 16,
