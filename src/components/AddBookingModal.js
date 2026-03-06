@@ -54,6 +54,16 @@ function getOccupiedDates(bookings) {
   return Array.from(set);
 }
 
+/** Dates that are check-in for some booking */
+function getOccupiedCheckInDates(bookings) {
+  return (bookings || []).filter((b) => b.checkIn).map((b) => dayjs(b.checkIn).format('YYYY-MM-DD'));
+}
+
+/** Dates that are check-out for some booking */
+function getOccupiedCheckOutDates(bookings) {
+  return (bookings || []).filter((b) => b.checkOut).map((b) => dayjs(b.checkOut).format('YYYY-MM-DD'));
+}
+
 /** Check if range [checkIn, checkOut] overlaps with occupied dates */
 function hasOverlapWithOccupied(checkIn, checkOut, occupiedDates) {
   if (!checkIn || !checkOut || !occupiedDates?.length) return false;
@@ -156,6 +166,8 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
   const [checkIn, setCheckIn] = useState(null);
   const [checkOut, setCheckOut] = useState(null);
   const [occupiedDates, setOccupiedDates] = useState([]);
+  const [occupiedCheckInDates, setOccupiedCheckInDates] = useState([]);
+  const [occupiedCheckOutDates, setOccupiedCheckOutDates] = useState([]);
   const [datePickerFor, setDatePickerFor] = useState(null); // 'checkIn' | 'checkOut' (legacy)
   const [priceMonthly, setPriceMonthly] = useState('');
   const [totalPrice, setTotalPrice] = useState('');
@@ -234,9 +246,13 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
     if (step === 2 && property?.id) {
       getBookings(property.id).then((bookings) => {
         setOccupiedDates(getOccupiedDates(bookings));
-      }).catch(() => setOccupiedDates([]));
+        setOccupiedCheckInDates(getOccupiedCheckInDates(bookings));
+        setOccupiedCheckOutDates(getOccupiedCheckOutDates(bookings));
+      }).catch(() => { setOccupiedDates([]); setOccupiedCheckInDates([]); setOccupiedCheckOutDates([]); });
     } else {
       setOccupiedDates([]);
+      setOccupiedCheckInDates([]);
+      setOccupiedCheckOutDates([]);
     }
   }, [step, property?.id]);
 
@@ -371,14 +387,16 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                       startDate={checkIn ? formatDateYMD(checkIn) : null}
                       endDate={checkOut ? formatDateYMD(checkOut) : null}
                       disabledDates={occupiedDates}
+                        occupiedCheckInDates={occupiedCheckInDates}
+                        occupiedCheckOutDates={occupiedCheckOutDates}
                       onChange={({ startDate, endDate }) => {
                         if (startDate) setCheckIn(new Date(startDate));
                         if (endDate) setCheckOut(new Date(endDate));
                       }}
                       pastYearRange={1}
                       futureYearRange={2}
-                      isMonthFirst
-                      disabledBeforeToday
+isMonthFirst
+                        dimPastDates
                       style={{
                         container: { backgroundColor: 'transparent' },
                         monthOverlayContainer: {

@@ -59,9 +59,18 @@ function patchDisabledDates() {
     if (!fs.existsSync(p)) return;
     let s = fs.readFileSync(p, 'utf8');
     if (f === 'index.js') {
-      if (s.includes('disabledDates')) return;
-      s = s.replace('disabledAfterToday = _a.disabledAfterToday;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates;');
-      s = s.replace('disabledAfterToday={disabledAfterToday}/>);', 'disabledAfterToday={disabledAfterToday} disabledDates={disabledDates}/>);');
+      if (!s.includes('disabledDates')) {
+        s = s.replace('disabledAfterToday = _a.disabledAfterToday;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates;');
+        s = s.replace('disabledAfterToday={disabledAfterToday}/>);', 'disabledAfterToday={disabledAfterToday} disabledDates={disabledDates}/>);');
+      }
+      if (!s.includes('occupiedCheckInDates')) {
+        s = s.replace('disabledDates = _a.disabledDates;', 'disabledDates = _a.disabledDates, occupiedCheckInDates = _a.occupiedCheckInDates, occupiedCheckOutDates = _a.occupiedCheckOutDates;');
+        s = s.replace('disabledDates={disabledDates}/>', 'disabledDates={disabledDates} occupiedCheckInDates={occupiedCheckInDates} occupiedCheckOutDates={occupiedCheckOutDates}/>');
+      }
+      if (!s.includes('dimPastDates')) {
+        s = s.replace('disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates', 'disabledAfterToday = _a.disabledAfterToday, dimPastDates = _a.dimPastDates, disabledDates = _a.disabledDates');
+        s = s.replace('disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday}', 'disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates}');
+      }
     } else if (f === 'CalendarList.js') {
       if (!s.includes('disabledDates')) {
         s = s.replace('disabledAfterToday = _a.disabledAfterToday, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates, style = _a.style;');
@@ -71,6 +80,16 @@ function patchDisabledDates() {
       if (!s.includes('collapsable={false}')) {
         s = s.replace('<View pointerEvents="box-none" style={[', '<View pointerEvents="box-none" collapsable={false} style={[');
       }
+      if (!s.includes('occupiedCheckInDates')) {
+        s = s.replace('disabledDates = _a.disabledDates, style = _a.style;', 'disabledDates = _a.disabledDates, occupiedCheckInDates = _a.occupiedCheckInDates, occupiedCheckOutDates = _a.occupiedCheckOutDates, style = _a.style;');
+        s = s.replace('disabledDates={disabledDates} style={style}', 'disabledDates={disabledDates} occupiedCheckInDates={occupiedCheckInDates} occupiedCheckOutDates={occupiedCheckOutDates} style={style}');
+        s = s.replace('[locale.today, startDate, endDate, disabledDates]', '[locale.today, startDate, endDate, disabledDates, occupiedCheckInDates, occupiedCheckOutDates]');
+      }
+      if (!s.includes('dimPastDates')) {
+        s = s.replace('disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates', 'disabledAfterToday = _a.disabledAfterToday, dimPastDates = _a.dimPastDates, disabledDates = _a.disabledDates');
+        s = s.replace('disabledAfterToday={disabledAfterToday} disabledDates={disabledDates}', 'disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} disabledDates={disabledDates}');
+        s = s.replace('[locale.today, startDate, endDate, disabledDates, occupiedCheckInDates, occupiedCheckOutDates]', '[locale.today, startDate, endDate, disabledDates, dimPastDates, occupiedCheckInDates, occupiedCheckOutDates]');
+      }
     } else if (f === 'Month.js') {
       if (!s.includes('disabledDates = _a.disabledDates')) {
         s = s.replace('disabledAfterToday = _a.disabledAfterToday, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates, style = _a.style;');
@@ -78,6 +97,15 @@ function patchDisabledDates() {
       }
       if (!s.includes('prevProps.disabledDates')) {
         s = s.replace('prevProps.locale.today !== nextProps.locale.today) {\n        return false;\n    }\n    return true;\n}', 'prevProps.locale.today !== nextProps.locale.today) {\n        return false;\n    }\n    var pa = prevProps.disabledDates || [];\n    var na = nextProps.disabledDates || [];\n    if (pa.length !== na.length) return false;\n    for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    return true;\n}');
+      }
+      if (!s.includes('occupiedCheckInDates')) {
+        s = s.replace('disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates, occupiedCheckInDates = _a.occupiedCheckInDates, occupiedCheckOutDates = _a.occupiedCheckOutDates, style = _a.style;');
+        s = s.replace('disabledDates={disabledDates} style={style}/>', 'disabledDates={disabledDates} occupiedCheckInDates={occupiedCheckInDates} occupiedCheckOutDates={occupiedCheckOutDates} style={style}/>');
+        s = s.replace('for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    return true;\n}', 'for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    var pci = prevProps.occupiedCheckInDates || []; var nci = nextProps.occupiedCheckInDates || []; if (pci.length !== nci.length) return false; for (var i = 0; i < pci.length; i++) { if (pci[i] !== nci[i]) return false; }\n    var pco = prevProps.occupiedCheckOutDates || []; var nco = nextProps.occupiedCheckOutDates || []; if (pco.length !== nco.length) return false; for (var i = 0; i < pco.length; i++) { if (pco[i] !== nco[i]) return false; }\n    if (prevProps.dimPastDates !== nextProps.dimPastDates) return false;\n    return true;\n}');
+      }
+      if (!s.includes('dimPastDates')) {
+        s = s.replace('disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates', 'disabledAfterToday = _a.disabledAfterToday, dimPastDates = _a.dimPastDates, disabledDates = _a.disabledDates');
+        s = s.replace('disabledAfterToday={disabledAfterToday} disabledDates={disabledDates}', 'disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} disabledDates={disabledDates}');
       }
     } else if (f === 'Week.js') {
       if (!s.includes('disabledDates')) {
@@ -94,6 +122,16 @@ function patchDisabledDates() {
       if (!s.includes('prevProps.disabledDates')) {
         s = s.replace('if (JSON.stringify(prevProps.week) === JSON.stringify(nextProps.week))\n        return true;\n    return false;', 'if (JSON.stringify(prevProps.week) !== JSON.stringify(nextProps.week))\n        return false;\n    var pa = prevProps.disabledDates || [];\n    var na = nextProps.disabledDates || [];\n    if (pa.length !== na.length) return false;\n    for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    return true;');
       }
+      if (!s.includes('occupiedCheckInDates')) {
+        s = s.replace('disabledDates = _a.disabledDates, style = _a.style;', 'disabledDates = _a.disabledDates, occupiedCheckInDates = _a.occupiedCheckInDates, occupiedCheckOutDates = _a.occupiedCheckOutDates, style = _a.style;');
+        s = s.replace('var isOccupied = disabledDates && day.date && disabledDates.indexOf(day.date) >= 0;\n            var isDisabled =', 'var isOccupied = disabledDates && day.date && disabledDates.indexOf(day.date) >= 0;\n            var isCheckIn = occupiedCheckInDates && day.date && occupiedCheckInDates.indexOf(day.date) >= 0;\n            var isCheckOut = occupiedCheckOutDates && day.date && occupiedCheckOutDates.indexOf(day.date) >= 0;\n            var isDisabled =');
+        s = s.replace('isOccupied={isOccupied} style={style}/>', 'isOccupied={isOccupied} isCheckIn={isCheckIn} isCheckOut={isCheckOut} style={style}/>');
+        s = s.replace('for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    return true;\n}\nexport default memo(Week', 'for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    var pci = prevProps.occupiedCheckInDates || []; var nci = nextProps.occupiedCheckInDates || []; if (pci.length !== nci.length) return false; for (var i = 0; i < pci.length; i++) { if (pci[i] !== nci[i]) return false; }\n    var pco = prevProps.occupiedCheckOutDates || []; var nco = nextProps.occupiedCheckOutDates || []; if (pco.length !== nco.length) return false; for (var i = 0; i < pco.length; i++) { if (pco[i] !== nco[i]) return false; }\n    if (prevProps.dimPastDates !== nextProps.dimPastDates) return false;\n    return true;\n}\nexport default memo(Week');
+      }
+      if (!s.includes('dimPastDates')) {
+        s = s.replace('disabledDates = _a.disabledDates, occupiedCheckInDates = _a.occupiedCheckInDates', 'disabledDates = _a.disabledDates, dimPastDates = _a.dimPastDates, occupiedCheckInDates = _a.occupiedCheckInDates');
+        s = s.replace('disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} isOccupied={isOccupied}', 'disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} isOccupied={isOccupied}');
+      }
       if (s.includes('pointerEvents="none" style={dayStyle}') || (s.includes('onStartShouldSetResponder') && s.includes('isDisabled ? (<View'))) {
         s = s.replace(/<View (?:pointerEvents="none" |onStartShouldSetResponder=\{function \(\) \{ return false; \}\} onMoveShouldSetResponder=\{function \(\) \{ return false; \}\} )?style={dayStyle} key={day\.date \|\| i}>\s*<Day/, '<TouchableOpacity style={dayStyle} onPress={function () {}} activeOpacity={1} key={day.date || i}>\n          <Day');
         s = s.replace(/(\s*)<\/View>(\s*)\) : \(<TouchableOpacity style=\{dayStyle\} onPress=\{function \(\) \{ return handlePress)/, '$1</TouchableOpacity>$2) : (<TouchableOpacity style={dayStyle} onPress={function () { return handlePress');
@@ -101,7 +139,7 @@ function patchDisabledDates() {
     } else if (f === 'Day.js') {
       if (!s.includes('isOccupied = _a.isOccupied')) {
         s = s.replace('disabledAfterToday = _a.disabledAfterToday, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, isOccupied = _a.isOccupied, style = _a.style;');
-        s = s.replace('(disabledAfterToday && isAfterToday)\n            ? disabledTextColor', '(disabledAfterToday && isAfterToday) ||\n            isOccupied\n            ? disabledTextColor');
+        s = s.replace('(disabledAfterToday && isAfterToday)\n            ? disabledTextColor', '(disabledAfterToday && isAfterToday) ||\n            (isOccupied && isBeforeToday)\n            ? disabledTextColor');
       }
       if (!s.includes('prevProps.isOccupied')) {
         s = s.replace('if (prevProps.day.type === nextProps.day.type)\n        return true;\n    return false;', 'if (prevProps.day.type !== nextProps.day.type) return false;\n    if (prevProps.isOccupied !== nextProps.isOccupied) return false;\n    return true;');
@@ -111,7 +149,26 @@ function patchDisabledDates() {
         s = s.replace("type === 'start' ? <View style={[betweenStyle, { right: -1 }]}/>", "type === 'start' ? <View pointerEvents={isOccupied ? 'none' : 'auto'} style={[betweenStyle, { right: -1 }]}/>");
         s = s.replace('{date ? (<View style={markStyle}>', "{date ? (<View pointerEvents={isOccupied ? 'none' : 'auto'} style={markStyle}>");
         s = s.replace('<Text style={[{ fontSize: 15 }, dayStyle,', "<Text pointerEvents={isOccupied ? 'none' : 'auto'} style={[{ fontSize: 15 }, dayStyle,");
-        s = s.replace('{isToday ? (<Text style={[{ fontSize: 12 }, { color: todayColor }]}>', "{isToday ? (<Text pointerEvents={isOccupied ? 'none' : 'auto'} style={[{ fontSize: 12 }, { color: todayColor }]}>");
+      }
+      if (!s.includes("borderColor: '#E85D4C'") && s.includes('default:\n            break;')) {
+        s = s.replace("default:\n            break;", "default:\n            if (isToday) {\n                markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: todayColor, borderRadius: 4 });\n            }\n            if (isOccupied) {\n                markStyle = __assign(__assign({}, markStyle), { backgroundColor: '#FFF0F0', borderRadius: 4 });\n            }\n            break;");
+      }
+      if (!s.includes("backgroundColor: '#FFF0F0'") && s.includes("borderColor: '#E85D4C'")) {
+        s = s.replace("if (isToday) {\n                markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: '#E85D4C', borderRadius: 4 });\n            }\n            break;", "if (isToday) {\n                markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: todayColor, borderRadius: 4 });\n            }\n            if (isOccupied) {\n                markStyle = __assign(__assign({}, markStyle), { backgroundColor: '#FFF0F0', borderRadius: 4 });\n            }\n            break;");
+      }
+      if (!s.includes('isCheckIn') && s.includes('isOccupied = _a.isOccupied')) {
+        s = s.replace('isOccupied = _a.isOccupied, style = _a.style;', 'isOccupied = _a.isOccupied, isCheckIn = _a.isCheckIn, isCheckOut = _a.isCheckOut, style = _a.style;');
+        s = s.replace('if (prevProps.isOccupied !== nextProps.isOccupied) return false;\n    return true;', 'if (prevProps.isOccupied !== nextProps.isOccupied) return false;\n    if (prevProps.isCheckIn !== nextProps.isCheckIn) return false;\n    if (prevProps.isCheckOut !== nextProps.isCheckOut) return false;\n    if (prevProps.dimPastDates !== nextProps.dimPastDates) return false;\n    return true;');
+      }
+      if (!s.includes('dimPastDates = _a.dimPastDates')) {
+        s = s.replace('disabledAfterToday = _a.disabledAfterToday, isOccupied = _a.isOccupied', 'disabledAfterToday = _a.disabledAfterToday, dimPastDates = _a.dimPastDates, isOccupied = _a.isOccupied');
+        s = s.replace('(disabledBeforeToday && isBeforeToday) ||', '(disabledBeforeToday && isBeforeToday) ||\n            (dimPastDates && isBeforeToday) ||');
+      }
+      if (!s.includes("borderColor: '#2E7D32'") && s.includes("backgroundColor: '#FFF0F0'")) {
+        s = s.replace("if (isOccupied) {\n                markStyle = __assign(__assign({}, markStyle), { backgroundColor: '#FFF0F0', borderRadius: 4 });\n            }", "if (isOccupied) {\n                markStyle = __assign(__assign({}, markStyle), { backgroundColor: '#FFF0F0', borderRadius: 4 });\n                if (!isToday && isCheckIn) {\n                    markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: '#2E7D32' });\n                } else if (!isToday && isCheckOut) {\n                    markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: '#E85D4C' });\n                }\n            }");
+      }
+      if (s.includes('{locale.today}')) {
+        s = s.replace(/\s*\{isToday \? \(<Text[^>]*>[\s\S]*?\{locale\.today\}[\s\S]*?<\/Text>\) : null\}/, '');
       }
     }
     fs.writeFileSync(p, s);
