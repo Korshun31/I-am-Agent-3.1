@@ -45,6 +45,7 @@ export async function createBooking(booking) {
     children: booking.children != null ? parseInt(booking.children, 10) : null,
     pets: !!booking.pets,
     comments: booking.comments || null,
+    photos: Array.isArray(booking.photos) && booking.photos.length > 0 ? booking.photos : null,
   };
 
   const { data, error } = await supabase
@@ -76,5 +77,6 @@ function mapBooking(row) {
     children: row.children,
     pets: row.pets,
     comments: row.comments,
+    photos: Array.isArray(row.photos) ? row.photos : [],
   };
 }

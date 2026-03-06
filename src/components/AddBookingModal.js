@@ -14,15 +14,36 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Image,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { BlurView } from 'expo-blur';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import dayjs from 'dayjs';
 import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
 import { getContacts, createContact } from '../services/contactsService';
 import { getBookings, createBooking } from '../services/bookingsService';
+import { uploadPhoto, isLocalUri } from '../services/storageService';
 import AddContactModal from './AddContactModal';
+
+const MAX_PHOTO_SIDE = 1600;
+const PHOTO_QUALITY = 0.85;
+const MAX_BOOKING_PHOTOS = 10;
+
+async function resizePhotoIfNeeded(uri, width, height) {
+  const maxSide = Math.max(width || 0, height || 0);
+  if (maxSide <= MAX_PHOTO_SIDE) return uri;
+  const actions = width >= (height || 1)
+    ? [{ resize: { width: MAX_PHOTO_SIDE } }]
+    : [{ resize: { height: MAX_PHOTO_SIDE } }];
+  const { uri: resized } = await ImageManipulator.manipulateAsync(uri, actions, {
+    compress: PHOTO_QUALITY,
+    format: ImageManipulator.SaveFormat.JPEG,
+  });
+  return resized;
+}
 
 function formatDateYMD(d) {
   if (!d) return '';
@@ -131,6 +152,8 @@ const COLORS = {
   inputBg: '#F5F2EB',
   border: '#E0D8CC',
   saveGreen: '#2E7D32',
+  dot: '#D5D5D0',
+  dotActive: '#2E7D32',
 };
 
 function CheckRow({ label, checked, onPress }) {
@@ -178,6 +201,8 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
   const [children, setChildren] = useState('');
   const [pets, setPets] = useState(false);
   const [comments, setComments] = useState('');
+  const [photos, setPhotos] = useState([]);
+  const [photoProcessing, setPhotoProcessing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const filteredClients = clientSearch.trim()
@@ -213,6 +238,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
       setPassportId('');
       setCheckIn(null);
       setCheckOut(null);
+      setPhotos([]);
     }
   }, [visible]);
 
@@ -297,9 +323,47 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
     setStep(3);
   };
 
+  const handleNextFromStep3 = () => {
+    Keyboard.dismiss();
+    setStep(4);
+  };
+
   const handleBack = () => {
     Keyboard.dismiss();
     setStep(s => (s === 1 ? 1 : s - 1));
+  };
+
+  const pickPhoto = async () => {
+    const remain = MAX_BOOKING_PHOTOS - photos.length;
+    if (remain <= 0) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 1,
+      allowsMultipleSelection: true,
+      selectionLimit: remain,
+    });
+    if (!result.canceled && result.assets?.length > 0) {
+      setPhotoProcessing(true);
+      try {
+        const uris = [];
+        const toProcess = result.assets.slice(0, remain);
+        for (const a of toProcess) {
+          const uri = await resizePhotoIfNeeded(a.uri, a.width, a.height);
+          uris.push(uri);
+        }
+        setPhotos((prev) => [...prev, ...uris].slice(0, MAX_BOOKING_PHOTOS));
+      } finally {
+        setPhotoProcessing(false);
+      }
+    }
+  };
+
+  const removePhoto = (index) => {
+    setPhotos((prev) => {
+      const next = [...prev];
+      next.splice(index, 1);
+      return next;
+    });
   };
 
   const handleSave = async () => {
@@ -318,6 +382,12 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
     }
     setSaving(true);
     try {
+      let photoUrls = photos.filter((u) => !isLocalUri(u));
+      const localPhotos = photos.filter(isLocalUri);
+      for (let i = 0; i < localPhotos.length; i++) {
+        const url = await uploadPhoto(localPhotos[i]);
+        photoUrls.push(url);
+      }
       await createBooking({
         propertyId: property?.id,
         contactId: notMyCustomer ? null : selectedClient?.id,
@@ -334,6 +404,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
         children: children.trim() ? parseInt(children, 10) : null,
         pets,
         comments: comments.trim() || null,
+        photos: photoUrls.length > 0 ? photoUrls : null,
       });
       onSaved?.();
       onClose?.();
@@ -359,14 +430,19 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={40}
         >
-          <View style={[s.boxWrap, step === 3 && s.boxWrapStep3]} pointerEvents="box-none">
-            <View style={[s.box, step === 3 && s.boxStep3]}>
+          <View style={[s.boxWrap, (step === 3 || step === 4) && s.boxWrapStep3]} pointerEvents="box-none">
+            <View style={[s.box, (step === 3 || step === 4) && s.boxStep3]}>
               <View style={s.headerRow}>
                 <View style={s.headerSpacer} />
                 <Text style={s.title}>{t('addBookingTitle')}</Text>
                 <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.8}>
                   <Text style={s.closeIcon}>✕</Text>
                 </TouchableOpacity>
+              </View>
+              <View style={s.dotsRow}>
+                {[1, 2, 3, 4].map((i) => (
+                  <View key={i} style={[s.dot, i <= step && s.dotActive]} />
+                ))}
               </View>
 
               {step === 2 ? (
@@ -441,6 +517,38 @@ isMonthFirst
                     />
                   </View>
                 </View>
+              ) : step === 4 ? (
+                <ScrollView style={[s.scroll, s.scrollStep3]} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator>
+                  <View style={s.mediaSectionTitleRow}>
+                    <Image source={require('../../assets/icon-photo.png')} style={s.mediaSectionTitleIcon} resizeMode="contain" />
+                    <Text style={s.mediaSectionTitle}>{t('pdPhoto')}</Text>
+                  </View>
+                  <View style={s.mediaGrid}>
+                    {photos.map((uri, i) => (
+                      <View key={i} style={s.mediaThumbWrap}>
+                        <Image source={{ uri }} style={s.mediaThumb} resizeMode="cover" />
+                        <TouchableOpacity style={s.mediaRemoveBtn} onPress={() => removePhoto(i)} activeOpacity={0.7}>
+                          <Text style={s.mediaRemoveText}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                    {photos.length < MAX_BOOKING_PHOTOS && (
+                      <TouchableOpacity style={s.mediaAddBtn} onPress={pickPhoto} activeOpacity={0.7} disabled={photoProcessing}>
+                        {photoProcessing ? (
+                          <ActivityIndicator size="small" color={COLORS.saveGreen} />
+                        ) : (
+                          <>
+                            <Text style={s.mediaAddIcon}>+</Text>
+                            <Text style={s.mediaAddLabel}>{t('wizAddPhoto')}</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {photos.length >= MAX_BOOKING_PHOTOS && (
+                    <Text style={s.mediaLimitNote}>{t('wizPhotoLimit')}</Text>
+                  )}
+                </ScrollView>
               ) : (
               <ScrollView
                 style={[s.scroll, step === 3 && s.scrollStep3]}
@@ -604,7 +712,7 @@ isMonthFirst
                       <Text style={s.nextBtnArrow}>→</Text>
                     </TouchableOpacity>
                   </View>
-                ) : (
+                ) : step === 4 ? (
                   <View style={s.stepNavRow}>
                     <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
                       <Text style={s.backBtnArrow}>←</Text>
@@ -621,6 +729,17 @@ isMonthFirst
                       ) : (
                         <Text style={s.saveBtnText}>{t('save')}</Text>
                       )}
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={s.stepNavRow}>
+                    <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
+                      <Text style={s.backBtnArrow}>←</Text>
+                      <Text style={s.backBtnText}>{t('wizBack')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.nextBtn} onPress={handleNextFromStep3} activeOpacity={0.7}>
+                      <Text style={s.nextBtnText}>{t('next')}</Text>
+                      <Text style={s.nextBtnArrow}>→</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -835,6 +954,36 @@ const s = StyleSheet.create({
     color: '#E85D4C',
     fontWeight: '600',
   },
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
+  },
+  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.dot },
+  dotActive: { backgroundColor: COLORS.dotActive },
+  mediaSectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
+  mediaSectionTitleIcon: { width: 22, height: 22 },
+  mediaSectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.title },
+  mediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  mediaThumbWrap: { width: 90, height: 90, borderRadius: 12, overflow: 'hidden', position: 'relative' },
+  mediaThumb: { width: '100%', height: '100%' },
+  mediaRemoveBtn: {
+    position: 'absolute', top: 4, right: 4,
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center',
+  },
+  mediaRemoveText: { fontSize: 12, color: '#FFF', fontWeight: '700' },
+  mediaAddBtn: {
+    width: 90, height: 90, borderRadius: 12,
+    borderWidth: 1.5, borderColor: COLORS.border, borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.inputBg,
+  },
+  mediaAddIcon: { fontSize: 28, color: COLORS.saveGreen, fontWeight: '300', marginTop: -2 },
+  mediaAddLabel: { fontSize: 10, color: '#999', marginTop: 2 },
+  mediaLimitNote: { fontSize: 12, color: '#999', fontStyle: 'italic', marginTop: 6 },
   scroll: { flexShrink: 1 },
   scrollStep3: { flex: 1, minHeight: 0 },
   scrollContent: {
