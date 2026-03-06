@@ -63,10 +63,14 @@ function patchDisabledDates() {
       s = s.replace('disabledAfterToday = _a.disabledAfterToday;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates;');
       s = s.replace('disabledAfterToday={disabledAfterToday}/>);', 'disabledAfterToday={disabledAfterToday} disabledDates={disabledDates}/>);');
     } else if (f === 'CalendarList.js') {
-      if (s.includes('disabledDates')) return;
-      s = s.replace('disabledAfterToday = _a.disabledAfterToday, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates, style = _a.style;');
-      s = s.replace('disabledAfterToday={disabledAfterToday} style={style}', 'disabledAfterToday={disabledAfterToday} disabledDates={disabledDates} style={style}');
-      s = s.replace('[locale.today, startDate, endDate]', '[locale.today, startDate, endDate, disabledDates]');
+      if (!s.includes('disabledDates')) {
+        s = s.replace('disabledAfterToday = _a.disabledAfterToday, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates, style = _a.style;');
+        s = s.replace('disabledAfterToday={disabledAfterToday} style={style}', 'disabledAfterToday={disabledAfterToday} disabledDates={disabledDates} style={style}');
+        s = s.replace('[locale.today, startDate, endDate]', '[locale.today, startDate, endDate, disabledDates]');
+      }
+      if (!s.includes('collapsable={false}')) {
+        s = s.replace('<View pointerEvents="box-none" style={[', '<View pointerEvents="box-none" collapsable={false} style={[');
+      }
     } else if (f === 'Month.js') {
       if (!s.includes('disabledDates = _a.disabledDates')) {
         s = s.replace('disabledAfterToday = _a.disabledAfterToday, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates, style = _a.style;');
@@ -81,6 +85,11 @@ function patchDisabledDates() {
         s = s.replace('var isOccupied = disabledDates && day.date && disabledDates.indexOf(day.date) >= 0;\n            var DayComponent = day.date ? (<TouchableOpacity disabled={', 'var isOccupied = disabledDates && day.date && disabledDates.indexOf(day.date) >= 0;\n            var isDisabled = (disabledBeforeToday && day.isBeforeToday) || (disabledAfterToday && day.isAfterToday) || isOccupied;\n            var DayComponent = day.date ? (<TouchableOpacity pointerEvents={isDisabled ? "none" : "auto"} disabled={');
         s = s.replace('(disabledBeforeToday && day.isBeforeToday) || (disabledAfterToday && day.isAfterToday)}', 'isDisabled}');
         s = s.replace('disabledAfterToday={disabledAfterToday} style={style}/>', 'disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} style={style}/>');
+      }
+      if (!s.includes('isDisabled ? (<View')) {
+        s = s.replace('var isOccupied = disabledDates && day.date && disabledDates.indexOf(day.date) >= 0;\n            var isDisabled = (disabledBeforeToday && day.isBeforeToday) || (disabledAfterToday && day.isAfterToday) || isOccupied;\n            var DayComponent = day.date ? (<TouchableOpacity pointerEvents={isDisabled ? "none" : "auto"} disabled={isDisabled} style={{', 'var isOccupied = disabledDates && day.date && disabledDates.indexOf(day.date) >= 0;\n            var isDisabled = (disabledBeforeToday && day.isBeforeToday) || (disabledAfterToday && day.isAfterToday) || isOccupied;\n            var dayStyle = {');
+        s = s.replace('flex: 1,\n                height: is6Weeks ? 45 : 50,\n                alignItems: "center",\n            }} onPress={function () { return handlePress(day.date || ""); }} activeOpacity={1} key={day.date || i}>\n          <Day', 'flex: 1, height: is6Weeks ? 45 : 50, alignItems: "center" };\n            var DayComponent = day.date ? (isDisabled ? (<View pointerEvents="none" style={dayStyle} key={day.date || i}>\n          <Day');
+        s = s.replace('</TouchableOpacity>) : (<View pointerEvents="none"', '</View>) : (<TouchableOpacity style={dayStyle} onPress={function () { return handlePress(day.date || ""); }} activeOpacity={1} key={day.date || i}>\n          <Day day={day} locale={locale} disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} style={style}/>\n        </TouchableOpacity>)) : (<View pointerEvents="none"');
       }
       if (!s.includes('prevProps.disabledDates')) {
         s = s.replace('if (JSON.stringify(prevProps.week) === JSON.stringify(nextProps.week))\n        return true;\n    return false;', 'if (JSON.stringify(prevProps.week) !== JSON.stringify(nextProps.week))\n        return false;\n    var pa = prevProps.disabledDates || [];\n    var na = nextProps.disabledDates || [];\n    if (pa.length !== na.length) return false;\n    for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    return true;');

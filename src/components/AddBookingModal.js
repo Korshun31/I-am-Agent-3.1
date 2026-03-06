@@ -199,6 +199,8 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
       setNotMyCustomer(false);
       setSelectedClient(null);
       setPassportId('');
+      setCheckIn(null);
+      setCheckOut(null);
     }
   }, [visible]);
 
@@ -351,9 +353,80 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                 </TouchableOpacity>
               </View>
 
+              {step === 2 ? (
+                <View style={s.step2Content}>
+                  <Text style={[s.fieldLabel, s.fieldLabelStep2]}>{t('bookingDates')}</Text>
+                  <View style={s.dateRowReadonlyStep2}>
+                    <View style={s.dateField}>
+                      <Text style={[s.dateFieldText, !checkIn && s.dateFieldPlaceholder]}>{checkIn ? formatDateDisplay(checkIn) : t('bookingCheckIn')}</Text>
+                    </View>
+                    <Text style={s.dateDash}>—</Text>
+                    <View style={s.dateField}>
+                      <Text style={[s.dateFieldText, !checkOut && s.dateFieldPlaceholder]}>{checkOut ? formatDateDisplay(checkOut) : t('bookingCheckOut')}</Text>
+                    </View>
+                  </View>
+                  <View style={[s.calendarInline, s.calendarInlineStep2]} collapsable={false}>
+                    <CalendarRangePicker
+                      locale={CALENDAR_LOCALES[language] || CALENDAR_LOCALES.en}
+                      startDate={checkIn ? formatDateYMD(checkIn) : null}
+                      endDate={checkOut ? formatDateYMD(checkOut) : null}
+                      disabledDates={occupiedDates}
+                      onChange={({ startDate, endDate }) => {
+                        if (startDate) setCheckIn(new Date(startDate));
+                        if (endDate) setCheckOut(new Date(endDate));
+                      }}
+                      pastYearRange={1}
+                      futureYearRange={2}
+                      isMonthFirst
+                      disabledBeforeToday
+                      style={{
+                        container: { backgroundColor: 'transparent' },
+                        monthOverlayContainer: {
+                          width: Math.round((Math.min(Dimensions.get('window').width - 72, 368)) * 0.8),
+                          height: 360,
+                          backgroundColor: 'rgba(255,255,255,0.95)',
+                          borderRadius: 12,
+                          marginRight: 16,
+                          overflow: 'hidden',
+                        },
+                        monthNameContainer: {
+                          width: '100%',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          paddingLeft: 0,
+                          paddingRight: 0,
+                        },
+                        monthNameText: { textAlign: 'center' },
+                      }}
+                      flatListProps={(() => {
+                        const w = Math.round((Math.min(Dimensions.get('window').width - 72, 368)) * 0.8);
+                        const slot = w + 16;
+                        const boxWidth = Math.min(400, Dimensions.get('window').width - 40);
+                        const viewportW = boxWidth - 40;
+                        const padH = Math.max(20, (viewportW - w) / 2);
+                        const monthCount = (1 + 2) * 12;
+                        return {
+                          horizontal: true,
+                          nestedScrollEnabled: true,
+                          removeClippedSubviews: false,
+                          scrollEventThrottle: 16,
+                          bounces: true,
+                          alwaysBounceHorizontal: true,
+                          snapToOffsets: Array.from({ length: monthCount }, (_, i) => i * slot),
+                          snapToAlignment: 'center',
+                          decelerationRate: 'fast',
+                          getItemLayout: (_, index) => ({ length: slot, offset: slot * index, index }),
+                          contentContainerStyle: { paddingHorizontal: padH },
+                          showsHorizontalScrollIndicator: false,
+                        };
+                      })()}
+                    />
+                  </View>
+                </View>
+              ) : (
               <ScrollView
                 style={[s.scroll, step === 3 && s.scrollStep3]}
-                contentContainerStyle={[s.scrollContent, step === 2 && s.scrollContentStep2]}
+                contentContainerStyle={s.scrollContent}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
                 onScrollBeginDrag={Keyboard.dismiss}
@@ -403,73 +476,6 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                       placeholderTextColor="#999"
                       editable={!notMyCustomer}
                     />
-                  </>
-                ) : step === 2 ? (
-                  <>
-                    <Text style={[s.fieldLabel, s.fieldLabelStep2]}>{t('bookingDates')}</Text>
-                    <View style={s.dateRowReadonlyStep2}>
-                      <View style={s.dateField}>
-                        <Text style={[s.dateFieldText, !checkIn && s.dateFieldPlaceholder]}>{checkIn ? formatDateDisplay(checkIn) : t('bookingCheckIn')}</Text>
-                      </View>
-                      <Text style={s.dateDash}>—</Text>
-                      <View style={s.dateField}>
-                        <Text style={[s.dateFieldText, !checkOut && s.dateFieldPlaceholder]}>{checkOut ? formatDateDisplay(checkOut) : t('bookingCheckOut')}</Text>
-                      </View>
-                    </View>
-
-                    <View style={[s.calendarInline, s.calendarInlineStep2]}>
-                      <CalendarRangePicker
-                        locale={CALENDAR_LOCALES[language] || CALENDAR_LOCALES.en}
-                        startDate={checkIn ? formatDateYMD(checkIn) : null}
-                        endDate={checkOut ? formatDateYMD(checkOut) : null}
-                        disabledDates={occupiedDates}
-                        onChange={({ startDate, endDate }) => {
-                          if (startDate) setCheckIn(new Date(startDate));
-                          if (endDate) setCheckOut(new Date(endDate));
-                        }}
-                        pastYearRange={1}
-                        futureYearRange={2}
-                        isMonthFirst
-                        disabledBeforeToday
-                        style={{
-                          container: { backgroundColor: 'transparent' },
-                          monthOverlayContainer: {
-                            width: Math.round((Math.min(Dimensions.get('window').width - 72, 368)) * 0.8),
-                            height: 360,
-                            backgroundColor: 'rgba(255,255,255,0.95)',
-                            borderRadius: 12,
-                            marginRight: 16,
-                            overflow: 'hidden',
-                          },
-                          monthNameContainer: {
-                            width: '100%',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            paddingLeft: 0,
-                            paddingRight: 0,
-                          },
-                          monthNameText: { textAlign: 'center' },
-                        }}
-                        flatListProps={(() => {
-                          const w = Math.round((Math.min(Dimensions.get('window').width - 72, 368)) * 0.8);
-                          const slot = w + 16;
-                          const boxWidth = Math.min(400, Dimensions.get('window').width - 40);
-                          const viewportW = boxWidth - 40;
-                          const padH = Math.max(20, (viewportW - w) / 2);
-                          const monthCount = (1 + 2) * 12;
-                          return {
-                            horizontal: true,
-                            nestedScrollEnabled: true,
-                            snapToOffsets: Array.from({ length: monthCount }, (_, i) => i * slot),
-                            snapToAlignment: 'center',
-                            decelerationRate: 'fast',
-                            getItemLayout: (_, index) => ({ length: slot, offset: slot * index, index }),
-                            contentContainerStyle: { paddingHorizontal: padH },
-                            showsHorizontalScrollIndicator: false,
-                          };
-                        })()}
-                      />
-                    </View>
                   </>
                 ) : (
                   <>
@@ -559,6 +565,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                   </>
                 )}
               </ScrollView>
+              )}
 
               <View style={s.footerNav}>
                 {step === 1 ? (
@@ -821,6 +828,11 @@ const s = StyleSheet.create({
     padding: 14,
     paddingBottom: 14,
     flexGrow: 0,
+  },
+  step2Content: {
+    flexShrink: 1,
+    padding: 14,
+    paddingBottom: 0,
   },
   fieldLabel: {
     fontSize: 12,
