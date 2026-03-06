@@ -32,6 +32,18 @@ function formatDateYMD(d) {
   return `${y}-${m}-${day}`;
 }
 
+/** Format number with spaces every 3 digits (e.g. 50000 → "50 000") */
+function formatMoneyDisplay(val) {
+  const s = String(val ?? '').replace(/\D/g, '');
+  return s.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+/** Parse formatted money string to number */
+function parseMoneyValue(val) {
+  if (!val || !String(val).trim()) return null;
+  const n = parseFloat(String(val).replace(/\s/g, '').replace(',', '.'));
+  return isNaN(n) ? null : n;
+}
+
 function formatDateDisplay(d) {
   if (!d) return '';
   const x = d instanceof Date ? d : new Date(d);
@@ -93,7 +105,7 @@ function CheckRow({ label, checked, onPress }) {
 
 const CALENDAR_LOCALES = {
   en: { monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], dayNames: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], today: 'Today', year: '' },
-  ru: { monthNames: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], dayNames: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], today: 'Сегодня', year: ' г.' },
+  ru: { monthNames: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], dayNames: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], today: 'Сегодня', year: '' },
   th: { monthNames: ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'], dayNames: ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'], today: 'วันนี้', year: '' },
 };
 
@@ -160,15 +172,15 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
 
   useEffect(() => {
     if (step === 3 && property) {
-      setPriceMonthly(property.price_monthly != null ? String(property.price_monthly) : '');
-      setBookingDeposit(property.booking_deposit != null ? String(property.booking_deposit) : '');
-      setSaveDeposit(property.save_deposit != null ? String(property.save_deposit) : '');
+      setPriceMonthly(property.price_monthly != null ? formatMoneyDisplay(String(Math.round(property.price_monthly))) : '');
+      setBookingDeposit(property.booking_deposit != null ? formatMoneyDisplay(String(Math.round(property.booking_deposit))) : '');
+      setSaveDeposit(property.save_deposit != null ? formatMoneyDisplay(String(Math.round(property.save_deposit))) : '');
     }
   }, [step, property]);
 
-  const computedTotal = computeTotalPrice(checkIn, checkOut, priceMonthly ? parseFloat(priceMonthly) : null);
+  const computedTotal = computeTotalPrice(checkIn, checkOut, parseMoneyValue(priceMonthly));
   useEffect(() => {
-    if (computedTotal != null) setTotalPrice(String(computedTotal));
+    if (computedTotal != null) setTotalPrice(formatMoneyDisplay(String(Math.round(computedTotal))));
   }, [computedTotal]);
 
   useEffect(() => {
@@ -245,11 +257,11 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
         notMyCustomer,
         checkIn: formatDateYMD(checkIn),
         checkOut: formatDateYMD(checkOut),
-        priceMonthly: priceMonthly.trim() ? parseFloat(priceMonthly) : null,
-        totalPrice: totalPrice.trim() ? parseFloat(totalPrice) : null,
-        bookingDeposit: bookingDeposit.trim() ? parseFloat(bookingDeposit) : null,
-        saveDeposit: saveDeposit.trim() ? parseFloat(saveDeposit) : null,
-        commission: commission.trim() ? parseFloat(commission) : null,
+        priceMonthly: parseMoneyValue(priceMonthly),
+        totalPrice: parseMoneyValue(totalPrice),
+        bookingDeposit: parseMoneyValue(bookingDeposit),
+        saveDeposit: parseMoneyValue(saveDeposit),
+        commission: parseMoneyValue(commission),
         adults: adults.trim() ? parseInt(adults, 10) : null,
         children: children.trim() ? parseInt(children, 10) : null,
         pets,
@@ -366,7 +378,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                         }}
                         pastYearRange={1}
                         futureYearRange={2}
-                        isMonthFirst={false}
+                        isMonthFirst
                         disabledBeforeToday
                         style={{
                           container: { backgroundColor: 'transparent' },
@@ -378,7 +390,13 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                             marginRight: 16,
                             overflow: 'hidden',
                           },
-                          monthNameContainer: { justifyContent: 'center', paddingLeft: 0 },
+                          monthNameContainer: {
+                            width: '100%',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            paddingLeft: 0,
+                            paddingRight: 0,
+                          },
                           monthNameText: { textAlign: 'center' },
                         }}
                         flatListProps={(() => {
@@ -404,22 +422,11 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                   </>
                 ) : (
                   <>
-                    <Text style={s.fieldLabel}>{t('bookingDates')}</Text>
-                    <View style={s.dateRowReadonly}>
-                      <View style={s.dateField}>
-                        <Text style={s.dateFieldText}>{checkIn ? formatDateDisplay(checkIn) : '—'}</Text>
-                      </View>
-                      <Text style={s.dateDash}>—</Text>
-                      <View style={s.dateField}>
-                        <Text style={s.dateFieldText}>{checkOut ? formatDateDisplay(checkOut) : '—'}</Text>
-                      </View>
-                    </View>
-
                     <Text style={s.fieldLabel}>{t('pdPriceMonthly')}</Text>
                     <TextInput
                       style={s.input}
                       value={priceMonthly}
-                      onChangeText={setPriceMonthly}
+                      onChangeText={(v) => setPriceMonthly(formatMoneyDisplay(v))}
                       placeholder="0"
                       placeholderTextColor="#999"
                       keyboardType="numeric"
@@ -429,7 +436,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                     <TextInput
                       style={s.input}
                       value={totalPrice}
-                      onChangeText={setTotalPrice}
+                      onChangeText={(v) => setTotalPrice(formatMoneyDisplay(v))}
                       placeholder="0"
                       placeholderTextColor="#999"
                       keyboardType="numeric"
@@ -439,7 +446,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                     <TextInput
                       style={s.input}
                       value={bookingDeposit}
-                      onChangeText={setBookingDeposit}
+                      onChangeText={(v) => setBookingDeposit(formatMoneyDisplay(v))}
                       placeholder="0"
                       placeholderTextColor="#999"
                       keyboardType="numeric"
@@ -449,7 +456,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                     <TextInput
                       style={s.input}
                       value={saveDeposit}
-                      onChangeText={setSaveDeposit}
+                      onChangeText={(v) => setSaveDeposit(formatMoneyDisplay(v))}
                       placeholder="0"
                       placeholderTextColor="#999"
                       keyboardType="numeric"
@@ -459,7 +466,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                     <TextInput
                       style={s.input}
                       value={commission}
-                      onChangeText={setCommission}
+                      onChangeText={(v) => setCommission(formatMoneyDisplay(v))}
                       placeholder="0"
                       placeholderTextColor="#999"
                       keyboardType="numeric"

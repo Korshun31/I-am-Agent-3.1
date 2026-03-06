@@ -43,7 +43,7 @@ index 8723e38..c26d1ef 100644
 -      <View style={styles.monthNameContainer}>
 -        <Text style={[styles.monthName, style === null || style === void 0 ? void 0 : style.monthNameText]}>
 +    return (<View pointerEvents="box-none" style={[styles.monthContainer, style === null || style === void 0 ? void 0 : style.monthContainer]}>
-+      <View pointerEvents="none" style={styles.monthNameContainer}>
++      <View pointerEvents="none" style={[styles.monthNameContainer, style === null || style === void 0 ? void 0 : style.monthNameContainer]}>
 +        <Text pointerEvents="none" style={[styles.monthName, style === null || style === void 0 ? void 0 : style.monthNameText]}>
            {isMonthFirst ? <Text>{locale.monthNames[month - 1]} </Text> : null}
            {year}

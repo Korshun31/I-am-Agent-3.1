@@ -31,5 +31,26 @@ function patchLocale() {
   fs.writeFileSync(localePath, s);
 }
 
+function patchMonth() {
+  const monthPath = path.join(__dirname, '..', 'node_modules', 'react-native-calendar-range-picker', 'dist', 'Month.js');
+  if (!fs.existsSync(monthPath)) return;
+  let s = fs.readFileSync(monthPath, 'utf8');
+  if (s.includes('yearFirst')) return;
+  s = s.replace(
+    'var year = item.year, month = item.month;',
+    'var year = item.year, month = item.month;\n    var yearStr = String(year);\n    var yearFirst = yearStr.length >= 2 ? yearStr.slice(0, 2) : yearStr;\n    var yearLast = yearStr.length >= 2 ? yearStr.slice(2) : \'\';'
+  );
+  s = s.replace(
+    /\{year\}\s*\{locale\.year\}/,
+    '<Text>{yearFirst}</Text>\n          {yearLast ? <Text style={styles.yearLast}>{yearLast}</Text> : null}\n          {locale.year}'
+  );
+  s = s.replace(
+    'monthName: {\n        fontSize: 16,\n    },',
+    'monthName: {\n        fontSize: 16,\n    },\n    yearLast: {\n        fontWeight: \'700\',\n        color: \'#E85D4C\',\n    },'
+  );
+  fs.writeFileSync(monthPath, s);
+}
+
 patchData();
 patchLocale();
+patchMonth();
