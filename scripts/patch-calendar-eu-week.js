@@ -51,6 +51,54 @@ function patchMonth() {
   fs.writeFileSync(monthPath, s);
 }
 
+function patchDisabledDates() {
+  const root = path.join(__dirname, '..', 'node_modules', 'react-native-calendar-range-picker', 'dist');
+  const files = ['index.js', 'CalendarList.js', 'Month.js', 'Week.js', 'Day.js'];
+  files.forEach((f) => {
+    const p = path.join(root, f);
+    if (!fs.existsSync(p)) return;
+    let s = fs.readFileSync(p, 'utf8');
+    if (f === 'index.js') {
+      if (s.includes('disabledDates')) return;
+      s = s.replace('disabledAfterToday = _a.disabledAfterToday;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates;');
+      s = s.replace('disabledAfterToday={disabledAfterToday}/>);', 'disabledAfterToday={disabledAfterToday} disabledDates={disabledDates}/>);');
+    } else if (f === 'CalendarList.js') {
+      if (s.includes('disabledDates')) return;
+      s = s.replace('disabledAfterToday = _a.disabledAfterToday, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates, style = _a.style;');
+      s = s.replace('disabledAfterToday={disabledAfterToday} style={style}', 'disabledAfterToday={disabledAfterToday} disabledDates={disabledDates} style={style}');
+      s = s.replace('[locale.today, startDate, endDate]', '[locale.today, startDate, endDate, disabledDates]');
+    } else if (f === 'Month.js') {
+      if (!s.includes('disabledDates = _a.disabledDates')) {
+        s = s.replace('disabledAfterToday = _a.disabledAfterToday, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates, style = _a.style;');
+        s = s.replace('disabledAfterToday={disabledAfterToday} style={style}/>);', 'disabledAfterToday={disabledAfterToday} disabledDates={disabledDates} style={style}/>);');
+      }
+      if (!s.includes('prevProps.disabledDates')) {
+        s = s.replace('prevProps.locale.today !== nextProps.locale.today) {\n        return false;\n    }\n    return true;\n}', 'prevProps.locale.today !== nextProps.locale.today) {\n        return false;\n    }\n    var pa = prevProps.disabledDates || [];\n    var na = nextProps.disabledDates || [];\n    if (pa.length !== na.length) return false;\n    for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    return true;\n}');
+      }
+    } else if (f === 'Week.js') {
+      if (!s.includes('disabledDates')) {
+        s = s.replace('disabledAfterToday = _a.disabledAfterToday, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates, style = _a.style;');
+        s = s.replace('var isOccupied = disabledDates && day.date && disabledDates.indexOf(day.date) >= 0;\n            var DayComponent = day.date ? (<TouchableOpacity disabled={', 'var isOccupied = disabledDates && day.date && disabledDates.indexOf(day.date) >= 0;\n            var isDisabled = (disabledBeforeToday && day.isBeforeToday) || (disabledAfterToday && day.isAfterToday) || isOccupied;\n            var DayComponent = day.date ? (<TouchableOpacity pointerEvents={isDisabled ? "none" : "auto"} disabled={');
+        s = s.replace('(disabledBeforeToday && day.isBeforeToday) || (disabledAfterToday && day.isAfterToday)}', 'isDisabled}');
+        s = s.replace('disabledAfterToday={disabledAfterToday} style={style}/>', 'disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} style={style}/>');
+      }
+      if (!s.includes('prevProps.disabledDates')) {
+        s = s.replace('if (JSON.stringify(prevProps.week) === JSON.stringify(nextProps.week))\n        return true;\n    return false;', 'if (JSON.stringify(prevProps.week) !== JSON.stringify(nextProps.week))\n        return false;\n    var pa = prevProps.disabledDates || [];\n    var na = nextProps.disabledDates || [];\n    if (pa.length !== na.length) return false;\n    for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    return true;');
+      }
+    } else if (f === 'Day.js') {
+      if (!s.includes('isOccupied = _a.isOccupied')) {
+        s = s.replace('disabledAfterToday = _a.disabledAfterToday, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, isOccupied = _a.isOccupied, style = _a.style;');
+        s = s.replace('(disabledAfterToday && isAfterToday)\n            ? disabledTextColor', '(disabledAfterToday && isAfterToday) ||\n            isOccupied\n            ? disabledTextColor');
+      }
+      if (!s.includes('prevProps.isOccupied')) {
+        s = s.replace('if (prevProps.day.type === nextProps.day.type)\n        return true;\n    return false;', 'if (prevProps.day.type !== nextProps.day.type) return false;\n    if (prevProps.isOccupied !== nextProps.isOccupied) return false;\n    return true;');
+      }
+    }
+    fs.writeFileSync(p, s);
+  });
+}
+
 patchData();
 patchLocale();
 patchMonth();
+patchDisabledDates();

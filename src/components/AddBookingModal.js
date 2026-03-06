@@ -17,10 +17,11 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { BlurView } from 'expo-blur';
+import dayjs from 'dayjs';
 import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
 import { getContacts, createContact } from '../services/contactsService';
-import { createBooking } from '../services/bookingsService';
+import { getBookings, createBooking } from '../services/bookingsService';
 import AddContactModal from './AddContactModal';
 
 function formatDateYMD(d) {
@@ -37,6 +38,36 @@ function formatMoneyDisplay(val) {
   const s = String(val ?? '').replace(/\D/g, '');
   return s.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
+/** Compute all occupied dates (YYYY-MM-DD) from existing bookings */
+function getOccupiedDates(bookings) {
+  const set = new Set();
+  (bookings || []).forEach((b) => {
+    if (!b.checkIn || !b.checkOut) return;
+    const start = dayjs(b.checkIn);
+    const end = dayjs(b.checkOut);
+    let d = start;
+    while (d.isBefore(end) || d.isSame(end, 'day')) {
+      set.add(d.format('YYYY-MM-DD'));
+      d = d.add(1, 'day');
+    }
+  });
+  return Array.from(set);
+}
+
+/** Check if range [checkIn, checkOut] overlaps with occupied dates */
+function hasOverlapWithOccupied(checkIn, checkOut, occupiedDates) {
+  if (!checkIn || !checkOut || !occupiedDates?.length) return false;
+  const start = dayjs(checkIn);
+  const end = dayjs(checkOut);
+  const occSet = new Set(occupiedDates);
+  let d = start;
+  while (d.isBefore(end) || d.isSame(end, 'day')) {
+    if (occSet.has(d.format('YYYY-MM-DD'))) return true;
+    d = d.add(1, 'day');
+  }
+  return false;
+}
+
 /** Parse formatted money string to number */
 function parseMoneyValue(val) {
   if (!val || !String(val).trim()) return null;
@@ -124,6 +155,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
   // Step 2
   const [checkIn, setCheckIn] = useState(null);
   const [checkOut, setCheckOut] = useState(null);
+  const [occupiedDates, setOccupiedDates] = useState([]);
   const [datePickerFor, setDatePickerFor] = useState(null); // 'checkIn' | 'checkOut' (legacy)
   const [priceMonthly, setPriceMonthly] = useState('');
   const [totalPrice, setTotalPrice] = useState('');
@@ -197,6 +229,16 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
   }, [clientPickerVisible, addContactVisible, loadClients]);
 
   useEffect(() => {
+    if (step === 2 && property?.id) {
+      getBookings(property.id).then((bookings) => {
+        setOccupiedDates(getOccupiedDates(bookings));
+      }).catch(() => setOccupiedDates([]));
+    } else {
+      setOccupiedDates([]);
+    }
+  }, [step, property?.id]);
+
+  useEffect(() => {
     if (selectedClient) {
       setPassportId(selectedClient.documentNumber || '');
     } else {
@@ -230,6 +272,10 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
       Alert.alert(t('error'), t('bookingCheckIn') + ' / ' + t('bookingCheckOut'));
       return;
     }
+    if (hasOverlapWithOccupied(checkIn, checkOut, occupiedDates)) {
+      Alert.alert(t('error'), t('bookingDatesOccupied'));
+      return;
+    }
     setStep(3);
   };
 
@@ -246,6 +292,10 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
     }
     if (checkIn >= checkOut) {
       Alert.alert(t('error'), t('bookingCheckIn') + ' / ' + t('bookingCheckOut'));
+      return;
+    }
+    if (hasOverlapWithOccupied(checkIn, checkOut, occupiedDates)) {
+      Alert.alert(t('error'), t('bookingDatesOccupied'));
       return;
     }
     setSaving(true);
@@ -372,6 +422,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
                         locale={CALENDAR_LOCALES[language] || CALENDAR_LOCALES.en}
                         startDate={checkIn ? formatDateYMD(checkIn) : null}
                         endDate={checkOut ? formatDateYMD(checkOut) : null}
+                        disabledDates={occupiedDates}
                         onChange={({ startDate, endDate }) => {
                           if (startDate) setCheckIn(new Date(startDate));
                           if (endDate) setCheckOut(new Date(endDate));
