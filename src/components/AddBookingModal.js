@@ -23,8 +23,8 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import dayjs from 'dayjs';
 import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
-import { getContacts, createContact } from '../services/contactsService';
-import { getBookings, createBooking } from '../services/bookingsService';
+import { getContacts, createContact, getContactById } from '../services/contactsService';
+import { getBookings, createBooking, updateBooking } from '../services/bookingsService';
 import { uploadPhoto, isLocalUri } from '../services/storageService';
 import AddContactModal from './AddContactModal';
 
@@ -173,7 +173,7 @@ const CALENDAR_LOCALES = {
   th: { monthNames: ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'], dayNames: ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'], today: 'วันนี้', year: '' },
 };
 
-export default function AddBookingModal({ visible, onClose, onSaved, property }) {
+export default function AddBookingModal({ visible, onClose, onSaved, property, editBooking }) {
   const { t, language } = useLanguage();
   const [step, setStep] = useState(1);
   const [notMyCustomer, setNotMyCustomer] = useState(false);
@@ -233,22 +233,39 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
   useEffect(() => {
     if (visible) {
       setStep(1);
-      setNotMyCustomer(false);
-      setSelectedClient(null);
-      setPassportId('');
-      setCheckIn(null);
-      setCheckOut(null);
-      setPhotos([]);
+      if (editBooking) {
+        setNotMyCustomer(!!editBooking.notMyCustomer);
+        setPassportId(editBooking.passportId || '');
+        setCheckIn(editBooking.checkIn ? new Date(editBooking.checkIn) : null);
+        setCheckOut(editBooking.checkOut ? new Date(editBooking.checkOut) : null);
+        setPriceMonthly(editBooking.priceMonthly != null ? formatMoneyDisplay(String(Math.round(editBooking.priceMonthly))) : '');
+        setTotalPrice(editBooking.totalPrice != null ? formatMoneyDisplay(String(Math.round(editBooking.totalPrice))) : '');
+        setBookingDeposit(editBooking.bookingDeposit != null ? formatMoneyDisplay(String(Math.round(editBooking.bookingDeposit))) : '');
+        setSaveDeposit(editBooking.saveDeposit != null ? formatMoneyDisplay(String(Math.round(editBooking.saveDeposit))) : '');
+        setCommission(editBooking.commission != null ? formatMoneyDisplay(String(Math.round(editBooking.commission))) : '');
+        setAdults(editBooking.adults != null ? String(editBooking.adults) : '');
+        setChildren(editBooking.children != null ? String(editBooking.children) : '');
+        setPets(!!editBooking.pets);
+        setComments(editBooking.comments || '');
+        setPhotos(Array.isArray(editBooking.photos) ? [...editBooking.photos] : []);
+      } else {
+        setNotMyCustomer(false);
+        setSelectedClient(null);
+        setPassportId('');
+        setCheckIn(null);
+        setCheckOut(null);
+        setPhotos([]);
+      }
     }
-  }, [visible]);
+  }, [visible, editBooking?.id]);
 
   useEffect(() => {
-    if (step === 3 && property) {
+    if (step === 3 && property && !editBooking) {
       setPriceMonthly(property.price_monthly != null ? formatMoneyDisplay(String(Math.round(property.price_monthly))) : '');
       setBookingDeposit(property.booking_deposit != null ? formatMoneyDisplay(String(Math.round(property.booking_deposit))) : '');
       setSaveDeposit(property.save_deposit != null ? formatMoneyDisplay(String(Math.round(property.save_deposit))) : '');
     }
-  }, [step, property]);
+  }, [step, property, editBooking]);
 
   const computedTotal = computeTotalPrice(checkIn, checkOut, parseMoneyValue(priceMonthly));
   useEffect(() => {
@@ -269,18 +286,29 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
   }, [clientPickerVisible, addContactVisible, loadClients]);
 
   useEffect(() => {
+    if (visible && editBooking?.contactId && !editBooking.notMyCustomer) {
+      getContactById(editBooking.contactId).then((c) => {
+        if (c) setSelectedClient(c);
+      }).catch(() => {});
+    } else if (visible && !editBooking) {
+      setSelectedClient(null);
+    }
+  }, [visible, editBooking?.contactId, editBooking?.notMyCustomer]);
+
+  useEffect(() => {
     if (step === 2 && property?.id) {
       getBookings(property.id).then((bookings) => {
-        setOccupiedDates(getOccupiedDates(bookings));
-        setOccupiedCheckInDates(getOccupiedCheckInDates(bookings));
-        setOccupiedCheckOutDates(getOccupiedCheckOutDates(bookings));
+        const toUse = editBooking?.id ? bookings.filter((b) => b.id !== editBooking.id) : bookings;
+        setOccupiedDates(getOccupiedDates(toUse));
+        setOccupiedCheckInDates(getOccupiedCheckInDates(toUse));
+        setOccupiedCheckOutDates(getOccupiedCheckOutDates(toUse));
       }).catch(() => { setOccupiedDates([]); setOccupiedCheckInDates([]); setOccupiedCheckOutDates([]); });
     } else {
       setOccupiedDates([]);
       setOccupiedCheckInDates([]);
       setOccupiedCheckOutDates([]);
     }
-  }, [step, property?.id]);
+  }, [step, property?.id, editBooking?.id]);
 
   useEffect(() => {
     if (selectedClient) {
@@ -388,7 +416,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
         const url = await uploadPhoto(localPhotos[i]);
         photoUrls.push(url);
       }
-      await createBooking({
+      const payload = {
         propertyId: property?.id,
         contactId: notMyCustomer ? null : selectedClient?.id,
         passportId: notMyCustomer ? '' : passportId.trim(),
@@ -405,8 +433,14 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
         pets,
         comments: comments.trim() || null,
         photos: photoUrls.length > 0 ? photoUrls : null,
-      });
-      onSaved?.();
+      };
+      if (editBooking?.id) {
+        const updated = await updateBooking(editBooking.id, payload);
+        onSaved?.(updated);
+      } else {
+        await createBooking(payload);
+        onSaved?.();
+      }
       onClose?.();
     } catch (e) {
       Alert.alert(t('error'), e.message || 'Failed to save booking');
@@ -434,7 +468,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property })
             <View style={[s.box, (step === 3 || step === 4) && s.boxStep3]}>
               <View style={s.headerRow}>
                 <View style={s.headerSpacer} />
-                <Text style={s.title}>{t('addBookingTitle')}</Text>
+                <Text style={s.title}>{editBooking ? t('editBookingTitle') : t('addBookingTitle')}</Text>
                 <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.8}>
                   <Text style={s.closeIcon}>✕</Text>
                 </TouchableOpacity>

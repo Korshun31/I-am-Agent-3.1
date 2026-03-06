@@ -22,10 +22,11 @@ import { useLanguage } from '../context/LanguageContext';
 import { getProperties, updateProperty, createPropertyFull } from '../services/propertiesService';
 import { deletePhotoFromStorage } from '../services/storageService';
 import { getContacts } from '../services/contactsService';
-import { getBookings } from '../services/bookingsService';
+import { getBookings, deleteBooking, updateBooking } from '../services/bookingsService';
 import PropertyEditWizard from '../components/PropertyEditWizard';
 import AddBookingModal from '../components/AddBookingModal';
 import ContactDetailScreen from './ContactDetailScreen';
+import BookingDetailScreen from './BookingDetailScreen';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
@@ -449,7 +450,7 @@ function getBookingNumber(booking, allBookings) {
   return `${seq}/${String(yearShort).padStart(2, '0')}`;
 }
 
-function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onOwner2Press, onPhotoPress, onVideoPress, resort, refreshBookingsTrigger }) {
+function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onOwner2Press, onPhotoPress, onVideoPress, resort, refreshBookingsTrigger, onBookingPress }) {
   const amenities = p.amenities || {};
   const [bookings, setBookings] = useState([]);
 
@@ -531,13 +532,18 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
             const bookingNum = getBookingNumber(b, bookings);
             const codePart = `${codeDisplay} ${bookingNum}`;
             return (
-              <View key={b.id} style={styles.bookingItem}>
+              <TouchableOpacity
+                key={b.id}
+                style={styles.bookingItem}
+                onPress={() => onBookingPress?.(b, codePart, p)}
+                activeOpacity={0.7}
+              >
                 <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{codePart}</Text>
                 <Text style={styles.bookingItemDates}>
                   {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
                 </Text>
-              </View>
+              </TouchableOpacity>
             );
           })
         ) : (
@@ -600,11 +606,12 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
   );
 }
 
-function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshResortHousesTrigger, newHouseIdToExpand, onExpandedNewHouse, onHousePress }) {
+function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshResortHousesTrigger, refreshBookingsTrigger, newHouseIdToExpand, onExpandedNewHouse, onHousePress, onBookingPress }) {
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const ownerName = p.ownerName || '';
   const [resortHouses, setResortHouses] = useState([]);
+  const [aggregatedBookings, setAggregatedBookings] = useState([]);
   const [expandedHouseIds, setExpandedHouseIds] = useState(new Set());
   const [allHousesExpanded, setAllHousesExpanded] = useState(false);
 
@@ -615,8 +622,34 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
     } catch {}
   }, [p.id]);
 
+  const loadAggregatedBookings = useCallback(async () => {
+    if (resortHouses.length === 0) { setAggregatedBookings([]); return; }
+    try {
+      const childIds = resortHouses.map(h => h.id);
+      const all = await getBookings();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const byProp = {};
+      all.filter(b => childIds.includes(b.propertyId)).forEach((b) => {
+        if (!byProp[b.propertyId]) byProp[b.propertyId] = [];
+        byProp[b.propertyId].push(b);
+      });
+      const active = all
+        .filter(b => childIds.includes(b.propertyId) && new Date(b.checkOut) >= today)
+        .sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+      setAggregatedBookings(active.map((b) => {
+        const house = resortHouses.find(h => h.id === b.propertyId);
+        const codeDisplay = (p.code || '') + (house?.code_suffix ? ` (${house.code_suffix})` : '');
+        const bookingNum = getBookingNumber(b, byProp[b.propertyId] || []);
+        return { ...b, _codePart: `${codeDisplay} ${bookingNum}` };
+      }));
+    } catch { setAggregatedBookings([]); }
+  }, [p.id, p.code, resortHouses]);
+
   useEffect(() => { loadResortHouses(); }, [loadResortHouses]);
   useEffect(() => { if (refreshResortHousesTrigger > 0) loadResortHouses(); }, [refreshResortHousesTrigger, loadResortHouses]);
+  useEffect(() => { loadAggregatedBookings(); }, [loadAggregatedBookings]);
+  useEffect(() => { if (refreshBookingsTrigger > 0) loadAggregatedBookings(); }, [refreshBookingsTrigger, loadAggregatedBookings]);
   useEffect(() => {
     if (newHouseIdToExpand && resortHouses.some(h => h.id === newHouseIdToExpand)) {
       setExpandedHouseIds(prev => new Set([...prev, newHouseIdToExpand]));
@@ -672,7 +705,27 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
             <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
             <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
           </View>
-        <Text style={styles.emptyMedia}>{t('pdNoBookings')}</Text>
+        {aggregatedBookings.length > 0 ? (
+          aggregatedBookings.map((b) => {
+            const house = resortHouses.find(h => h.id === b.propertyId);
+            return (
+              <TouchableOpacity
+                key={b.id}
+                style={styles.bookingItem}
+                onPress={() => onBookingPress?.(b, b._codePart, house)}
+                activeOpacity={0.7}
+              >
+                <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
+                <Text style={styles.bookingItemCode} numberOfLines={1}>{b._codePart}</Text>
+                <Text style={styles.bookingItemDates}>
+                  {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })
+        ) : (
+          <Text style={styles.emptyMedia}>{t('pdNoBookings')}</Text>
+        )}
       </SectionBlock>
 
       {p.description ? (
@@ -772,10 +825,11 @@ function CondoApartmentItem({ item, expanded, onToggle, onPress }) {
   );
 }
 
-function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshApartmentsTrigger, onApartmentPress }) {
+function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshApartmentsTrigger, refreshBookingsTrigger, onApartmentPress, onBookingPress }) {
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const [apartments, setApartments] = useState([]);
+  const [aggregatedBookings, setAggregatedBookings] = useState([]);
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [allExpanded, setAllExpanded] = useState(false);
 
@@ -786,8 +840,34 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
     } catch {}
   }, [p.id]);
 
+  const loadAggregatedBookings = useCallback(async () => {
+    if (apartments.length === 0) { setAggregatedBookings([]); return; }
+    try {
+      const childIds = apartments.map(a => a.id);
+      const all = await getBookings();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const byProp = {};
+      all.filter(b => childIds.includes(b.propertyId)).forEach((b) => {
+        if (!byProp[b.propertyId]) byProp[b.propertyId] = [];
+        byProp[b.propertyId].push(b);
+      });
+      const active = all
+        .filter(b => childIds.includes(b.propertyId) && new Date(b.checkOut) >= today)
+        .sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+      setAggregatedBookings(active.map((b) => {
+        const apt = apartments.find(a => a.id === b.propertyId);
+        const codeDisplay = (p.code || '') + (apt?.code_suffix ? ` (${apt.code_suffix})` : '');
+        const bookingNum = getBookingNumber(b, byProp[b.propertyId] || []);
+        return { ...b, _codePart: `${codeDisplay} ${bookingNum}` };
+      }));
+    } catch { setAggregatedBookings([]); }
+  }, [p.id, p.code, apartments]);
+
   useEffect(() => { loadApartments(); }, [loadApartments]);
   useEffect(() => { if (refreshApartmentsTrigger > 0) loadApartments(); }, [refreshApartmentsTrigger, loadApartments]);
+  useEffect(() => { loadAggregatedBookings(); }, [loadAggregatedBookings]);
+  useEffect(() => { if (refreshBookingsTrigger > 0) loadAggregatedBookings(); }, [refreshBookingsTrigger, loadAggregatedBookings]);
 
   const toggleExpand = (id) => {
     setExpandedIds(prev => {
@@ -836,7 +916,27 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
             <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
             <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
           </View>
-        <Text style={styles.emptyMedia}>{t('pdNoBookings')}</Text>
+        {aggregatedBookings.length > 0 ? (
+          aggregatedBookings.map((b) => {
+            const apt = apartments.find(a => a.id === b.propertyId);
+            return (
+              <TouchableOpacity
+                key={b.id}
+                style={styles.bookingItem}
+                onPress={() => onBookingPress?.(b, b._codePart, apt)}
+                activeOpacity={0.7}
+              >
+                <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
+                <Text style={styles.bookingItemCode} numberOfLines={1}>{b._codePart}</Text>
+                <Text style={styles.bookingItemDates}>
+                  {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })
+        ) : (
+          <Text style={styles.emptyMedia}>{t('pdNoBookings')}</Text>
+        )}
       </SectionBlock>
 
       {p.description ? (
@@ -902,6 +1002,12 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const [showOwner2, setShowOwner2] = useState(false);
   const [resort, setResort] = useState(null);
   const [refreshBookingsTrigger, setRefreshBookingsTrigger] = useState(0);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [selectedBookingTitle, setSelectedBookingTitle] = useState('');
+  const [selectedBookingProperty, setSelectedBookingProperty] = useState(null);
+  const [selectedClientContact, setSelectedClientContact] = useState(null);
+  const [editBookingModalVisible, setEditBookingModalVisible] = useState(false);
+  const [editBookingToEdit, setEditBookingToEdit] = useState(null);
 
   const loadResortData = useCallback(async (resortId) => {
     if (!resortId) { setResort(null); return; }
@@ -1107,6 +1213,54 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       />
     );
   }
+  if (selectedClientContact) {
+    return (
+      <ContactDetailScreen
+        contact={selectedClientContact}
+        onBack={() => setSelectedClientContact(null)}
+        onContactUpdated={() => setSelectedClientContact(null)}
+        onContactDeleted={() => setSelectedClientContact(null)}
+      />
+    );
+  }
+  if (selectedBooking) {
+    return (
+      <View style={{ flex: 1 }}>
+        <BookingDetailScreen
+          booking={selectedBooking}
+          propertyCode={selectedBookingTitle || t('pdBookingList')}
+          onBack={() => { setSelectedBooking(null); setSelectedBookingTitle(''); setSelectedBookingProperty(null); }}
+          onContactPress={(contact) => setSelectedClientContact(contact)}
+          onDelete={async (id) => {
+            try {
+              await deleteBooking(id);
+              setSelectedBooking(null);
+              setSelectedBookingTitle('');
+              setRefreshBookingsTrigger((prev) => prev + 1);
+            } catch (e) {
+              Alert.alert(t('error'), e.message);
+            }
+          }}
+          onEdit={(b) => {
+            setEditBookingToEdit(b);
+            setEditBookingModalVisible(true);
+          }}
+        />
+        <AddBookingModal
+          visible={editBookingModalVisible}
+          property={selectedBookingProperty || p}
+          editBooking={editBookingToEdit}
+          onClose={() => { setEditBookingModalVisible(false); setEditBookingToEdit(null); }}
+          onSaved={(updated) => {
+            setEditBookingModalVisible(false);
+            setEditBookingToEdit(null);
+            if (updated) setSelectedBooking(updated);
+            setRefreshBookingsTrigger((prev) => prev + 1);
+          }}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -1154,9 +1308,15 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             onPhotoPress={handlePhotoPress}
             onVideoPress={handleVideoPress}
             refreshResortHousesTrigger={refreshResortHousesTrigger}
+            refreshBookingsTrigger={refreshBookingsTrigger}
             newHouseIdToExpand={newHouseIdToExpand}
             onExpandedNewHouse={() => setNewHouseIdToExpand(null)}
             onHousePress={onSelectProperty ? (h) => onSelectProperty(h) : undefined}
+            onBookingPress={(b, codePart, property) => {
+              setSelectedBooking(b);
+              setSelectedBookingTitle(codePart || '');
+              setSelectedBookingProperty(property || null);
+            }}
           />
         ) : p.type === 'condo' ? (
           <CondoDetailContent
@@ -1167,7 +1327,13 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             onPhotoPress={handlePhotoPress}
             onVideoPress={handleVideoPress}
             refreshApartmentsTrigger={refreshApartmentsTrigger}
+            refreshBookingsTrigger={refreshBookingsTrigger}
             onApartmentPress={onSelectProperty ? (a) => onSelectProperty(a) : undefined}
+            onBookingPress={(b, codePart, property) => {
+              setSelectedBooking(b);
+              setSelectedBookingTitle(codePart || '');
+              setSelectedBookingProperty(property || null);
+            }}
           />
         ) : (
           <HouseDetailContent
@@ -1182,6 +1348,10 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             onVideoPress={handleVideoPress}
             resort={p.resort_id ? resort : null}
             refreshBookingsTrigger={refreshBookingsTrigger}
+            onBookingPress={(b, codePart) => {
+              setSelectedBooking(b);
+              setSelectedBookingTitle(codePart || '');
+            }}
           />
         )}
 

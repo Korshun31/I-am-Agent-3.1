@@ -19,6 +19,22 @@ export async function getContacts(type) {
   return (data || []).map(mapContact);
 }
 
+export async function getContactById(id) {
+  if (!id) return null;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return null;
+
+  const { data, error } = await supabase
+    .from('contacts')
+    .select('*')
+    .eq('id', id)
+    .eq('agent_id', session.user.id)
+    .single();
+
+  if (error || !data) return null;
+  return mapContact(data);
+}
+
 export async function createContact(contactData) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
