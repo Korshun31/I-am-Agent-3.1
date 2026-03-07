@@ -624,7 +624,7 @@ export const translations = {
     accountExists: 'Агент с такой почтой уже зарегистрирован. Войдите по логину и паролю.',
     saveFailed: 'Не удалось сохранить аккаунт. Попробуйте ещё раз.',
     base: 'База',
-    bookings: 'Брони',
+    bookings: 'Бронирования',
     bookingCalendar: 'Календарь бронирования',
     calendarNoProperties: 'Нет подходящих объектов',
     calendar: 'Календарь',

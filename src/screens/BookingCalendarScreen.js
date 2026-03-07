@@ -19,13 +19,14 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import 'dayjs/locale/th';
 import { useLanguage } from '../context/LanguageContext';
-import { getProperties } from '../services/propertiesService';
+import { getProperties, deleteProperty } from '../services/propertiesService';
 import { getBookings, deleteBooking } from '../services/bookingsService';
 import { getContactById, getContacts } from '../services/contactsService';
 import FilterBottomSheet from '../components/FilterBottomSheet';
 import AddBookingModal from '../components/AddBookingModal';
 import BookingDetailScreen from './BookingDetailScreen';
 import ContactDetailScreen from './ContactDetailScreen';
+import PropertyDetailScreen from './PropertyDetailScreen';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 const ROW_HEIGHT = 45;
@@ -142,6 +143,7 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
   const [preloadedProperty, setPreloadedProperty] = useState(null);
   const [preloadedContact, setPreloadedContact] = useState(null);
   const [selectedOwnerContact, setSelectedOwnerContact] = useState(null);
+  const [selectedPropertyForDetail, setSelectedPropertyForDetail] = useState(null);
   const leftScrollRef = useRef(null);
   const rightScrollRef = useRef(null);
   const rightVerticalRef = useRef(null);
@@ -234,8 +236,8 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
   ].filter(Boolean);
   const uniqueDistricts = [...new Set(allDistricts)].sort();
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     try {
       const [props, books] = await Promise.all([
         getProperties(),
@@ -246,13 +248,17 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
     } catch (e) {
       console.error('BookingCalendar load error:', e);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (isVisible) loadData(false);
+  }, [isVisible, loadData]);
 
   const bookingsByProperty = React.useMemo(() => {
     const map = {};
@@ -439,7 +445,7 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
   }, []);
 
   const handleSaved = () => {
-    loadData();
+    loadData(false);
   };
 
   const currentYear = dayjs().year();
@@ -454,6 +460,31 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
     );
   }
 
+  if (selectedPropertyForDetail) {
+    const handleDeletePropertyDetail = () => {
+      Alert.alert(t('pdDeleteTitle'), t('pdDeleteConfirm'), [
+        { text: t('no'), style: 'cancel' },
+        { text: t('yes'), style: 'destructive', onPress: async () => {
+          try {
+            await deleteProperty(selectedPropertyForDetail.id);
+            setSelectedPropertyForDetail(null);
+            handleSaved();
+          } catch (e) {
+            Alert.alert(t('error'), e?.message || String(e));
+          }
+        } },
+      ]);
+    };
+    return (
+      <PropertyDetailScreen
+        property={selectedPropertyForDetail}
+        onBack={() => setSelectedPropertyForDetail(null)}
+        onDelete={handleDeletePropertyDetail}
+        onPropertyUpdated={() => { handleSaved(); }}
+        onSelectProperty={(prop) => setSelectedPropertyForDetail(prop)}
+      />
+    );
+  }
   if (selectedOwnerContact) {
     return (
       <ContactDetailScreen
@@ -557,9 +588,14 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
                   ? (parent.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '')
                   : (unit.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '');
                 return (
-                  <View key={unit.id} style={[styles.row, styles.propertyRow]}>
-                    <Text style={styles.propertyLabel} numberOfLines={1}>{codeDisplay}</Text>
-                  </View>
+                  <TouchableOpacity
+                    key={unit.id}
+                    style={[styles.row, styles.propertyRow]}
+                    onPress={() => setSelectedPropertyForDetail(unit)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.propertyLabel, styles.propertyLabelLink]} numberOfLines={1}>{codeDisplay}</Text>
+                  </TouchableOpacity>
                 );
               })}
             </ScrollView>
@@ -1009,7 +1045,11 @@ const styles = StyleSheet.create({
   propertyLabel: {
     fontSize: 12,
     fontWeight: '600',
+    color: COLORS.title,
+  },
+  propertyLabelLink: {
     color: '#D81B60',
+    textDecorationLine: 'underline',
   },
   rightArea: {
     flex: 1,
