@@ -16,6 +16,8 @@ import {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import Constants from 'expo-constants';
 import dayjs from 'dayjs';
+import 'dayjs/locale/ru';
+import 'dayjs/locale/th';
 import { useLanguage } from '../context/LanguageContext';
 import { getProperties } from '../services/propertiesService';
 import { getBookings, deleteBooking } from '../services/bookingsService';
@@ -122,7 +124,7 @@ function getOwnerLabel(width, labels) {
 }
 
 export default function BookingCalendarScreen({ isVisible = true } = {}) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [properties, setProperties] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [contactsCache, setContactsCache] = useState({});
@@ -281,18 +283,20 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
   }, [listToShow, getParent]);
 
   const months = React.useMemo(() => {
+    const loc = language === 'ru' ? 'ru' : language === 'th' ? 'th' : 'en';
     const arr = [];
     for (let i = -12; i <= 23; i++) {
-      const d = dayjs().year(year).month(0).add(i, 'month');
+      const d = dayjs().year(year).month(0).add(i, 'month').locale(loc);
+      const raw = d.format('MMMM');
       arr.push({
         key: d.format('YYYY-MM'),
         year: d.year(),
         month: d.month(),
-        label: d.format('MMMM'),
+        label: raw ? raw[0].toUpperCase() + raw.slice(1) : raw,
       });
     }
     return arr;
-  }, [year]);
+  }, [year, language]);
 
   const initialScrollX = React.useMemo(() => {
     const curYear = dayjs().year();
@@ -583,7 +587,10 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
                           !isPast && !isCurrent && styles.monthFuture,
                         ]}
                       >
-                        <Text style={styles.monthLabel} numberOfLines={1}>{m.label}</Text>
+                        <Text style={styles.monthLabel} numberOfLines={1}>
+                          <Text style={styles.monthLabelBold}>{m.label}</Text>
+                          <Text style={styles.monthYearRed}> {String(m.year % 100).padStart(2, '0')}</Text>
+                        </Text>
                         <View style={styles.monthDivisions}>
                           <View style={styles.division} />
                           <View style={styles.division} />
@@ -1031,8 +1038,14 @@ const styles = StyleSheet.create({
   },
   monthLabel: {
     fontSize: 11,
-    fontWeight: '600',
     color: COLORS.title,
+  },
+  monthLabelBold: {
+    fontWeight: '700',
+  },
+  monthYearRed: {
+    fontWeight: '700',
+    color: '#E53935',
   },
   monthDivisions: {
     position: 'absolute',
