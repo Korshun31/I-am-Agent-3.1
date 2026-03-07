@@ -11,6 +11,7 @@ import {
   Platform,
   UIManager,
   Dimensions,
+  Alert,
 } from 'react-native';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -27,6 +28,9 @@ import { getContactById } from '../services/contactsService';
 import { getCalendarEvents } from '../services/calendarEventsService';
 import AddCalendarEventModal from '../components/AddCalendarEventModal';
 import AddBookingModal from '../components/AddBookingModal';
+import BookingDetailScreen from './BookingDetailScreen';
+import ContactDetailScreen from './ContactDetailScreen';
+import { deleteBooking } from '../services/bookingsService';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -71,6 +75,12 @@ function getBookingNumber(booking, allBookings) {
   return `${seq}/${String(yearShort).padStart(2, '0')}`;
 }
 
+const EVENT_BLOCK_COLORS = {
+  checkInMine: { bg: 'rgba(168,230,163,0.7)', border: '#81C784' },
+  checkOutMine: { bg: 'rgba(255,205,210,0.8)', border: '#E57373' },
+  other: { bg: 'rgba(224,224,224,0.8)', border: '#BDBDBD' },
+};
+
 const DRAWER_ANIMATION = {
   duration: 300,
   create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
@@ -78,15 +88,7 @@ const DRAWER_ANIMATION = {
   delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
 };
 
-function SectionBlock({ color, border, children }) {
-  return (
-    <View style={[styles.sectionBlock, { backgroundColor: color, borderColor: border }]}>
-      {children}
-    </View>
-  );
-}
-
-function EventCard({ event, expanded, onToggle, onEdit, isBooking, t }) {
+function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBooking, isBooking, t }) {
   const [contactName, setContactName] = useState('');
 
   useEffect(() => {
@@ -106,47 +108,62 @@ function EventCard({ event, expanded, onToggle, onEdit, isBooking, t }) {
   }, [isBooking, event?.booking?.contactId, event?.booking?.notMyCustomer, t]);
 
   if (isBooking) {
-    const typeLabel = event.eventType === 'checkIn' ? t('agentCalendarCheckIn') : t('agentCalendarCheckOut');
+    const typeIcon = event.eventType === 'checkIn' ? require('../../assets/icon-checkin.png') : require('../../assets/icon-checkout.png');
     const displayName = contactName || (event.booking?.notMyCustomer ? t('ownerCustomer') : '');
+    const blockColors = event.notMyCustomer
+      ? EVENT_BLOCK_COLORS.other
+      : (event.eventType === 'checkIn' ? EVENT_BLOCK_COLORS.checkInMine : EVENT_BLOCK_COLORS.checkOutMine);
     return (
-      <View style={[styles.eventCard, { borderLeftColor: event.color }]}>
+      <View style={[styles.eventCard, styles.eventCardPropertyStyle, { backgroundColor: blockColors.bg, borderColor: blockColors.border }]}>
         <View style={styles.eventRow}>
           <TouchableOpacity style={styles.eventMainArea} onPress={() => {}} activeOpacity={1}>
-            <Text style={styles.eventTypeLabel}>{typeLabel}</Text>
+            <Image source={typeIcon} style={styles.eventTypeIcon} resizeMode="contain" />
             <Text style={styles.eventName} numberOfLines={1}>{displayName}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={onToggle} style={styles.expandBtn} activeOpacity={0.5}>
-            <Image source={require('../../assets/icon-arrow-down.png')} style={[styles.arrowIcon, expanded && styles.arrowIconUp]} resizeMode="contain" />
+            <Image source={require('../../assets/chevron-down.png')} style={[styles.chevronIcon, expanded && styles.chevronIconOpen]} resizeMode="contain" />
           </TouchableOpacity>
         </View>
         {expanded && (
           <View style={styles.eventExpanded}>
-            <View style={styles.eventDetailRow}>
-              <Image source={require('../../assets/icon-property-house.png')} style={styles.eventDetailIcon} resizeMode="contain" />
-              <Text style={styles.eventDetailText}>{event.propertyLabel || '—'}</Text>
-            </View>
-            <View style={styles.eventDetailRow}>
-              <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.eventDetailIcon} resizeMode="contain" />
-              <Text style={styles.eventDetailText}>{event.booking?.notMyCustomer ? 'N/A' : (event.bookingNum || '—')}</Text>
-            </View>
-            <TouchableOpacity style={styles.editBtn} onPress={onEdit}>
-              <Text style={styles.editBtnText}>{t('editContact')}</Text>
-            </TouchableOpacity>
+            {event.property ? (
+              <TouchableOpacity style={styles.eventDetailRow} onPress={() => onOpenProperty?.(event.property)} activeOpacity={0.7}>
+                <Image source={require('../../assets/icon-property-house.png')} style={styles.eventDetailIcon} resizeMode="contain" />
+                <Text style={styles.eventDetailLink}>{event.propertyLabel || '—'}</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.eventDetailRow}>
+                <Image source={require('../../assets/icon-property-house.png')} style={styles.eventDetailIcon} resizeMode="contain" />
+                <Text style={styles.eventDetailText}>{event.propertyLabel || '—'}</Text>
+              </View>
+            )}
+            {event.booking?.notMyCustomer ? (
+              <View style={styles.eventDetailRow}>
+                <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.eventDetailIconBooking} resizeMode="contain" />
+                <Text style={styles.eventDetailText}>N/A</Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.eventDetailRow} onPress={() => onOpenBooking?.(event.booking, event.property, event.fullBookingCode)} activeOpacity={0.7}>
+                <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.eventDetailIconBooking} resizeMode="contain" />
+                <Text style={styles.eventDetailLink} numberOfLines={1}>{event.fullBookingCode || event.bookingNum || '—'}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>
     );
   }
 
+  const customColors = { bg: 'rgba(255,249,196,0.8)', border: event.color || '#FFD54F' };
   return (
-    <View style={[styles.eventCard, { borderLeftColor: event.color }]}>
+    <View style={[styles.eventCard, styles.eventCardPropertyStyle, { backgroundColor: customColors.bg, borderColor: customColors.border }]}>
       <View style={styles.eventRow}>
         <TouchableOpacity style={styles.eventMainArea} onPress={() => {}} activeOpacity={1}>
-          <View style={[styles.customEventDot, { backgroundColor: event.color }]} />
+          <View style={[styles.customEventDot, { backgroundColor: event.color || '#81C784' }]} />
           <Text style={styles.eventName} numberOfLines={1}>{event.title}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={onToggle} style={styles.expandBtn} activeOpacity={0.5}>
-          <Image source={require('../../assets/icon-arrow-down.png')} style={[styles.arrowIcon, expanded && styles.arrowIconUp]} resizeMode="contain" />
+          <Image source={require('../../assets/chevron-down.png')} style={[styles.chevronIcon, expanded && styles.chevronIconOpen]} resizeMode="contain" />
         </TouchableOpacity>
       </View>
       {expanded && (
@@ -169,7 +186,7 @@ function EventCard({ event, expanded, onToggle, onEdit, isBooking, t }) {
   );
 }
 
-export default function AgentCalendarScreen({ isVisible, onBookingEdit }) {
+export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenProperty }) {
   const { t, language } = useLanguage();
   const [selectedDate, setSelectedDate] = useState(() => formatDateYMD(new Date()));
   const [bookings, setBookings] = useState([]);
@@ -182,6 +199,9 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit }) {
   const [editBooking, setEditBooking] = useState(null);
   const [allExpanded, setAllExpanded] = useState(false);
   const [expandedIds, setExpandedIds] = useState(new Set());
+  const [viewBookingDetail, setViewBookingDetail] = useState(null);
+  const [editBookingDetailModalVisible, setEditBookingDetailModalVisible] = useState(false);
+  const [selectedOwnerContact, setSelectedOwnerContact] = useState(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -240,8 +260,10 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit }) {
     setAddBookingVisible(true);
   };
 
-  const viewBookingDetail = (ev) => {
-    setSelectedBooking({ booking: ev.booking });
+  const handleViewBooking = (booking, property, propertyCode) => {
+    if (booking && property && propertyCode) {
+      setViewBookingDetail({ booking, property, propertyCode });
+    }
   };
 
   const mergedDayEvents = React.useMemo(() => {
@@ -267,24 +289,28 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit }) {
           eventType: 'checkIn',
           color: b.notMyCustomer ? '#BDBDBD' : '#81C784',
           booking: b,
+          property: propsMap[b.propertyId],
           propertyLabel: getPropertyLabel(b),
           bookingNum: getBookingNumber(b, bookings),
+          fullBookingCode: `${getPropertyLabel(b)} ${getBookingNumber(b, bookings)}`.trim(),
           notMyCustomer: b.notMyCustomer,
         });
       }
       if (b.checkOut) {
         const dOut = dayjs(b.checkOut).format('YYYY-MM-DD');
         if (dOut === selectedDate) {
-          list.push({
-            key: `b-out-${b.id}`,
-            type: 'booking',
-            eventType: 'checkOut',
-            color: b.notMyCustomer ? '#BDBDBD' : '#E57373',
-            booking: b,
-            propertyLabel: getPropertyLabel(b),
-            bookingNum: getBookingNumber(b, bookings),
-            notMyCustomer: b.notMyCustomer,
-          });
+        list.push({
+          key: `b-out-${b.id}`,
+          type: 'booking',
+          eventType: 'checkOut',
+          color: b.notMyCustomer ? '#BDBDBD' : '#E57373',
+          booking: b,
+          property: propsMap[b.propertyId],
+          propertyLabel: getPropertyLabel(b),
+          bookingNum: getBookingNumber(b, bookings),
+          fullBookingCode: `${getPropertyLabel(b)} ${getBookingNumber(b, bookings)}`.trim(),
+          notMyCustomer: b.notMyCustomer,
+        });
         }
       }
     });
@@ -330,6 +356,59 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit }) {
     });
     return counts;
   }, [bookings, customEvents]);
+
+  if (selectedOwnerContact) {
+    return (
+      <ContactDetailScreen
+        contact={selectedOwnerContact}
+        onBack={() => setSelectedOwnerContact(null)}
+        onContactUpdated={() => setSelectedOwnerContact(null)}
+        onContactDeleted={() => setSelectedOwnerContact(null)}
+      />
+    );
+  }
+
+  if (viewBookingDetail) {
+    const { booking, property, propertyCode } = viewBookingDetail;
+    const clearDetail = () => {
+      setViewBookingDetail(null);
+      setEditBookingDetailModalVisible(false);
+      setSelectedOwnerContact(null);
+    };
+    return (
+      <View style={{ flex: 1 }}>
+        <BookingDetailScreen
+          booking={booking}
+          propertyCode={propertyCode}
+          initialProperty={null}
+          initialContact={null}
+          onContactPress={(contact) => setSelectedOwnerContact(contact)}
+          onBack={clearDetail}
+          onDelete={async (id) => {
+            try {
+              await deleteBooking(id);
+              clearDetail();
+              loadData();
+            } catch (e) {
+              Alert.alert(t('error'), e?.message || String(e));
+            }
+          }}
+          onEdit={() => setEditBookingDetailModalVisible(true)}
+        />
+        <AddBookingModal
+          visible={editBookingDetailModalVisible}
+          onClose={() => setEditBookingDetailModalVisible(false)}
+          onSaved={(updated) => {
+            setEditBookingDetailModalVisible(false);
+            if (updated) setViewBookingDetail(prev => prev ? { ...prev, booking: updated } : null);
+            loadData();
+          }}
+          property={property}
+          editBooking={booking}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -411,23 +490,23 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit }) {
         </View>
 
         <View style={styles.eventsSection}>
-        <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
-          <View style={styles.toolbarRow}>
-            <TouchableOpacity style={styles.toolbarBtn} onPress={openAddEvent} activeOpacity={0.7}>
-              <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.toolbarIcon} resizeMode="contain" />
-              <Text style={styles.toolbarBtnPlus}>+</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.toolbarBtn} onPress={toggleExpandAll} activeOpacity={0.7}>
-              <Image
-                source={allExpanded ? require('../../assets/icon-folder-open.png') : require('../../assets/icon-folder-closed.png')}
-                style={styles.toolbarIcon}
-                resizeMode="contain"
-              />
-            </TouchableOpacity>
+          <View style={styles.eventsToolbar}>
+            <View style={styles.eventsToolbarIcons}>
+              <TouchableOpacity onPress={openAddEvent} activeOpacity={0.7} style={styles.eventsToolbarIconBtn}>
+                <Image source={require('../../assets/icon-add-calendar-event.png')} style={styles.eventsToolbarIcon} resizeMode="contain" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={toggleExpandAll} activeOpacity={0.7} style={styles.eventsToolbarIconBtn}>
+                <Image
+                  source={allExpanded ? require('../../assets/icon-folder-open.png') : require('../../assets/icon-folder-closed.png')}
+                  style={styles.eventsToolbarIcon}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {loading ? (
-            <ActivityIndicator size="small" color="#64B5F6" style={{ marginVertical: 24 }} />
+            <ActivityIndicator size="small" color="#6B6B6B" style={{ marginVertical: 24 }} />
           ) : dayEvents.length === 0 ? (
             <Text style={styles.emptyText}>{t('agentCalendarNoEvents')}</Text>
           ) : (
@@ -438,12 +517,13 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit }) {
                 expanded={expandedIds.has(ev.key)}
                 onToggle={() => toggleExpand(ev.key)}
                 onEdit={ev.type === 'booking' ? () => openEditBooking(ev) : () => openEditEvent(ev)}
+                onOpenProperty={onOpenProperty}
+                onOpenBooking={handleViewBooking}
                 isBooking={ev.type === 'booking'}
                 t={t}
               />
             ))
           )}
-        </SectionBlock>
         </View>
       </ScrollView>
 
@@ -524,31 +604,23 @@ const styles = StyleSheet.create({
   eventsSection: {
     paddingHorizontal: 16,
   },
-  sectionBlock: {
-    borderRadius: 16,
-    borderWidth: 1.5,
-    padding: 14,
-  },
-  toolbarRow: {
+  eventsToolbar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'flex-end',
     marginBottom: 12,
   },
-  toolbarBtn: {
+  eventsToolbarIcons: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
+    gap: 10,
   },
-  toolbarIcon: {
-    width: 24,
-    height: 24,
+  eventsToolbarIconBtn: {
+    padding: 4,
   },
-  toolbarBtnPlus: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#2C2C2C',
-    marginLeft: 4,
+  eventsToolbarIcon: {
+    width: 28,
+    height: 28,
   },
   emptyText: {
     fontSize: 15,
@@ -558,11 +630,12 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   eventCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    marginBottom: 8,
+    marginBottom: 10,
     overflow: 'hidden',
+  },
+  eventCardPropertyStyle: {
+    borderRadius: 14,
+    borderWidth: 1.5,
   },
   eventRow: {
     flexDirection: 'row',
@@ -576,15 +649,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minWidth: 0,
   },
-  eventTypeLabel: {
-    fontSize: 12,
-    color: '#6B6B6B',
-    marginRight: 8,
+  eventTypeIcon: {
+    width: 28,
+    height: 28,
+    marginRight: 10,
   },
   customEventDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     marginRight: 10,
   },
   eventName: {
@@ -596,14 +669,12 @@ const styles = StyleSheet.create({
   expandBtn: {
     padding: 6,
   },
-  arrowIcon: {
+  chevronIcon: {
     width: 14,
-    height: 14,
-    tintColor: '#888',
-    transform: [{ rotate: '-90deg' }],
+    height: 10,
   },
-  arrowIconUp: {
-    transform: [{ rotate: '90deg' }],
+  chevronIconOpen: {
+    transform: [{ rotate: '180deg' }],
   },
   eventExpanded: {
     paddingHorizontal: 14,
@@ -616,16 +687,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 6,
+    minHeight: 28,
   },
   eventDetailIcon: {
-    width: 18,
-    height: 18,
+    width: 28,
+    height: 28,
     marginRight: 8,
-    tintColor: '#6B6B6B',
+    alignSelf: 'center',
+    marginTop: -4,
+  },
+  eventDetailIconBooking: {
+    width: 22,
+    height: 22,
+    marginRight: 8,
+    alignSelf: 'center',
+    marginTop: 4,
   },
   eventDetailText: {
     fontSize: 14,
+    lineHeight: 20,
     color: '#2C2C2C',
+  },
+  eventDetailLink: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+    color: '#D81B60',
   },
   eventComments: {
     fontSize: 14,
