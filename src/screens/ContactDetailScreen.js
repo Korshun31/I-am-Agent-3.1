@@ -224,9 +224,19 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
   const isPastBooking = (b) => new Date(b.checkOut) < new Date();
 
   const ownerId = c.id;
-  const ownerTopLevel = properties.filter(p => !p.resort_id && (p.owner_id === ownerId || p.owner_id_2 === ownerId));
-  const ownerChildren = properties.filter(p => p.resort_id && (p.owner_id === ownerId || p.owner_id_2 === ownerId));
   const getParent = (id) => properties.find(pr => pr.id === id);
+  const ownsProperty = (p) => p.owner_id === ownerId || p.owner_id_2 === ownerId;
+
+  const ownerTopLevel = properties.filter(p => !p.resort_id && ownsProperty(p));
+
+  const ownerChildren = properties.filter((p) => {
+    if (!p.resort_id || !ownsProperty(p)) return false;
+    const parent = getParent(p.resort_id);
+    if (!parent) return true;
+    if (ownsProperty(parent)) return false;
+    return true;
+  });
+
   const ownerPropertiesList = [
     ...ownerTopLevel.map(p => ({ ...p, _parentName: null, _parentType: null })),
     ...ownerChildren.map(p => {
