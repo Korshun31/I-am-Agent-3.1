@@ -879,7 +879,13 @@ function CalendarRow({
         const label = b.notMyCustomer
           ? getOwnerLabel(widthPx - 8, ownerLabels)
           : (contactNames[b.id] || '');
-        const displayLabel = b.notMyCustomer ? label : truncateLabel(label, widthPx - 10);
+        const dayIn = `${String(cin.date()).padStart(2, '0')}.${String(cin.month() + 1).padStart(2, '0')}`;
+        const dayOut = `${String(cout.date()).padStart(2, '0')}.${String(cout.month() + 1).padStart(2, '0')}`;
+        const spaceForDates = 50;
+        const labelMaxWidth = widthPx - 8;
+        const labelNeedsWidth = label ? Math.min(label.length * 7, labelMaxWidth) : 0;
+        const canShowDates = widthPx >= 70 && labelMaxWidth >= labelNeedsWidth + spaceForDates;
+        const displayLabel = b.notMyCustomer ? label : truncateLabel(label, canShowDates ? labelMaxWidth - spaceForDates : labelMaxWidth - 4);
 
         return (
           <TouchableOpacity
@@ -902,7 +908,11 @@ function CalendarRow({
             }}
             activeOpacity={0.8}
           >
-            <Text style={rowStyles.barText} numberOfLines={1}>{displayLabel}</Text>
+            <View style={rowStyles.barInner}>
+              {canShowDates && <Text style={[rowStyles.barDateText, rowStyles.barDateIn]}>{dayIn}</Text>}
+              <Text style={[rowStyles.barText, rowStyles.barTextCenter]} numberOfLines={1}>{displayLabel}</Text>
+              {canShowDates && <Text style={[rowStyles.barDateText, rowStyles.barDateOut]}>{dayOut}</Text>}
+            </View>
           </TouchableOpacity>
         );
       })}
@@ -928,13 +938,35 @@ const rowStyles = StyleSheet.create({
     bottom: 5,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 10,
+  },
+  barInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: 4,
   },
   barText: {
     fontSize: 11,
     color: '#2C2C2C',
     fontWeight: '700',
     textAlign: 'center',
+  },
+  barTextCenter: {
+    flex: 1,
+    textAlign: 'center',
+    minWidth: 0,
+  },
+  barDateText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  barDateIn: {
+    color: '#2E7D32',
+  },
+  barDateOut: {
+    color: '#C62828',
   },
 });
 
