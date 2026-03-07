@@ -99,6 +99,8 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
       const owner2 = prop.owner_id_2 ? owners.find(o => o.id === prop.owner_id_2) : null;
       const enriched = {
         ...prop,
+        _owner: owner || null,
+        _owner2: owner2 || null,
         ownerName: owner ? `${owner.name} ${owner.lastName}`.trim() : '',
         ownerPhone1: owner?.phone || '',
         ownerPhone2: owner?.extraPhones?.[0] || '',
@@ -220,26 +222,24 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
               <PropertyInfoRow label={t('pdLocation')} value="—" />
             )}
             <View style={styles.propertyDivider} />
-            {property.type === 'resort' ? (
-              <PropertyInfoRow label={t('propHouses')} value={property.houses_count != null ? `${property.houses_count}  pc` : null} />
-            ) : (
-              <>
-                <PropertyInfoRow label={t('propBedrooms')} value={property.bedrooms != null ? `${property.bedrooms}  pc` : null} />
-                <PropertyInfoRow label={t('pdBathrooms')} value={property.bathrooms != null ? `${property.bathrooms}  pc` : null} />
-                <PropertyInfoRow label={t('pdArea')} value={property.area != null ? `${property.area}  m2` : null} />
-              </>
-            )}
-            <PropertyInfoRow label={t('propBeach')} value={(property.beach_distance ?? property._resort?.beach_distance) != null ? `${property.beach_distance ?? property._resort?.beach_distance}  m` : null} />
-            <PropertyInfoRow label={t('propMarket')} value={(property.market_distance ?? property._resort?.market_distance) != null ? `${property.market_distance ?? property._resort?.market_distance}  m` : null} />
-            <View style={styles.propertyDivider} />
-            <PropertyInfoRow label={property.type === 'resort' ? t('pdOwnerManager') : (property._resort?.type === 'condo' ? t('pdReception') : t('pdOwner'))} value={property.ownerName || '—'} />
+            <PropertyInfoRow
+              label={property.type === 'resort' ? t('pdOwnerManager') : (property._resort?.type === 'condo' ? t('pdReception') : t('pdOwner'))}
+              value={property.ownerName || '—'}
+              isLink={!!(property._owner && onContactPress)}
+              onPress={property._owner && onContactPress ? () => onContactPress(property._owner) : undefined}
+            />
             {property.ownerPhone1 ? <PropertyInfoRow label={t('pdPhone') + ' 1'} value={property.ownerPhone1} /> : null}
             {property.ownerPhone2 ? <PropertyInfoRow label={t('pdPhone') + ' 2'} value={property.ownerPhone2} /> : null}
             {property.ownerTelegram ? <PropertyInfoRow label={t('telegram')} value={property.ownerTelegram} /> : null}
             {property._resort?.type === 'condo' && (property.owner2Name || property.owner2Phone1 || property.owner2Phone2 || property.owner2Telegram) ? (
               <>
                 <View style={styles.propertyDivider} />
-                <PropertyInfoRow label={t('pdOwnerContact')} value={property.owner2Name || '—'} />
+                <PropertyInfoRow
+                  label={t('pdOwnerContact')}
+                  value={property.owner2Name || '—'}
+                  isLink={!!(property._owner2 && onContactPress)}
+                  onPress={property._owner2 && onContactPress ? () => onContactPress(property._owner2) : undefined}
+                />
                 {property.owner2Phone1 ? <PropertyInfoRow label={t('pdPhone') + ' 1'} value={property.owner2Phone1} /> : null}
                 {property.owner2Phone2 ? <PropertyInfoRow label={t('pdPhone') + ' 2'} value={property.owner2Phone2} /> : null}
                 {property.owner2Telegram ? <PropertyInfoRow label={t('telegram')} value={property.owner2Telegram} /> : null}
