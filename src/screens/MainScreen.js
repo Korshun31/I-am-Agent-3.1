@@ -10,17 +10,25 @@ import AgentCalendarScreen from './AgentCalendarScreen';
 export default function MainScreen({ onLogout, user, onUserUpdate }) {
   const [activeTab, setActiveTab] = useState(3);
   const [screenWithinAccount, setScreenWithinAccount] = useState('account');
+  const [propertyToOpen, setPropertyToOpen] = useState(null);
+
+  const handleOpenProperty = (property) => {
+    if (property) {
+      setPropertyToOpen(property);
+      setActiveTab(0);
+    }
+  };
 
   return (
     <View style={styles.container}>
       <View style={[styles.tabPanel, activeTab !== 0 && styles.tabPanelHidden]}>
-        <RealEstateScreen />
+        <RealEstateScreen propertyToOpen={propertyToOpen} onPropertyOpened={() => setPropertyToOpen(null)} />
       </View>
       <View style={[styles.tabPanel, activeTab !== 1 && styles.tabPanelHidden]}>
         <BookingCalendarScreen isVisible={activeTab === 1} />
       </View>
       <View style={[styles.tabPanel, activeTab !== 2 && styles.tabPanelHidden]}>
-        <AgentCalendarScreen isVisible={activeTab === 2} />
+        <AgentCalendarScreen isVisible={activeTab === 2} onOpenProperty={handleOpenProperty} />
       </View>
       <View style={[styles.tabPanel, activeTab !== 3 && styles.tabPanelHidden]}>
         {screenWithinAccount === 'contacts' ? (
