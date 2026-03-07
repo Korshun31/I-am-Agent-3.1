@@ -11,7 +11,7 @@ index 3b5f44b..a72c49b 100644
              { height: LAYOUT_HEIGHT, backgroundColor: '#fff' },
              style === null || style === void 0 ? void 0 : style.monthOverlayContainer,
          ]}>
-@@ -26,7 +26,7 @@ var CalendarList = function (_a) {
+@@ -26,10 +26,11 @@ var CalendarList = function (_a) {
          { position: 'relative', backgroundColor: '#fff' },
          style === null || style === void 0 ? void 0 : style.container,
      ]}>
@@ -20,6 +20,13 @@ index 3b5f44b..a72c49b 100644
          top: 0,
          left: 0,
          right: 0,
+         bottom: 0,
+         position: 'absolute',
+         justifyContent: 'center',
+         alignItems: 'center',
++        opacity: 0,
+     }}>
+         <ActivityIndicator />
 diff --git a/node_modules/react-native-calendar-range-picker/dist/Month.js b/node_modules/react-native-calendar-range-picker/dist/Month.js
 index 8723e38..c26d1ef 100644
 --- a/node_modules/react-native-calendar-range-picker/dist/Month.js
@@ -76,5 +83,50 @@ index 3ea542c..761b7e4 100644
 -    return <View style={[styles.weekContainer, style === null || style === void 0 ? void 0 : style.weekContainer]}>{renderDayNames()}</View>;
 +    return <View pointerEvents="box-none" style={[styles.weekContainer, style === null || style === void 0 ? void 0 : style.weekContainer]}>{renderDayNames()}</View>;
  }
- function areEqual(prevProps, nextProps) {
-     if (JSON.stringify(prevProps.week) === JSON.stringify(nextProps.week))
+diff --git a/node_modules/react-native-calendar-range-picker/dist/index.js b/node_modules/react-native-calendar-range-picker/dist/index.js
+index abc1234..def5678 100644
+--- a/node_modules/react-native-calendar-range-picker/dist/index.js
++++ b/node_modules/react-native-calendar-range-picker/dist/index.js
+@@ -4,7 +4,7 @@ import CalendarList from './CalendarList';
+ import { LOCALE } from './utils/locale';
+ export default function Index(_a) {
+-    var _b = _a.pastYearRange, pastYearRange = _b === void 0 ? 1 : _b, _c = _a.futureYearRange, futureYearRange = _c === void 0 ? 2 : _c, _d = _a.initialNumToRender, initialNumToRender = _d === void 0 ? 7 : _d, _e = _a.locale, locale = _e === void 0 ? LOCALE : _e, prevStartDate = _a.startDate, prevEndDate = _a.endDate, onChange = _a.onChange, style = _a.style, singleSelectMode = _a.singleSelectMode, flatListProps = _a.flatListProps, isMonthFirst = _a.isMonthFirst, disabledBeforeToday = _a.disabledBeforeToday, disabledAfterToday = _a.disabledAfterToday, dimPastDates = _a.dimPastDates, disabledDates = _a.disabledDates, occupiedCheckInDates = _a.occupiedCheckInDates, occupiedCheckOutDates = _a.occupiedCheckOutDates;
++    var _b = _a.pastYearRange, pastYearRange = _b === void 0 ? 1 : _b, _c = _a.futureYearRange, futureYearRange = _c === void 0 ? 2 : _c, _d = _a.initialNumToRender, initialNumToRender = _d === void 0 ? 7 : _d, _e = _a.locale, locale = _e === void 0 ? LOCALE : _e, prevStartDate = _a.startDate, prevEndDate = _a.endDate, onChange = _a.onChange, style = _a.style, singleSelectMode = _a.singleSelectMode, flatListProps = _a.flatListProps, isMonthFirst = _a.isMonthFirst, disabledBeforeToday = _a.disabledBeforeToday, disabledAfterToday = _a.disabledAfterToday, dimPastDates = _a.dimPastDates, disabledDates = _a.disabledDates, occupiedCheckInDates = _a.occupiedCheckInDates, occupiedCheckOutDates = _a.occupiedCheckOutDates, readOnly = _a.readOnly;
+     var _f = useState(prevStartDate ? prevStartDate : null), startDate = _f[0], setStartDate = _f[1];
+     var _g = useState(prevEndDate ? prevEndDate : null), endDate = _g[0], setEndDate = _g[1];
+     var startDateRef = useRef(null);
+@@ -46,5 +46,6 @@ export default function Index(_a) {
+             }
+         }
+     };
+-    return (<CalendarList initialNumToRender={initialNumToRender} pastYearRange={pastYearRange} futureYearRange={futureYearRange} locale={locale} handlePress={handlePress} startDate={startDate} endDate={endDate} style={style} flatListProps={flatListProps} isMonthFirst={isMonthFirst} disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} disabledDates={disabledDates} occupiedCheckInDates={occupiedCheckInDates} occupiedCheckOutDates={occupiedCheckOutDates}/>);
++    var effectiveHandlePress = readOnly ? function () { } : handlePress;
++    return (<CalendarList initialNumToRender={initialNumToRender} pastYearRange={pastYearRange} futureYearRange={futureYearRange} locale={locale} handlePress={effectiveHandlePress} startDate={startDate} endDate={endDate} style={style} flatListProps={flatListProps} isMonthFirst={isMonthFirst} disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} disabledDates={disabledDates} occupiedCheckInDates={occupiedCheckInDates} occupiedCheckOutDates={occupiedCheckOutDates}/>);
+ }
+diff --git a/node_modules/react-native-calendar-range-picker/dist/Day.js b/node_modules/react-native-calendar-range-picker/dist/Day.js
+index 1111111..2222222 100644
+--- a/node_modules/react-native-calendar-range-picker/dist/Day.js
++++ b/node_modules/react-native-calendar-range-picker/dist/Day.js
+@@ -35,11 +35,12 @@ function Day(_a) {
+     var dayStyle = {
+         color: (disabledBeforeToday && isBeforeToday) ||
+             (dimPastDates && isBeforeToday) ||
+             (disabledAfterToday && isAfterToday) ||
+             (isOccupied && isBeforeToday)
+             ? disabledTextColor
+-            : isToday
+-                ? todayColor
+-                : isHoliday
++            : isHoliday
+                     ? holidayColor
+                     : dayTextColor,
++        fontWeight: isToday ? 'bold' : 'normal',
+     };
+@@ -71,7 +72,7 @@ function Day(_a) {
+             break;
+         default:
+             if (isToday) {
+-                markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: todayColor, borderRadius: 4 });
++                markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: isHoliday ? holidayColor : dayTextColor, borderRadius: 4 });
+             }
+             if (isOccupied) {

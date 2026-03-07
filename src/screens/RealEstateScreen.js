@@ -261,6 +261,7 @@ export default function RealEstateScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.fixedTop}>
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
         <Text style={styles.headerTitle}>{t('realEstate')}</Text>
@@ -295,6 +296,7 @@ export default function RealEstateScreen() {
             resizeMode="contain"
           />
         </TouchableOpacity>
+      </View>
       </View>
 
       {loading ? (
@@ -339,13 +341,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  fixedTop: {
     paddingTop: TOP_INSET,
+    paddingHorizontal: 20,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
     marginBottom: 14,
   },
   headerSpacer: {
@@ -382,7 +386,6 @@ const styles = StyleSheet.create({
   toolbarRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
     marginBottom: 14,
     gap: 10,
   },

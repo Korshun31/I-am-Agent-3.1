@@ -5,6 +5,7 @@ import AccountScreen from './AccountScreen';
 import ContactsScreen from './ContactsScreen';
 import RealEstateScreen from './RealEstateScreen';
 import BookingCalendarScreen from './BookingCalendarScreen';
+import AgentCalendarScreen from './AgentCalendarScreen';
 
 export default function MainScreen({ onLogout, user, onUserUpdate }) {
   const [activeTab, setActiveTab] = useState(3);
@@ -19,10 +20,7 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
         <BookingCalendarScreen isVisible={activeTab === 1} />
       </View>
       <View style={[styles.tabPanel, activeTab !== 2 && styles.tabPanelHidden]}>
-        <View style={styles.content}>
-          <Text style={styles.placeholder}>Календарь агента</Text>
-          <Text style={styles.hint}>Дизайн экрана будет добавлен позже</Text>
-        </View>
+        <AgentCalendarScreen isVisible={activeTab === 2} />
       </View>
       <View style={[styles.tabPanel, activeTab !== 3 && styles.tabPanelHidden]}>
         {screenWithinAccount === 'contacts' ? (

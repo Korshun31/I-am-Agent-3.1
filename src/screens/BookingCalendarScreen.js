@@ -546,16 +546,18 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerSpacer} />
-        <Text style={styles.headerTitle}>{t('bookingCalendar')}</Text>
-        <TouchableOpacity
-          style={[styles.filterBtn, hasActiveFilter && styles.filterBtnActive]}
-          onPress={() => setFilterVisible(true)}
-          activeOpacity={0.7}
-        >
-          <Image source={require('../../assets/icon-filter.png')} style={[styles.filterIcon, hasActiveFilter && styles.filterIconActive]} resizeMode="contain" />
-        </TouchableOpacity>
+      <View style={styles.fixedTop}>
+        <View style={styles.header}>
+          <View style={styles.headerSpacer} />
+          <Text style={styles.headerTitle}>{t('bookingCalendar')}</Text>
+          <TouchableOpacity
+            style={[styles.filterBtn, hasActiveFilter && styles.filterBtnActive]}
+            onPress={() => setFilterVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Image source={require('../../assets/icon-filter.png')} style={[styles.filterIcon, hasActiveFilter && styles.filterIconActive]} resizeMode="contain" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {listToShow.length === 0 ? (
@@ -974,7 +976,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  fixedTop: {
     paddingTop: TOP_INSET,
+    paddingHorizontal: 20,
   },
   centered: {
     justifyContent: 'center',
@@ -984,7 +989,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
     marginBottom: 14,
   },
   headerSpacer: { width: 36 },
