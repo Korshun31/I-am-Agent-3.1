@@ -1586,8 +1586,8 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(0,0,0,0.06)',
   },
   bookingItemIcon: {
-    width: 24,
-    height: 24,
+    width: 19,
+    height: 19,
     marginRight: 10,
   },
   bookingItemCode: {
@@ -1599,7 +1599,6 @@ const styles = StyleSheet.create({
   bookingItemDates: {
     fontSize: 14,
     color: '#2C2C2C',
-    fontWeight: '700',
   },
   descriptionBlock: {
     marginBottom: 12,

@@ -727,8 +727,8 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   bookingItemIcon: {
-    width: 24,
-    height: 24,
+    width: 19,
+    height: 19,
     marginRight: 10,
   },
   bookingItemPastIcon: {
@@ -743,7 +743,6 @@ const styles = StyleSheet.create({
   bookingItemDates: {
     fontSize: 14,
     color: '#2C2C2C',
-    fontWeight: '700',
   },
   bookingItemPastText: {
     color: '#888',
