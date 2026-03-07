@@ -17,34 +17,29 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
   const [activeTab, setActiveTab] = useState(3);
   const [screenWithinAccount, setScreenWithinAccount] = useState('account'); // 'account' | 'contacts'
 
-  const renderContent = () => {
-    if (activeTab === 0) {
-      return <RealEstateScreen />;
-    }
-    if (activeTab === 3) {
-      if (screenWithinAccount === 'contacts') {
-        return <ContactsScreen onBack={() => setScreenWithinAccount('account')} />;
-      }
-      return (
-        <AccountScreen
-          onLogout={onLogout}
-          user={user || {}}
-          onUserUpdate={onUserUpdate}
-          onOpenContacts={() => setScreenWithinAccount('contacts')}
-        />
-      );
-    }
-    return (
-      <View style={styles.content}>
-        <Text style={styles.placeholder}>{TAB_NAMES[activeTab]}</Text>
-        <Text style={styles.hint}>Дизайн экрана будет добавлен позже</Text>
-      </View>
-    );
-  };
-
   return (
     <View style={styles.container}>
-      {renderContent()}
+      <View style={[styles.tabPanel, activeTab !== 0 && styles.tabPanelHidden]}>
+        <RealEstateScreen />
+      </View>
+      <View style={[styles.tabPanel, activeTab !== 3 && styles.tabPanelHidden]}>
+        {screenWithinAccount === 'contacts' ? (
+          <ContactsScreen onBack={() => setScreenWithinAccount('account')} />
+        ) : (
+          <AccountScreen
+            onLogout={onLogout}
+            user={user || {}}
+            onUserUpdate={onUserUpdate}
+            onOpenContacts={() => setScreenWithinAccount('contacts')}
+          />
+        )}
+      </View>
+      <View style={[styles.tabPanel, (activeTab !== 1 && activeTab !== 2) && styles.tabPanelHidden]}>
+        <View style={styles.content}>
+          <Text style={styles.placeholder}>{TAB_NAMES[activeTab]}</Text>
+          <Text style={styles.hint}>Дизайн экрана будет добавлен позже</Text>
+        </View>
+      </View>
       <View style={styles.navOverlay} pointerEvents="box-none">
         <BottomNav activeTab={activeTab} onSelect={setActiveTab} />
       </View>
@@ -56,6 +51,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F2EB',
+  },
+  tabPanel: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  tabPanelHidden: {
+    opacity: 0,
+    pointerEvents: 'none',
   },
   navOverlay: {
     position: 'absolute',

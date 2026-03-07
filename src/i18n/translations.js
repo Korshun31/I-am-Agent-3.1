@@ -806,7 +806,7 @@ export const translations = {
     amenity_internet: 'Интернет',
     amenity_tv: 'ТВ',
     amenity_washing_machine: 'Стиральная машина',
-    amenity_dishwasher: 'Посудомоечная машина',
+    amenity_dishwasher: 'Посудомойка',
     amenity_fridge: 'Холодильник',
     amenity_stove: 'Плита',
     amenity_oven: 'Духовка',

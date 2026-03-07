@@ -16,6 +16,7 @@ import {
   Dimensions,
   ActivityIndicator,
   InteractionManager,
+  Pressable,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
@@ -65,19 +66,30 @@ function Field({ label, value, onChangeText, placeholder, keyboardType, multilin
   );
 }
 
-function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, owners, onNewOwnerCreated, resortId, resortCode }) {
+function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, owners, onNewOwnerCreated, onOpenOwnerPicker, resortId, resortCode }) {
   const [cityOpen, setCityOpen] = useState(false);
   const [districtOpen, setDistrictOpen] = useState(false);
-  const [ownerOpen, setOwnerOpen] = useState(false);
-  const [owner2Open, setOwner2Open] = useState(false);
+  const [ownerPickerVisible, setOwnerPickerVisible] = useState(false);
+  const [owner2PickerVisible, setOwner2PickerVisible] = useState(false);
+  const [ownerSearch, setOwnerSearch] = useState('');
+  const [owner2Search, setOwner2Search] = useState('');
   const [addOwnerModal, setAddOwnerModal] = useState(false);
+  const [addOwnerFor, setAddOwnerFor] = useState('owner');
   const [newDistrict, setNewDistrict] = useState('');
 
   const closeAllPickers = (except) => {
     if (except !== 'city') setCityOpen(false);
     if (except !== 'district') setDistrictOpen(false);
-    if (except !== 'owner') setOwnerOpen(false);
-    if (except !== 'owner2') setOwner2Open(false);
+  };
+
+  const filteredOwners = (list, search) => {
+    if (!search.trim()) return list || [];
+    const q = search.trim().toLowerCase();
+    return (list || []).filter(o => {
+      const name = `${o.name || ''} ${o.lastName || ''}`.trim().toLowerCase();
+      const phone = (o.phone || '').toLowerCase();
+      return name.includes(q) || phone.includes(q);
+    });
   };
 
   const handleSelectLocation = (loc) => {
@@ -104,33 +116,50 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
 
   const handleSelectOwner = (owner) => {
     setData(d => ({ ...d, owner_id: owner.id, _ownerName: `${owner.name} ${owner.lastName}`.trim() }));
-    setOwnerOpen(false);
+    setOwnerPickerVisible(false);
   };
 
   const handleClearOwner = () => {
     setData(d => ({ ...d, owner_id: null, _ownerName: '' }));
-    setOwnerOpen(false);
+    setOwnerPickerVisible(false);
   };
 
   const handleSelectOwner2 = (owner) => {
     setData(d => ({ ...d, owner_id_2: owner.id, _owner2Name: `${owner.name} ${owner.lastName}`.trim() }));
-    setOwner2Open(false);
+    setOwner2PickerVisible(false);
   };
 
   const handleClearOwner2 = () => {
     setData(d => ({ ...d, owner_id_2: null, _owner2Name: '' }));
-    setOwner2Open(false);
+    setOwner2PickerVisible(false);
   };
 
   const handleNewOwnerSave = async (contactData) => {
     try {
       const newOwner = await createContact({ ...contactData, type: 'owners' });
-      setData(d => ({ ...d, owner_id: newOwner.id, _ownerName: `${newOwner.name} ${newOwner.lastName}`.trim() }));
+      const name = `${newOwner.name} ${newOwner.lastName}`.trim();
+      if (addOwnerFor === 'owner2') {
+        setData(d => ({ ...d, owner_id_2: newOwner.id, _owner2Name: name }));
+      } else {
+        setData(d => ({ ...d, owner_id: newOwner.id, _ownerName: name }));
+      }
       setAddOwnerModal(false);
       onNewOwnerCreated?.();
     } catch (e) {
       Alert.alert('Error', e.message || 'Error');
     }
+  };
+
+  const openOwnerPicker = () => {
+    setOwnerSearch('');
+    onOpenOwnerPicker?.();
+    setOwnerPickerVisible(true);
+  };
+
+  const openOwner2Picker = () => {
+    setOwner2Search('');
+    onOpenOwnerPicker?.();
+    setOwner2PickerVisible(true);
   };
 
   const ownerDisplay = data._ownerName || (owners || []).find(o => o.id === data.owner_id)?.name || '';
@@ -243,43 +272,14 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
         <Text style={s.fieldLabel}>{t('wizOwner')}</Text>
         <TouchableOpacity
           style={s.pickerBtn}
-          onPress={() => { closeAllPickers('owner'); setOwnerOpen(!ownerOpen); }}
+          onPress={openOwnerPicker}
           activeOpacity={0.7}
         >
           <Text style={[s.pickerBtnText, !ownerDisplay && s.pickerBtnPlaceholder]}>
             {ownerDisplay || t('wizSelectOwner')}
           </Text>
-          <Text style={s.pickerArrow}>{ownerOpen ? '▲' : '▼'}</Text>
+          <Text style={s.pickerArrow}>▽</Text>
         </TouchableOpacity>
-        {ownerOpen && (
-          <View style={s.pickerDropdown}>
-            {data.owner_id && (
-              <TouchableOpacity style={s.pickerItemClear} onPress={handleClearOwner} activeOpacity={0.7}>
-                <Text style={s.pickerItemClearText}>✕  {t('wizClearOwner')}</Text>
-              </TouchableOpacity>
-            )}
-            {(owners || []).map(owner => (
-              <TouchableOpacity
-                key={owner.id}
-                style={[s.pickerItem, data.owner_id === owner.id && s.pickerItemActive]}
-                onPress={() => handleSelectOwner(owner)}
-                activeOpacity={0.7}
-              >
-                <Text style={[s.pickerItemCity, data.owner_id === owner.id && s.pickerItemCityActive]}>
-                  {`${owner.name} ${owner.lastName}`.trim()}
-                </Text>
-                {owner.phone ? <Text style={s.pickerItemSub}>{owner.phone}</Text> : null}
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity
-              style={s.pickerItemNew}
-              onPress={() => { setOwnerOpen(false); setAddOwnerModal(true); }}
-              activeOpacity={0.7}
-            >
-              <Text style={s.pickerItemNewText}>+  {t('wizNewOwner')}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </View>
 
       {isHouseInResort && (
@@ -287,36 +287,14 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
           <Text style={s.fieldLabel}>{t('wizAdditionalOwner')}</Text>
           <TouchableOpacity
             style={s.pickerBtn}
-            onPress={() => { closeAllPickers('owner2'); setOwner2Open(!owner2Open); }}
+            onPress={openOwner2Picker}
             activeOpacity={0.7}
           >
             <Text style={[s.pickerBtnText, !data.owner_id_2 && s.pickerBtnPlaceholder]}>
               {owner2Display || t('wizSelectOwner')}
             </Text>
-            <Text style={s.pickerArrow}>{owner2Open ? '▲' : '▼'}</Text>
+            <Text style={s.pickerArrow}>▽</Text>
           </TouchableOpacity>
-          {owner2Open && (
-            <View style={s.pickerDropdown}>
-              {data.owner_id_2 && (
-                <TouchableOpacity style={s.pickerItemClear} onPress={handleClearOwner2} activeOpacity={0.7}>
-                  <Text style={s.pickerItemClearText}>✕  {t('wizClearOwner')}</Text>
-                </TouchableOpacity>
-              )}
-              {(owners || []).map(owner => (
-                <TouchableOpacity
-                  key={owner.id}
-                  style={[s.pickerItem, data.owner_id_2 === owner.id && s.pickerItemActive]}
-                  onPress={() => handleSelectOwner2(owner)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[s.pickerItemCity, data.owner_id_2 === owner.id && s.pickerItemCityActive]}>
-                    {`${owner.name} ${owner.lastName}`.trim()}
-                  </Text>
-                  {owner.phone ? <Text style={s.pickerItemSub}>{owner.phone}</Text> : null}
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
         </View>
       )}
 
@@ -326,6 +304,112 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
         onSave={handleNewOwnerSave}
         contactType="owners"
       />
+
+      {ownerPickerVisible && (
+        <Modal transparent animationType="fade" onRequestClose={() => setOwnerPickerVisible(false)} statusBarTranslucent>
+          <Pressable style={s.ownerPickerBackdrop} onPress={() => setOwnerPickerVisible(false)}>
+            {Platform.OS === 'web' ? (
+              <View style={[StyleSheet.absoluteFill, s.backdropWeb]} />
+            ) : (
+              <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+            )}
+            <Pressable style={s.ownerPickerBox} onPress={(e) => e.stopPropagation()}>
+              <View style={s.ownerPickerHeader}>
+                <Text style={s.ownerPickerTitle}>{t('wizOwner')}</Text>
+                <TouchableOpacity onPress={() => setOwnerPickerVisible(false)} style={s.ownerPickerClose} activeOpacity={0.8}>
+                  <Text style={s.ownerPickerCloseIcon}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={s.ownerPickerAddRow} onPress={() => { setOwnerPickerVisible(false); setAddOwnerFor('owner'); setAddOwnerModal(true); }} activeOpacity={0.7}>
+                <Text style={s.ownerPickerAddText}>+ {t('wizNewOwner')}</Text>
+              </TouchableOpacity>
+              <TextInput
+                style={s.ownerPickerSearch}
+                placeholder={t('search')}
+                placeholderTextColor="#999"
+                value={ownerSearch}
+                onChangeText={setOwnerSearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <ScrollView style={s.ownerPickerScroll} contentContainerStyle={s.ownerPickerScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                {data.owner_id && (
+                  <TouchableOpacity style={s.pickerItemClear} onPress={handleClearOwner} activeOpacity={0.7}>
+                    <Text style={s.pickerItemClearText}>✕  {t('wizClearOwner')}</Text>
+                  </TouchableOpacity>
+                )}
+                {filteredOwners(owners, ownerSearch).map((owner) => {
+                  const isSelected = data.owner_id === owner.id;
+                  return (
+                    <TouchableOpacity key={owner.id} style={s.ownerPickerItem} onPress={() => handleSelectOwner(owner)} activeOpacity={0.7}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.ownerPickerItemText, isSelected && s.ownerPickerItemSelected]} numberOfLines={1}>
+                          {`${owner.name} ${owner.lastName}`.trim() || owner.phone || '—'}
+                        </Text>
+                        {owner.phone ? <Text style={s.ownerPickerItemSub} numberOfLines={1}>{owner.phone}</Text> : null}
+                      </View>
+                      {isSelected && <Text style={s.ownerPickerCheck}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {owner2PickerVisible && (
+        <Modal transparent animationType="fade" onRequestClose={() => setOwner2PickerVisible(false)} statusBarTranslucent>
+          <Pressable style={s.ownerPickerBackdrop} onPress={() => setOwner2PickerVisible(false)}>
+            {Platform.OS === 'web' ? (
+              <View style={[StyleSheet.absoluteFill, s.backdropWeb]} />
+            ) : (
+              <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+            )}
+            <Pressable style={s.ownerPickerBox} onPress={(e) => e.stopPropagation()}>
+              <View style={s.ownerPickerHeader}>
+                <Text style={s.ownerPickerTitle}>{t('wizAdditionalOwner')}</Text>
+                <TouchableOpacity onPress={() => setOwner2PickerVisible(false)} style={s.ownerPickerClose} activeOpacity={0.8}>
+                  <Text style={s.ownerPickerCloseIcon}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={s.ownerPickerAddRow} onPress={() => { setOwner2PickerVisible(false); setAddOwnerFor('owner2'); setAddOwnerModal(true); }} activeOpacity={0.7}>
+                <Text style={s.ownerPickerAddText}>+ {t('wizNewOwner')}</Text>
+              </TouchableOpacity>
+              <TextInput
+                style={s.ownerPickerSearch}
+                placeholder={t('search')}
+                placeholderTextColor="#999"
+                value={owner2Search}
+                onChangeText={setOwner2Search}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <ScrollView style={s.ownerPickerScroll} contentContainerStyle={s.ownerPickerScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                {data.owner_id_2 && (
+                  <TouchableOpacity style={s.pickerItemClear} onPress={handleClearOwner2} activeOpacity={0.7}>
+                    <Text style={s.pickerItemClearText}>✕  {t('wizClearOwner')}</Text>
+                  </TouchableOpacity>
+                )}
+                {filteredOwners(owners, owner2Search).map((owner) => {
+                  const isSelected = data.owner_id_2 === owner.id;
+                  return (
+                    <TouchableOpacity key={owner.id} style={s.ownerPickerItem} onPress={() => handleSelectOwner2(owner)} activeOpacity={0.7}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.ownerPickerItemText, isSelected && s.ownerPickerItemSelected]} numberOfLines={1}>
+                          {`${owner.name} ${owner.lastName}`.trim() || owner.phone || '—'}
+                        </Text>
+                        {owner.phone ? <Text style={s.ownerPickerItemSub} numberOfLines={1}>{owner.phone}</Text> : null}
+                      </View>
+                      {isSelected && <Text style={s.ownerPickerCheck}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </>
   );
 }
@@ -803,7 +887,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
 
   const renderStep = () => {
     switch (currentStep.key) {
-      case 'info': return <StepInfo data={data} setData={setData} t={t} propertyType={property.type} locations={locations} knownDistricts={knownDistricts} owners={owners} onNewOwnerCreated={loadOwners} resortId={property?.resort_id} resortCode={property?.code} />;
+      case 'info': return <StepInfo data={data} setData={setData} t={t} propertyType={property.type} locations={locations} knownDistricts={knownDistricts} owners={owners} onNewOwnerCreated={loadOwners} onOpenOwnerPicker={loadOwners} resortId={property?.resort_id} resortCode={property?.code} />;
       case 'chars': return <StepCharacteristics data={data} setData={setData} t={t} propertyType={property.type} />;
       case 'desc': return <StepDescription data={data} setData={setData} t={t} />;
       case 'media': return <StepMedia data={data} setData={setData} t={t} />;
@@ -1053,6 +1137,67 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.green, alignItems: 'center', justifyContent: 'center',
   },
   newDistrictBtnText: { fontSize: 20, color: '#FFF', fontWeight: '600', marginTop: -1 },
+
+  ownerPickerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  ownerPickerBox: {
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    backgroundColor: COLORS.bg,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  ownerPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  ownerPickerTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: COLORS.title },
+  ownerPickerClose: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  ownerPickerCloseIcon: { fontSize: 20, color: '#E85D4C', fontWeight: '600' },
+  ownerPickerAddRow: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  ownerPickerAddText: { fontSize: 16, color: COLORS.green, fontWeight: '600' },
+  ownerPickerSearch: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: COLORS.title,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  ownerPickerScroll: { maxHeight: 280 },
+  ownerPickerScrollContent: { paddingBottom: 8 },
+  ownerPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.04)',
+  },
+  ownerPickerItemText: { fontSize: 16, color: COLORS.title, flex: 1 },
+  ownerPickerItemSelected: { fontWeight: '600', color: COLORS.green },
+  ownerPickerItemSub: { fontSize: 11, color: '#999', marginTop: 2, maxWidth: 120 },
+  ownerPickerCheck: { fontSize: 16, fontWeight: '700', color: COLORS.green, marginLeft: 8 },
 
   mediaSectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
   mediaSectionTitleIcon: { width: 22, height: 22 },
