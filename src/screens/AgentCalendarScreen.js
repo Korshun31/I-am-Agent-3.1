@@ -310,6 +310,27 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit }) {
 
   const dayEvents = mergedDayEvents;
 
+  const eventCountsByDate = React.useMemo(() => {
+    const counts = {};
+    (bookings || []).forEach((b) => {
+      if (b.checkIn) {
+        const d = dayjs(b.checkIn).format('YYYY-MM-DD');
+        counts[d] = (counts[d] || 0) + 1;
+      }
+      if (b.checkOut && b.checkOut !== b.checkIn) {
+        const d = dayjs(b.checkOut).format('YYYY-MM-DD');
+        counts[d] = (counts[d] || 0) + 1;
+      }
+    });
+    (customEvents || []).forEach((e) => {
+      if (e.eventDate) {
+        const d = dayjs(e.eventDate).format('YYYY-MM-DD');
+        counts[d] = (counts[d] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [bookings, customEvents]);
+
   return (
     <View style={styles.container}>
       <View style={styles.fixedTop}>
@@ -330,9 +351,11 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit }) {
           <View style={[styles.calendarInline, styles.calendarInlineStep2]} collapsable={false}>
             <CalendarRangePicker
               locale={CALENDAR_LOCALES[language] || CALENDAR_LOCALES.en}
-              startDate={null}
-              endDate={null}
-              readOnly
+              startDate={selectedDate}
+              endDate={selectedDate}
+              singleSelectMode
+              onChange={(date) => date && setSelectedDate(date)}
+              eventCountsByDate={eventCountsByDate}
               pastYearRange={1}
               futureYearRange={2}
               isMonthFirst
@@ -341,6 +364,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit }) {
                 container: { backgroundColor: 'transparent' },
                 dayTextColor: '#1d1c1d',
                 holidayColor: '#E85D4C',
+                selectedDayBackgroundColor: '#FFB74D',
                 monthOverlayContainer: {
                   width: Math.round((Math.min(SCREEN_WIDTH - 72, 368)) * 0.8),
                   height: 360,
@@ -361,9 +385,8 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit }) {
               flatListProps={(() => {
                 const w = Math.round((Math.min(SCREEN_WIDTH - 72, 368)) * 0.8);
                 const slot = w + 16;
-                const boxWidth = Math.min(400, SCREEN_WIDTH - 40);
-                const viewportW = boxWidth - 40;
-                const padH = Math.max(20, (viewportW - w) / 2);
+                const viewportWidth = SCREEN_WIDTH - 40;
+                const padH = Math.max(0, (viewportWidth - w) / 2);
                 const monthCount = (1 + 2) * 12;
                 return {
                   horizontal: true,
@@ -372,7 +395,10 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit }) {
                   scrollEventThrottle: 16,
                   bounces: true,
                   alwaysBounceHorizontal: true,
-                  snapToOffsets: Array.from({ length: monthCount }, (_, i) => i * slot),
+                  snapToOffsets: Array.from({ length: monthCount }, (_, i) => {
+                    const itemCenter = padH + slot * i + slot / 2;
+                    return itemCenter - viewportWidth / 2;
+                  }),
                   snapToAlignment: 'center',
                   decelerationRate: 'fast',
                   getItemLayout: (_, index) => ({ length: slot, offset: slot * index, index }),
