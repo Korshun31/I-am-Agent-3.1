@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+import { uploadAvatar } from '../services/storageService';
 
 const COLORS = {
   boxBg: 'rgba(255,255,255,0.72)',
@@ -44,6 +44,7 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
   const [telegram, setTelegram] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [photoUri, setPhotoUri] = useState('');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showAddContactChoices, setShowAddContactChoices] = useState(false);
   const [showTelegramField, setShowTelegramField] = useState(false);
   const [showWhatsappField, setShowWhatsappField] = useState(false);
@@ -100,22 +101,15 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
         quality: 0.8,
       });
       if (result.canceled || !result.assets?.[0]?.uri) return;
+
+      setUploadingAvatar(true);
       const uri = result.assets[0].uri;
-      const dir = FileSystem.documentDirectory;
-      if (!dir) {
-        setPhotoUri(uri);
-        return;
-      }
-      const ext = uri.split('.').pop()?.toLowerCase() || 'jpg';
-      const dest = `${dir}avatar_${Date.now()}.${ext}`;
-      try {
-        await FileSystem.copyAsync({ from: uri, to: dest });
-        setPhotoUri(dest);
-      } catch (_) {
-        setPhotoUri(uri);
-      }
+      const publicUrl = await uploadAvatar(uri);
+      setPhotoUri(publicUrl);
     } catch (e) {
       Alert.alert(t('pickPhotoError'), e?.message || t('pickPhotoFailed'));
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -201,17 +195,21 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                 onScrollBeginDrag={Keyboard.dismiss}
               >
                 {/* Фото: круг с иконкой и плюсом; по нажатию — выбор из галереи */}
-                <TouchableOpacity style={styles.photoWrap} onPress={pickImage} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.photoWrap} onPress={pickImage} activeOpacity={0.8} disabled={uploadingAvatar}>
                   <View style={styles.photoCircle}>
-                    {photoUri ? (
+                    {uploadingAvatar ? (
+                      <Text style={styles.photoIcon}>⏳</Text>
+                    ) : photoUri ? (
                       <Image source={{ uri: photoUri }} style={styles.photoImage} />
                     ) : (
                       <Text style={styles.photoIcon}>👤</Text>
                     )}
                   </View>
-                  <View style={styles.photoPlus}>
-                    <Text style={styles.plusText}>+</Text>
-                  </View>
+                  {!uploadingAvatar && (
+                    <View style={styles.photoPlus}>
+                      <Text style={styles.plusText}>+</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
 
                 <TextInput

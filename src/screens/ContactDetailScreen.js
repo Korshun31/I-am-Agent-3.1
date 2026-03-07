@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,12 @@ import {
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
-import { deleteContact } from '../services/contactsService';
+import { deleteContact, updateContact } from '../services/contactsService';
+import { getBookings, deleteBooking } from '../services/bookingsService';
+import { getProperties } from '../services/propertiesService';
 import AddContactModal from '../components/AddContactModal';
-import { updateContact } from '../services/contactsService';
+import BookingDetailScreen from './BookingDetailScreen';
+import AddBookingModal from '../components/AddBookingModal';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
@@ -32,10 +35,65 @@ const COLORS = {
   ownerBadge: '#C2920E',
 };
 
+function formatBookingDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const day = String(d.getDate()).padStart(2, '0');
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const y = d.getFullYear();
+  return `${day}.${m}.${y}`;
+}
+
+function getBookingNumber(booking, samePropertyBookings) {
+  const year = new Date(booking.checkIn).getFullYear();
+  const yearShort = year % 100;
+  const sameYear = samePropertyBookings
+    .filter(x => new Date(x.checkIn).getFullYear() === year)
+    .sort((a, b) => new Date(a.createdAt || a.checkIn) - new Date(b.createdAt || b.checkIn));
+  const idx = sameYear.findIndex(x => x.id === booking.id);
+  const seq = idx >= 0 ? idx + 1 : 0;
+  return `${seq}/${String(yearShort).padStart(2, '0')}`;
+}
+
+function buildPropertyCode(property, properties) {
+  if (!property) return '—';
+  if (property.resort_id) {
+    const parent = properties.find(p => p.id === property.resort_id);
+    return parent ? (parent.code || '') + (property.code_suffix ? ` (${property.code_suffix})` : '') : (property.code || '—');
+  }
+  return property.code || '—';
+}
+
 export default function ContactDetailScreen({ contact, onBack, onContactUpdated, onContactDeleted }) {
   const { t } = useLanguage();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [currentContact, setCurrentContact] = useState(contact);
+  const [bookings, setBookings] = useState([]);
+  const [properties, setProperties] = useState([]);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [selectedBookingTitle, setSelectedBookingTitle] = useState('');
+  const [selectedBookingProperty, setSelectedBookingProperty] = useState(null);
+  const [editBookingModalVisible, setEditBookingModalVisible] = useState(false);
+  const [editBookingToEdit, setEditBookingToEdit] = useState(null);
+  const [refreshBookingsTrigger, setRefreshBookingsTrigger] = useState(0);
+
+  const loadBookings = useCallback(async () => {
+    try {
+      const data = await getBookings(null, currentContact.id);
+      setBookings(data);
+    } catch {}
+  }, [currentContact.id]);
+
+  const loadProperties = useCallback(async () => {
+    try {
+      const data = await getProperties();
+      setProperties(data);
+    } catch {}
+  }, []);
+
+  useEffect(() => { loadBookings(); }, [loadBookings]);
+  useEffect(() => { if (refreshBookingsTrigger > 0) loadBookings(); }, [refreshBookingsTrigger, loadBookings]);
+  useEffect(() => { loadProperties(); }, [loadProperties]);
 
   const c = currentContact;
   const displayName = [c.name, c.lastName].filter(Boolean).join(' ') || c.name || '';
@@ -123,6 +181,59 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
     );
   };
 
+  const byProperty = {};
+  bookings.forEach(b => {
+    const pid = b.propertyId;
+    if (!byProperty[pid]) byProperty[pid] = [];
+    byProperty[pid].push(b);
+  });
+
+  const isPastBooking = (b) => new Date(b.checkOut) < new Date();
+
+  if (selectedBooking) {
+    return (
+      <View style={{ flex: 1 }}>
+        <BookingDetailScreen
+          booking={selectedBooking}
+          propertyCode={selectedBookingTitle || t('pdBookingList')}
+          onBack={() => {
+            setSelectedBooking(null);
+            setSelectedBookingTitle('');
+            setSelectedBookingProperty(null);
+          }}
+          onContactPress={undefined}
+          onDelete={async (id) => {
+            try {
+              await deleteBooking(id);
+              setSelectedBooking(null);
+              setSelectedBookingTitle('');
+              setSelectedBookingProperty(null);
+              setRefreshBookingsTrigger(prev => prev + 1);
+            } catch (e) {
+              Alert.alert(t('error'), e.message);
+            }
+          }}
+          onEdit={(b) => {
+            setEditBookingToEdit(b);
+            setEditBookingModalVisible(true);
+          }}
+        />
+        <AddBookingModal
+          visible={editBookingModalVisible}
+          property={selectedBookingProperty}
+          editBooking={editBookingToEdit}
+          onClose={() => { setEditBookingModalVisible(false); setEditBookingToEdit(null); }}
+          onSaved={(updated) => {
+            setEditBookingModalVisible(false);
+            setEditBookingToEdit(null);
+            if (updated) setSelectedBooking(updated);
+            setRefreshBookingsTrigger(prev => prev + 1);
+          }}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.fixedTop}>
@@ -208,12 +319,66 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
 
         {(c.documentNumber || c.nationality || c.birthday) ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>{t('myDetails')}</Text>
-            <DetailRow label={t('numberIdPassport')} value={c.documentNumber} />
-            <DetailRow label={t('nationality')} value={c.nationality} />
-            <DetailRow label={t('birthdayDate')} value={c.birthday} />
+            <View style={styles.cardTitleRow}>
+              <Text style={styles.cardTitle}>{t(isOwner ? 'ownerDataDetails' : 'clientDataDetails')}</Text>
+            </View>
+            {c.documentNumber ? (
+              <View style={styles.passportRow}>
+                <Image source={require('../../assets/icon-passport-id.png')} style={styles.passportRowIcon} resizeMode="contain" />
+                <Text style={styles.detailValue}>{c.documentNumber}</Text>
+              </View>
+            ) : null}
+            {c.nationality ? (
+              <View style={styles.passportRow}>
+                <Image source={require('../../assets/icon-nationality.png')} style={styles.passportRowIcon} resizeMode="contain" />
+                <Text style={styles.detailValue}>{c.nationality}</Text>
+              </View>
+            ) : null}
+            {c.birthday ? (
+              <View style={styles.passportRow}>
+                <Image source={require('../../assets/icon-birthday.png')} style={styles.passportRowIcon} resizeMode="contain" />
+                <Text style={styles.detailValue}>{c.birthday}</Text>
+              </View>
+            ) : null}
           </View>
         ) : null}
+
+        <View style={[styles.card, styles.bookingsBlock]}>
+          <View style={styles.sectionTitleRow}>
+            <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <Text style={styles.cardTitle}>{t('clientBookings')}</Text>
+          </View>
+          {bookings.length > 0 ? (
+            bookings.map((b) => {
+              const prop = properties.find(p => p.id === b.propertyId);
+              const codeDisplay = buildPropertyCode(prop, properties);
+              const samePropBookings = byProperty[b.propertyId] || [];
+              const bookingNum = getBookingNumber(b, samePropBookings);
+              const codePart = `${codeDisplay} ${bookingNum}`;
+              const past = isPastBooking(b);
+              return (
+                <TouchableOpacity
+                  key={b.id}
+                  style={[styles.bookingItem, past && styles.bookingItemPast]}
+                  onPress={() => {
+                    setSelectedBooking(b);
+                    setSelectedBookingTitle(codePart);
+                    setSelectedBookingProperty(prop || null);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Image source={require('../../assets/icon-booking-hashtag.png')} style={[styles.bookingItemIcon, past && styles.bookingItemPastIcon]} resizeMode="contain" />
+                  <Text style={[styles.bookingItemCode, past && styles.bookingItemPastText]} numberOfLines={1}>{codePart}</Text>
+                  <Text style={[styles.bookingItemDates, past && styles.bookingItemPastText]}>
+                    {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })
+          ) : (
+            <Text style={styles.emptyBookings}>{t('clientNoBookings')}</Text>
+          )}
+        </View>
 
         <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.7}>
           <Text style={styles.deleteBtnText}>{t('deleteContactTitle')}</Text>
@@ -367,6 +532,16 @@ const styles = StyleSheet.create({
   detailRow: {
     marginBottom: 12,
   },
+  passportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  passportRowIcon: {
+    width: 22,
+    height: 22,
+    marginRight: 10,
+  },
   detailLabel: {
     fontSize: 13,
     color: COLORS.labelColor,
@@ -394,5 +569,57 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 20,
+  },
+  bookingsBlock: {
+    backgroundColor: 'rgba(187,222,251,0.5)',
+    borderWidth: 1.5,
+    borderColor: '#64B5F6',
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  sectionTitleIcon: {
+    width: 22,
+    height: 22,
+  },
+  bookingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
+  },
+  bookingItemPast: {
+    opacity: 0.6,
+  },
+  bookingItemIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 10,
+  },
+  bookingItemPastIcon: {
+    opacity: 0.7,
+  },
+  bookingItemCode: {
+    flex: 1,
+    fontSize: 15,
+    color: '#C45C6E',
+    fontWeight: '600',
+  },
+  bookingItemDates: {
+    fontSize: 14,
+    color: '#2C2C2C',
+    fontWeight: '700',
+  },
+  bookingItemPastText: {
+    color: '#888',
+  },
+  emptyBookings: {
+    fontSize: 13,
+    color: '#999',
+    fontStyle: 'italic',
   },
 });

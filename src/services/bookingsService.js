@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export async function getBookings(propertyId = null) {
+export async function getBookings(propertyId = null, contactId = null) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return [];
 
@@ -12,6 +12,9 @@ export async function getBookings(propertyId = null) {
 
   if (propertyId) {
     q = q.eq('property_id', propertyId);
+  }
+  if (contactId) {
+    q = q.eq('contact_id', contactId);
   }
 
   const { data, error } = await q;

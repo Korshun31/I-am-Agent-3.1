@@ -627,15 +627,17 @@ isMonthFirst
                       <Text style={[s.chevron, notMyCustomer && s.chevronDisabled]}>▽</Text>
                     </TouchableOpacity>
 
-                    <Text style={s.fieldLabel}>{t('bookingPassportId')}</Text>
-                    <TextInput
-                      style={[s.input, notMyCustomer && s.inputDisabled]}
-                      value={passportId}
-                      onChangeText={setPassportId}
-                      placeholder={t('bookingPassportIdPlaceholder')}
-                      placeholderTextColor="#999"
-                      editable={!notMyCustomer}
-                    />
+                    <View style={[s.inputWithIconRow, notMyCustomer && s.inputWithIconRowDisabled]}>
+                      <Image source={require('../../assets/icon-passport-id.png')} style={s.inputFieldIcon} resizeMode="contain" />
+                      <TextInput
+                        style={[s.input, s.inputWithIconInput, notMyCustomer && s.inputDisabled]}
+                        value={passportId}
+                        onChangeText={setPassportId}
+                        placeholder={t('bookingPassportIdPlaceholder')}
+                        placeholderTextColor="#999"
+                        editable={!notMyCustomer}
+                      />
+                    </View>
                   </>
                 ) : (
                   <>
@@ -1105,6 +1107,32 @@ const s = StyleSheet.create({
     backgroundColor: '#EDEDEB',
     opacity: 0.7,
     color: '#999',
+  },
+  inputWithIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingLeft: 16,
+    marginBottom: 20,
+  },
+  inputWithIconRowDisabled: {
+    backgroundColor: '#EDEDEB',
+    opacity: 0.7,
+  },
+  inputFieldIcon: {
+    width: 22,
+    height: 22,
+    marginRight: 12,
+  },
+  inputWithIconInput: {
+    flex: 1,
+    marginBottom: 0,
+    paddingLeft: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
   },
   nextBtn: {
     flex: 1,

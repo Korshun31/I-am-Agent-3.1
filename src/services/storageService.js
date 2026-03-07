@@ -30,6 +30,33 @@ export async function uploadPhoto(localUri) {
   return urlData.publicUrl;
 }
 
+/** Загружает аватар пользователя в Supabase Storage и возвращает публичный URL */
+export async function uploadAvatar(localUri) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('Not authenticated');
+
+  const ext = localUri.split('.').pop()?.split('?')[0] || 'jpg';
+  const fileName = `avatars/${session.user.id}/avatar_${Date.now()}.${ext}`;
+
+  const base64 = await FileSystem.readAsStringAsync(localUri, {
+    encoding: 'base64',
+  });
+
+  const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(fileName, decode(base64), { contentType, upsert: true });
+
+  if (error) throw new Error(error.message);
+
+  const { data: urlData } = supabase.storage
+    .from(BUCKET)
+    .getPublicUrl(fileName);
+
+  return urlData.publicUrl;
+}
+
 export async function uploadPhotos(localUris, onProgress) {
   const urls = [];
   for (let i = 0; i < localUris.length; i++) {

@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
-import { getContactById } from '../services/contactsService';
+import { getContactById, getContacts } from '../services/contactsService';
+import { getProperties } from '../services/propertiesService';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
@@ -51,10 +52,72 @@ function DetailRow({ label, value }) {
   );
 }
 
+function PropertyInfoRow({ label, value, isLink, onPress }) {
+  return (
+    <View style={styles.propertyInfoRow}>
+      <Text style={styles.propertyInfoLabel} numberOfLines={1}>{label}</Text>
+      <Text style={styles.propertyInfoColon}>:</Text>
+      {isLink ? (
+        <TouchableOpacity onPress={onPress} style={styles.propertyInfoValueWrap}>
+          <Text style={[styles.propertyInfoValue, styles.propertyInfoLink]} numberOfLines={1}>{value}</Text>
+        </TouchableOpacity>
+      ) : (
+        <Text style={styles.propertyInfoValue} numberOfLines={1}>{value || '—'}</Text>
+      )}
+    </View>
+  );
+}
+
 export default function BookingDetailScreen({ booking, propertyCode, onBack, onContactPress, onDelete, onEdit }) {
   const { t } = useLanguage();
   const [contact, setContact] = useState(null);
   const [loadingContact, setLoadingContact] = useState(!!booking.contactId);
+  const [property, setProperty] = useState(null);
+  const [loadingProperty, setLoadingProperty] = useState(!!booking?.propertyId);
+
+  const loadProperty = useCallback(async () => {
+    if (!booking?.propertyId) {
+      setProperty(null);
+      setLoadingProperty(false);
+      return;
+    }
+    setLoadingProperty(true);
+    try {
+      const all = await getProperties();
+      const prop = all.find(p => p.id === booking.propertyId);
+      if (!prop) {
+        setProperty(null);
+        setLoadingProperty(false);
+        return;
+      }
+      let resort = null;
+      if (prop.resort_id) {
+        resort = all.find(p => p.id === prop.resort_id) || null;
+      }
+      const owners = await getContacts('owners');
+      const owner = prop.owner_id ? owners.find(o => o.id === prop.owner_id) : null;
+      const owner2 = prop.owner_id_2 ? owners.find(o => o.id === prop.owner_id_2) : null;
+      const enriched = {
+        ...prop,
+        ownerName: owner ? `${owner.name} ${owner.lastName}`.trim() : '',
+        ownerPhone1: owner?.phone || '',
+        ownerPhone2: owner?.extraPhones?.[0] || '',
+        ownerTelegram: owner?.telegram || '',
+        owner2Name: owner2 ? `${owner2.name} ${owner2.lastName}`.trim() : '',
+        owner2Phone1: owner2?.phone || '',
+        owner2Phone2: owner2?.extraPhones?.[0] || '',
+        owner2Telegram: owner2?.telegram || '',
+      };
+      setProperty({ ...enriched, _resort: resort });
+    } catch {
+      setProperty(null);
+    }
+    setLoadingProperty(false);
+  }, [booking?.propertyId]);
+
+  useEffect(() => {
+    loadProperty();
+  }, [loadProperty]);
 
   const loadContact = useCallback(async () => {
     if (!booking?.contactId) {
@@ -133,16 +196,70 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {loadingProperty ? (
+          <View style={[styles.card, styles.propertyBlock]}>
+            <ActivityIndicator size="small" color="#999" style={styles.loader} />
+          </View>
+        ) : property ? (
+          <View style={[styles.propertyBlock, { backgroundColor: 'rgba(255,204,0,0.2)', borderColor: '#FFCC00' }]}>
+            <PropertyInfoRow label={t('propertyCode')} value={
+              property._resort
+                ? (property._resort.code || '') + (property.code_suffix ? ` (${property.code_suffix})` : '')
+                : property.code
+            } />
+            <PropertyInfoRow label={t('pdCity')} value={property.city ?? property._resort?.city} />
+            <PropertyInfoRow label={t('propDistrict')} value={property.district ?? property._resort?.district} />
+            {(property._resort?.google_maps_link || property.google_maps_link) ? (
+              <PropertyInfoRow
+                label={t('pdLocation')}
+                value={t('pdGoogleMapLink')}
+                isLink
+                onPress={() => Linking.openURL(property._resort?.google_maps_link || property.google_maps_link)}
+              />
+            ) : (
+              <PropertyInfoRow label={t('pdLocation')} value="—" />
+            )}
+            <View style={styles.propertyDivider} />
+            {property.type === 'resort' ? (
+              <PropertyInfoRow label={t('propHouses')} value={property.houses_count != null ? `${property.houses_count}  pc` : null} />
+            ) : (
+              <>
+                <PropertyInfoRow label={t('propBedrooms')} value={property.bedrooms != null ? `${property.bedrooms}  pc` : null} />
+                <PropertyInfoRow label={t('pdBathrooms')} value={property.bathrooms != null ? `${property.bathrooms}  pc` : null} />
+                <PropertyInfoRow label={t('pdArea')} value={property.area != null ? `${property.area}  m2` : null} />
+              </>
+            )}
+            <PropertyInfoRow label={t('propBeach')} value={(property.beach_distance ?? property._resort?.beach_distance) != null ? `${property.beach_distance ?? property._resort?.beach_distance}  m` : null} />
+            <PropertyInfoRow label={t('propMarket')} value={(property.market_distance ?? property._resort?.market_distance) != null ? `${property.market_distance ?? property._resort?.market_distance}  m` : null} />
+            <View style={styles.propertyDivider} />
+            <PropertyInfoRow label={property.type === 'resort' ? t('pdOwnerManager') : (property._resort?.type === 'condo' ? t('pdReception') : t('pdOwner'))} value={property.ownerName || '—'} />
+            {property.ownerPhone1 ? <PropertyInfoRow label={t('pdPhone') + ' 1'} value={property.ownerPhone1} /> : null}
+            {property.ownerPhone2 ? <PropertyInfoRow label={t('pdPhone') + ' 2'} value={property.ownerPhone2} /> : null}
+            {property.ownerTelegram ? <PropertyInfoRow label={t('telegram')} value={property.ownerTelegram} /> : null}
+            {property._resort?.type === 'condo' && (property.owner2Name || property.owner2Phone1 || property.owner2Phone2 || property.owner2Telegram) ? (
+              <>
+                <View style={styles.propertyDivider} />
+                <PropertyInfoRow label={t('pdOwnerContact')} value={property.owner2Name || '—'} />
+                {property.owner2Phone1 ? <PropertyInfoRow label={t('pdPhone') + ' 1'} value={property.owner2Phone1} /> : null}
+                {property.owner2Phone2 ? <PropertyInfoRow label={t('pdPhone') + ' 2'} value={property.owner2Phone2} /> : null}
+                {property.owner2Telegram ? <PropertyInfoRow label={t('telegram')} value={property.owner2Telegram} /> : null}
+              </>
+            ) : null}
+          </View>
+        ) : null}
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{t('bdBookingDates')}</Text>
           <DetailRow label={t('bookingCheckIn')} value={formatBookingDate(b.checkIn)} />
           <DetailRow label={t('bookingCheckOut')} value={formatBookingDate(b.checkOut)} />
         </View>
 
-        {(contact || loadingContact || b.contactId) ? (
+        {(contact || loadingContact || b.contactId || b.notMyCustomer) ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t('bookingChooseClient')}</Text>
-            {loadingContact ? (
+            {b.notMyCustomer ? (
+              <Text style={styles.contactValue}>{t('bookingNotMyCustomer')}</Text>
+            ) : loadingContact ? (
               <ActivityIndicator size="small" color="#999" style={styles.loader} />
             ) : contact ? (
               <>
@@ -153,6 +270,12 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
                 >
                   <Text style={styles.contactLinkText}>{contactName || t('bookingChooseClientPlaceholder')}</Text>
                 </TouchableOpacity>
+                {b.passportId ? (
+                  <View style={styles.contactRow}>
+                    <Image source={require('../../assets/icon-passport-id.png')} style={styles.contactIcon} resizeMode="contain" />
+                    <Text style={styles.contactValue}>{b.passportId}</Text>
+                  </View>
+                ) : null}
                 {contact.phone ? (
                   <TouchableOpacity onPress={() => openPhone(contact.phone)} style={styles.contactRow} activeOpacity={0.7}>
                     <Image source={require('../../assets/icon-contact-phone.png')} style={styles.contactIcon} resizeMode="contain" />
@@ -169,16 +292,6 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
             ) : (
               <Text style={styles.placeholderText}>—</Text>
             )}
-          </View>
-        ) : null}
-
-        {(b.passportId || b.notMyCustomer) ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>{t('bdClientData')}</Text>
-            {b.notMyCustomer ? (
-              <DetailRow label={t('bookingNotMyCustomer')} value={t('yes')} />
-            ) : null}
-            <DetailRow label={t('bookingPassportId')} value={b.passportId} />
           </View>
         ) : null}
 
@@ -372,5 +485,45 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 20,
+  },
+  propertyBlock: {
+    borderRadius: 14,
+    borderWidth: 1.5,
+    padding: 14,
+    marginBottom: 14,
+  },
+  propertyInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 10,
+  },
+  propertyInfoLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2C2C2C',
+    width: 120,
+  },
+  propertyInfoColon: {
+    fontSize: 13,
+    color: '#6B6B6B',
+    marginRight: 8,
+  },
+  propertyInfoValueWrap: {
+    flex: 1,
+  },
+  propertyInfoValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2C2C2C',
+    flex: 1,
+  },
+  propertyInfoLink: {
+    color: COLORS.linkColor,
+    textDecorationLine: 'underline',
+  },
+  propertyDivider: {
+    height: 1,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    marginVertical: 10,
   },
 });

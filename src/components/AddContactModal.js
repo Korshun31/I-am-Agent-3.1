@@ -376,30 +376,39 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
                   )}
                 </View>
 
-                <TextInput
-                  style={styles.input}
-                  placeholder={t('numberIdPassport')}
-                  placeholderTextColor="#888"
-                  value={documentNumber}
-                  onChangeText={setDocumentNumber}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder={t('nationality')}
-                  placeholderTextColor="#888"
-                  value={nationality}
-                  onChangeText={setNationality}
-                  autoCapitalize="words"
-                />
-                <TouchableOpacity
-                  style={styles.input}
-                  onPress={() => { Keyboard.dismiss(); setShowDatePicker(true); }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={birthday ? styles.inputText : styles.inputPlaceholder}>
-                    {birthday || t('birthdayDate')}
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.inputWithIconRow}>
+                  <Image source={require('../../assets/icon-passport-id.png')} style={styles.inputFieldIcon} resizeMode="contain" />
+                  <TextInput
+                    style={[styles.input, styles.inputWithIconInput]}
+                    placeholder=""
+                    placeholderTextColor="#888"
+                    value={documentNumber}
+                    onChangeText={setDocumentNumber}
+                  />
+                </View>
+                <View style={styles.inputWithIconRow}>
+                  <Image source={require('../../assets/icon-nationality.png')} style={styles.inputFieldIcon} resizeMode="contain" />
+                  <TextInput
+                    style={[styles.input, styles.inputWithIconInput]}
+                    placeholder=""
+                    placeholderTextColor="#888"
+                    value={nationality}
+                    onChangeText={setNationality}
+                    autoCapitalize="words"
+                  />
+                </View>
+                <View style={styles.inputWithIconRow}>
+                  <Image source={require('../../assets/icon-birthday.png')} style={styles.inputFieldIcon} resizeMode="contain" />
+                  <TouchableOpacity
+                    style={[styles.input, styles.inputWithIconInput]}
+                    onPress={() => { Keyboard.dismiss(); setShowDatePicker(true); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={birthday ? styles.inputText : styles.inputPlaceholder}>
+                      {birthday || t('birthdayDate')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </ScrollView>
 
               <TouchableOpacity style={styles.saveBtn} onPress={() => { Keyboard.dismiss(); handleSave(); }} activeOpacity={0.7}>
@@ -574,6 +583,29 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
+  },
+  inputWithIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 12,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingLeft: 14,
+  },
+  inputFieldIcon: {
+    width: 22,
+    height: 22,
+    marginRight: 12,
+  },
+  inputWithIconInput: {
+    flex: 1,
+    marginBottom: 0,
+    paddingLeft: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
   },
   inputText: {
     fontSize: 16,
