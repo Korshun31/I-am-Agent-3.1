@@ -4,23 +4,25 @@ import BottomNav from '../components/BottomNav';
 import AccountScreen from './AccountScreen';
 import ContactsScreen from './ContactsScreen';
 import RealEstateScreen from './RealEstateScreen';
-
-const TAB_NAMES = [
-  'База недвижимости',
-  'Календарь бронирования',
-  'Календарь агента',
-  'Личный кабинет',
-];
+import BookingCalendarScreen from './BookingCalendarScreen';
 
 export default function MainScreen({ onLogout, user, onUserUpdate }) {
-  // После входа/регистрации открывается профиль агента (красная вкладка)
   const [activeTab, setActiveTab] = useState(3);
-  const [screenWithinAccount, setScreenWithinAccount] = useState('account'); // 'account' | 'contacts'
+  const [screenWithinAccount, setScreenWithinAccount] = useState('account');
 
   return (
     <View style={styles.container}>
       <View style={[styles.tabPanel, activeTab !== 0 && styles.tabPanelHidden]}>
         <RealEstateScreen />
+      </View>
+      <View style={[styles.tabPanel, activeTab !== 1 && styles.tabPanelHidden]}>
+        <BookingCalendarScreen isVisible={activeTab === 1} />
+      </View>
+      <View style={[styles.tabPanel, activeTab !== 2 && styles.tabPanelHidden]}>
+        <View style={styles.content}>
+          <Text style={styles.placeholder}>Календарь агента</Text>
+          <Text style={styles.hint}>Дизайн экрана будет добавлен позже</Text>
+        </View>
       </View>
       <View style={[styles.tabPanel, activeTab !== 3 && styles.tabPanelHidden]}>
         {screenWithinAccount === 'contacts' ? (
@@ -33,12 +35,6 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
             onOpenContacts={() => setScreenWithinAccount('contacts')}
           />
         )}
-      </View>
-      <View style={[styles.tabPanel, (activeTab !== 1 && activeTab !== 2) && styles.tabPanelHidden]}>
-        <View style={styles.content}>
-          <Text style={styles.placeholder}>{TAB_NAMES[activeTab]}</Text>
-          <Text style={styles.hint}>Дизайн экрана будет добавлен позже</Text>
-        </View>
       </View>
       <View style={styles.navOverlay} pointerEvents="box-none">
         <BottomNav activeTab={activeTab} onSelect={setActiveTab} />

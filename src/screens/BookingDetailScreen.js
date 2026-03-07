@@ -68,12 +68,12 @@ function PropertyInfoRow({ label, value, isLink, onPress }) {
   );
 }
 
-export default function BookingDetailScreen({ booking, propertyCode, onBack, onContactPress, onDelete, onEdit }) {
+export default function BookingDetailScreen({ booking, propertyCode, onBack, onContactPress, onDelete, onEdit, initialProperty, initialContact }) {
   const { t } = useLanguage();
-  const [contact, setContact] = useState(null);
-  const [loadingContact, setLoadingContact] = useState(!!booking.contactId);
-  const [property, setProperty] = useState(null);
-  const [loadingProperty, setLoadingProperty] = useState(!!booking?.propertyId);
+  const [contact, setContact] = useState(initialContact ?? null);
+  const [loadingContact, setLoadingContact] = useState(!initialContact && !!booking.contactId);
+  const [property, setProperty] = useState(initialProperty ?? null);
+  const [loadingProperty, setLoadingProperty] = useState(!initialProperty && !!booking?.propertyId);
 
   const loadProperty = useCallback(async () => {
     if (!booking?.propertyId) {
@@ -118,8 +118,8 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
   }, [booking?.propertyId]);
 
   useEffect(() => {
-    loadProperty();
-  }, [loadProperty]);
+    if (!initialProperty) loadProperty();
+  }, [loadProperty, initialProperty]);
 
   const loadContact = useCallback(async () => {
     if (!booking?.contactId) {
@@ -138,8 +138,8 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
   }, [booking?.contactId]);
 
   useEffect(() => {
-    loadContact();
-  }, [loadContact]);
+    if (!initialContact) loadContact();
+  }, [loadContact, initialContact]);
 
   const openPhone = (number) => {
     const clean = (number || '').replace(/\s/g, '');
@@ -199,7 +199,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
         showsVerticalScrollIndicator={false}
       >
         {loadingProperty ? (
-          <View style={[styles.card, styles.propertyBlock]}>
+          <View style={[styles.propertyBlock, styles.propertyBlockLoading, { backgroundColor: 'rgba(255,204,0,0.2)', borderColor: '#FFCC00' }]}>
             <ActivityIndicator size="small" color="#999" style={styles.loader} />
           </View>
         ) : property ? (
@@ -491,6 +491,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     padding: 14,
     marginBottom: 14,
+  },
+  propertyBlockLoading: {
+    minHeight: 220,
+    justifyContent: 'center',
   },
   propertyInfoRow: {
     flexDirection: 'row',

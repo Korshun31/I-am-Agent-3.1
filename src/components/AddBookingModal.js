@@ -173,7 +173,7 @@ const CALENDAR_LOCALES = {
   th: { monthNames: ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'], dayNames: ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'], today: 'วันนี้', year: '' },
 };
 
-export default function AddBookingModal({ visible, onClose, onSaved, property, editBooking }) {
+export default function AddBookingModal({ visible, onClose, onSaved, property, editBooking, initialMonth }) {
   const { t, language } = useLanguage();
   const [step, setStep] = useState(1);
   const [notMyCustomer, setNotMyCustomer] = useState(false);
@@ -252,12 +252,17 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         setNotMyCustomer(false);
         setSelectedClient(null);
         setPassportId('');
-        setCheckIn(null);
-        setCheckOut(null);
+        if (initialMonth && initialMonth.year != null && initialMonth.month != null) {
+          setCheckIn(new Date(initialMonth.year, initialMonth.month, 1));
+          setCheckOut(null);
+        } else {
+          setCheckIn(null);
+          setCheckOut(null);
+        }
         setPhotos([]);
       }
     }
-  }, [visible, editBooking?.id]);
+  }, [visible, editBooking?.id, initialMonth?.year, initialMonth?.month]);
 
   useEffect(() => {
     if (step === 3 && property && !editBooking) {
