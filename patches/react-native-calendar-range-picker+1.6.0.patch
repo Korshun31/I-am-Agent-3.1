@@ -127,6 +127,6 @@ index 1111111..2222222 100644
          default:
              if (isToday) {
 -                markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: todayColor, borderRadius: 4 });
-+                markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: isHoliday ? holidayColor : dayTextColor, borderRadius: 4 });
++                markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: '#E53935', borderRadius: 4 });
              }
              if (isOccupied) {

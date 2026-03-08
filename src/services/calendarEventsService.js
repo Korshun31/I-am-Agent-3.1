@@ -23,6 +23,7 @@ function mapEvent(row) {
     title: row.title,
     color: row.color,
     comments: row.comments || null,
+    reminderMinutes: row.reminder_minutes ?? null,
     createdAt: row.created_at,
   };
 }
@@ -56,6 +57,7 @@ export async function createCalendarEvent(event) {
     title: (event.title || '').trim(),
     color: event.color || '#64B5F6',
     comments: (event.comments || '').trim() || null,
+    reminder_minutes: event.reminderMinutes ?? null,
   };
 
   const { data, error } = await supabase
@@ -78,6 +80,7 @@ export async function updateCalendarEvent(id, event) {
     title: (event.title || '').trim(),
     color: event.color || '#64B5F6',
     comments: (event.comments || '').trim() || null,
+    reminder_minutes: event.reminderMinutes ?? null,
   };
 
   const { data, error } = await supabase
