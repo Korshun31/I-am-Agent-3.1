@@ -13,15 +13,33 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLanguage } from '../context/LanguageContext';
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../services/calendarEventsService';
 
+const REMINDER_OPTIONS = [
+  { value: 0, key: 'agentCalendarReminderAtEvent' },
+  { value: 5, key: 'agentCalendarReminder5min' },
+  { value: 10, key: 'agentCalendarReminder10min' },
+  { value: 15, key: 'agentCalendarReminder15min' },
+  { value: 30, key: 'agentCalendarReminder30min' },
+  { value: 60, key: 'agentCalendarReminder1h' },
+  { value: 120, key: 'agentCalendarReminder2h' },
+  { value: 1440, key: 'agentCalendarReminder1d' },
+];
+
 const CALENDAR_COLORS = [
   '#E57373', '#FF8A65', '#FFB74D', '#FFD54F',
   '#81C784', '#4DB6AC', '#64B5F6',
 ];
+
+const MONTH_NAMES = {
+  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  ru: ['Января', 'Февраля', 'Марта', 'Апреля', 'Мая', 'Июня', 'Июля', 'Августа', 'Сентября', 'Октября', 'Ноября', 'Декабря'],
+  th: ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'],
+};
 
 function formatDateYMD(d) {
   if (!d) return '';
@@ -43,17 +61,22 @@ function formatTimeDisplay(timeStr) {
 }
 
 export default function AddCalendarEventModal({ visible, onClose, onSaved, editEvent, initialDate }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [title, setTitle] = useState('');
   const [eventDate, setEventDate] = useState(null);
   const [eventTime, setEventTime] = useState(null);
   const [color, setColor] = useState(CALENDAR_COLORS[0]);
   const [comments, setComments] = useState('');
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [useTime, setUseTime] = useState(false);
+  const [showReminderPicker, setShowReminderPicker] = useState(false);
+  const [reminderMinutes, setReminderMinutes] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const isEdit = !!editEvent;
+
+  useEffect(() => {
+    if (showTimePicker || showReminderPicker) Keyboard.dismiss();
+  }, [showTimePicker, showReminderPicker]);
 
   useEffect(() => {
     if (visible) {
@@ -63,7 +86,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
         setEventTime(editEvent.eventTime || null);
         setColor(editEvent.color || CALENDAR_COLORS[0]);
         setComments(editEvent.comments || '');
-        setUseTime(!!editEvent.eventTime);
+        setReminderMinutes(editEvent.reminderMinutes ?? null);
       } else {
         const base = initialDate ? new Date(initialDate) : new Date();
         setTitle('');
@@ -71,7 +94,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
         setEventTime(null);
         setColor(CALENDAR_COLORS[0]);
         setComments('');
-        setUseTime(false);
+        setReminderMinutes(null);
       }
     }
   }, [visible, editEvent, initialDate]);
@@ -83,7 +106,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
       return;
     }
     const dateToUse = eventDate || new Date();
-    const timeStr = useTime && eventTime ? formatTimeDisplay(eventTime) : null;
+    const timeStr = eventTime ? formatTimeDisplay(eventTime) : null;
     setSaving(true);
     try {
       if (isEdit) {
@@ -93,6 +116,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
           eventTime: timeStr,
           color,
           comments: (comments || '').trim() || null,
+          reminderMinutes: reminderMinutes,
         });
       } else {
         await createCalendarEvent({
@@ -101,6 +125,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
           eventTime: timeStr,
           color,
           comments: (comments || '').trim() || null,
+          reminderMinutes: reminderMinutes,
         });
       }
       onSaved?.();
@@ -136,7 +161,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
   };
 
   const onTimeChange = (_, selectedDate) => {
-    setShowTimePicker(Platform.OS === 'ios');
+    if (Platform.OS === 'android') setShowTimePicker(false);
     if (selectedDate) {
       const h = String(selectedDate.getHours()).padStart(2, '0');
       const m = String(selectedDate.getMinutes()).padStart(2, '0');
@@ -145,7 +170,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
+    <Modal visible={visible} transparent animationType="fade">
       <Pressable style={styles.backdrop} onPress={onClose}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -166,6 +191,24 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
               </TouchableOpacity>
             </View>
 
+            <View style={styles.dateHeaderRow}>
+              <Text style={styles.dateHeaderText}>
+                {(() => {
+                  const d = eventDate || (initialDate ? new Date(initialDate) : new Date());
+                  const day = d.getDate();
+                  const month = (MONTH_NAMES[language] || MONTH_NAMES.en)[d.getMonth()];
+                  const year = d.getFullYear();
+                  const yearLast2 = String(year).slice(-2);
+                  return (
+                    <>
+                      <Text style={styles.dateHeaderRed}>{day}</Text>
+                      {' '}{month} 20<Text style={styles.dateHeaderRed}>{yearLast2}</Text>
+                    </>
+                  );
+                })()}
+              </Text>
+            </View>
+
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
               <Text style={styles.fieldLabel}>{t('agentCalendarEventName')}</Text>
               <TextInput
@@ -175,30 +218,17 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
                 placeholder={t('agentCalendarEventNamePlaceholder')}
                 placeholderTextColor="#999"
                 autoCapitalize="sentences"
+                editable={!showTimePicker && !showReminderPicker}
+                showSoftInputOnFocus={!showTimePicker && !showReminderPicker}
               />
 
               <Text style={styles.fieldLabel}>{t('agentCalendarEventTime')}</Text>
-              <View style={styles.timeRow}>
-                <TouchableOpacity
-                  style={[styles.timeCheck, useTime && styles.timeCheckActive]}
-                  onPress={() => setUseTime(!useTime)}
-                >
-                  <Text style={[styles.timeCheckText, useTime && styles.timeCheckTextActive]}>
-                    {useTime ? t('yes') : t('no')}
-                  </Text>
-                </TouchableOpacity>
-                {useTime && (
-                  <TouchableOpacity
-                    style={styles.timeField}
-                    onPress={() => setShowTimePicker(true)}
-                  >
-                    <Text style={[styles.timeFieldText, !eventTime && styles.timePlaceholder]}>
-                      {eventTime ? formatTimeDisplay(eventTime) : t('agentCalendarSelectTime')}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              {useTime && showTimePicker && (
+              <TouchableOpacity style={styles.timeSelectRow} onPress={() => { Keyboard.dismiss(); setShowTimePicker(true); }} activeOpacity={0.7}>
+                <Text style={styles.timeSelectText}>
+                  {eventTime ? formatTimeDisplay(eventTime) : t('agentCalendarSelectEventTime')}
+                </Text>
+              </TouchableOpacity>
+              {showTimePicker && (
                 <View style={styles.pickerWrap}>
                   <DateTimePicker
                     value={eventTime ? (() => {
@@ -209,11 +239,39 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
                     display="spinner"
                     onChange={onTimeChange}
                   />
-                  {Platform.OS === 'ios' && (
-                    <TouchableOpacity onPress={() => setShowTimePicker(false)} style={styles.pickerDone}>
-                      <Text style={styles.pickerDoneText}>OK</Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity onPress={() => setShowTimePicker(false)} style={styles.pickerDone}>
+                    <Text style={styles.pickerDoneText}>{t('agentCalendarTimeSelectBtn')}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <Text style={styles.fieldLabel}>{t('agentCalendarReminder')}</Text>
+              <TouchableOpacity style={styles.timeSelectRow} onPress={() => { Keyboard.dismiss(); setShowReminderPicker(true); }} activeOpacity={0.7}>
+                <Text style={styles.timeSelectText}>
+                  {reminderMinutes !== null
+                    ? t(REMINDER_OPTIONS.find(o => o.value === reminderMinutes)?.key || 'agentCalendarReminderAtEvent')
+                    : t('agentCalendarReminderWhen')}
+                </Text>
+              </TouchableOpacity>
+              {showReminderPicker && (
+                <View style={styles.pickerWrap}>
+                  <ScrollView style={styles.reminderPickerScroll} showsVerticalScrollIndicator>
+                    {REMINDER_OPTIONS.map((opt) => (
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[styles.reminderOption, reminderMinutes === opt.value && styles.reminderOptionSelected]}
+                        onPress={() => setReminderMinutes(opt.value)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.reminderOptionText, reminderMinutes === opt.value && styles.reminderOptionTextSelected]}>
+                          {t(opt.key)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                  <TouchableOpacity onPress={() => setShowReminderPicker(false)} style={styles.pickerDone}>
+                    <Text style={styles.pickerDoneText}>{t('agentCalendarTimeSelectBtn')}</Text>
+                  </TouchableOpacity>
                 </View>
               )}
 
@@ -237,20 +295,24 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
                 placeholderTextColor="#999"
                 multiline
                 numberOfLines={3}
+                editable={!showTimePicker && !showReminderPicker}
+                showSoftInputOnFocus={!showTimePicker && !showReminderPicker}
               />
             </ScrollView>
 
-            <TouchableOpacity
-              style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.saveBtnText}>{t('save')}</Text>
-              )}
-            </TouchableOpacity>
+            {!showTimePicker && !showReminderPicker && (
+              <TouchableOpacity
+                style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+                onPress={handleSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.saveBtnText}>{t('save')}</Text>
+                )}
+              </TouchableOpacity>
+            )}
           </Pressable>
         </KeyboardAvoidingView>
       </Pressable>
@@ -311,11 +373,25 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: '#6B6B6B',
   },
+  dateHeaderRow: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateHeaderText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2C2C2C',
+  },
+  dateHeaderRed: {
+    color: '#E53935',
+  },
   scroll: {
     maxHeight: 420,
   },
   scrollContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 0,
     paddingBottom: 24,
   },
   fieldLabel: {
@@ -339,51 +415,38 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
   },
-  timeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  timeSelectRow: {
     marginBottom: 16,
-    gap: 12,
   },
-  timeCheck: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: '#F5F2EB',
-    borderWidth: 1,
-    borderColor: '#E0D8CC',
-  },
-  timeCheckActive: {
-    backgroundColor: '#2E7D32',
-    borderColor: '#2E7D32',
-  },
-  timeCheckText: {
-    fontSize: 14,
-    color: '#6B6B6B',
-  },
-  timeCheckTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  timeField: {
-    flex: 1,
-    backgroundColor: '#F5F2EB',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#E0D8CC',
-  },
-  timeFieldText: {
+  timeSelectText: {
     fontSize: 16,
-    color: '#2C2C2C',
-  },
-  timePlaceholder: {
-    color: '#999',
+    fontWeight: '700',
+    color: '#D81B60',
   },
   pickerWrap: {
     marginBottom: 16,
     alignItems: 'center',
+  },
+  reminderPickerScroll: {
+    maxHeight: 220,
+    width: '100%',
+  },
+  reminderOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0D8CC',
+  },
+  reminderOptionSelected: {
+    backgroundColor: 'rgba(216, 27, 96, 0.08)',
+  },
+  reminderOptionText: {
+    fontSize: 16,
+    color: '#2C2C2C',
+  },
+  reminderOptionTextSelected: {
+    fontWeight: '700',
+    color: '#D81B60',
   },
   pickerDone: {
     marginTop: 8,

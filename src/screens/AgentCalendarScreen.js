@@ -162,6 +162,11 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
           <View style={[styles.customEventDot, { backgroundColor: event.color || '#81C784' }]} />
           <Text style={styles.eventName} numberOfLines={1}>{event.title}</Text>
         </TouchableOpacity>
+        {event.eventTime ? (
+          <View style={styles.eventTimeCenter}>
+            <Text style={styles.eventTimeText}>{formatTimeDisplay(event.eventTime)}</Text>
+          </View>
+        ) : null}
         <TouchableOpacity onPress={onToggle} style={styles.expandBtn} activeOpacity={0.5}>
           <Image source={require('../../assets/chevron-down.png')} style={[styles.chevronIcon, expanded && styles.chevronIconOpen]} resizeMode="contain" />
         </TouchableOpacity>
@@ -666,6 +671,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2C2C2C',
   },
+  eventTimeCenter: {
+    marginRight: 25,
+    justifyContent: 'center',
+  },
+  eventTimeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#D81B60',
+  },
   expandBtn: {
     padding: 6,
   },
@@ -722,16 +736,12 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   editBtn: {
-    alignSelf: 'flex-start',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: '#E8E4DE',
-    borderRadius: 8,
+    alignSelf: 'flex-end',
     marginTop: 4,
   },
   editBtnText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2C2C2C',
+    color: '#D81B60',
   },
 });
