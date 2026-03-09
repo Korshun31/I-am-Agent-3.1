@@ -22,8 +22,7 @@ import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useLanguage } from '../context/LanguageContext';
-import { getLocations } from '../services/locationsService';
-import { getProperties } from '../services/propertiesService';
+import { getLocations, getLocationDistricts, setLocationDistricts } from '../services/locationsService';
 import { getContacts, createContact } from '../services/contactsService';
 import { uploadPhoto, isLocalUri } from '../services/storageService';
 import AddContactModal from './AddContactModal';
@@ -66,7 +65,7 @@ function Field({ label, value, onChangeText, placeholder, keyboardType, multilin
   );
 }
 
-function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, owners, onNewOwnerCreated, onOpenOwnerPicker, resortId, resortCode }) {
+function StepInfo({ data, setData, t, propertyType, locations, locationDistricts, onDistrictAdded, owners, onNewOwnerCreated, onOpenOwnerPicker, resortId, resortCode }) {
   const [cityOpen, setCityOpen] = useState(false);
   const [districtOpen, setDistrictOpen] = useState(false);
   const [ownerPickerVisible, setOwnerPickerVisible] = useState(false);
@@ -97,8 +96,7 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
     setCityOpen(false);
   };
 
-  const districtsForCity = (knownDistricts || []).filter(d => d.city === data.city).map(d => d.district);
-  const uniqueDistricts = [...new Set(districtsForCity)].filter(Boolean).sort();
+  const uniqueDistricts = (locationDistricts || []).filter(Boolean).sort();
 
   const handleSelectDistrict = (district) => {
     setData(d => ({ ...d, district }));
@@ -106,9 +104,17 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
     setNewDistrict('');
   };
 
-  const handleAddNewDistrict = () => {
+  const handleAddNewDistrict = async () => {
     const trimmed = newDistrict.trim();
     if (!trimmed) return;
+    if (data.location_id && onDistrictAdded) {
+      try {
+        await onDistrictAdded(data.location_id, trimmed);
+      } catch (e) {
+        Alert.alert('Error', e.message || 'Error');
+        return;
+      }
+    }
     setData(d => ({ ...d, district: trimmed }));
     setDistrictOpen(false);
     setNewDistrict('');
@@ -235,6 +241,9 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
         </TouchableOpacity>
         {districtOpen && (
           <View style={s.pickerDropdown}>
+            {!data.location_id && (
+              <Text style={s.pickerEmpty}>{t('wizSelectCityFirst')}</Text>
+            )}
             {uniqueDistricts.length > 0 && uniqueDistricts.map(d => (
               <TouchableOpacity
                 key={d}
@@ -245,6 +254,7 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
                 <Text style={[s.pickerItemCity, data.district === d && s.pickerItemCityActive]}>{d}</Text>
               </TouchableOpacity>
             ))}
+            {data.location_id && (
             <View style={s.newDistrictRow}>
               <TextInput
                 style={s.newDistrictInput}
@@ -259,6 +269,7 @@ function StepInfo({ data, setData, t, propertyType, locations, knownDistricts, o
                 <Text style={s.newDistrictBtnText}>+</Text>
               </TouchableOpacity>
             </View>
+            )}
           </View>
         )}
       </View>
@@ -787,7 +798,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const [locations, setLocations] = useState([]);
-  const [knownDistricts, setKnownDistricts] = useState([]);
+  const [locationDistricts, setLocationDistrictsState] = useState([]);
   const [owners, setOwners] = useState([]);
   const scrollRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -800,14 +811,16 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       setStep(0);
       getLocations().then(setLocations).catch(() => {});
       loadOwners();
-      getProperties().then(props => {
-        const districts = props
-          .filter(p => p.city && p.district)
-          .map(p => ({ city: p.city, district: p.district }));
-        setKnownDistricts(districts);
-      }).catch(() => {});
     }
   }, [visible, property]);
+
+  useEffect(() => {
+    if (visible && data.location_id) {
+      getLocationDistricts(data.location_id).then(setLocationDistrictsState).catch(() => setLocationDistrictsState([]));
+    } else {
+      setLocationDistrictsState([]);
+    }
+  }, [visible, data.location_id]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -887,7 +900,26 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
 
   const renderStep = () => {
     switch (currentStep.key) {
-      case 'info': return <StepInfo data={data} setData={setData} t={t} propertyType={property.type} locations={locations} knownDistricts={knownDistricts} owners={owners} onNewOwnerCreated={loadOwners} onOpenOwnerPicker={loadOwners} resortId={property?.resort_id} resortCode={property?.code} />;
+      case 'info': return (
+        <StepInfo
+          data={data}
+          setData={setData}
+          t={t}
+          propertyType={property.type}
+          locations={locations}
+          locationDistricts={locationDistricts}
+          onDistrictAdded={async (locationId, district) => {
+            const current = await getLocationDistricts(locationId);
+            await setLocationDistricts(locationId, [...current, district]);
+            setLocationDistrictsState((prev) => [...new Set([...prev, district])].sort());
+          }}
+          owners={owners}
+          onNewOwnerCreated={loadOwners}
+          onOpenOwnerPicker={loadOwners}
+          resortId={property?.resort_id}
+          resortCode={property?.code}
+        />
+      );
       case 'chars': return <StepCharacteristics data={data} setData={setData} t={t} propertyType={property.type} />;
       case 'desc': return <StepDescription data={data} setData={setData} t={t} />;
       case 'media': return <StepMedia data={data} setData={setData} t={t} />;

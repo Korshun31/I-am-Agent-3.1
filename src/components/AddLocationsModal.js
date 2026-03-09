@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Alert,
 } from 'react-native';
+import { getLocationDistricts, setLocationDistricts } from '../services/locationsService';
 import { BlurView } from 'expo-blur';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -126,6 +127,9 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
   const [country, setCountry] = useState(null);
   const [region, setRegion] = useState(null);
   const [city, setCity] = useState(null);
+  const [districts, setDistricts] = useState([]);
+  const [showAddDistrictInput, setShowAddDistrictInput] = useState(false);
+  const [newDistrictValue, setNewDistrictValue] = useState('');
 
   const csc = getCountryStateCity();
   const countries = useMemo(() => {
@@ -157,32 +161,61 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
 
   useEffect(() => {
     if (visible) {
+      setShowAddDistrictInput(false);
+      setNewDistrictValue('');
       if (editLocationData && csc) {
         const parsed = parseLocationString(editLocationData.displayName || '', csc);
         setCountry(parsed.country);
         setRegion(parsed.region);
         setCity(parsed.city);
+        if (editLocationData.id) {
+          getLocationDistricts(editLocationData.id).then((d) => setDistricts(d || []));
+        } else {
+          setDistricts([]);
+        }
       } else if (initialLocation && csc) {
         const parsed = parseLocationString(initialLocation, csc);
         setCountry(parsed.country);
         setRegion(parsed.region);
         setCity(parsed.city);
+        setDistricts([]);
       } else {
         setCountry(null);
         setRegion(null);
         setCity(null);
+        setDistricts([]);
       }
     }
   }, [visible, initialLocation, editLocationData, csc]);
 
   const handleSave = () => {
     if (!country?.name) return;
+    setShowAddDistrictInput(false);
+    setNewDistrictValue('');
     onSave?.({
       country: country.name,
       region: region?.name || '',
       city: city?.name || '',
+      districts: [...districts],
     });
   };
+
+  const handleAddDistrict = () => {
+    const trimmed = newDistrictValue.trim();
+    if (!trimmed) {
+      setShowAddDistrictInput(false);
+      setNewDistrictValue('');
+      return;
+    }
+    if (districts.includes(trimmed)) {
+      setNewDistrictValue('');
+      return;
+    }
+    setDistricts((prev) => [...prev, trimmed].sort());
+    setNewDistrictValue('');
+    setShowAddDistrictInput(false);
+  };
+
 
   const handleCountrySelect = (c) => {
     setCountry(c);
@@ -268,6 +301,36 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
                 onSelect={setCity}
                 searchPlaceholder={t('addLocationsSearch')}
               />
+              <View style={styles.districtsSection}>
+                <Text style={styles.districtsLabel}>{t('locationsDistricts')}</Text>
+                {districts.length > 0 && (
+                  <View style={styles.districtsList}>
+                    {districts.map((d) => (
+                      <Text key={d} style={styles.districtItem}>{d}</Text>
+                    ))}
+                  </View>
+                )}
+                {showAddDistrictInput ? (
+                  <View style={styles.addDistrictRow}>
+                    <TextInput
+                      style={styles.addDistrictInput}
+                      value={newDistrictValue}
+                      onChangeText={setNewDistrictValue}
+                      placeholder={t('locationsNewDistrictPlaceholder')}
+                      placeholderTextColor="#999"
+                      autoFocus
+                      onSubmitEditing={handleAddDistrict}
+                    />
+                    <TouchableOpacity style={styles.addDistrictBtn} onPress={handleAddDistrict} activeOpacity={0.7}>
+                      <Text style={styles.addDistrictBtnText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.addDistrictLinkWrap} onPress={() => setShowAddDistrictInput(true)} activeOpacity={0.7}>
+                    <Text style={styles.addDistrictLink}>{t('locationsAddDistrict')}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               <TouchableOpacity style={styles.saveLocationBtn} onPress={handleSave} activeOpacity={0.7}>
                 <Text style={styles.saveLocationBtnText}>{t('saveLocation')}</Text>
               </TouchableOpacity>
@@ -428,5 +491,62 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     fontSize: 16,
     color: COLORS.title,
+  },
+  districtsSection: {
+    marginBottom: 16,
+  },
+  districtsLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.title,
+    marginBottom: 8,
+  },
+  districtsList: {
+    marginBottom: 10,
+  },
+  districtItem: {
+    fontSize: 16,
+    color: COLORS.title,
+    paddingVertical: 4,
+  },
+  addDistrictLinkWrap: {
+    marginTop: 4,
+  },
+  addDistrictLink: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.link,
+  },
+  addDistrictRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  addDistrictInput: {
+    flex: 1,
+    backgroundColor: COLORS.fieldBg,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: COLORS.title,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginRight: 8,
+  },
+  addDistrictBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(46, 125, 50, 0.15)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(46, 125, 50, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addDistrictBtnText: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#2E7D32',
   },
 });
