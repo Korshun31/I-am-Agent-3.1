@@ -20,7 +20,7 @@ import CurrencyModal from '../components/CurrencyModal';
 import AddLocationsModal from '../components/AddLocationsModal';
 import { useLanguage } from '../context/LanguageContext';
 import { updateUserProfile, getCurrentUser } from '../services/authService';
-import { getLocations, createLocation, updateLocation, deleteLocation } from '../services/locationsService';
+import { getLocations, createLocation, updateLocation, deleteLocation, setLocationDistricts } from '../services/locationsService';
 
 const COLORS = {
   background: '#F5F2EB',
@@ -460,12 +460,18 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
           Alert.alert('Error', e.message);
         }
       }}
-      onSave={async ({ country, region, city }) => {
+      onSave={async ({ country, region, city, districts = [] }) => {
         try {
+          let locationId;
           if (editLocationData?.id) {
             await updateLocation(editLocationData.id, { country, region, city });
+            locationId = editLocationData.id;
           } else {
-            await createLocation({ country, region, city });
+            const created = await createLocation({ country, region, city });
+            locationId = created?.id;
+          }
+          if (locationId && Array.isArray(districts)) {
+            await setLocationDistricts(locationId, districts);
           }
           setAddLocationsModalVisible(false);
           setEditLocationData(null);
