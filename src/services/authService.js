@@ -121,3 +121,31 @@ export function onAuthStateChange(callback) {
     callback(session);
   });
 }
+
+/** Returns true if user signed up with email/password (can change password). */
+export async function canChangePassword() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) return false;
+  const identities = user.identities || [];
+  const hasEmailProvider = identities.some((id) => id?.provider === 'email');
+  const hasOAuthOnly = identities.some((id) =>
+    ['google', 'apple', 'facebook'].includes(id?.provider || '')
+  );
+  if (hasOAuthOnly && !hasEmailProvider) return false;
+  return hasEmailProvider || identities.length === 0;
+}
+
+/** Re-auth with current password, then update to new password. */
+export async function updatePassword(currentPassword, newPassword) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.email) throw new Error('Not authenticated');
+
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: session.user.email,
+    password: currentPassword,
+  });
+  if (signInError) throw new Error(signInError.message);
+
+  const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+  if (updateError) throw new Error(updateError.message);
+}

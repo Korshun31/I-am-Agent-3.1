@@ -32,7 +32,13 @@
           "photosPermission": "Приложение использует фото из галереи для аватара профиля."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "sounds": []
+        }
+      ]
     ]
   }
 }

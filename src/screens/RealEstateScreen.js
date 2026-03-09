@@ -58,7 +58,7 @@ const COLORS = {
   searchBorder: '#E0D8CC',
 };
 
-export default function RealEstateScreen() {
+export default function RealEstateScreen({ propertyToOpen, onPropertyOpened }) {
   const { t } = useLanguage();
   const [properties, setProperties] = useState([]);
   const [filterVisible, setFilterVisible] = useState(false);
@@ -94,6 +94,13 @@ export default function RealEstateScreen() {
   useEffect(() => {
     loadProperties();
   }, [loadProperties]);
+
+  useEffect(() => {
+    if (propertyToOpen && onPropertyOpened) {
+      setSelectedProperty(propertyToOpen);
+      onPropertyOpened();
+    }
+  }, [propertyToOpen, onPropertyOpened]);
 
   const drawerAnimation = {
     duration: 300,

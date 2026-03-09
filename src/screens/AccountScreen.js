@@ -19,7 +19,7 @@ import NotificationsModal from '../components/NotificationsModal';
 import CurrencyModal from '../components/CurrencyModal';
 import AddLocationsModal from '../components/AddLocationsModal';
 import { useLanguage } from '../context/LanguageContext';
-import { updateUserProfile, getCurrentUser } from '../services/authService';
+import { updateUserProfile, getCurrentUser, canChangePassword } from '../services/authService';
 import { getLocations, createLocation, updateLocation, deleteLocation, setLocationDistricts } from '../services/locationsService';
 
 const COLORS = {
@@ -57,6 +57,7 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
   const [addLocationsModalVisible, setAddLocationsModalVisible] = useState(false);
   const [editLocationData, setEditLocationData] = useState(null);
   const [locationsContentHeight, setLocationsContentHeight] = useState(0);
+  const [allowChangePassword, setAllowChangePassword] = useState(false);
   const [settingsContentHeight, setSettingsContentHeight] = useState(0);
   const { language, setLanguage, t } = useLanguage();
   const settingsHeight = useRef(new Animated.Value(0)).current;
@@ -137,6 +138,14 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
     } catch {}
   };
 
+  const refreshCanChangePassword = () => {
+    canChangePassword().then(setAllowChangePassword).catch(() => setAllowChangePassword(false));
+  };
+  useEffect(() => {
+    if (!user?.id) return;
+    refreshCanChangePassword();
+  }, [user?.id]);
+
   useEffect(() => {
     if (!email) return;
     getCurrentUser().then((profile) => {
@@ -190,7 +199,7 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
           <Text style={styles.myDetailsTitle}>{t('myDetails')}</Text>
           <TouchableOpacity
             style={styles.pencilBtn}
-            onPress={() => setEditModalVisible(true)}
+            onPress={() => { setEditModalVisible(true); refreshCanChangePassword(); }}
             activeOpacity={0.8}
           >
             <Image source={require('../../assets/pencil-icon.png')} style={styles.pencilIconImage} resizeMode="contain" />
@@ -400,6 +409,7 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
       visible={editModalVisible}
       onClose={() => setEditModalVisible(false)}
       user={user}
+      canChangePassword={allowChangePassword}
       onSave={async (data) => {
         try {
           const updatedUser = await updateUserProfile(data);

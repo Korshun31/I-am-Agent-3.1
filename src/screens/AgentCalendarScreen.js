@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,7 @@ import AddBookingModal from '../components/AddBookingModal';
 import BookingDetailScreen from './BookingDetailScreen';
 import ContactDetailScreen from './ContactDetailScreen';
 import { deleteBooking } from '../services/bookingsService';
+import { cancelBookingReminders } from '../services/bookingRemindersService';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -223,8 +224,12 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
     setLoading(false);
   }, []);
 
+  const hasLoadedRef = useRef(false);
   useEffect(() => {
-    if (isVisible) loadData();
+    if (isVisible && !hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      loadData();
+    }
   }, [isVisible, loadData]);
 
   const toggleExpandAll = () => {
@@ -391,6 +396,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
           onBack={clearDetail}
           onDelete={async (id) => {
             try {
+              await cancelBookingReminders(id);
               await deleteBooking(id);
               clearDetail();
               loadData();

@@ -49,6 +49,7 @@ export async function createBooking(booking) {
     pets: !!booking.pets,
     comments: booking.comments || null,
     photos: Array.isArray(booking.photos) && booking.photos.length > 0 ? booking.photos : null,
+    reminder_days: Array.isArray(booking.reminderDays) && booking.reminderDays.length > 0 ? booking.reminderDays : null,
   };
 
   const { data, error } = await supabase
@@ -81,6 +82,7 @@ export async function updateBooking(id, booking) {
     pets: !!booking.pets,
     comments: booking.comments || null,
     photos: Array.isArray(booking.photos) && booking.photos.length > 0 ? booking.photos : null,
+    reminder_days: Array.isArray(booking.reminderDays) && booking.reminderDays.length > 0 ? booking.reminderDays : [],
   };
   updates.updated_at = new Date().toISOString();
 
@@ -129,5 +131,6 @@ function mapBooking(row) {
     pets: row.pets,
     comments: row.comments,
     photos: Array.isArray(row.photos) ? row.photos : [],
+    reminderDays: Array.isArray(row.reminder_days) ? row.reminder_days : [],
   };
 }

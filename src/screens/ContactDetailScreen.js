@@ -16,6 +16,7 @@ import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { deleteContact, updateContact } from '../services/contactsService';
 import { getBookings, deleteBooking } from '../services/bookingsService';
+import { cancelBookingReminders } from '../services/bookingRemindersService';
 import { getProperties, deleteProperty } from '../services/propertiesService';
 import AddContactModal from '../components/AddContactModal';
 import BookingDetailScreen from './BookingDetailScreen';
@@ -307,6 +308,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
           onContactPress={undefined}
           onDelete={async (id) => {
             try {
+              await cancelBookingReminders(id);
               await deleteBooking(id);
               setSelectedBooking(null);
               setSelectedBookingTitle('');

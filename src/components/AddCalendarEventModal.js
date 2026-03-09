@@ -18,6 +18,8 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLanguage } from '../context/LanguageContext';
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../services/calendarEventsService';
+import { requestReminderPermissions, scheduleReminder, cancelReminder } from '../services/calendarRemindersService';
+import { getCurrentUser } from '../services/authService';
 
 const REMINDER_OPTIONS = [
   { value: 0, key: 'agentCalendarReminderAtEvent' },
@@ -107,26 +109,44 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
     }
     const dateToUse = eventDate || new Date();
     const timeStr = eventTime ? formatTimeDisplay(eventTime) : null;
+    const dateYMD = formatDateYMD(dateToUse);
     setSaving(true);
     try {
       if (isEdit) {
+        await cancelReminder(editEvent.id);
         await updateCalendarEvent(editEvent.id, {
           title: name,
-          eventDate: formatDateYMD(dateToUse),
+          eventDate: dateYMD,
           eventTime: timeStr,
           color,
           comments: (comments || '').trim() || null,
           reminderMinutes: reminderMinutes,
         });
+        if (reminderMinutes !== null && reminderMinutes !== undefined) {
+          const profile = await getCurrentUser();
+          const settings = profile?.notificationSettings || {};
+          const granted = await requestReminderPermissions();
+          if (granted) {
+            await scheduleReminder(editEvent.id, dateYMD, timeStr, reminderMinutes, name, settings);
+          }
+        }
       } else {
-        await createCalendarEvent({
+        const created = await createCalendarEvent({
           title: name,
-          eventDate: formatDateYMD(dateToUse),
+          eventDate: dateYMD,
           eventTime: timeStr,
           color,
           comments: (comments || '').trim() || null,
           reminderMinutes: reminderMinutes,
         });
+        if (created?.id && reminderMinutes !== null && reminderMinutes !== undefined) {
+          const profile = await getCurrentUser();
+          const settings = profile?.notificationSettings || {};
+          const granted = await requestReminderPermissions();
+          if (granted) {
+            await scheduleReminder(created.id, dateYMD, timeStr, reminderMinutes, name, settings);
+          }
+        }
       }
       onSaved?.();
       onClose();
@@ -147,6 +167,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
         onPress: async () => {
           setSaving(true);
           try {
+            await cancelReminder(editEvent.id);
             await deleteCalendarEvent(editEvent.id);
             onSaved?.();
             onClose();

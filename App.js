@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import ErrorBoundary from './src/components/ErrorBoundary';
+
+if (Platform.OS !== 'web') {
+  try {
+    const Notifications = require('expo-notifications').default;
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch {}
+}
 import { LanguageProvider } from './src/context/LanguageContext';
 import Preloader from './src/screens/Preloader';
 import Login from './src/screens/Login';

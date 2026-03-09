@@ -453,9 +453,24 @@ function StepDescription({ data, setData, t }) {
   );
 }
 
-function StepComments({ data, setData, t }) {
+function StepComments({ data, setData, t, property }) {
+  const showWebsite = property && (
+    property.type === 'house' ||
+    (property.type === 'condo' && property.resort_id)
+  );
   return (
-    <Field label={t('pdComments')} value={data.comments} onChangeText={v => setData(d => ({ ...d, comments: v }))} multiline placeholder={t('wizCommPlaceholder')} />
+    <>
+      {showWebsite && (
+        <Field
+          label={t('propertyWebsiteUrl')}
+          value={data.website_url || ''}
+          onChangeText={v => setData(d => ({ ...d, website_url: v }))}
+          placeholder="https://..."
+          keyboardType="url"
+        />
+      )}
+      <Field label={t('pdComments')} value={data.comments} onChangeText={v => setData(d => ({ ...d, comments: v }))} multiline placeholder={t('wizCommPlaceholder')} />
+    </>
   );
 }
 
@@ -723,6 +738,7 @@ function buildInitialData(p) {
     market_distance: toStr(p.market_distance),
     description: p.description || '',
     comments: p.comments || '',
+    website_url: p.website_url || '',
     photos: Array.isArray(p.photos) ? p.photos : [],
     videos: Array.isArray(p.videos) ? p.videos : [],
     amenities: p.amenities || {},
@@ -770,6 +786,7 @@ function buildUpdates(data) {
     market_distance: toNum(data.market_distance),
     description: data.description.trim(),
     comments: data.comments.trim(),
+    website_url: (data.website_url || '').trim(),
     photos: (data.photos || []).slice(0, MAX_PHOTOS_PER_PROPERTY),
     videos: data.videos || [],
     amenities: data.amenities,
@@ -926,7 +943,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       case 'amenities': return <StepAmenities data={data} setData={setData} t={t} />;
       case 'additional': return <StepAdditional data={data} setData={setData} t={t} propertyType={property.type} />;
       case 'pricing': return <StepPricing data={data} setData={setData} t={t} />;
-      case 'comments': return <StepComments data={data} setData={setData} t={t} />;
+      case 'comments': return <StepComments data={data} setData={setData} t={t} property={property} />;
       default: return null;
     }
   };

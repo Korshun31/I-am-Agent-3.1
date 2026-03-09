@@ -25,6 +25,9 @@ import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
 import { getContacts, createContact, getContactById } from '../services/contactsService';
 import { getBookings, createBooking, updateBooking } from '../services/bookingsService';
+import { scheduleBookingReminders, cancelBookingReminders } from '../services/bookingRemindersService';
+import { requestReminderPermissions } from '../services/calendarRemindersService';
+import { getCurrentUser } from '../services/authService';
 import { uploadPhoto, isLocalUri } from '../services/storageService';
 import AddContactModal from './AddContactModal';
 
@@ -203,7 +206,16 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
   const [comments, setComments] = useState('');
   const [photos, setPhotos] = useState([]);
   const [photoProcessing, setPhotoProcessing] = useState(false);
+  const [reminderDays, setReminderDays] = useState([]);
+  const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const BOOKING_REMINDER_OPTIONS = [
+    { days: 1, key: 'bookingReminder1d' },
+    { days: 3, key: 'bookingReminder3d' },
+    { days: 7, key: 'bookingReminder1w' },
+    { days: 30, key: 'bookingReminder1m' },
+  ];
 
   const filteredClients = clientSearch.trim()
     ? clients.filter(c => {
@@ -248,6 +260,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         setPets(!!editBooking.pets);
         setComments(editBooking.comments || '');
         setPhotos(Array.isArray(editBooking.photos) ? [...editBooking.photos] : []);
+        setReminderDays(Array.isArray(editBooking.reminderDays) ? [...editBooking.reminderDays] : []);
       } else {
         setNotMyCustomer(false);
         setSelectedClient(null);
@@ -260,6 +273,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
           setCheckOut(null);
         }
         setPhotos([]);
+        setReminderDays([]);
       }
     }
   }, [visible, editBooking?.id, initialMonth?.year, initialMonth?.month]);
@@ -438,12 +452,30 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         pets,
         comments: comments.trim() || null,
         photos: photoUrls.length > 0 ? photoUrls : null,
+        reminderDays: reminderDays.length > 0 ? reminderDays : [],
       };
       if (editBooking?.id) {
+        await cancelBookingReminders(editBooking.id);
         const updated = await updateBooking(editBooking.id, payload);
+        if (reminderDays.length > 0) {
+          const granted = await requestReminderPermissions();
+          if (granted) {
+            const profile = await getCurrentUser();
+            const settings = profile?.notificationSettings || {};
+            await scheduleBookingReminders(editBooking.id, payload.checkIn, reminderDays, property?.name || houseCode, settings);
+          }
+        }
         onSaved?.(updated);
       } else {
-        await createBooking(payload);
+        const created = await createBooking(payload);
+        if (created?.id && reminderDays.length > 0) {
+          const granted = await requestReminderPermissions();
+          if (granted) {
+            const profile = await getCurrentUser();
+            const settings = profile?.notificationSettings || {};
+            await scheduleBookingReminders(created.id, payload.checkIn, reminderDays, property?.name || houseCode, settings);
+          }
+        }
         onSaved?.();
       }
       onClose?.();
@@ -559,6 +591,45 @@ isMonthFirst
               ) : step === 4 ? (
                 <ScrollView style={[s.scroll, s.scrollStep3]} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator>
                   <View style={s.mediaSectionTitleRow}>
+                    <Text style={s.mediaSectionTitle}>{t('bookingNotifications')}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={s.reminderTriggerBtn}
+                    onPress={() => setReminderPickerOpen(!reminderPickerOpen)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.reminderTriggerText, reminderDays.length === 0 && s.reminderTriggerPlaceholder]}>
+                      {reminderDays.length > 0
+                        ? reminderDays.map((d) => t(BOOKING_REMINDER_OPTIONS.find(o => o.days === d)?.key || 'bookingReminder1d')).join(', ')
+                        : t('bookingAddNotification')}
+                    </Text>
+                    <Text style={s.reminderChevron}>{reminderPickerOpen ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {reminderPickerOpen && (
+                    <View style={s.reminderOptionsWrap}>
+                      {BOOKING_REMINDER_OPTIONS.map((opt) => {
+                        const isSelected = reminderDays.includes(opt.days);
+                        return (
+                          <TouchableOpacity
+                            key={opt.days}
+                            style={[s.reminderOption, isSelected && s.reminderOptionSelected]}
+                            onPress={() => {
+                              setReminderDays((prev) =>
+                                isSelected ? prev.filter((x) => x !== opt.days) : [...prev, opt.days].sort((a, b) => a - b)
+                              );
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[s.reminderOptionText, isSelected && s.reminderOptionTextSelected]}>{t(opt.key)}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                      <TouchableOpacity style={s.reminderSelectBtn} onPress={() => setReminderPickerOpen(false)} activeOpacity={0.7}>
+                        <Text style={s.reminderSelectBtnText}>{t('bookingReminderSelect')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  <View style={[s.mediaSectionTitleRow, { marginTop: 20 }]}>
                     <Image source={require('../../assets/icon-photo.png')} style={s.mediaSectionTitleIcon} resizeMode="contain" />
                     <Text style={s.mediaSectionTitle}>{t('pdPhoto')}</Text>
                   </View>
@@ -1008,6 +1079,47 @@ const s = StyleSheet.create({
   mediaSectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
   mediaSectionTitleIcon: { width: 22, height: 22 },
   mediaSectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.title },
+  reminderTriggerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 10,
+  },
+  reminderTriggerText: { fontSize: 16, fontWeight: '600', color: COLORS.title },
+  reminderTriggerPlaceholder: { color: '#999' },
+  reminderChevron: { fontSize: 12, color: '#6B6B6B' },
+  reminderOptionsWrap: {
+    marginBottom: 14,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+  reminderOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
+  },
+  reminderOptionSelected: { backgroundColor: 'rgba(46,125,50,0.08)' },
+  reminderOptionText: { fontSize: 16, color: COLORS.title },
+  reminderOptionTextSelected: { fontWeight: '600', color: COLORS.saveGreen },
+  reminderSelectBtn: {
+    marginTop: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: COLORS.saveGreen,
+  },
+  reminderSelectBtnText: { fontSize: 16, fontWeight: '600', color: '#FFF' },
   mediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   mediaThumbWrap: { width: 90, height: 90, borderRadius: 12, overflow: 'hidden', position: 'relative' },
   mediaThumb: { width: '100%', height: '100%' },

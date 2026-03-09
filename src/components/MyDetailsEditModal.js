@@ -7,8 +7,8 @@ import {
   Modal,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   Platform,
+  ScrollView,
   Pressable,
   KeyboardAvoidingView,
   Keyboard,
@@ -18,6 +18,7 @@ import {
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadAvatar } from '../services/storageService';
+import { updatePassword } from '../services/authService';
 
 const COLORS = {
   boxBg: 'rgba(255,255,255,0.72)',
@@ -33,7 +34,7 @@ const COLORS = {
  * Модальное окно редактирования данных пользователя (My details).
  * Поля: фото (заглушка), Имя, Фамилия, Номер документа, Телефон, кнопка «Добавить контакт».
  */
-export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave }) {
+export default function MyDetailsEditModal({ visible, onClose, user = {}, canChangePassword: showChangePassword = false, onSave }) {
   const { t } = useLanguage();
   const [name, setName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -48,6 +49,12 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
   const [showAddContactChoices, setShowAddContactChoices] = useState(false);
   const [showTelegramField, setShowTelegramField] = useState(false);
   const [showWhatsappField, setShowWhatsappField] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   useEffect(() => {
     if (visible) {
@@ -65,8 +72,42 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
       setShowAddContactChoices(false);
       setShowTelegramField(!!(user.telegram || '').trim());
       setShowWhatsappField(!!(user.whatsapp || '').trim());
+      setShowPasswordForm(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordError('');
     }
   }, [visible, user.name, user.lastName, user.documentNumber, user.phone, user.extraPhones, user.extraEmails, user.telegram, user.whatsapp, user.photoUri]);
+
+  const handleChangePassword = async () => {
+    setPasswordError('');
+    if (!newPassword || !confirmPassword || !currentPassword) {
+      setPasswordError(t('enterAllPasswordFields'));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError(t('passwordsMismatch'));
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError(t('passwordTooShort'));
+      return;
+    }
+    setPasswordLoading(true);
+    try {
+      await updatePassword(currentPassword, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowPasswordForm(false);
+      Alert.alert(t('success'), t('passwordChanged'));
+    } catch (e) {
+      setPasswordError(e?.message || t('passwordChangeFailed'));
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
 
   const handleSave = () => {
     onSave?.({
@@ -177,7 +218,7 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={40}
         >
-          <Pressable style={[styles.boxWrap, (showAddContactChoices || extraPhones.length > 0 || extraEmails.length > 0 || showTelegramField || showWhatsappField) && styles.boxWrapExpanded]} onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}>
+          <Pressable style={[styles.boxWrap, (showAddContactChoices || extraPhones.length > 0 || extraEmails.length > 0 || showTelegramField || showWhatsappField || showPasswordForm) && styles.boxWrapExpanded]} onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}>
             <View style={styles.box}>
               <View style={styles.headerRow}>
                 <View style={styles.headerSpacer} />
@@ -187,6 +228,25 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                 </TouchableOpacity>
               </View>
 
+              <View style={styles.photoSection}>
+              <TouchableOpacity style={styles.photoWrap} onPress={pickImage} activeOpacity={0.8} disabled={uploadingAvatar}>
+                <View style={styles.photoCircle}>
+                  {uploadingAvatar ? (
+                    <Text style={styles.photoIcon}>⏳</Text>
+                  ) : photoUri ? (
+                    <Image source={{ uri: photoUri }} style={styles.photoImage} />
+                  ) : (
+                    <Text style={styles.photoIcon}>👤</Text>
+                  )}
+                </View>
+                {!uploadingAvatar && (
+                  <View style={styles.photoPlus}>
+                    <Text style={styles.plusText}>+</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              </View>
+
               <ScrollView
                 style={styles.scroll}
                 contentContainerStyle={styles.scrollContent}
@@ -194,24 +254,6 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                 keyboardShouldPersistTaps="handled"
                 onScrollBeginDrag={Keyboard.dismiss}
               >
-                {/* Фото: круг с иконкой и плюсом; по нажатию — выбор из галереи */}
-                <TouchableOpacity style={styles.photoWrap} onPress={pickImage} activeOpacity={0.8} disabled={uploadingAvatar}>
-                  <View style={styles.photoCircle}>
-                    {uploadingAvatar ? (
-                      <Text style={styles.photoIcon}>⏳</Text>
-                    ) : photoUri ? (
-                      <Image source={{ uri: photoUri }} style={styles.photoImage} />
-                    ) : (
-                      <Text style={styles.photoIcon}>👤</Text>
-                    )}
-                  </View>
-                  {!uploadingAvatar && (
-                    <View style={styles.photoPlus}>
-                      <Text style={styles.plusText}>+</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-
                 <TextInput
                   style={styles.input}
                   placeholder={t('name')}
@@ -334,10 +376,77 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                     </Pressable>
                   )}
                 </View>
+
+                {showChangePassword ? (
+                  <View style={styles.passwordBlockWrap}>
+                    {showPasswordForm ? (
+                      <View style={styles.passwordFormWrap}>
+                        <TextInput
+                          style={styles.input}
+                          placeholder={t('currentPassword')}
+                          placeholderTextColor="#888"
+                          value={currentPassword}
+                          onChangeText={(v) => { setCurrentPassword(v); setPasswordError(''); }}
+                          secureTextEntry
+                          autoCapitalize="none"
+                        />
+                        <TextInput
+                          style={styles.input}
+                          placeholder={t('newPassword')}
+                          placeholderTextColor="#888"
+                          value={newPassword}
+                          onChangeText={(v) => { setNewPassword(v); setPasswordError(''); }}
+                          secureTextEntry
+                          autoCapitalize="none"
+                        />
+                        <TextInput
+                          style={styles.input}
+                          placeholder={t('confirmNewPassword')}
+                          placeholderTextColor="#888"
+                          value={confirmPassword}
+                          onChangeText={(v) => { setConfirmPassword(v); setPasswordError(''); }}
+                          secureTextEntry
+                          autoCapitalize="none"
+                        />
+                        {passwordError ? <Text style={styles.passwordError}>{passwordError}</Text> : null}
+                        <View style={styles.passwordFormActions}>
+                          <Pressable
+                            style={styles.addContactBtn}
+                            onPress={() => { setShowPasswordForm(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setPasswordError(''); }}
+                            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                          >
+                            <Image source={require('../../assets/icon-cancel.png')} style={styles.addContactIconImage} resizeMode="contain" />
+                            <Text style={styles.passwordActionCancel}>{t('cancel')}</Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.addContactBtn, passwordLoading && styles.passwordActionDisabled]}
+                            onPress={handleChangePassword}
+                            disabled={passwordLoading}
+                            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                          >
+                            <Image source={require('../../assets/icon-change-password-confirm.png')} style={[styles.addContactIconImage, styles.passwordSubmitIconOffset]} resizeMode="contain" />
+                            <Text style={styles.passwordActionSubmit}>{passwordLoading ? t('saving') : t('changePassword')}</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : (
+                      <Pressable
+                        style={styles.addContactBtn}
+                        onPress={() => setShowPasswordForm(true)}
+                        hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                      >
+                        <Image source={require('../../assets/icon-change-password.png')} style={styles.addContactIconImage} resizeMode="contain" />
+                        <Text style={styles.addContactText}>{t('changePassword')}</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                ) : null}
               </ScrollView>
-              <TouchableOpacity style={styles.saveBtn} onPress={() => { Keyboard.dismiss(); handleSave(); }} activeOpacity={0.7}>
-                <Text style={styles.saveBtnText}>{t('save')}</Text>
-              </TouchableOpacity>
+              {!showPasswordForm && (
+                <TouchableOpacity style={styles.saveBtn} onPress={() => { Keyboard.dismiss(); handleSave(); }} activeOpacity={0.7}>
+                  <Text style={styles.saveBtnText}>{t('save')}</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </Pressable>
         </KeyboardAvoidingView>
@@ -407,18 +516,22 @@ const styles = StyleSheet.create({
     color: '#E85D4C',
     fontWeight: '600',
   },
+  photoSection: {
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
   scroll: {
     maxHeight: 480,
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingBottom: 0,
     alignItems: 'center',
   },
   saveBtn: {
     marginHorizontal: 20,
     marginBottom: 20,
-    marginTop: 4,
+    marginTop: 0,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
@@ -435,7 +548,7 @@ const styles = StyleSheet.create({
   },
   addContactBlockWrap: {
     width: '100%',
-    marginTop: 12,
+    marginTop: 13,
   },
   photoWrap: {
     marginBottom: 20,
@@ -527,16 +640,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 10,
-    paddingVertical: 14,
+    paddingVertical: 0,
     paddingHorizontal: 12,
     marginTop: 0,
-    marginBottom: 20,
-    minHeight: 48,
+    marginBottom: 25,
     justifyContent: 'center',
   },
   addContactIconImage: {
-    width: 30,
-    height: 30,
+    width: 24,
+    height: 24,
   },
   addContactText: {
     fontSize: 16,
@@ -548,19 +660,56 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
+    minHeight: 24,
     marginTop: 0,
-    marginBottom: 12,
+    marginBottom: 25,
     gap: 2,
   },
   addContactChoiceBtn: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 2,
+    paddingVertical: 0,
     paddingHorizontal: 0,
   },
   addContactChoiceIcon: {
     width: 23,
     height: 23,
+  },
+  passwordBlockWrap: {
+    width: '100%',
+    marginTop: 0,
+  },
+  passwordFormWrap: {
+    width: '100%',
+    marginBottom: 12,
+  },
+  passwordError: {
+    fontSize: 14,
+    color: '#C73E3E',
+    marginBottom: 8,
+  },
+  passwordFormActions: {
+    flexDirection: 'row',
+    gap: 4,
+    marginTop: 13,
+    alignItems: 'center',
+    width: '100%',
+  },
+  passwordActionCancel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.addPink,
+  },
+  passwordActionSubmit: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2E7D32',
+  },
+  passwordActionDisabled: {
+    opacity: 0.6,
+  },
+  passwordSubmitIconOffset: {
+    marginTop: -5,
   },
 });

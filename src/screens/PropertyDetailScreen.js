@@ -23,6 +23,7 @@ import { getProperties, updateProperty, createPropertyFull } from '../services/p
 import { deletePhotoFromStorage } from '../services/storageService';
 import { getContacts } from '../services/contactsService';
 import { getBookings, deleteBooking, updateBooking } from '../services/bookingsService';
+import { cancelBookingReminders } from '../services/bookingRemindersService';
 import PropertyEditWizard from '../components/PropertyEditWizard';
 import AddBookingModal from '../components/AddBookingModal';
 import ContactDetailScreen from './ContactDetailScreen';
@@ -488,6 +489,15 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         ) : (
           <InfoRow label={t('pdLocation')} value="—" labelBold />
         )}
+        {p.website_url ? (
+          <InfoRow
+            label={t('propertyWebPage')}
+            value={t('goToWebsite')}
+            isLink
+            onPress={() => Linking.openURL((p.website_url || '').replace(/^(?!https?:\/\/)/, 'https://'))}
+            labelBold
+          />
+        ) : null}
         <View style={styles.divider} />
         <InfoRow label={t('propBedrooms')} value={p.bedrooms != null ? `${p.bedrooms}  pc` : '—'} labelBold />
         <InfoRow label={t('pdBathrooms')} value={p.bathrooms != null ? `${p.bathrooms}  pc` : '—'} labelBold />
@@ -899,6 +909,15 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
         ) : (
           <InfoRow label={t('pdLocation')} value="—" labelBold />
         )}
+        {p.website_url ? (
+          <InfoRow
+            label={t('propertyWebPage')}
+            value={t('goToWebsite')}
+            isLink
+            onPress={() => Linking.openURL((p.website_url || '').replace(/^(?!https?:\/\/)/, 'https://'))}
+            labelBold
+          />
+        ) : null}
         <View style={styles.divider} />
         <InfoRow label={t('propFloors')} value={p.floors != null ? `${p.floors}` : '—'} labelBold />
         <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} labelBold />
@@ -1233,6 +1252,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           onContactPress={(contact) => setSelectedClientContact(contact)}
           onDelete={async (id) => {
             try {
+              await cancelBookingReminders(id);
               await deleteBooking(id);
               setSelectedBooking(null);
               setSelectedBookingTitle('');
