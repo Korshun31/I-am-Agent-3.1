@@ -278,6 +278,8 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
         <Field label={t('pdLocation') + ' (Google Maps)'} value={data.google_maps_link} onChangeText={v => setData(d => ({ ...d, google_maps_link: v }))} placeholder="https://maps.google.com/..." />
       )}
 
+      <Field label={t('pdAddress')} value={data.address} onChangeText={v => setData(d => ({ ...d, address: v }))} placeholder={t('pdAddressPlaceholder')} />
+
       {/* Owner picker */}
       <View style={s.fieldWrap}>
         <Text style={s.fieldLabel}>{t('wizOwner')}</Text>
@@ -747,6 +749,7 @@ function buildInitialData(p) {
     _owner2Name: '',
     district: p.district || '',
     google_maps_link: p.google_maps_link || '',
+    address: p.address || '',
     bedrooms: toStr(p.bedrooms),
     bathrooms: toStr(p.bathrooms),
     area: toStr(p.area),
@@ -799,6 +802,7 @@ function buildUpdates(data) {
     owner_id_2: data.owner_id_2 || null,
     district: data.district.trim(),
     google_maps_link: data.google_maps_link.trim(),
+    address: data.address.trim(),
     bedrooms: toNum(data.bedrooms),
     bathrooms: toNum(data.bathrooms),
     area: toNum(data.area),

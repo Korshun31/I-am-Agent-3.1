@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Подтверждение бронирования — пример</title>
+  <style>
+    * { box-sizing: border-box; }
+    @page { size: A4; margin: 14mm; }
+    :root {
+      --bg: #F5F2EB;
+      --card: #FFFFFF;
+      --title: #2C2C2C;
+      --subtitle: #5A5A5A;
+      --label: #8A8A8A;
+      --accent: #5DB8D4;
+      --border: #E0DAD2;
+      --link: #D81B60;
+      --block-yellow: rgba(255,204,0,0.2);
+      --block-yellow-border: #FFCC00;
+      --block-blue: rgba(187,222,251,0.5);
+      --block-blue-border: #64B5F6;
+      --block-green: rgba(168,230,163,0.35);
+      --block-green-border: #A8E6A3;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--title);
+      background: var(--bg);
+      padding: 16px;
+      margin: 0;
+      font-size: 13px;
+    }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      max-height: 297mm;
+      margin: 0 auto;
+      background: var(--card);
+      padding: 18px 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--accent);
+    }
+    .logo {
+      width: 48px;
+      height: 48px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 10px;
+      text-align: center;
+      line-height: 1.2;
+      flex-shrink: 0;
+    }
+    .company { flex: 1; min-width: 0; }
+    .company-name { font-size: 15px; font-weight: 700; color: var(--title); margin-bottom: 2px; }
+    .company-addr { font-size: 11px; color: var(--subtitle); line-height: 1.3; }
+    .confirmation-id {
+      text-align: right;
+      font-size: 12px;
+      color: var(--subtitle);
+      flex-shrink: 0;
+    }
+    .confirmation-id strong { color: var(--title); }
+
+    h1 {
+      font-size: 16px;
+      margin: 12px 0 10px;
+      color: var(--title);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 24px;
+      align-items: stretch;
+    }
+    .left-col {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+    }
+    .left-col .section {
+      margin-bottom: 0;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .left-col .section .section-title { flex-shrink: 0; }
+
+    .section {
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .section.obj { background: rgba(255,183,77,0.35); border-color: #FFB74D; }
+    .section.guest { background: var(--block-yellow); border-color: var(--block-yellow-border); }
+    .section.dates { background: var(--block-green); border-color: var(--block-green-border); }
+    .section.finance { background: var(--block-blue); border-color: var(--block-blue-border); }
+    .section.cond { background: rgba(248,187,208,0.3); border-color: #F48FB1; }
+    .grid-2 + .section { margin-top: 12px; }
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--title);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 6px;
+    }
+    .section-title .icon { width: 14px; height: 14px; flex-shrink: 0; }
+    table.info {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    table.info td {
+      padding: 3px 0;
+      vertical-align: top;
+    }
+    table.info td:first-child {
+      color: var(--label);
+      width: 90px;
+    }
+    table.info td.bold { font-weight: 700; }
+
+    .finance-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .finance-table th, .finance-table td {
+      padding: 5px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .finance-table th { background: var(--block-blue); font-weight: 700; color: var(--title); font-size: 11px; }
+    .finance-table .number { text-align: right; }
+    .finance-table .total { font-weight: 700; background: var(--block-blue); }
+
+    .formula {
+      font-size: 10px;
+      color: var(--label);
+      font-style: italic;
+      margin-top: 2px;
+    }
+    .footnotes {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+      font-size: 10px;
+      color: var(--subtitle);
+      line-height: 1.4;
+    }
+    .footnotes p { margin: 0 0 6px 0; }
+    .footnotes p:last-child { margin-bottom: 0; }
+    .footnotes sup { color: var(--accent); font-weight: 600; }
+
+    .conditions {
+      font-size: 11px;
+      color: var(--subtitle);
+      line-height: 1.4;
+      margin: 0;
+    }
+
+    .signatures {
+      display: flex;
+      gap: 40px;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .sig-block { flex: 1; }
+    .sig-line {
+      border-bottom: 1px solid var(--title);
+      height: 28px;
+      margin-bottom: 2px;
+    }
+    .sig-label { font-size: 10px; color: var(--label); }
+
+    .footer {
+      margin-top: 10px;
+      font-size: 10px;
+      color: var(--label);
+      line-height: 1.4;
+    }
+
+    @media print {
+      body { background: #fff; padding: 0; }
+      .page {
+        width: 210mm;
+        min-height: 297mm;
+        max-height: none;
+        box-shadow: none;
+        padding: 14mm;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div class="logo">LOGO</div>
+      <div class="company">
+        <div class="company-name">Co LTD Samui 3.1</div>
+        <div class="company-addr">123 Moo 1, Chaweng, Koh Samui, Surat Thani 84320</div>
+        <div class="company-addr">Telegram: @company • Email: info@example.com • Instagram: @samuiproperty</div>
+      </div>
+      <div class="confirmation-id">
+        <div>Подтверждение № <strong>5/25</strong></div>
+        <div>Дата выдачи: 06.03.2025</div>
+      </div>
+    </div>
+
+    <h1>Подтверждение бронирования</h1>
+
+    <div class="grid-2">
+      <div class="left-col">
+        <div class="section obj">
+          <div class="section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+            Объект
+          </div>
+          <table class="info">
+            <tr><td>Название</td><td class="bold">Villa Ocean View A-12</td></tr>
+            <tr><td>Адрес</td><td>45/2 Moo 4, Bophut, Koh Samui 84320</td></tr>
+          </table>
+        </div>
+        <div class="section guest">
+          <div class="section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+            Гость
+          </div>
+          <table class="info">
+            <tr><td>ФИО</td><td class="bold">Иван Петрович Сидоров</td></tr>
+            <tr><td>Паспорт</td><td>AB 1234567</td></tr>
+            <tr><td>Контакты</td><td>+7 999 123-45-67, ivan@example.com</td></tr>
+            <tr><td>Взр. / дети</td><td>2 / 1</td></tr>
+          </table>
+        </div>
+        <div class="section dates">
+          <div class="section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            Даты проживания
+          </div>
+          <table class="info">
+            <tr><td>Заезд</td><td>15.03.2025, 14:00</td></tr>
+            <tr><td>Выезд</td><td>15.05.2025, 12:00</td></tr>
+            <tr><td>Срок</td><td>15.03.2025 – 15.05.2025 (61 день)</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="section finance">
+        <div class="section-title">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+          Финансы
+        </div>
+        <table class="finance-table">
+          <tr><th>Наименование</th><th class="number">Thb</th></tr>
+          <tr><td>Аренда (15.03.2025 – 15.05.2025)</td><td class="number">100 000</td></tr>
+          <tr><td>Депозит бронирования<sup>1</sup></td><td class="number">30 000</td></tr>
+          <tr><td>Сохранный депозит<sup>2</sup></td><td class="number">40 000</td></tr>
+          <tr class="total"><td>Итого</td><td class="number">170 000</td></tr>
+          <tr><td>Оплачено</td><td class="number">50 000</td></tr>
+          <tr class="total"><td>Остаток</td><td class="number">120 000</td></tr>
+        </table>
+        <div class="formula">Сумма сохранного депозита указывается в бронировании.</div>
+        <div class="footnotes">
+          <p><sup>1</sup> Депозит бронирования гарантирует приезд и заселение клиента. При неявке клиента депозит остаётся у собственника и не возвращается. При заселении депозит засчитывается в оплату первого месяца — клиент доплачивает лишь разницу.</p>
+          <p><sup>2</sup> Сохранный депозит вносится однократно при заселении. Является гарантией оплаты коммунальных услуг и возмещения незначительных повреждений. Не покрывает крупные повреждения: например, при поломке телевизора клиент оплачивает его стоимость отдельно. Возвращается при выселении за вычетом коммунальных затрат за последний месяц проживания.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section cond">
+      <div class="section-title">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+        Условия
+      </div>
+      <p class="conditions">
+        При заезде внести оставшуюся сумму и страховой депозит. Возврат депозита — после проверки объекта в течение 14 дней с даты выезда.
+      </p>
+    </div>
+
+    <div class="signatures">
+      <div class="sig-block">
+        <div class="sig-line"></div>
+        <div class="sig-label">Гость</div>
+      </div>
+      <div class="sig-block">
+        <div class="sig-line"></div>
+        <div class="sig-label">Собственник / Агент</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      Документ сформирован автоматически. Вопросы — по контактам выше.
+    </div>
+  </div>
+</body>
+</html>
