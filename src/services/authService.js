@@ -56,6 +56,7 @@ export async function getUserProfile(userId) {
   if (error) return { email: '', name: '', lastName: '', phone: '', telegram: '', documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '', photoUri: '' };
 
   const settings = data.settings || {};
+  const companyInfo = settings.companyInfo || {};
   return {
     id: data.id,
     email: data.email || '',
@@ -72,6 +73,8 @@ export async function getUserProfile(userId) {
     notificationSettings: settings.notificationSettings || {},
     selectedCurrency: settings.selectedCurrency || '',
     locations: Array.isArray(settings.locations) ? settings.locations : [],
+    workAs: settings.workAs === 'company' ? 'company' : 'private',
+    companyInfo,
   };
 }
 
@@ -88,7 +91,7 @@ export async function updateUserProfile(updates) {
   if (updates.documentNumber !== undefined) dbUpdates.document_number = updates.documentNumber;
   if (updates.photoUri !== undefined) dbUpdates.photo_url = updates.photoUri;
 
-  const settingsKeys = ['language', 'notificationSettings', 'selectedCurrency', 'locations'];
+  const settingsKeys = ['language', 'notificationSettings', 'selectedCurrency', 'locations', 'workAs', 'companyInfo'];
   const hasSettingsUpdate = settingsKeys.some(k => updates[k] !== undefined);
 
   if (hasSettingsUpdate) {

@@ -105,7 +105,7 @@ function buildPaymentPlanRows(b) {
  * @param {Object} params.booking - booking data
  * @param {Object} params.property - property with name, address
  * @param {Object} params.contact - contact (guest)
- * @param {Object} params.profile - agent profile (name, lastName, phone, telegram, email)
+ * @param {Object} params.profile - agent profile (name, lastName, phone, telegram, email, workAs, companyInfo)
  * @param {string} params.confirmationNumber - e.g. "5/25"
  */
 export function buildConfirmationHTML({ booking, property, contact, profile, confirmationNumber }) {
@@ -145,10 +145,35 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
   const paid = Number(bookingDeposit) || 0;
   const remainder = total - paid;
 
-  const companyName = [p.name, p.lastName].filter(Boolean).join(' ').trim() || 'I am Agent';
-  const companyContacts = [p.telegram && `Telegram: ${p.telegram}`, p.email && `Email: ${p.email}`, p.phone && `Tel: ${p.phone}`]
-    .filter(Boolean)
-    .join(' • ') || '';
+  const isCompany = p.workAs === 'company' && p.companyInfo && typeof p.companyInfo === 'object';
+  const ci = p.companyInfo || {};
+  const companyName = isCompany && ci.name
+    ? ci.name.trim()
+    : [p.name, p.lastName].filter(Boolean).join(' ').trim() || 'I am Agent';
+  const companyAddrLines = isCompany
+    ? (() => {
+        const lines = [];
+        const ph = (ci.phone || '').trim();
+        if (ph) lines.push(ph);
+        const em = (ci.email || '').trim();
+        if (em) lines.push(em);
+        const tg = (ci.telegram || '').trim();
+        if (tg) lines.push('Telegram: ' + tg);
+        const ig = (ci.instagram || '').trim();
+        if (ig) lines.push('Instagram: ' + ig);
+        const wh = (ci.workingHours || '').trim();
+        if (wh) lines.push('Часы работы: ' + wh);
+        return lines;
+      })()
+    : [];
+  const companyAddrHtml = isCompany
+    ? companyAddrLines.map((s) => escapeHtml(s)).join('<br>')
+    : [p.telegram && `Telegram: ${p.telegram}`, p.email && `Email: ${p.email}`, p.phone && `Tel: ${p.phone}`]
+        .filter(Boolean)
+        .join(' • ') || '';
+  const logoHtml = isCompany && ci.logoUrl
+    ? `<img src="${escapeHtml(ci.logoUrl)}" alt="" style="width:144px;height:48px;object-fit:contain;max-width:144px;max-height:48px" />`
+    : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 48" width="48" height="48"><rect x="2" y="8" width="12" height="32" rx="3" fill="#D87A5C" transform="rotate(-8 8 24)"/><rect x="18" y="6" width="12" height="32" rx="3" fill="#E5B84A" transform="rotate(-4 24 22)"/><rect x="34" y="4" width="12" height="32" rx="3" fill="#8BA882" transform="rotate(0 40 20)"/><rect x="50" y="6" width="12" height="32" rx="3" fill="#5BA3A8" transform="rotate(4 56 22)"/><rect x="66" y="8" width="12" height="32" rx="3" fill="#3D7D82" transform="rotate(8 72 24)"/></svg>';
 
   const dateOfIssue = formatDate(new Date().toISOString().slice(0, 10));
   const paymentPlanRows = buildPaymentPlanRows({
@@ -177,13 +202,16 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
     :root { --bg: #F5F2EB; --card: #FFFFFF; --title: #2C2C2C; --subtitle: #5A5A5A; --label: #8A8A8A; --accent: #5DB8D4; --border: #E0DAD2; --block-blue: rgba(187,222,251,0.5); --block-blue-border: #64B5F6; --block-yellow: rgba(255,204,0,0.2); --block-yellow-border: #FFCC00; --block-green: rgba(168,230,163,0.35); --block-green-border: #A8E6A3; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: var(--title); background: var(--bg); padding: 16px; margin: 0; font-size: 13px; }
     .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: var(--card); padding: 18px 24px; }
-    .header { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 2px solid var(--accent); }
-    .logo { width: 48px; height: 48px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-    .logo svg { display: block; }
-    .company { flex: 1; min-width: 0; }
-    .company-name { font-size: 15px; font-weight: 700; color: var(--title); margin-bottom: 2px; }
-    .company-addr { font-size: 11px; color: var(--subtitle); line-height: 1.3; }
-    .confirmation-id { text-align: right; font-size: 12px; color: var(--subtitle); flex-shrink: 0; }
+    .header { padding-bottom: 6px; border-bottom: 2px solid var(--accent); }
+    .header-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .logo { width: 144px; min-width: 144px; height: 48px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .logo svg { display: block; max-width: 100%; max-height: 100%; }
+    .logo img { display: block; max-width: 144px; max-height: 48px; object-fit: contain; }
+    .company { flex: 1; min-width: 0; text-align: right; }
+    .company-name { font-size: 12px; font-weight: 700; color: var(--title); margin-bottom: 2px; }
+    .company-addr { font-size: 7px; color: var(--subtitle); line-height: 1.25; }
+    .header-below { margin-top: 10px; margin-bottom: 4px; }
+    .confirmation-id { font-size: 10px; color: var(--subtitle); text-align: left; }
     .confirmation-id strong { color: var(--title); }
     h1 { font-size: 16px; margin: 12px 0 10px; color: var(--title); }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; align-items: stretch; }
@@ -226,11 +254,15 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
 <body>
   <div class="page">
     <div class="header">
-      <div class="logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 48" width="48" height="48"><rect x="2" y="8" width="12" height="32" rx="3" fill="#D87A5C" transform="rotate(-8 8 24)"/><rect x="18" y="6" width="12" height="32" rx="3" fill="#E5B84A" transform="rotate(-4 24 22)"/><rect x="34" y="4" width="12" height="32" rx="3" fill="#8BA882" transform="rotate(0 40 20)"/><rect x="50" y="6" width="12" height="32" rx="3" fill="#5BA3A8" transform="rotate(4 56 22)"/><rect x="66" y="8" width="12" height="32" rx="3" fill="#3D7D82" transform="rotate(8 72 24)"/></svg></div>
-      <div class="company">
-        <div class="company-name">${escapeHtml(companyName)}</div>
-        <div class="company-addr">${escapeHtml(companyContacts)}</div>
+      <div class="header-top">
+        <div class="logo">${logoHtml}</div>
+        <div class="company">
+          <div class="company-name">${escapeHtml(companyName)}</div>
+          <div class="company-addr">${companyAddrHtml}</div>
+        </div>
       </div>
+    </div>
+    <div class="header-below">
       <div class="confirmation-id">
         <div>Подтверждение № <strong>${escapeHtml(confirmationNumber || '—')}</strong></div>
         <div>Дата выдачи: ${dateOfIssue}</div>
@@ -248,7 +280,7 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
             <tr><td>Санузлов</td><td>${bathrooms != null ? bathrooms : '—'}</td></tr>
             <tr><td>До пляжа</td><td>${beachDistance != null ? `${beachDistance} м` : '—'}</td></tr>
             <tr><td>До магазина</td><td>${marketDistance != null ? `${marketDistance} м` : '—'}</td></tr>
-            <tr><td>Контакты агента</td><td>${p.phone ? escapeHtml(p.phone) : '—'}</td></tr>
+            <tr><td>Контакты агента</td><td>${(isCompany ? ci.phone : p.phone) ? escapeHtml(isCompany ? ci.phone : p.phone) : '—'}</td></tr>
           </table>
         </div>
         <div class="section guest">

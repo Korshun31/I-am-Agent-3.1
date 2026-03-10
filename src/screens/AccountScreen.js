@@ -14,6 +14,7 @@ import {
 import Constants from 'expo-constants';
 import AppPopup, { popupStyles } from '../components/AppPopup';
 import MyDetailsEditModal from '../components/MyDetailsEditModal';
+import ChangePasswordModal from '../components/ChangePasswordModal';
 import LanguageModal from '../components/LanguageModal';
 import NotificationsModal from '../components/NotificationsModal';
 import CurrencyModal from '../components/CurrencyModal';
@@ -57,6 +58,7 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
   const [selectedCurrency, setSelectedCurrency] = useState('');
   const [addLocationsModalVisible, setAddLocationsModalVisible] = useState(false);
   const [editLocationData, setEditLocationData] = useState(null);
+  const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
   const [locationsContentHeight, setLocationsContentHeight] = useState(0);
   const [allowChangePassword, setAllowChangePassword] = useState(false);
   const [propertyStats, setPropertyStats] = useState({ standaloneHouses: 0, resortCount: 0, resortHouses: 0, condoCount: 0, condoApartments: 0, total: 0 });
@@ -240,7 +242,7 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
           <Text style={styles.myDetailsTitle}>{t('myDetails')}</Text>
           <TouchableOpacity
             style={styles.pencilBtn}
-            onPress={() => { setEditModalVisible(true); refreshCanChangePassword(); }}
+            onPress={() => setEditModalVisible(true)}
             activeOpacity={0.8}
           >
             <Image source={require('../../assets/pencil-icon.png')} style={styles.pencilIconImage} resizeMode="contain" />
@@ -308,10 +310,16 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
             <Image source={require('../../assets/icon-settings-notifications.png')} style={styles.settingsItemIcon} resizeMode="contain" />
             <Text style={styles.settingsItemLabel}>{t('notifications')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.settingsItem, styles.settingsItemLast]} activeOpacity={0.8}>
+          <TouchableOpacity style={allowChangePassword ? styles.settingsItem : [styles.settingsItem, styles.settingsItemLast]} activeOpacity={0.8}>
             <Image source={require('../../assets/icon-settings-currency.png')} style={styles.settingsItemIcon} resizeMode="contain" />
             <Text style={styles.settingsItemLabel}>{t('currencySelection')}</Text>
           </TouchableOpacity>
+          {allowChangePassword ? (
+            <TouchableOpacity style={[styles.settingsItem, styles.settingsItemLast]} activeOpacity={0.8}>
+              <Image source={require('../../assets/icon-change-password.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+              <Text style={styles.settingsItemLabel}>{t('changePassword')}</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
         <TouchableOpacity
           style={[
@@ -319,7 +327,11 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
             styles.settingsBlock,
             (settingsOpen || settingsClosing) && styles.settingsBlockOpen,
           ]}
-          onPress={() => setSettingsOpen(!settingsOpen)}
+          onPress={() => {
+            const willOpen = !settingsOpen;
+            setSettingsOpen(willOpen);
+            if (willOpen) refreshCanChangePassword();
+          }}
           activeOpacity={0.85}
         >
           <View style={styles.menuBlockLeft}>
@@ -338,10 +350,16 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
               <Image source={require('../../assets/icon-settings-notifications.png')} style={styles.settingsItemIcon} resizeMode="contain" />
               <Text style={styles.settingsItemLabel}>{t('notifications')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.settingsItem, styles.settingsItemLast]} onPress={() => setCurrencyModalVisible(true)} activeOpacity={0.8}>
+            <TouchableOpacity style={allowChangePassword ? styles.settingsItem : [styles.settingsItem, styles.settingsItemLast]} onPress={() => setCurrencyModalVisible(true)} activeOpacity={0.8}>
               <Image source={require('../../assets/icon-settings-currency.png')} style={styles.settingsItemIcon} resizeMode="contain" />
               <Text style={styles.settingsItemLabel}>{t('currencySelection')}</Text>
             </TouchableOpacity>
+            {allowChangePassword ? (
+              <TouchableOpacity style={[styles.settingsItem, styles.settingsItemLast]} onPress={() => setChangePasswordModalVisible(true)} activeOpacity={0.8}>
+                <Image source={require('../../assets/icon-change-password.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+                <Text style={styles.settingsItemLabel}>{t('changePassword')}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </Animated.View>
       </View>
@@ -456,13 +474,19 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
       visible={editModalVisible}
       onClose={() => setEditModalVisible(false)}
       user={user}
-      canChangePassword={allowChangePassword}
       onSave={async (data) => {
         try {
           const updatedUser = await updateUserProfile(data);
           onUserUpdate?.(updatedUser);
-        } catch {}
+        } catch (e) {
+          Alert.alert(t('error'), e?.message || t('saveFailed'));
+        }
       }}
+    />
+
+    <ChangePasswordModal
+      visible={changePasswordModalVisible}
+      onClose={() => setChangePasswordModalVisible(false)}
     />
 
     <LanguageModal
