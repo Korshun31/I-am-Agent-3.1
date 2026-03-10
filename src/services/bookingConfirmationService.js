@@ -1,5 +1,155 @@
 import * as Print from 'expo-print';
 
+const CONF = {
+  en: {
+    title: 'Booking confirmation',
+    confirmationNo: 'Confirmation No',
+    dateOfIssue: 'Date of issue',
+    sectionProperty: 'Rental property',
+    sectionGuest: 'Guest information',
+    sectionDates: 'Stay dates',
+    sectionFinance: 'Finances',
+    sectionCond: 'Terms',
+    name: 'Name',
+    fullName: 'Name',
+    address: 'Address',
+    bedrooms: 'Bedrooms',
+    bathrooms: 'Bathrooms',
+    beachDist: 'To beach',
+    marketDist: 'To market',
+    agentContacts: 'Agent contacts',
+    passport: 'Passport',
+    contacts: 'Contacts',
+    adultsChildren: 'Adults / children',
+    checkIn: 'Check-in',
+    checkOut: 'Check-out',
+    period: 'Period',
+    rentPerMonth: 'Rent per month',
+    rent: 'Rent',
+    bookingDeposit: 'Booking deposit',
+    saveDeposit: 'Security deposit',
+    total: 'Total',
+    paid: 'Paid',
+    remainder: 'Remainder',
+    formula: 'Total = rent for period + security deposit. Booking deposit is included in the first month payment.',
+    footnote1: 'Booking deposit guarantees arrival and check-in. If guest does not show, deposit stays with owner. At check-in, deposit counts toward first month — guest pays the difference only.',
+    footnote2: 'Security deposit is paid once at check-in. Covers utilities and minor damages. Does not cover major damages. Returned at check-out minus utilities for the last month.',
+    condText: 'Pay remainder and security deposit at check-in. Deposit return — after property inspection within 14 days of check-out.',
+    guest: 'Guest',
+    ownerAgent: 'Owner / Agent',
+    footer: 'Document generated automatically. Questions — see contacts above.',
+    workingHours: 'Working hours',
+    deposit: 'Deposit',
+    topUpFirstMonth: 'Top-up for first month',
+    paymentMonth: 'Payment for',
+    depositReturn: 'Security deposit return',
+    meter: 'm',
+    day: 'day',
+    days: 'days',
+    itemLabel: 'Item',
+  },
+  ru: {
+    title: 'Подтверждение бронирования',
+    confirmationNo: 'Подтверждение №',
+    dateOfIssue: 'Дата выдачи',
+    sectionProperty: 'Арендуемый объект недвижимости',
+    sectionGuest: 'Информация о клиенте',
+    sectionDates: 'Даты проживания',
+    sectionFinance: 'Финансы',
+    sectionCond: 'Условия',
+    name: 'Название',
+    fullName: 'ФИО',
+    address: 'Адрес',
+    bedrooms: 'Спален',
+    bathrooms: 'Санузлов',
+    beachDist: 'До пляжа',
+    marketDist: 'До магазина',
+    agentContacts: 'Контакты агента',
+    passport: 'Паспорт',
+    contacts: 'Контакты',
+    adultsChildren: 'Взр. / дети',
+    checkIn: 'Заезд',
+    checkOut: 'Выезд',
+    period: 'Срок',
+    rentPerMonth: 'Аренда за месяц',
+    rent: 'Аренда',
+    bookingDeposit: 'Депозит бронирования',
+    saveDeposit: 'Сохранный депозит',
+    total: 'Итого',
+    paid: 'Оплачено',
+    remainder: 'Остаток',
+    formula: 'Итого = аренда за период + сохранный депозит. Депозит бронирования входит в оплату первого месяца.',
+    footnote1: 'Депозит бронирования гарантирует приезд и заселение клиента. При неявке клиента депозит остаётся у собственника и не возвращается. При заселении депозит засчитывается в оплату первого месяца — клиент доплачивает лишь разницу.',
+    footnote2: 'Сохранный депозит вносится однократно при заселении. Является гарантией оплаты коммунальных услуг и возмещения незначительных повреждений. Не покрывает крупные повреждения. Возвращается при выселении за вычетом коммунальных затрат за последний месяц проживания.',
+    condText: 'При заезде внести оставшуюся сумму и сохранный депозит. Возврат депозита — после проверки объекта в течение 14 дней с даты выезда.',
+    guest: 'Гость',
+    ownerAgent: 'Собственник / Агент',
+    footer: 'Документ сформирован автоматически. Вопросы — по контактам выше.',
+    workingHours: 'Часы работы',
+    deposit: 'Депозит',
+    topUpFirstMonth: 'Доплата за первый месяц аренды',
+    paymentMonth: 'Оплата',
+    depositReturn: 'Возврат «Сохранного депозита»',
+    meter: 'м',
+    day: 'день',
+    days: 'дней',
+    itemLabel: 'Наименование',
+  },
+  th: {
+    title: 'การยืนยันการจอง',
+    confirmationNo: 'หมายเลขยืนยัน',
+    dateOfIssue: 'วันที่ออก',
+    sectionProperty: 'อสังหาริมทรัพย์ให้เช่า',
+    sectionGuest: 'ข้อมูลลูกค้า',
+    sectionDates: 'วันที่เข้าพัก',
+    sectionFinance: 'การเงิน',
+    sectionCond: 'เงื่อนไข',
+    name: 'ชื่อ',
+    fullName: 'ชื่อ',
+    address: 'ที่อยู่',
+    bedrooms: 'ห้องนอน',
+    bathrooms: 'ห้องน้ำ',
+    beachDist: 'ระยะถึงชายหาด',
+    marketDist: 'ระยะถึงตลาด',
+    agentContacts: 'ติดต่อตัวแทน',
+    passport: 'พาสปอร์ต',
+    contacts: 'ติดต่อ',
+    adultsChildren: 'ผู้ใหญ่ / เด็ก',
+    checkIn: 'เช็คอิน',
+    checkOut: 'เช็คเอาท์',
+    period: 'ระยะเวลา',
+    rentPerMonth: 'ค่าเช่าต่อเดือน',
+    rent: 'ค่าเช่า',
+    bookingDeposit: 'มัดจำการจอง',
+    saveDeposit: 'เงินมัดจำ',
+    total: 'รวม',
+    paid: 'ชำระแล้ว',
+    remainder: 'คงเหลือ',
+    formula: 'รวม = ค่าเช่าตลอดระยะ + เงินมัดจำ',
+    footnote1: 'มัดจำการจองรับประกันการมาถึงและการเช็คอิน',
+    footnote2: 'เงินมัดจำชำระครั้งเดียวตอนเช็คอิน',
+    condText: 'ชำระยอดคงเหลือและเงินมัดจำที่เช็คอิน',
+    guest: 'ลูกค้า',
+    ownerAgent: 'เจ้าของ / ตัวแทน',
+    footer: 'เอกสารสร้างอัตโนมัติ',
+    workingHours: 'ชั่วโมงทำงาน',
+    deposit: 'มัดจำ',
+    topUpFirstMonth: 'ชำระเพิ่มเดือนแรก',
+    paymentMonth: 'ชำระเดือน',
+    depositReturn: 'คืนเงินมัดจำ',
+    meter: 'ม',
+    day: 'วัน',
+    days: 'วัน',
+    itemLabel: 'รายการ',
+  },
+};
+
+const ORD = {
+  en: (n) => (n === 2 ? '2nd' : n === 3 ? '3rd' : n === 4 ? '4th' : `${n}th`),
+  ru: (n) => (n === 2 ? 'второго' : n === 3 ? 'третьего' : n === 4 ? 'четвёртого' : `${n}-го`),
+  th: (n) => `ที่ ${n}`,
+};
+
 function formatDate(dateStr) {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
@@ -22,13 +172,16 @@ function daysBetween(startStr, endStr) {
   return Math.max(0, Math.round(ms / (24 * 60 * 60 * 1000)));
 }
 
-function pluralDays(n) {
+function pluralDays(n, lang = 'ru') {
+  const s = CONF[lang] || CONF.ru;
+  if (lang === 'en') return n === 1 ? `${n} ${s.day}` : `${n} ${s.days}`;
+  if (lang === 'th') return `${n} ${s.days}`;
   const mod10 = n % 10;
   const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 14) return `${n} дней`;
-  if (mod10 === 1) return `${n} день`;
+  if (mod100 >= 11 && mod100 <= 14) return `${n} ${s.days}`;
+  if (mod10 === 1) return `${n} ${s.day}`;
   if (mod10 >= 2 && mod10 <= 4) return `${n} дня`;
-  return `${n} дней`;
+  return `${n} ${s.days}`;
 }
 
 function addMonth(d, n = 1) {
@@ -52,7 +205,9 @@ function buildPropertyDisplayNameHtml(prop) {
   return escapeHtml(parts.join(' ') || '—');
 }
 
-function buildPaymentPlanRows(b) {
+function buildPaymentPlanRows(b, lang = 'ru') {
+  const s = CONF[lang] || CONF.ru;
+  const ord = ORD[lang] || ORD.ru;
   const rows = [];
   const pm = Number(b.priceMonthly) || 0;
   const bd = Number(b.bookingDeposit) || 0;
@@ -63,7 +218,7 @@ function buildPaymentPlanRows(b) {
 
   if (!b.checkIn || !b.checkOut || pm <= 0) return rows;
 
-  rows.push({ date: dateOfIssue, description: '«Депозит бронирования»', amount: formatPrice(bd) });
+  rows.push({ date: dateOfIssue, description: `«${s.bookingDeposit}»`, amount: formatPrice(bd) });
 
   let periodStart = new Date(checkIn);
   let monthNum = 1;
@@ -81,12 +236,13 @@ function buildPaymentPlanRows(b) {
     if (monthNum === 1) {
       const doplata = Math.max(0, rentForPeriod - bd);
       if (doplata > 0) {
-        rows.push({ date: paymentDate, description: `Доплата за первый месяц аренды (${startStr} - ${endStr})`, amount: formatPrice(doplata) });
+        rows.push({ date: paymentDate, description: `${s.topUpFirstMonth} (${startStr} - ${endStr})`, amount: formatPrice(doplata) });
       }
-      rows.push({ date: paymentDate, description: '«Сохранный депозит»', amount: formatPrice(sd) });
+      rows.push({ date: paymentDate, description: `«${s.saveDeposit}»`, amount: formatPrice(sd) });
     } else {
-      const ord = monthNum === 2 ? 'второго' : monthNum === 3 ? 'третьего' : monthNum === 4 ? 'четвёртого' : `${monthNum}-го`;
-      rows.push({ date: paymentDate, description: `Оплата ${ord} месяца (${startStr} - ${endStr})`, amount: formatPrice(rentForPeriod) });
+      const ordStr = ord(monthNum);
+      const desc = lang === 'en' ? `${s.paymentMonth} ${ordStr} month (${startStr} - ${endStr})` : lang === 'th' ? `${s.paymentMonth} ${ordStr} (${startStr} - ${endStr})` : `Оплата ${ordStr} месяца (${startStr} - ${endStr})`;
+      rows.push({ date: paymentDate, description: desc, amount: formatPrice(rentForPeriod) });
     }
 
     monthNum++;
@@ -94,7 +250,7 @@ function buildPaymentPlanRows(b) {
   }
 
   const returnDate = formatDate(checkOut);
-  rows.push({ date: returnDate, description: 'Возврат «Сохранного депозита»', amount: formatPrice(sd) });
+  rows.push({ date: returnDate, description: s.depositReturn, amount: formatPrice(sd) });
 
   return rows;
 }
@@ -108,7 +264,10 @@ function buildPaymentPlanRows(b) {
  * @param {Object} params.profile - agent profile (name, lastName, phone, telegram, email, workAs, companyInfo)
  * @param {string} params.confirmationNumber - e.g. "5/25"
  */
-export function buildConfirmationHTML({ booking, property, contact, profile, confirmationNumber }) {
+export function buildConfirmationHTML({ booking, property, contact, profile, confirmationNumber, language }) {
+  const lang = language && CONF[language] ? language : 'ru';
+  const s = CONF[lang];
+
   const b = booking || {};
   const prop = property || {};
   const c = contact || {};
@@ -134,7 +293,7 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
   const checkInFull = checkInTime ? `${checkInDate}, ${checkInTime}` : checkInDate;
   const checkOutFull = checkOutTime ? `${checkOutDate}, ${checkOutTime}` : checkOutDate;
   const totalDays = daysBetween(b.checkIn, b.checkOut);
-  const periodStr = `${checkInDate} – ${checkOutDate} (${pluralDays(totalDays)})`;
+  const periodStr = `${checkInDate} – ${checkOutDate} (${pluralDays(totalDays, lang)})`;
 
   const priceMonthly = b.priceMonthly ?? prop.price_monthly;
   const totalPrice = b.totalPrice;
@@ -162,7 +321,7 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
         const ig = (ci.instagram || '').trim();
         if (ig) lines.push('Instagram: ' + ig);
         const wh = (ci.workingHours || '').trim();
-        if (wh) lines.push('Часы работы: ' + wh);
+        if (wh) lines.push(s.workingHours + ': ' + wh);
         return lines;
       })()
     : [];
@@ -184,18 +343,18 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
     bookingDeposit,
     saveDeposit,
     dateOfIssue,
-  });
+  }, lang);
 
   const paymentPlanTableBody = paymentPlanRows
     .map((r) => `<tr><td class="payment-date">${r.date}</td><td>${escapeHtml(r.description)}</td><td class="payment-amount">${r.amount} Thb</td></tr>`)
     .join('');
 
   const html = `<!DOCTYPE html>
-<html lang="ru">
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Подтверждение бронирования</title>
+  <title>${escapeHtml(s.title)}</title>
   <style>
     * { box-sizing: border-box; }
     @page { size: A4; margin: 14mm; }
@@ -264,72 +423,72 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
     </div>
     <div class="header-below">
       <div class="confirmation-id">
-        <div>Подтверждение № <strong>${escapeHtml(confirmationNumber || '—')}</strong></div>
-        <div>Дата выдачи: ${dateOfIssue}</div>
+        <div>${s.confirmationNo} <strong>${escapeHtml(confirmationNumber || '—')}</strong></div>
+        <div>${s.dateOfIssue}: ${dateOfIssue}</div>
       </div>
     </div>
-    <h1>Подтверждение бронирования</h1>
+    <h1>${escapeHtml(s.title)}</h1>
     <div class="grid-2">
       <div class="left-col">
         <div class="section obj">
-          <div class="section-title">Арендуемый объект недвижимости</div>
+          <div class="section-title">${s.sectionProperty}</div>
           <table class="info">
-            <tr><td>Название</td><td class="bold">${propertyNameHtml}</td></tr>
-            <tr><td>Адрес</td><td>${escapeHtml(propertyAddress)}</td></tr>
-            <tr><td>Спален</td><td>${bedrooms != null ? bedrooms : '—'}</td></tr>
-            <tr><td>Санузлов</td><td>${bathrooms != null ? bathrooms : '—'}</td></tr>
-            <tr><td>До пляжа</td><td>${beachDistance != null ? `${beachDistance} м` : '—'}</td></tr>
-            <tr><td>До магазина</td><td>${marketDistance != null ? `${marketDistance} м` : '—'}</td></tr>
-            <tr><td>Контакты агента</td><td>${(isCompany ? ci.phone : p.phone) ? escapeHtml(isCompany ? ci.phone : p.phone) : '—'}</td></tr>
+            <tr><td>${s.name}</td><td class="bold">${propertyNameHtml}</td></tr>
+            <tr><td>${s.address}</td><td>${escapeHtml(propertyAddress)}</td></tr>
+            <tr><td>${s.bedrooms}</td><td>${bedrooms != null ? bedrooms : '—'}</td></tr>
+            <tr><td>${s.bathrooms}</td><td>${bathrooms != null ? bathrooms : '—'}</td></tr>
+            <tr><td>${s.beachDist}</td><td>${beachDistance != null ? `${beachDistance} ${s.meter}` : '—'}</td></tr>
+            <tr><td>${s.marketDist}</td><td>${marketDistance != null ? `${marketDistance} ${s.meter}` : '—'}</td></tr>
+            <tr><td>${s.agentContacts}</td><td>${(isCompany ? ci.phone : p.phone) ? escapeHtml(isCompany ? ci.phone : p.phone) : '—'}</td></tr>
           </table>
         </div>
         <div class="section guest">
-          <div class="section-title">Информация о клиенте</div>
+          <div class="section-title">${s.sectionGuest}</div>
           <table class="info">
-            <tr><td>ФИО</td><td class="bold">${escapeHtml(guestName)}</td></tr>
-            <tr><td>Паспорт</td><td>${escapeHtml(guestPassport)}</td></tr>
-            <tr><td>Контакты</td><td>${escapeHtml(guestContacts)}</td></tr>
-            <tr><td>Взр. / дети</td><td>${adults} / ${children}</td></tr>
+            <tr><td>${s.fullName}</td><td class="bold">${escapeHtml(guestName)}</td></tr>
+            <tr><td>${s.passport}</td><td>${escapeHtml(guestPassport)}</td></tr>
+            <tr><td>${s.contacts}</td><td>${escapeHtml(guestContacts)}</td></tr>
+            <tr><td>${s.adultsChildren}</td><td>${adults} / ${children}</td></tr>
           </table>
         </div>
         <div class="section dates">
-          <div class="section-title">Даты проживания</div>
+          <div class="section-title">${s.sectionDates}</div>
           <table class="info">
-            <tr><td>Заезд</td><td>${escapeHtml(checkInFull)}</td></tr>
-            <tr><td>Выезд</td><td>${escapeHtml(checkOutFull)}</td></tr>
-            <tr><td>Срок</td><td>${escapeHtml(periodStr)}</td></tr>
+            <tr><td>${s.checkIn}</td><td>${escapeHtml(checkInFull)}</td></tr>
+            <tr><td>${s.checkOut}</td><td>${escapeHtml(checkOutFull)}</td></tr>
+            <tr><td>${s.period}</td><td>${escapeHtml(periodStr)}</td></tr>
           </table>
         </div>
       </div>
       <div class="section finance">
-        <div class="section-title">Финансы</div>
+        <div class="section-title">${s.sectionFinance}</div>
         <table class="finance-table">
-          <tr><th>Наименование</th><th class="number">Thb</th></tr>
-          <tr><td>Аренда за месяц</td><td class="number">${formatPrice(priceMonthly)}</td></tr>
-          <tr><td>Аренда (${checkInDate} – ${checkOutDate})</td><td class="number">${formatPrice(totalPrice)}</td></tr>
-          <tr><td>Депозит бронирования<sup>1</sup></td><td class="number">${formatPrice(bookingDeposit)}</td></tr>
-          <tr><td>Сохранный депозит<sup>2</sup></td><td class="number">${formatPrice(saveDeposit)}</td></tr>
-          <tr class="total"><td>Итого</td><td class="number">${formatPrice(total)}</td></tr>
-          <tr><td>Оплачено</td><td class="number">${formatPrice(paid)}</td></tr>
-          <tr class="total"><td>Остаток</td><td class="number">${formatPrice(remainder)}</td></tr>
+          <tr><th>${s.itemLabel || s.name}</th><th class="number">Thb</th></tr>
+          <tr><td>${s.rentPerMonth}</td><td class="number">${formatPrice(priceMonthly)}</td></tr>
+          <tr><td>${s.rent} (${checkInDate} – ${checkOutDate})</td><td class="number">${formatPrice(totalPrice)}</td></tr>
+          <tr><td>${s.bookingDeposit}<sup>1</sup></td><td class="number">${formatPrice(bookingDeposit)}</td></tr>
+          <tr><td>${s.saveDeposit}<sup>2</sup></td><td class="number">${formatPrice(saveDeposit)}</td></tr>
+          <tr class="total"><td>${s.total}</td><td class="number">${formatPrice(total)}</td></tr>
+          <tr><td>${s.paid}</td><td class="number">${formatPrice(paid)}</td></tr>
+          <tr class="total"><td>${s.remainder}</td><td class="number">${formatPrice(remainder)}</td></tr>
         </table>
-        <div class="formula">Итого = аренда за период + сохранный депозит. Депозит бронирования входит в оплату первого месяца.</div>
+        <div class="formula">${s.formula}</div>
         <table class="payment-plan-table"><tbody>${paymentPlanTableBody}</tbody></table>
         <div class="footnotes">
-          <p><sup>1</sup> Депозит бронирования гарантирует приезд и заселение клиента. При неявке клиента депозит остаётся у собственника и не возвращается. При заселении депозит засчитывается в оплату первого месяца — клиент доплачивает лишь разницу.</p>
-          <p><sup>2</sup> Сохранный депозит вносится однократно при заселении. Является гарантией оплаты коммунальных услуг и возмещения незначительных повреждений. Не покрывает крупные повреждения. Возвращается при выселении за вычетом коммунальных затрат за последний месяц проживания.</p>
+          <p><sup>1</sup> ${s.footnote1}</p>
+          <p><sup>2</sup> ${s.footnote2}</p>
         </div>
       </div>
     </div>
     <div class="section cond">
-      <div class="section-title">Условия</div>
-      <p class="conditions">При заезде внести оставшуюся сумму и сохранный депозит. Возврат депозита — после проверки объекта в течение 14 дней с даты выезда.</p>
+      <div class="section-title">${s.sectionCond}</div>
+      <p class="conditions">${s.condText}</p>
     </div>
     <div class="signatures">
-      <div class="sig-block"><div class="sig-line"></div><div class="sig-label">Гость</div></div>
-      <div class="sig-block"><div class="sig-line"></div><div class="sig-label">Собственник / Агент</div></div>
+      <div class="sig-block"><div class="sig-line"></div><div class="sig-label">${s.guest}</div></div>
+      <div class="sig-block"><div class="sig-line"></div><div class="sig-label">${s.ownerAgent}</div></div>
     </div>
-    <div class="footer">Документ сформирован автоматически. Вопросы — по контактам выше.</div>
+    <div class="footer">${s.footer}</div>
   </div>
 </body>
 </html>`;

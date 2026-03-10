@@ -73,7 +73,7 @@ function PropertyInfoRow({ label, value, isLink, onPress }) {
 }
 
 export default function BookingDetailScreen({ booking, propertyCode, onBack, onContactPress, onDelete, onEdit, initialProperty, initialContact }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [contact, setContact] = useState(initialContact ?? null);
   const [loadingContact, setLoadingContact] = useState(!initialContact && !!booking.contactId);
   const [property, setProperty] = useState(initialProperty ?? null);
@@ -204,6 +204,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
         contact: contact || null,
         profile: profile || {},
         confirmationNumber,
+        language: language || 'ru',
       });
       await Share.share({
         url: uri,
