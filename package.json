@@ -10,14 +10,13 @@
     "postinstall": "node scripts/patch-calendar-eu-week.js || true"
   },
   "dependencies": {
-    "dayjs": "^1.11.10",
-    "react-native-calendar-range-picker": "file:./react-native-calendar-range-picker-1.6.0.tgz",
     "@expo/metro-runtime": "~6.1.2",
     "@react-native-async-storage/async-storage": "^3.0.1",
     "@react-native-community/datetimepicker": "8.4.4",
     "@supabase/supabase-js": "^2.98.0",
     "base64-arraybuffer": "^1.0.2",
     "country-state-city": "^3.2.1",
+    "dayjs": "^1.11.10",
     "expo": "~54.0.0",
     "expo-asset": "~12.0.12",
     "expo-blur": "^15.0.8",
@@ -25,15 +24,21 @@
     "expo-image-manipulator": "~14.0.8",
     "expo-image-picker": "^17.0.10",
     "expo-media-library": "~18.2.1",
+    "expo-notifications": "~0.31.0",
+    "expo-print": "~14.0.3",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-calendar-range-picker": "file:./react-native-calendar-range-picker-1.6.0.tgz",
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
-    "patch-package": "^8.0.0"
+    "@types/react": "~19.1.10",
+    "patch-package": "^8.0.0",
+    "sharp": "^0.34.5",
+    "typescript": "~5.9.2"
   },
   "private": true
 }

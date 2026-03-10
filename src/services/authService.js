@@ -56,6 +56,7 @@ export async function getUserProfile(userId) {
   if (error) return { email: '', name: '', lastName: '', phone: '', telegram: '', documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '', photoUri: '' };
 
   const settings = data.settings || {};
+  const companyInfo = settings.companyInfo || {};
   return {
     id: data.id,
     email: data.email || '',
@@ -72,6 +73,8 @@ export async function getUserProfile(userId) {
     notificationSettings: settings.notificationSettings || {},
     selectedCurrency: settings.selectedCurrency || '',
     locations: Array.isArray(settings.locations) ? settings.locations : [],
+    workAs: settings.workAs === 'company' ? 'company' : 'private',
+    companyInfo,
   };
 }
 
@@ -88,7 +91,7 @@ export async function updateUserProfile(updates) {
   if (updates.documentNumber !== undefined) dbUpdates.document_number = updates.documentNumber;
   if (updates.photoUri !== undefined) dbUpdates.photo_url = updates.photoUri;
 
-  const settingsKeys = ['language', 'notificationSettings', 'selectedCurrency', 'locations'];
+  const settingsKeys = ['language', 'notificationSettings', 'selectedCurrency', 'locations', 'workAs', 'companyInfo'];
   const hasSettingsUpdate = settingsKeys.some(k => updates[k] !== undefined);
 
   if (hasSettingsUpdate) {
@@ -120,4 +123,32 @@ export function onAuthStateChange(callback) {
   return supabase.auth.onAuthStateChange((_event, session) => {
     callback(session);
   });
+}
+
+/** Returns true if user signed up with email/password (can change password). */
+export async function canChangePassword() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) return false;
+  const identities = user.identities || [];
+  const hasEmailProvider = identities.some((id) => id?.provider === 'email');
+  const hasOAuthOnly = identities.some((id) =>
+    ['google', 'apple', 'facebook'].includes(id?.provider || '')
+  );
+  if (hasOAuthOnly && !hasEmailProvider) return false;
+  return hasEmailProvider || identities.length === 0;
+}
+
+/** Re-auth with current password, then update to new password. */
+export async function updatePassword(currentPassword, newPassword) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.email) throw new Error('Not authenticated');
+
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: session.user.email,
+    password: currentPassword,
+  });
+  if (signInError) throw new Error(signInError.message);
+
+  const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+  if (updateError) throw new Error(updateError.message);
 }

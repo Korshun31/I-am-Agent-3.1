@@ -14,13 +14,15 @@ import {
 import Constants from 'expo-constants';
 import AppPopup, { popupStyles } from '../components/AppPopup';
 import MyDetailsEditModal from '../components/MyDetailsEditModal';
+import ChangePasswordModal from '../components/ChangePasswordModal';
 import LanguageModal from '../components/LanguageModal';
 import NotificationsModal from '../components/NotificationsModal';
 import CurrencyModal from '../components/CurrencyModal';
 import AddLocationsModal from '../components/AddLocationsModal';
 import { useLanguage } from '../context/LanguageContext';
-import { updateUserProfile, getCurrentUser } from '../services/authService';
+import { updateUserProfile, getCurrentUser, canChangePassword } from '../services/authService';
 import { getLocations, createLocation, updateLocation, deleteLocation, setLocationDistricts } from '../services/locationsService';
+import { getProperties } from '../services/propertiesService';
 
 const COLORS = {
   background: '#F5F2EB',
@@ -56,7 +58,10 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
   const [selectedCurrency, setSelectedCurrency] = useState('');
   const [addLocationsModalVisible, setAddLocationsModalVisible] = useState(false);
   const [editLocationData, setEditLocationData] = useState(null);
+  const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
   const [locationsContentHeight, setLocationsContentHeight] = useState(0);
+  const [allowChangePassword, setAllowChangePassword] = useState(false);
+  const [propertyStats, setPropertyStats] = useState({ standaloneHouses: 0, resortCount: 0, resortHouses: 0, condoCount: 0, condoApartments: 0, total: 0 });
   const [settingsContentHeight, setSettingsContentHeight] = useState(0);
   const { language, setLanguage, t } = useLanguage();
   const settingsHeight = useRef(new Animated.Value(0)).current;
@@ -137,8 +142,37 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
     } catch {}
   };
 
+  const refreshCanChangePassword = () => {
+    canChangePassword().then(setAllowChangePassword).catch(() => setAllowChangePassword(false));
+  };
+  useEffect(() => {
+    if (!user?.id) return;
+    refreshCanChangePassword();
+  }, [user?.id]);
+
+  const loadPropertyStats = async () => {
+    try {
+      const all = await getProperties();
+      const getParent = (id) => all.find((p) => p.id === id);
+      const standaloneHouses = all.filter((p) => p.type === 'house' && !p.resort_id).length;
+      const resortCount = all.filter((p) => p.type === 'resort' && !p.resort_id).length;
+      const resortHouses = all.filter((p) => p.type === 'house' && p.resort_id && getParent(p.resort_id)?.type === 'resort').length;
+      const condoCount = all.filter((p) => p.type === 'condo' && !p.resort_id).length;
+      const condoApartments = all.filter((p) => p.type === 'house' && p.resort_id && getParent(p.resort_id)?.type === 'condo').length;
+      setPropertyStats({
+        standaloneHouses,
+        resortCount,
+        resortHouses,
+        condoCount,
+        condoApartments,
+        total: standaloneHouses + resortHouses + condoApartments,
+      });
+    } catch {}
+  };
+
   useEffect(() => {
     if (!email) return;
+    loadPropertyStats();
     getCurrentUser().then((profile) => {
       if (!profile) return;
       if (profile.language && ['en', 'th', 'ru'].includes(profile.language)) setLanguage(profile.language);
@@ -179,6 +213,24 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
           )}
           {displayName ? <Text style={styles.agentName}>{displayName}</Text> : null}
         </View>
+        <View style={styles.statsRow}>
+          <View style={styles.statsItem}>
+            <Image source={require('../../assets/icon-property-house-stats.png')} style={styles.statsIconLarge} resizeMode="contain" />
+            <Text style={styles.statsValueGreen}>{propertyStats.standaloneHouses}</Text>
+          </View>
+          <View style={styles.statsItem}>
+            <Image source={require('../../assets/icon-property-resort-stats.png')} style={styles.statsIconLarge} resizeMode="contain" />
+            <Text style={styles.statsValueWrap}><Text style={styles.statsValueSmall}>{propertyStats.resortCount}</Text><Text style={styles.statsValueSlash}> / </Text><Text style={styles.statsValueGreen}>{propertyStats.resortHouses}</Text></Text>
+          </View>
+          <View style={styles.statsItem}>
+            <Image source={require('../../assets/icon-property-condo-stats.png')} style={styles.statsIcon} resizeMode="contain" />
+            <Text style={styles.statsValueWrap}><Text style={styles.statsValueSmall}>{propertyStats.condoCount}</Text><Text style={styles.statsValueSlash}> / </Text><Text style={styles.statsValueGreen}>{propertyStats.condoApartments}</Text></Text>
+          </View>
+          <View style={styles.statsItem}>
+            <Image source={require('../../assets/icon-sum.png')} style={styles.statsIconSum} resizeMode="contain" />
+            <Text style={styles.statsValueGreen}>{propertyStats.total}</Text>
+          </View>
+        </View>
       </View>
       <ScrollView
         style={styles.scrollArea}
@@ -216,6 +268,12 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
             <Text style={[styles.contactText, styles.contactTextLink]}>{email}</Text>
           </TouchableOpacity>
         ) : null}
+        {documentNumber ? (
+          <View style={styles.contactRow}>
+            <Image source={require('../../assets/icon-passport-id.png')} style={styles.contactIconImage} resizeMode="contain" />
+            <Text style={[styles.contactText, styles.contactTextBold]}>{documentNumber}</Text>
+          </View>
+        ) : null}
         {extraEmails && extraEmails.length > 0
           ? extraEmails.map((e, i) => (e ? (
               <TouchableOpacity key={`email-${i}`} style={styles.contactRow} onPress={() => openEmail(e)} activeOpacity={0.7}>
@@ -252,10 +310,16 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
             <Image source={require('../../assets/icon-settings-notifications.png')} style={styles.settingsItemIcon} resizeMode="contain" />
             <Text style={styles.settingsItemLabel}>{t('notifications')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.settingsItem, styles.settingsItemLast]} activeOpacity={0.8}>
+          <TouchableOpacity style={allowChangePassword ? styles.settingsItem : [styles.settingsItem, styles.settingsItemLast]} activeOpacity={0.8}>
             <Image source={require('../../assets/icon-settings-currency.png')} style={styles.settingsItemIcon} resizeMode="contain" />
             <Text style={styles.settingsItemLabel}>{t('currencySelection')}</Text>
           </TouchableOpacity>
+          {allowChangePassword ? (
+            <TouchableOpacity style={[styles.settingsItem, styles.settingsItemLast]} activeOpacity={0.8}>
+              <Image source={require('../../assets/icon-change-password.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+              <Text style={styles.settingsItemLabel}>{t('changePassword')}</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
         <TouchableOpacity
           style={[
@@ -263,7 +327,11 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
             styles.settingsBlock,
             (settingsOpen || settingsClosing) && styles.settingsBlockOpen,
           ]}
-          onPress={() => setSettingsOpen(!settingsOpen)}
+          onPress={() => {
+            const willOpen = !settingsOpen;
+            setSettingsOpen(willOpen);
+            if (willOpen) refreshCanChangePassword();
+          }}
           activeOpacity={0.85}
         >
           <View style={styles.menuBlockLeft}>
@@ -282,10 +350,16 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
               <Image source={require('../../assets/icon-settings-notifications.png')} style={styles.settingsItemIcon} resizeMode="contain" />
               <Text style={styles.settingsItemLabel}>{t('notifications')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.settingsItem, styles.settingsItemLast]} onPress={() => setCurrencyModalVisible(true)} activeOpacity={0.8}>
+            <TouchableOpacity style={allowChangePassword ? styles.settingsItem : [styles.settingsItem, styles.settingsItemLast]} onPress={() => setCurrencyModalVisible(true)} activeOpacity={0.8}>
               <Image source={require('../../assets/icon-settings-currency.png')} style={styles.settingsItemIcon} resizeMode="contain" />
               <Text style={styles.settingsItemLabel}>{t('currencySelection')}</Text>
             </TouchableOpacity>
+            {allowChangePassword ? (
+              <TouchableOpacity style={[styles.settingsItem, styles.settingsItemLast]} onPress={() => setChangePasswordModalVisible(true)} activeOpacity={0.8}>
+                <Image source={require('../../assets/icon-change-password.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+                <Text style={styles.settingsItemLabel}>{t('changePassword')}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </Animated.View>
       </View>
@@ -404,8 +478,15 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
         try {
           const updatedUser = await updateUserProfile(data);
           onUserUpdate?.(updatedUser);
-        } catch {}
+        } catch (e) {
+          Alert.alert(t('error'), e?.message || t('saveFailed'));
+        }
       }}
+    />
+
+    <ChangePasswordModal
+      visible={changePasswordModalVisible}
+      onClose={() => setChangePasswordModalVisible(false)}
     />
 
     <LanguageModal
@@ -499,7 +580,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 12,
     paddingBottom: 88,
   },
   header: {
@@ -553,6 +634,56 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.title,
   },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginBottom: 12,
+  },
+  statsItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statsIcon: {
+    width: 28,
+    height: 28,
+  },
+  statsIconLarge: {
+    width: 31,
+    height: 31,
+  },
+  statsIconSum: {
+    width: 24,
+    height: 24,
+  },
+  statsValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.title,
+  },
+  statsValueSmall: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.title,
+  },
+  statsValueGreen: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2E7D32',
+  },
+  statsValueWrap: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.title,
+  },
+  statsValueSlash: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: COLORS.title,
+  },
   myDetailsBlock: {
     backgroundColor: COLORS.myDetailsYellow,
     borderRadius: 16,
@@ -602,6 +733,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: COLORS.contactLink,
+  },
+  contactTextBold: {
+    fontWeight: '700',
   },
   menuBlock: {
     flexDirection: 'row',

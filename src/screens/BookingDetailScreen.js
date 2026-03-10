@@ -9,11 +9,15 @@ import {
   Alert,
   Linking,
   ActivityIndicator,
+  Share,
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { getContactById, getContacts } from '../services/contactsService';
 import { getProperties } from '../services/propertiesService';
+import { getBookings } from '../services/bookingsService';
+import { getCurrentUser } from '../services/authService';
+import { generateConfirmationPDF } from '../services/bookingConfirmationService';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
@@ -69,11 +73,12 @@ function PropertyInfoRow({ label, value, isLink, onPress }) {
 }
 
 export default function BookingDetailScreen({ booking, propertyCode, onBack, onContactPress, onDelete, onEdit, initialProperty, initialContact }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [contact, setContact] = useState(initialContact ?? null);
   const [loadingContact, setLoadingContact] = useState(!initialContact && !!booking.contactId);
   const [property, setProperty] = useState(initialProperty ?? null);
   const [loadingProperty, setLoadingProperty] = useState(!initialProperty && !!booking?.propertyId);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const loadProperty = useCallback(async () => {
     if (!booking?.propertyId) {
@@ -168,6 +173,51 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
     ]);
   };
 
+  const getBookingNumber = useCallback((b, allBookings) => {
+    if (!b?.checkIn || !allBookings?.length) return '—';
+    const year = new Date(b.checkIn).getFullYear();
+    const yearShort = year % 100;
+    const sameYear = allBookings
+      .filter(x => new Date(x.checkIn).getFullYear() === year)
+      .sort((a, b) => new Date(a.createdAt || a.checkIn) - new Date(b.createdAt || b.checkIn));
+    const idx = sameYear.findIndex(x => x.id === b.id);
+    const seq = idx >= 0 ? idx + 1 : 0;
+    return `${seq}/${String(yearShort).padStart(2, '0')}`;
+  }, []);
+
+  const handleGenerateConfirmation = async () => {
+    if (!booking) return;
+    if (!property) {
+      Alert.alert(t('error'), 'Загрузите данные объекта');
+      return;
+    }
+    setGeneratingPdf(true);
+    try {
+      const [profile, bookings] = await Promise.all([
+        getCurrentUser(),
+        getBookings(property.id),
+      ]);
+      const confirmationNumber = getBookingNumber(booking, bookings);
+      const { uri } = await generateConfirmationPDF({
+        booking,
+        property,
+        contact: contact || null,
+        profile: profile || {},
+        confirmationNumber,
+        language: language || 'ru',
+      });
+      await Share.share({
+        url: uri,
+        type: 'application/pdf',
+        title: t('bdBookingDates') || 'Подтверждение бронирования',
+      });
+    } catch (e) {
+      Alert.alert(t('error'), e.message || 'Не удалось создать PDF');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   const b = booking || {};
   const photos = Array.isArray(b.photos) ? b.photos : [];
   const contactName = contact ? [contact.name, contact.lastName].filter(Boolean).join(' ').trim() : null;
@@ -187,6 +237,13 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
           <Image source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
         </TouchableOpacity>
         <View style={styles.actionsRight}>
+          <TouchableOpacity style={styles.actionBtn} onPress={handleGenerateConfirmation} activeOpacity={0.7} disabled={generatingPdf}>
+            {generatingPdf ? (
+              <ActivityIndicator size="small" color="#5DB8D4" />
+            ) : (
+              <Image source={require('../../assets/icon-booking-confirmation.png')} style={styles.actionIcon} resizeMode="contain" />
+            )}
+          </TouchableOpacity>
           <TouchableOpacity style={styles.actionBtn} onPress={() => onEdit?.(b)} activeOpacity={0.7}>
             <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
           </TouchableOpacity>
@@ -250,8 +307,20 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{t('bdBookingDates')}</Text>
-          <DetailRow label={t('bookingCheckIn')} value={formatBookingDate(b.checkIn)} />
-          <DetailRow label={t('bookingCheckOut')} value={formatBookingDate(b.checkOut)} />
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>{t('bookingCheckIn')}</Text>
+            <View style={styles.detailValueRow}>
+              <Text style={styles.detailValue}>{formatBookingDate(b.checkIn)}</Text>
+              {b.checkInTime ? <Text style={[styles.detailValue, styles.detailValueTime]}>{b.checkInTime}</Text> : null}
+            </View>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>{t('bookingCheckOut')}</Text>
+            <View style={styles.detailValueRow}>
+              <Text style={styles.detailValue}>{formatBookingDate(b.checkOut)}</Text>
+              {b.checkOutTime ? <Text style={[styles.detailValue, styles.detailValueTime]}>{b.checkOutTime}</Text> : null}
+            </View>
+          </View>
         </View>
 
         {(contact || loadingContact || b.contactId || b.notMyCustomer) ? (
@@ -295,13 +364,15 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
           </View>
         ) : null}
 
-        {[b.priceMonthly, b.totalPrice, b.bookingDeposit, b.saveDeposit, b.commission].some(v => v != null) ? (
+        {[b.priceMonthly, b.totalPrice, b.bookingDeposit, b.saveDeposit, b.commission, b.ownerCommissionOneTime, b.ownerCommissionMonthly].some(v => v != null) ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t('bdPrices')}</Text>
             <DetailRow label={t('pdPriceMonthly')} value={b.priceMonthly != null ? formatPrice(b.priceMonthly) : null} />
             <DetailRow label={t('bookingTotalPrice')} value={b.totalPrice != null ? formatPrice(b.totalPrice) : null} />
             <DetailRow label={t('pdBookingDeposit')} value={b.bookingDeposit != null ? formatPrice(b.bookingDeposit) : null} />
             <DetailRow label={t('pdSaveDeposit')} value={b.saveDeposit != null ? formatPrice(b.saveDeposit) : null} />
+            <DetailRow label={t('ownerCommissionOneTime')} value={b.ownerCommissionOneTime != null ? formatPrice(b.ownerCommissionOneTime) : null} />
+            <DetailRow label={t('ownerCommissionMonthly')} value={b.ownerCommissionMonthly != null ? formatPrice(b.ownerCommissionMonthly) : null} />
             <DetailRow label={t('pdCommission')} value={b.commission != null ? formatPrice(b.commission) : null} />
           </View>
         ) : null}
@@ -437,6 +508,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: COLORS.title,
+  },
+  detailValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  detailValueTime: {
+    marginLeft: 20,
   },
   loader: {
     marginVertical: 8,

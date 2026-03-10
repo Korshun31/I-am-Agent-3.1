@@ -9,7 +9,7 @@
       "backgroundColor": "#F5F2EB"
     },
     "assetBundlePatterns": [
-      "**/*"
+      "assets/**/*"
     ],
     "icon": "./assets/icon.png",
     "ios": {
@@ -40,12 +40,14 @@
           "photosPermission": "Приложение использует фото из галереи для аватара профиля."
         }
       ],
-      "@react-native-community/datetimepicker"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "4352a2f7-8095-491c-a013-10e4b34221bf"
-      }
-    }
+
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "sounds": []
+        }
+      ]
+    ]
   }
 }

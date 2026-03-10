@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { cancelCommissionReminders } from './commissionRemindersService';
 
 export async function getBookings(propertyId = null, contactId = null) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -39,16 +40,21 @@ export async function createBooking(booking) {
     not_my_customer: !!booking.notMyCustomer,
     check_in: booking.checkIn,
     check_out: booking.checkOut,
+    check_in_time: booking.checkInTime || null,
+    check_out_time: booking.checkOutTime || null,
     price_monthly: booking.priceMonthly != null ? Number(booking.priceMonthly) : null,
     total_price: booking.totalPrice != null ? Number(booking.totalPrice) : null,
     booking_deposit: booking.bookingDeposit != null ? Number(booking.bookingDeposit) : null,
     save_deposit: booking.saveDeposit != null ? Number(booking.saveDeposit) : null,
     commission: booking.commission != null ? Number(booking.commission) : null,
+    owner_commission_one_time: booking.ownerCommissionOneTime != null ? Number(booking.ownerCommissionOneTime) : null,
+    owner_commission_monthly: booking.ownerCommissionMonthly != null ? Number(booking.ownerCommissionMonthly) : null,
     adults: booking.adults != null ? parseInt(booking.adults, 10) : null,
     children: booking.children != null ? parseInt(booking.children, 10) : null,
     pets: !!booking.pets,
     comments: booking.comments || null,
     photos: Array.isArray(booking.photos) && booking.photos.length > 0 ? booking.photos : null,
+    reminder_days: Array.isArray(booking.reminderDays) && booking.reminderDays.length > 0 ? booking.reminderDays : null,
   };
 
   const { data, error } = await supabase
@@ -71,16 +77,21 @@ export async function updateBooking(id, booking) {
     not_my_customer: !!booking.notMyCustomer,
     check_in: booking.checkIn,
     check_out: booking.checkOut,
+    check_in_time: booking.checkInTime || null,
+    check_out_time: booking.checkOutTime || null,
     price_monthly: booking.priceMonthly != null ? Number(booking.priceMonthly) : null,
     total_price: booking.totalPrice != null ? Number(booking.totalPrice) : null,
     booking_deposit: booking.bookingDeposit != null ? Number(booking.bookingDeposit) : null,
     save_deposit: booking.saveDeposit != null ? Number(booking.saveDeposit) : null,
     commission: booking.commission != null ? Number(booking.commission) : null,
+    owner_commission_one_time: booking.ownerCommissionOneTime != null ? Number(booking.ownerCommissionOneTime) : null,
+    owner_commission_monthly: booking.ownerCommissionMonthly != null ? Number(booking.ownerCommissionMonthly) : null,
     adults: booking.adults != null ? parseInt(booking.adults, 10) : null,
     children: booking.children != null ? parseInt(booking.children, 10) : null,
     pets: !!booking.pets,
     comments: booking.comments || null,
     photos: Array.isArray(booking.photos) && booking.photos.length > 0 ? booking.photos : null,
+    reminder_days: Array.isArray(booking.reminderDays) && booking.reminderDays.length > 0 ? booking.reminderDays : [],
   };
   updates.updated_at = new Date().toISOString();
 
@@ -100,6 +111,7 @@ export async function deleteBooking(id) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
+  await cancelCommissionReminders(id);
   const { error } = await supabase
     .from('bookings')
     .delete()
@@ -119,15 +131,20 @@ function mapBooking(row) {
     notMyCustomer: row.not_my_customer,
     checkIn: row.check_in,
     checkOut: row.check_out,
+    checkInTime: row.check_in_time || null,
+    checkOutTime: row.check_out_time || null,
     priceMonthly: row.price_monthly,
     totalPrice: row.total_price,
     bookingDeposit: row.booking_deposit,
     saveDeposit: row.save_deposit,
     commission: row.commission,
+    ownerCommissionOneTime: row.owner_commission_one_time,
+    ownerCommissionMonthly: row.owner_commission_monthly,
     adults: row.adults,
     children: row.children,
     pets: row.pets,
     comments: row.comments,
     photos: Array.isArray(row.photos) ? row.photos : [],
+    reminderDays: Array.isArray(row.reminder_days) ? row.reminder_days : [],
   };
 }

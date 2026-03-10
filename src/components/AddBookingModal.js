@@ -25,6 +25,10 @@ import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
 import { getContacts, createContact, getContactById } from '../services/contactsService';
 import { getBookings, createBooking, updateBooking } from '../services/bookingsService';
+import { scheduleBookingReminders, cancelBookingReminders } from '../services/bookingRemindersService';
+import { getCommissionDateAmounts, scheduleCommissionReminders, cancelCommissionReminders } from '../services/commissionRemindersService';
+import { requestReminderPermissions } from '../services/calendarRemindersService';
+import { getCurrentUser } from '../services/authService';
 import { uploadPhoto, isLocalUri } from '../services/storageService';
 import AddContactModal from './AddContactModal';
 
@@ -104,6 +108,21 @@ function parseMoneyValue(val) {
   if (!val || !String(val).trim()) return null;
   const n = parseFloat(String(val).replace(/\s/g, '').replace(',', '.'));
   return isNaN(n) ? null : n;
+}
+
+function parseTimeToDate(timeStr) {
+  if (!timeStr) return new Date(2000, 0, 1, 14, 0);
+  const parts = String(timeStr).trim().split(':');
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
+  return new Date(2000, 0, 1, h, m);
+}
+
+function formatDateToTime(d) {
+  if (!d) return '14:00';
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
 }
 
 function formatDateDisplay(d) {
@@ -188,6 +207,9 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
   // Step 2
   const [checkIn, setCheckIn] = useState(null);
   const [checkOut, setCheckOut] = useState(null);
+  const [checkInTime, setCheckInTime] = useState('14:00');
+  const [checkOutTime, setCheckOutTime] = useState('12:00');
+  const [timePickerFor, setTimePickerFor] = useState(null); // 'checkIn' | 'checkOut'
   const [occupiedDates, setOccupiedDates] = useState([]);
   const [occupiedCheckInDates, setOccupiedCheckInDates] = useState([]);
   const [occupiedCheckOutDates, setOccupiedCheckOutDates] = useState([]);
@@ -197,13 +219,24 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
   const [bookingDeposit, setBookingDeposit] = useState('');
   const [saveDeposit, setSaveDeposit] = useState('');
   const [commission, setCommission] = useState('');
+  const [ownerCommissionOneTime, setOwnerCommissionOneTime] = useState('');
+  const [ownerCommissionMonthly, setOwnerCommissionMonthly] = useState('');
   const [adults, setAdults] = useState('');
   const [children, setChildren] = useState('');
   const [pets, setPets] = useState(false);
   const [comments, setComments] = useState('');
   const [photos, setPhotos] = useState([]);
   const [photoProcessing, setPhotoProcessing] = useState(false);
+  const [reminderDays, setReminderDays] = useState([]);
+  const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const BOOKING_REMINDER_OPTIONS = [
+    { days: 1, key: 'bookingReminder1d' },
+    { days: 3, key: 'bookingReminder3d' },
+    { days: 7, key: 'bookingReminder1w' },
+    { days: 30, key: 'bookingReminder1m' },
+  ];
 
   const filteredClients = clientSearch.trim()
     ? clients.filter(c => {
@@ -238,16 +271,21 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         setPassportId(editBooking.passportId || '');
         setCheckIn(editBooking.checkIn ? new Date(editBooking.checkIn) : null);
         setCheckOut(editBooking.checkOut ? new Date(editBooking.checkOut) : null);
+        setCheckInTime(editBooking.checkInTime || '14:00');
+        setCheckOutTime(editBooking.checkOutTime || '12:00');
         setPriceMonthly(editBooking.priceMonthly != null ? formatMoneyDisplay(String(Math.round(editBooking.priceMonthly))) : '');
         setTotalPrice(editBooking.totalPrice != null ? formatMoneyDisplay(String(Math.round(editBooking.totalPrice))) : '');
         setBookingDeposit(editBooking.bookingDeposit != null ? formatMoneyDisplay(String(Math.round(editBooking.bookingDeposit))) : '');
         setSaveDeposit(editBooking.saveDeposit != null ? formatMoneyDisplay(String(Math.round(editBooking.saveDeposit))) : '');
         setCommission(editBooking.commission != null ? formatMoneyDisplay(String(Math.round(editBooking.commission))) : '');
+        setOwnerCommissionOneTime(editBooking.ownerCommissionOneTime != null ? formatMoneyDisplay(String(Math.round(editBooking.ownerCommissionOneTime))) : '');
+        setOwnerCommissionMonthly(editBooking.ownerCommissionMonthly != null ? formatMoneyDisplay(String(Math.round(editBooking.ownerCommissionMonthly))) : '');
         setAdults(editBooking.adults != null ? String(editBooking.adults) : '');
         setChildren(editBooking.children != null ? String(editBooking.children) : '');
         setPets(!!editBooking.pets);
         setComments(editBooking.comments || '');
         setPhotos(Array.isArray(editBooking.photos) ? [...editBooking.photos] : []);
+        setReminderDays(Array.isArray(editBooking.reminderDays) ? [...editBooking.reminderDays] : []);
       } else {
         setNotMyCustomer(false);
         setSelectedClient(null);
@@ -259,7 +297,10 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
           setCheckIn(null);
           setCheckOut(null);
         }
+        setCheckInTime('14:00');
+        setCheckOutTime('12:00');
         setPhotos([]);
+        setReminderDays([]);
       }
     }
   }, [visible, editBooking?.id, initialMonth?.year, initialMonth?.month]);
@@ -269,13 +310,17 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
       setPriceMonthly(property.price_monthly != null ? formatMoneyDisplay(String(Math.round(property.price_monthly))) : '');
       setBookingDeposit(property.booking_deposit != null ? formatMoneyDisplay(String(Math.round(property.booking_deposit))) : '');
       setSaveDeposit(property.save_deposit != null ? formatMoneyDisplay(String(Math.round(property.save_deposit))) : '');
+      setOwnerCommissionOneTime('');
+      setOwnerCommissionMonthly('');
     }
   }, [step, property, editBooking]);
 
   const computedTotal = computeTotalPrice(checkIn, checkOut, parseMoneyValue(priceMonthly));
   useEffect(() => {
-    if (computedTotal != null) setTotalPrice(formatMoneyDisplay(String(Math.round(computedTotal))));
-  }, [computedTotal]);
+    if (!editBooking && computedTotal != null) {
+      setTotalPrice(formatMoneyDisplay(String(Math.round(computedTotal))));
+    }
+  }, [computedTotal, !!editBooking]);
 
   useEffect(() => {
     if (clientPickerVisible) {
@@ -428,22 +473,60 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         notMyCustomer,
         checkIn: formatDateYMD(checkIn),
         checkOut: formatDateYMD(checkOut),
+        checkInTime: checkInTime.trim() || null,
+        checkOutTime: checkOutTime.trim() || null,
         priceMonthly: parseMoneyValue(priceMonthly),
         totalPrice: parseMoneyValue(totalPrice),
         bookingDeposit: parseMoneyValue(bookingDeposit),
         saveDeposit: parseMoneyValue(saveDeposit),
         commission: parseMoneyValue(commission),
+        ownerCommissionOneTime: parseMoneyValue(ownerCommissionOneTime),
+        ownerCommissionMonthly: parseMoneyValue(ownerCommissionMonthly),
         adults: adults.trim() ? parseInt(adults, 10) : null,
         children: children.trim() ? parseInt(children, 10) : null,
         pets,
         comments: comments.trim() || null,
         photos: photoUrls.length > 0 ? photoUrls : null,
+        reminderDays: reminderDays.length > 0 ? reminderDays : [],
       };
       if (editBooking?.id) {
+        await cancelBookingReminders(editBooking.id);
+        await cancelCommissionReminders(editBooking.id);
         const updated = await updateBooking(editBooking.id, payload);
+        if (reminderDays.length > 0) {
+          const granted = await requestReminderPermissions();
+          if (granted) {
+            const profile = await getCurrentUser();
+            const settings = profile?.notificationSettings || {};
+            await scheduleBookingReminders(editBooking.id, payload.checkIn, reminderDays, property?.name || houseCode, settings);
+          }
+        }
+        const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, parseMoneyValue(ownerCommissionOneTime), parseMoneyValue(ownerCommissionMonthly));
+        if (commDateAmounts.length > 0) {
+          const granted = await requestReminderPermissions();
+          if (granted) {
+            const profile = await getCurrentUser();
+            const settings = profile?.notificationSettings || {};
+            await scheduleCommissionReminders(updated.id, commDateAmounts, property?.name || houseCode, settings);
+          }
+        }
         onSaved?.(updated);
       } else {
-        await createBooking(payload);
+        const created = await createBooking(payload);
+        if (created?.id) {
+          const granted = await requestReminderPermissions();
+          if (granted) {
+            const profile = await getCurrentUser();
+            const settings = profile?.notificationSettings || {};
+            if (reminderDays.length > 0) {
+              await scheduleBookingReminders(created.id, payload.checkIn, reminderDays, property?.name || houseCode, settings);
+            }
+            const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, parseMoneyValue(ownerCommissionOneTime), parseMoneyValue(ownerCommissionMonthly));
+            if (commDateAmounts.length > 0) {
+              await scheduleCommissionReminders(created.id, commDateAmounts, property?.name || houseCode, settings);
+            }
+          }
+        }
         onSaved?.();
       }
       onClose?.();
@@ -485,7 +568,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
               </View>
 
               {step === 2 ? (
-                <View style={s.step2Content}>
+                <ScrollView style={s.step2Scroll} contentContainerStyle={s.step2Content} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled">
                   <Text style={[s.fieldLabel, s.fieldLabelStep2]}>{t('bookingDates')}</Text>
                   <View style={s.dateRowReadonlyStep2}>
                     <View style={s.dateField}>
@@ -555,10 +638,74 @@ isMonthFirst
                       })()}
                     />
                   </View>
-                </View>
+
+                  <View style={s.timeBlock}>
+                    <View style={s.timeRow}>
+                      <View style={s.timeFieldWrap}>
+                        <Text style={s.fieldLabel}>{t('bookingCheckInTime')}</Text>
+                        <TouchableOpacity
+                          style={s.timeSelectRow}
+                          onPress={() => { Keyboard.dismiss(); setTimePickerFor('checkIn'); }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={s.timeSelectText}>{checkInTime || '14:00'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <View style={s.timeFieldWrap}>
+                        <Text style={s.fieldLabel}>{t('bookingCheckOutTime')}</Text>
+                        <TouchableOpacity
+                          style={s.timeSelectRow}
+                          onPress={() => { Keyboard.dismiss(); setTimePickerFor('checkOut'); }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={s.timeSelectText}>{checkOutTime || '12:00'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </ScrollView>
               ) : step === 4 ? (
                 <ScrollView style={[s.scroll, s.scrollStep3]} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator>
                   <View style={s.mediaSectionTitleRow}>
+                    <Text style={s.mediaSectionTitle}>{t('bookingNotifications')}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={s.reminderTriggerBtn}
+                    onPress={() => setReminderPickerOpen(!reminderPickerOpen)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.reminderTriggerText, reminderDays.length === 0 && s.reminderTriggerPlaceholder]}>
+                      {reminderDays.length > 0
+                        ? reminderDays.map((d) => t(BOOKING_REMINDER_OPTIONS.find(o => o.days === d)?.key || 'bookingReminder1d')).join(', ')
+                        : t('bookingAddNotification')}
+                    </Text>
+                    <Text style={s.reminderChevron}>{reminderPickerOpen ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {reminderPickerOpen && (
+                    <View style={s.reminderOptionsWrap}>
+                      {BOOKING_REMINDER_OPTIONS.map((opt) => {
+                        const isSelected = reminderDays.includes(opt.days);
+                        return (
+                          <TouchableOpacity
+                            key={opt.days}
+                            style={[s.reminderOption, isSelected && s.reminderOptionSelected]}
+                            onPress={() => {
+                              setReminderDays((prev) =>
+                                isSelected ? prev.filter((x) => x !== opt.days) : [...prev, opt.days].sort((a, b) => a - b)
+                              );
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[s.reminderOptionText, isSelected && s.reminderOptionTextSelected]}>{t(opt.key)}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                      <TouchableOpacity style={s.reminderSelectBtn} onPress={() => setReminderPickerOpen(false)} activeOpacity={0.7}>
+                        <Text style={s.reminderSelectBtnText}>{t('bookingReminderSelect')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  <View style={[s.mediaSectionTitleRow, { marginTop: 20 }]}>
                     <Image source={require('../../assets/icon-photo.png')} style={s.mediaSectionTitleIcon} resizeMode="contain" />
                     <Text style={s.mediaSectionTitle}>{t('pdPhoto')}</Text>
                   </View>
@@ -681,6 +828,26 @@ isMonthFirst
                       style={s.input}
                       value={saveDeposit}
                       onChangeText={(v) => setSaveDeposit(formatMoneyDisplay(v))}
+                      placeholder="0"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+
+                    <Text style={s.fieldLabel}>{t('ownerCommissionOneTime')}</Text>
+                    <TextInput
+                      style={s.input}
+                      value={ownerCommissionOneTime}
+                      onChangeText={(v) => setOwnerCommissionOneTime(formatMoneyDisplay(v))}
+                      placeholder="0"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+
+                    <Text style={s.fieldLabel}>{t('ownerCommissionMonthly')}</Text>
+                    <TextInput
+                      style={s.input}
+                      value={ownerCommissionMonthly}
+                      onChangeText={(v) => setOwnerCommissionMonthly(formatMoneyDisplay(v))}
                       placeholder="0"
                       placeholderTextColor="#999"
                       keyboardType="numeric"
@@ -886,6 +1053,39 @@ isMonthFirst
         editContact={null}
       />
 
+      {timePickerFor && (
+        <Modal transparent animationType="fade" statusBarTranslucent>
+          <Pressable style={s.datePickerOverlay} onPress={() => setTimePickerFor(null)}>
+            <Pressable style={s.datePickerContainer} onPress={(e) => e.stopPropagation()}>
+              <View style={s.datePickerHeader}>
+                <Text style={s.datePickerTitle}>
+                  {timePickerFor === 'checkIn' ? t('bookingCheckInTime') : t('bookingCheckOutTime')}
+                </Text>
+                <TouchableOpacity onPress={() => setTimePickerFor(null)} activeOpacity={0.7}>
+                  <Text style={s.timeSelectBtnText}>{t('agentCalendarTimeSelectBtn')}</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={s.timePickerSpinnerWrap}>
+                <DateTimePicker
+                  value={timePickerFor === 'checkIn' ? parseTimeToDate(checkInTime) : parseTimeToDate(checkOutTime)}
+                  mode="time"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  style={Platform.OS === 'ios' ? s.datePickerSpinner : null}
+                onChange={(event, selectedDate) => {
+                  if (selectedDate && event.type !== 'dismissed') {
+                    const str = formatDateToTime(selectedDate);
+                    if (timePickerFor === 'checkIn') setCheckInTime(str);
+                    else setCheckOutTime(str);
+                    if (Platform.OS === 'android') setTimePickerFor(null);
+                  }
+                }}
+                />
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
       {datePickerFor && (
         <Modal transparent animationType="slide" statusBarTranslucent>
           <Pressable style={s.datePickerOverlay} onPress={() => setDatePickerFor(null)}>
@@ -947,12 +1147,12 @@ const s = StyleSheet.create({
   boxWrap: {
     width: '100%',
     maxWidth: 400,
-    maxHeight: '85%',
+    maxHeight: '90%',
     alignSelf: 'center',
   },
-  boxWrapStep3: { height: '85%' },
+  boxWrapStep3: { height: '90%' },
   box: {
-    flexShrink: 1,
+    flexShrink: 0,
     minHeight: 0,
     borderRadius: 20,
     overflow: 'hidden',
@@ -1008,6 +1208,47 @@ const s = StyleSheet.create({
   mediaSectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
   mediaSectionTitleIcon: { width: 22, height: 22 },
   mediaSectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.title },
+  reminderTriggerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 10,
+  },
+  reminderTriggerText: { fontSize: 16, fontWeight: '600', color: COLORS.title },
+  reminderTriggerPlaceholder: { color: '#999' },
+  reminderChevron: { fontSize: 12, color: '#6B6B6B' },
+  reminderOptionsWrap: {
+    marginBottom: 14,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+  reminderOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
+  },
+  reminderOptionSelected: { backgroundColor: 'rgba(46,125,50,0.08)' },
+  reminderOptionText: { fontSize: 16, color: COLORS.title },
+  reminderOptionTextSelected: { fontWeight: '600', color: COLORS.saveGreen },
+  reminderSelectBtn: {
+    marginTop: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: COLORS.saveGreen,
+  },
+  reminderSelectBtnText: { fontSize: 16, fontWeight: '600', color: '#FFF' },
   mediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   mediaThumbWrap: { width: 90, height: 90, borderRadius: 12, overflow: 'hidden', position: 'relative' },
   mediaThumb: { width: '100%', height: '100%' },
@@ -1037,10 +1278,10 @@ const s = StyleSheet.create({
     paddingBottom: 14,
     flexGrow: 0,
   },
+  step2Scroll: { flexGrow: 0, maxHeight: Dimensions.get('window').height * 0.75 },
   step2Content: {
-    flexShrink: 1,
     padding: 14,
-    paddingBottom: 0,
+    paddingBottom: 14,
   },
   fieldLabel: {
     fontSize: 12,
@@ -1213,6 +1454,48 @@ const s = StyleSheet.create({
     marginBottom: 16,
   },
   calendarInlineStep2: { marginBottom: 14 },
+  timeBlock: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.06)',
+  },
+  timeRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  timeFieldWrap: {
+    flex: 1,
+  },
+  timeInput: {
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: COLORS.title,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginTop: 6,
+  },
+  timeSelectRow: {
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  timeSelectText: {
+    fontSize: 16,
+    color: COLORS.title,
+  },
+  timeSelectBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.saveGreen,
+  },
   datePickerOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -1236,6 +1519,9 @@ const s = StyleSheet.create({
   datePickerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.title },
   datePickerDoneText: { fontSize: 16, fontWeight: '600', color: COLORS.saveGreen },
   datePickerSpinner: { height: 200 },
+  timePickerSpinnerWrap: {
+    alignItems: 'center',
+  },
   pickerBackdrop: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',

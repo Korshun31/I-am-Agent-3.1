@@ -21,6 +21,7 @@ import 'dayjs/locale/th';
 import { useLanguage } from '../context/LanguageContext';
 import { getProperties, deleteProperty } from '../services/propertiesService';
 import { getBookings, deleteBooking } from '../services/bookingsService';
+import { cancelBookingReminders } from '../services/bookingRemindersService';
 import { getContactById, getContacts } from '../services/contactsService';
 import FilterBottomSheet from '../components/FilterBottomSheet';
 import AddBookingModal from '../components/AddBookingModal';
@@ -515,6 +516,7 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
           onBack={() => { setSelectedBooking(null); setSelectedProperty(null); setPreloadedProperty(null); setPreloadedContact(null); setSelectedOwnerContact(null); }}
           onDelete={async (id) => {
             try {
+              await cancelBookingReminders(id);
               await deleteBooking(id);
               setSelectedBooking(null);
               setSelectedProperty(null);

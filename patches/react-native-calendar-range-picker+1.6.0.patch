@@ -122,6 +122,15 @@ index 1111111..2222222 100644
                      : dayTextColor,
 +        fontWeight: isToday ? 'bold' : 'normal',
      };
+@@ -60,7 +61,7 @@ function Day(_a) {
+             dayStyle = { color: selectedDayTextColor };
+             break;
+         case 'between':
+-            markStyle = __assign(__assign({}, markStyle), { backgroundColor: selectedBetweenDayBackgroundTextColor, width: '101%' });
++            markStyle = __assign(__assign({}, markStyle), { backgroundColor: selectedBetweenDayBackgroundTextColor, position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, width: undefined });
+             dayStyle = {
+                 color: isToday
+                     ? todayColor
 @@ -71,7 +72,7 @@ function Day(_a) {
              break;
          default:
@@ -130,3 +139,16 @@ index 1111111..2222222 100644
 +                markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: '#E53935', borderRadius: 4 });
              }
              if (isOccupied) {
+@@ -93,8 +94,8 @@ function Day(_a) {
+     return (<>
+       {type === 'end' ? <View pointerEvents={isOccupied ? 'none' : 'auto'} style={[betweenStyle, { left: -1 }]}/> : null}
+       {type === 'start' ? <View pointerEvents={isOccupied ? 'none' : 'auto'} style={[betweenStyle, { right: -1 }]}/> : null}
+-      {date ? (<View pointerEvents={isOccupied ? 'none' : 'auto'} style={{ position: 'relative', alignSelf: 'center' }}>
+-          <View pointerEvents={isOccupied ? 'none' : 'auto'} style={markStyle}>
+-            <Text pointerEvents={isOccupied ? 'none' : 'auto'} style={[{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText]}>
++      {date ? (<View pointerEvents={isOccupied ? 'none' : 'auto'} style={type === 'between' ? { flex: 1, alignSelf: 'stretch', position: 'relative', justifyContent: 'center', alignItems: 'center' } : { position: 'relative', alignSelf: 'center' }}>
++          <View pointerEvents={isOccupied ? 'none' : 'auto'} style={markStyle}>
++            <Text pointerEvents={isOccupied ? 'none' : 'auto'} style={[{ fontSize: 15, zIndex: 1 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText]}>
+               {dayjs(date).date()}
+             </Text>
+           </View>

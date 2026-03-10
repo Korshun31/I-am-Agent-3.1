@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #2E7D32;
+  --primary-light: #4CAF50;
+  --warm-bg: #F5F2EB;
+}
+
+body {
+  background: #F8F9FA;
+  color: #2C2C2C;
+}
+
+* {
+  box-sizing: border-box;
+}

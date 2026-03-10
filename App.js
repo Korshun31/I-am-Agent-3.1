@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import ErrorBoundary from './src/components/ErrorBoundary';
+
+if (Platform.OS !== 'web') {
+  try {
+    const Notifications = require('expo-notifications').default;
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch {}
+}
 import { LanguageProvider } from './src/context/LanguageContext';
 import Preloader from './src/screens/Preloader';
 import Login from './src/screens/Login';
@@ -35,6 +50,7 @@ export default function App() {
   const goToMain = (userData) => {
     if (userData && typeof userData === 'object') {
       setUser({
+        ...userData,
         email: userData.email || '',
         name: userData.name || '',
         lastName: userData.lastName || '',
@@ -45,6 +61,8 @@ export default function App() {
         extraEmails: Array.isArray(userData.extraEmails) ? userData.extraEmails : [],
         whatsapp: userData.whatsapp || '',
         photoUri: userData.photoUri || '',
+        workAs: userData.workAs === 'company' ? 'company' : 'private',
+        companyInfo: userData.companyInfo || {},
       });
     } else {
       setUser(initialUser);
@@ -60,6 +78,8 @@ export default function App() {
       extraEmails: Array.isArray(updatedUser?.extraEmails) ? updatedUser.extraEmails : prev.extraEmails || [],
       whatsapp: updatedUser?.whatsapp !== undefined ? updatedUser.whatsapp : prev.whatsapp || '',
       photoUri: updatedUser?.photoUri !== undefined ? updatedUser.photoUri : prev.photoUri || '',
+      workAs: updatedUser?.workAs !== undefined ? updatedUser.workAs : prev.workAs || 'private',
+      companyInfo: updatedUser?.companyInfo !== undefined ? updatedUser.companyInfo : prev.companyInfo || {},
     }));
   };
 

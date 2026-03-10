@@ -278,6 +278,8 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
         <Field label={t('pdLocation') + ' (Google Maps)'} value={data.google_maps_link} onChangeText={v => setData(d => ({ ...d, google_maps_link: v }))} placeholder="https://maps.google.com/..." />
       )}
 
+      <Field label={t('pdAddress')} value={data.address} onChangeText={v => setData(d => ({ ...d, address: v }))} placeholder={t('pdAddressPlaceholder')} />
+
       {/* Owner picker */}
       <View style={s.fieldWrap}>
         <Text style={s.fieldLabel}>{t('wizOwner')}</Text>
@@ -453,9 +455,24 @@ function StepDescription({ data, setData, t }) {
   );
 }
 
-function StepComments({ data, setData, t }) {
+function StepComments({ data, setData, t, property }) {
+  const showWebsite = property && (
+    property.type === 'house' ||
+    (property.type === 'condo' && property.resort_id)
+  );
   return (
-    <Field label={t('pdComments')} value={data.comments} onChangeText={v => setData(d => ({ ...d, comments: v }))} multiline placeholder={t('wizCommPlaceholder')} />
+    <>
+      {showWebsite && (
+        <Field
+          label={t('propertyWebsiteUrl')}
+          value={data.website_url || ''}
+          onChangeText={v => setData(d => ({ ...d, website_url: v }))}
+          placeholder="https://..."
+          keyboardType="url"
+        />
+      )}
+      <Field label={t('pdComments')} value={data.comments} onChangeText={v => setData(d => ({ ...d, comments: v }))} multiline placeholder={t('wizCommPlaceholder')} />
+    </>
   );
 }
 
@@ -642,6 +659,37 @@ function StepAdditional({ data, setData, t, propertyType }) {
   );
 }
 
+function PriceFieldWithFrom({ label, value, onChangeText, isFrom, dataKey, setData, t }) {
+  return (
+    <View style={s.fieldWrap}>
+      <View style={s.priceFromLabelRow}>
+        <Text style={s.fieldLabel}>{label}</Text>
+        <View style={s.priceFromToggleWrap}>
+          <Text style={s.priceFromLabel}>{t('priceFrom')}</Text>
+          <TouchableOpacity
+            style={[s.toggleTrackSmall, isFrom && s.toggleTrackOn]}
+            onPress={() => setData(d => ({ ...d, [dataKey]: !d[dataKey] }))}
+            activeOpacity={0.7}
+          >
+            <View style={[s.toggleThumbSmall, isFrom && s.toggleThumbOn]} />
+          </TouchableOpacity>
+        </View>
+      </View>
+      <TextInput
+        style={s.input}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder=""
+        placeholderTextColor="#999"
+        keyboardType="numeric"
+        returnKeyType="done"
+        blurOnSubmit
+        onSubmitEditing={Keyboard.dismiss}
+      />
+    </View>
+  );
+}
+
 function StepPricing({ data, setData, t }) {
   const WATER_TYPES = [
     { key: 'cubic', label: t('pdPerCubic') },
@@ -650,10 +698,10 @@ function StepPricing({ data, setData, t }) {
   ];
   return (
     <>
-      <Field label={t('pdPriceMonthly')} value={data.price_monthly} onChangeText={v => setData(d => ({ ...d, price_monthly: v }))} keyboardType="numeric" />
-      <Field label={t('pdBookingDeposit')} value={data.booking_deposit} onChangeText={v => setData(d => ({ ...d, booking_deposit: v }))} keyboardType="numeric" />
-      <Field label={t('pdSaveDeposit')} value={data.save_deposit} onChangeText={v => setData(d => ({ ...d, save_deposit: v }))} keyboardType="numeric" />
-      <Field label={t('pdCommission')} value={data.commission} onChangeText={v => setData(d => ({ ...d, commission: v }))} keyboardType="numeric" />
+      <PriceFieldWithFrom label={t('pdPriceMonthly')} value={data.price_monthly} onChangeText={v => setData(d => ({ ...d, price_monthly: v }))} isFrom={!!data.price_monthly_is_from} dataKey="price_monthly_is_from" setData={setData} t={t} />
+      <PriceFieldWithFrom label={t('pdBookingDeposit')} value={data.booking_deposit} onChangeText={v => setData(d => ({ ...d, booking_deposit: v }))} isFrom={!!data.booking_deposit_is_from} dataKey="booking_deposit_is_from" setData={setData} t={t} />
+      <PriceFieldWithFrom label={t('pdSaveDeposit')} value={data.save_deposit} onChangeText={v => setData(d => ({ ...d, save_deposit: v }))} isFrom={!!data.save_deposit_is_from} dataKey="save_deposit_is_from" setData={setData} t={t} />
+      <PriceFieldWithFrom label={t('pdCommission')} value={data.commission} onChangeText={v => setData(d => ({ ...d, commission: v }))} isFrom={!!data.commission_is_from} dataKey="commission_is_from" setData={setData} t={t} />
       <Field label={t('pdElectricity')} value={data.electricity_price} onChangeText={v => setData(d => ({ ...d, electricity_price: v }))} keyboardType="numeric" />
       <View style={s.fieldWrap}>
         <Text style={s.fieldLabel}>{t('pdWater')}</Text>
@@ -714,6 +762,7 @@ function buildInitialData(p) {
     _owner2Name: '',
     district: p.district || '',
     google_maps_link: p.google_maps_link || '',
+    address: p.address || '',
     bedrooms: toStr(p.bedrooms),
     bathrooms: toStr(p.bathrooms),
     area: toStr(p.area),
@@ -723,6 +772,7 @@ function buildInitialData(p) {
     market_distance: toStr(p.market_distance),
     description: p.description || '',
     comments: p.comments || '',
+    website_url: p.website_url || '',
     photos: Array.isArray(p.photos) ? p.photos : [],
     videos: Array.isArray(p.videos) ? p.videos : [],
     amenities: p.amenities || {},
@@ -731,9 +781,13 @@ function buildInitialData(p) {
     pets_allowed: !!p.pets_allowed,
     long_term_booking: !!p.long_term_booking,
     price_monthly: toStr(p.price_monthly),
+    price_monthly_is_from: !!p.price_monthly_is_from,
     booking_deposit: toStr(p.booking_deposit),
+    booking_deposit_is_from: !!p.booking_deposit_is_from,
     save_deposit: toStr(p.save_deposit),
+    save_deposit_is_from: !!p.save_deposit_is_from,
     commission: toStr(p.commission),
+    commission_is_from: !!p.commission_is_from,
     electricity_price: toStr(p.electricity_price),
     water_price: toStr(p.water_price),
     water_price_type: p.water_price_type || '',
@@ -761,6 +815,7 @@ function buildUpdates(data) {
     owner_id_2: data.owner_id_2 || null,
     district: data.district.trim(),
     google_maps_link: data.google_maps_link.trim(),
+    address: data.address.trim(),
     bedrooms: toNum(data.bedrooms),
     bathrooms: toNum(data.bathrooms),
     area: toNum(data.area),
@@ -770,6 +825,7 @@ function buildUpdates(data) {
     market_distance: toNum(data.market_distance),
     description: data.description.trim(),
     comments: data.comments.trim(),
+    website_url: (data.website_url || '').trim(),
     photos: (data.photos || []).slice(0, MAX_PHOTOS_PER_PROPERTY),
     videos: data.videos || [],
     amenities: data.amenities,
@@ -778,9 +834,13 @@ function buildUpdates(data) {
     pets_allowed: data.pets_allowed,
     long_term_booking: data.long_term_booking,
     price_monthly: toNum(data.price_monthly),
+    price_monthly_is_from: !!data.price_monthly_is_from,
     booking_deposit: toNum(data.booking_deposit),
+    booking_deposit_is_from: !!data.booking_deposit_is_from,
     save_deposit: toNum(data.save_deposit),
+    save_deposit_is_from: !!data.save_deposit_is_from,
     commission: toNum(data.commission),
+    commission_is_from: !!data.commission_is_from,
     electricity_price: toNum(data.electricity_price),
     water_price: toNum(data.water_price),
     water_price_type: data.water_price_type,
@@ -926,7 +986,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       case 'amenities': return <StepAmenities data={data} setData={setData} t={t} />;
       case 'additional': return <StepAdditional data={data} setData={setData} t={t} propertyType={property.type} />;
       case 'pricing': return <StepPricing data={data} setData={setData} t={t} />;
-      case 'comments': return <StepComments data={data} setData={setData} t={t} />;
+      case 'comments': return <StepComments data={data} setData={setData} t={t} property={property} />;
       default: return null;
     }
   };
@@ -1084,6 +1144,22 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2, elevation: 2,
   },
   toggleThumbOn: { alignSelf: 'flex-end', backgroundColor: '#4CAF50' },
+
+  priceFromLabelRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6,
+  },
+  priceFromToggleWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
+  priceFromLabel: { fontSize: 12, color: '#6B6B6B' },
+  toggleTrackSmall: {
+    width: 36, height: 20, borderRadius: 10,
+    backgroundColor: '#D5D5D0', justifyContent: 'center', paddingHorizontal: 2,
+  },
+  toggleThumbSmall: {
+    width: 16, height: 16, borderRadius: 8, backgroundColor: '#FFF',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2, elevation: 2,
+  },
 
   waterTypeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   waterTypeBtn: {

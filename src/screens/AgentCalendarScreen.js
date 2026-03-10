@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import dayjs from 'dayjs';
 import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
 import { getBookings } from '../services/bookingsService';
+import { getCommissionDateAmounts } from '../services/commissionRemindersService';
 import { getProperties } from '../services/propertiesService';
 import { getContactById } from '../services/contactsService';
 import { getCalendarEvents } from '../services/calendarEventsService';
@@ -31,6 +32,7 @@ import AddBookingModal from '../components/AddBookingModal';
 import BookingDetailScreen from './BookingDetailScreen';
 import ContactDetailScreen from './ContactDetailScreen';
 import { deleteBooking } from '../services/bookingsService';
+import { cancelBookingReminders } from '../services/bookingRemindersService';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -78,6 +80,7 @@ function getBookingNumber(booking, allBookings) {
 const EVENT_BLOCK_COLORS = {
   checkInMine: { bg: 'rgba(168,230,163,0.7)', border: '#81C784' },
   checkOutMine: { bg: 'rgba(255,205,210,0.8)', border: '#E57373' },
+  commission: { bg: 'rgba(187,222,251,0.8)', border: '#64B5F6' },
   other: { bg: 'rgba(224,224,224,0.8)', border: '#BDBDBD' },
 };
 
@@ -108,9 +111,16 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
   }, [isBooking, event?.booking?.contactId, event?.booking?.notMyCustomer, t]);
 
   if (isBooking) {
-    const typeIcon = event.eventType === 'checkIn' ? require('../../assets/icon-checkin.png') : require('../../assets/icon-checkout.png');
-    const displayName = contactName || (event.booking?.notMyCustomer ? t('ownerCustomer') : '');
-    const blockColors = event.notMyCustomer
+    const isCommission = event.eventType === 'commissionOneTime' || event.eventType === 'commissionMonthly';
+    const typeIcon = isCommission
+      ? require('../../assets/icon-commission-owner.png')
+      : (event.eventType === 'checkIn' ? require('../../assets/icon-checkin.png') : require('../../assets/icon-checkout.png'));
+    const displayName = isCommission
+      ? (event.commissionTitle || '')
+      : (contactName || (event.booking?.notMyCustomer ? t('ownerCustomer') : ''));
+    const blockColors = isCommission
+      ? EVENT_BLOCK_COLORS.commission
+      : event.notMyCustomer
       ? EVENT_BLOCK_COLORS.other
       : (event.eventType === 'checkIn' ? EVENT_BLOCK_COLORS.checkInMine : EVENT_BLOCK_COLORS.checkOutMine);
     return (
@@ -148,6 +158,14 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
                 <Text style={styles.eventDetailLink} numberOfLines={1}>{event.fullBookingCode || event.bookingNum || '—'}</Text>
               </TouchableOpacity>
             )}
+            {isCommission && event.commissionAmount != null ? (
+              <View style={styles.eventDetailRow}>
+                <Text style={styles.eventDetailText}>{t('commissionPaymentAmount')}: </Text>
+                <Text style={styles.eventDetailAmount}>
+                  {Number(event.commissionAmount).toLocaleString('en-US', { minimumFractionDigits: 0 }).replace(/,/g, ' ')} Thb
+                </Text>
+              </View>
+            ) : null}
           </View>
         )}
       </View>
@@ -223,8 +241,12 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
     setLoading(false);
   }, []);
 
+  const prevVisibleRef = useRef(false);
   useEffect(() => {
-    if (isVisible) loadData();
+    if (isVisible && !prevVisibleRef.current) {
+      loadData();
+    }
+    prevVisibleRef.current = isVisible;
   }, [isVisible, loadData]);
 
   const toggleExpandAll = () => {
@@ -304,7 +326,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
       if (b.checkOut) {
         const dOut = dayjs(b.checkOut).format('YYYY-MM-DD');
         if (dOut === selectedDate) {
-        list.push({
+          list.push({
           key: `b-out-${b.id}`,
           type: 'booking',
           eventType: 'checkOut',
@@ -315,8 +337,45 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
           bookingNum: getBookingNumber(b, bookings),
           fullBookingCode: `${getPropertyLabel(b)} ${getBookingNumber(b, bookings)}`.trim(),
           notMyCustomer: b.notMyCustomer,
-        });
+          });
         }
+      }
+
+      const label = getPropertyLabel(b);
+      const codeAndNum = `${label} ${getBookingNumber(b, bookings)}`.trim();
+      if (b.ownerCommissionOneTime != null && b.ownerCommissionOneTime > 0 && dayjs(b.checkIn).format('YYYY-MM-DD') === selectedDate) {
+        list.push({
+          key: `comm-1-${b.id}`,
+          type: 'booking',
+          eventType: 'commissionOneTime',
+          booking: b,
+          property: propsMap[b.propertyId],
+          propertyLabel: label,
+          fullBookingCode: codeAndNum,
+          commissionTitle: `${t('commissionOneTimeEvent')} ${codeAndNum} (${b.ownerCommissionOneTime})`,
+          commissionAmount: b.ownerCommissionOneTime,
+          notMyCustomer: false,
+        });
+      }
+      if (b.ownerCommissionMonthly != null && b.ownerCommissionMonthly > 0 && b.checkIn && b.checkOut) {
+        const dateAmounts = getCommissionDateAmounts(b.checkIn, b.checkOut, null, b.ownerCommissionMonthly);
+        dateAmounts.forEach(({ date: dateStr, amount }, idx) => {
+          if (dateStr === selectedDate) {
+            const suffix = dateAmounts.length > 1 ? ` — ${t('commissionMonth')} ${idx + 1}/${dateAmounts.length}` : '';
+            list.push({
+              key: `comm-m-${b.id}-${dateStr}`,
+              type: 'booking',
+              eventType: 'commissionMonthly',
+              booking: b,
+              property: propsMap[b.propertyId],
+              propertyLabel: label,
+              fullBookingCode: codeAndNum,
+              commissionTitle: `${t('commissionMonthlyEvent')} ${codeAndNum} (${amount})${suffix}`,
+              commissionAmount: amount,
+              notMyCustomer: false,
+            });
+          }
+        });
       }
     });
 
@@ -359,6 +418,18 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
         counts[d] = (counts[d] || 0) + 1;
       }
     });
+    (bookings || []).forEach((b) => {
+      if (b.ownerCommissionOneTime != null && b.ownerCommissionOneTime > 0 && b.checkIn) {
+        const d = dayjs(b.checkIn).format('YYYY-MM-DD');
+        counts[d] = (counts[d] || 0) + 1;
+      }
+      if (b.ownerCommissionMonthly != null && b.ownerCommissionMonthly > 0 && b.checkIn && b.checkOut) {
+        const dateAmounts = getCommissionDateAmounts(b.checkIn, b.checkOut, null, b.ownerCommissionMonthly);
+        dateAmounts.forEach(({ date: ds }) => {
+          counts[ds] = (counts[ds] || 0) + 1;
+        });
+      }
+    });
     return counts;
   }, [bookings, customEvents]);
 
@@ -391,6 +462,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
           onBack={clearDetail}
           onDelete={async (id) => {
             try {
+              await cancelBookingReminders(id);
               await deleteBooking(id);
               clearDetail();
               loadData();
@@ -721,6 +793,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: '#2C2C2C',
+  },
+  eventDetailAmount: {
+    fontWeight: '700',
+    color: '#2E7D32',
   },
   eventDetailLink: {
     flex: 1,
