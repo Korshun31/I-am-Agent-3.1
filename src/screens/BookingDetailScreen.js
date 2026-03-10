@@ -363,13 +363,15 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
           </View>
         ) : null}
 
-        {[b.priceMonthly, b.totalPrice, b.bookingDeposit, b.saveDeposit, b.commission].some(v => v != null) ? (
+        {[b.priceMonthly, b.totalPrice, b.bookingDeposit, b.saveDeposit, b.commission, b.ownerCommissionOneTime, b.ownerCommissionMonthly].some(v => v != null) ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t('bdPrices')}</Text>
             <DetailRow label={t('pdPriceMonthly')} value={b.priceMonthly != null ? formatPrice(b.priceMonthly) : null} />
             <DetailRow label={t('bookingTotalPrice')} value={b.totalPrice != null ? formatPrice(b.totalPrice) : null} />
             <DetailRow label={t('pdBookingDeposit')} value={b.bookingDeposit != null ? formatPrice(b.bookingDeposit) : null} />
             <DetailRow label={t('pdSaveDeposit')} value={b.saveDeposit != null ? formatPrice(b.saveDeposit) : null} />
+            <DetailRow label={t('ownerCommissionOneTime')} value={b.ownerCommissionOneTime != null ? formatPrice(b.ownerCommissionOneTime) : null} />
+            <DetailRow label={t('ownerCommissionMonthly')} value={b.ownerCommissionMonthly != null ? formatPrice(b.ownerCommissionMonthly) : null} />
             <DetailRow label={t('pdCommission')} value={b.commission != null ? formatPrice(b.commission) : null} />
           </View>
         ) : null}

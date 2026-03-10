@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { cancelCommissionReminders } from './commissionRemindersService';
 
 export async function getBookings(propertyId = null, contactId = null) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -46,6 +47,8 @@ export async function createBooking(booking) {
     booking_deposit: booking.bookingDeposit != null ? Number(booking.bookingDeposit) : null,
     save_deposit: booking.saveDeposit != null ? Number(booking.saveDeposit) : null,
     commission: booking.commission != null ? Number(booking.commission) : null,
+    owner_commission_one_time: booking.ownerCommissionOneTime != null ? Number(booking.ownerCommissionOneTime) : null,
+    owner_commission_monthly: booking.ownerCommissionMonthly != null ? Number(booking.ownerCommissionMonthly) : null,
     adults: booking.adults != null ? parseInt(booking.adults, 10) : null,
     children: booking.children != null ? parseInt(booking.children, 10) : null,
     pets: !!booking.pets,
@@ -81,6 +84,8 @@ export async function updateBooking(id, booking) {
     booking_deposit: booking.bookingDeposit != null ? Number(booking.bookingDeposit) : null,
     save_deposit: booking.saveDeposit != null ? Number(booking.saveDeposit) : null,
     commission: booking.commission != null ? Number(booking.commission) : null,
+    owner_commission_one_time: booking.ownerCommissionOneTime != null ? Number(booking.ownerCommissionOneTime) : null,
+    owner_commission_monthly: booking.ownerCommissionMonthly != null ? Number(booking.ownerCommissionMonthly) : null,
     adults: booking.adults != null ? parseInt(booking.adults, 10) : null,
     children: booking.children != null ? parseInt(booking.children, 10) : null,
     pets: !!booking.pets,
@@ -106,6 +111,7 @@ export async function deleteBooking(id) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
+  await cancelCommissionReminders(id);
   const { error } = await supabase
     .from('bookings')
     .delete()
@@ -132,6 +138,8 @@ function mapBooking(row) {
     bookingDeposit: row.booking_deposit,
     saveDeposit: row.save_deposit,
     commission: row.commission,
+    ownerCommissionOneTime: row.owner_commission_one_time,
+    ownerCommissionMonthly: row.owner_commission_monthly,
     adults: row.adults,
     children: row.children,
     pets: row.pets,

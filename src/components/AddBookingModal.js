@@ -26,6 +26,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { getContacts, createContact, getContactById } from '../services/contactsService';
 import { getBookings, createBooking, updateBooking } from '../services/bookingsService';
 import { scheduleBookingReminders, cancelBookingReminders } from '../services/bookingRemindersService';
+import { getCommissionDateAmounts, scheduleCommissionReminders, cancelCommissionReminders } from '../services/commissionRemindersService';
 import { requestReminderPermissions } from '../services/calendarRemindersService';
 import { getCurrentUser } from '../services/authService';
 import { uploadPhoto, isLocalUri } from '../services/storageService';
@@ -218,6 +219,8 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
   const [bookingDeposit, setBookingDeposit] = useState('');
   const [saveDeposit, setSaveDeposit] = useState('');
   const [commission, setCommission] = useState('');
+  const [ownerCommissionOneTime, setOwnerCommissionOneTime] = useState('');
+  const [ownerCommissionMonthly, setOwnerCommissionMonthly] = useState('');
   const [adults, setAdults] = useState('');
   const [children, setChildren] = useState('');
   const [pets, setPets] = useState(false);
@@ -275,6 +278,8 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         setBookingDeposit(editBooking.bookingDeposit != null ? formatMoneyDisplay(String(Math.round(editBooking.bookingDeposit))) : '');
         setSaveDeposit(editBooking.saveDeposit != null ? formatMoneyDisplay(String(Math.round(editBooking.saveDeposit))) : '');
         setCommission(editBooking.commission != null ? formatMoneyDisplay(String(Math.round(editBooking.commission))) : '');
+        setOwnerCommissionOneTime(editBooking.ownerCommissionOneTime != null ? formatMoneyDisplay(String(Math.round(editBooking.ownerCommissionOneTime))) : '');
+        setOwnerCommissionMonthly(editBooking.ownerCommissionMonthly != null ? formatMoneyDisplay(String(Math.round(editBooking.ownerCommissionMonthly))) : '');
         setAdults(editBooking.adults != null ? String(editBooking.adults) : '');
         setChildren(editBooking.children != null ? String(editBooking.children) : '');
         setPets(!!editBooking.pets);
@@ -305,6 +310,8 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
       setPriceMonthly(property.price_monthly != null ? formatMoneyDisplay(String(Math.round(property.price_monthly))) : '');
       setBookingDeposit(property.booking_deposit != null ? formatMoneyDisplay(String(Math.round(property.booking_deposit))) : '');
       setSaveDeposit(property.save_deposit != null ? formatMoneyDisplay(String(Math.round(property.save_deposit))) : '');
+      setOwnerCommissionOneTime('');
+      setOwnerCommissionMonthly('');
     }
   }, [step, property, editBooking]);
 
@@ -473,6 +480,8 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         bookingDeposit: parseMoneyValue(bookingDeposit),
         saveDeposit: parseMoneyValue(saveDeposit),
         commission: parseMoneyValue(commission),
+        ownerCommissionOneTime: parseMoneyValue(ownerCommissionOneTime),
+        ownerCommissionMonthly: parseMoneyValue(ownerCommissionMonthly),
         adults: adults.trim() ? parseInt(adults, 10) : null,
         children: children.trim() ? parseInt(children, 10) : null,
         pets,
@@ -482,6 +491,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
       };
       if (editBooking?.id) {
         await cancelBookingReminders(editBooking.id);
+        await cancelCommissionReminders(editBooking.id);
         const updated = await updateBooking(editBooking.id, payload);
         if (reminderDays.length > 0) {
           const granted = await requestReminderPermissions();
@@ -491,15 +501,30 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
             await scheduleBookingReminders(editBooking.id, payload.checkIn, reminderDays, property?.name || houseCode, settings);
           }
         }
-        onSaved?.(updated);
-      } else {
-        const created = await createBooking(payload);
-        if (created?.id && reminderDays.length > 0) {
+        const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, parseMoneyValue(ownerCommissionOneTime), parseMoneyValue(ownerCommissionMonthly));
+        if (commDateAmounts.length > 0) {
           const granted = await requestReminderPermissions();
           if (granted) {
             const profile = await getCurrentUser();
             const settings = profile?.notificationSettings || {};
-            await scheduleBookingReminders(created.id, payload.checkIn, reminderDays, property?.name || houseCode, settings);
+            await scheduleCommissionReminders(updated.id, commDateAmounts, property?.name || houseCode, settings);
+          }
+        }
+        onSaved?.(updated);
+      } else {
+        const created = await createBooking(payload);
+        if (created?.id) {
+          const granted = await requestReminderPermissions();
+          if (granted) {
+            const profile = await getCurrentUser();
+            const settings = profile?.notificationSettings || {};
+            if (reminderDays.length > 0) {
+              await scheduleBookingReminders(created.id, payload.checkIn, reminderDays, property?.name || houseCode, settings);
+            }
+            const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, parseMoneyValue(ownerCommissionOneTime), parseMoneyValue(ownerCommissionMonthly));
+            if (commDateAmounts.length > 0) {
+              await scheduleCommissionReminders(created.id, commDateAmounts, property?.name || houseCode, settings);
+            }
           }
         }
         onSaved?.();
@@ -803,6 +828,26 @@ isMonthFirst
                       style={s.input}
                       value={saveDeposit}
                       onChangeText={(v) => setSaveDeposit(formatMoneyDisplay(v))}
+                      placeholder="0"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+
+                    <Text style={s.fieldLabel}>{t('ownerCommissionOneTime')}</Text>
+                    <TextInput
+                      style={s.input}
+                      value={ownerCommissionOneTime}
+                      onChangeText={(v) => setOwnerCommissionOneTime(formatMoneyDisplay(v))}
+                      placeholder="0"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+
+                    <Text style={s.fieldLabel}>{t('ownerCommissionMonthly')}</Text>
+                    <TextInput
+                      style={s.input}
+                      value={ownerCommissionMonthly}
+                      onChangeText={(v) => setOwnerCommissionMonthly(formatMoneyDisplay(v))}
                       placeholder="0"
                       placeholderTextColor="#999"
                       keyboardType="numeric"
