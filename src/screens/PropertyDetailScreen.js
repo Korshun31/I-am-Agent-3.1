@@ -107,7 +107,8 @@ function InfoRow({ label, value, isLink, onPress, style, labelBold }) {
   );
 }
 
-function PriceRow({ icon, iconSource, label, value }) {
+function PriceRow({ icon, iconSource, label, value, prefix }) {
+  const displayValue = value ? (prefix ? `${prefix} ${value}` : value) : '—';
   return (
     <View style={styles.priceRow}>
       {iconSource ? (
@@ -116,7 +117,7 @@ function PriceRow({ icon, iconSource, label, value }) {
         <Text style={styles.priceIcon}>{icon}</Text>
       )}
       <Text style={styles.priceLabel}>{label}</Text>
-      <Text style={styles.priceValue}>{value || '—'}</Text>
+      <Text style={styles.priceValue}>{displayValue}</Text>
     </View>
   );
 }
@@ -593,10 +594,10 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
 
       {[p.price_monthly, p.booking_deposit, p.save_deposit, p.commission, p.electricity_price, p.water_price, p.gas_price, p.internet_price, p.cleaning_price, p.exit_cleaning_price].some(v => v != null) && (
       <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
-        {p.price_monthly != null && <PriceRow iconSource={require('../../assets/icon-price-booking-deposit.png')} label={t('pdPriceMonthly')} value={formatPrice(p.price_monthly)} />}
-        {p.booking_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-monthly.png')} label={t('pdBookingDeposit')} value={formatPrice(p.booking_deposit)} />}
-        {p.save_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-commission.png')} label={t('pdSaveDeposit')} value={formatPrice(p.save_deposit)} />}
-        {p.commission != null && <PriceRow iconSource={require('../../assets/icon-price-save-deposit.png')} label={t('pdCommission')} value={formatPrice(p.commission)} />}
+        {p.price_monthly != null && <PriceRow iconSource={require('../../assets/icon-price-booking-deposit.png')} label={t('pdPriceMonthly')} value={formatPrice(p.price_monthly)} prefix={p.price_monthly_is_from ? t('priceFrom') : null} />}
+        {p.booking_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-monthly.png')} label={t('pdBookingDeposit')} value={formatPrice(p.booking_deposit)} prefix={p.booking_deposit_is_from ? t('priceFrom') : null} />}
+        {p.save_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-commission.png')} label={t('pdSaveDeposit')} value={formatPrice(p.save_deposit)} prefix={p.save_deposit_is_from ? t('priceFrom') : null} />}
+        {p.commission != null && <PriceRow iconSource={require('../../assets/icon-price-save-deposit.png')} label={t('pdCommission')} value={formatPrice(p.commission)} prefix={p.commission_is_from ? t('priceFrom') : null} />}
         {p.electricity_price != null && <PriceRow iconSource={require('../../assets/icon-price-electricity.png')} label={t('pdElectricity')} value={`${p.electricity_price} Thb`} />}
         {p.water_price != null && <PriceRow iconSource={require('../../assets/icon-price-water.png')} label={waterPriceLabel()} value={`${p.water_price} Thb`} />}
         {p.gas_price != null && <PriceRow iconSource={require('../../assets/icon-price-gas.png')} label={t('pdGas')} value={`${p.gas_price} Thb`} />}
