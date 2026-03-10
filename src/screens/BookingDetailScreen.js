@@ -9,11 +9,15 @@ import {
   Alert,
   Linking,
   ActivityIndicator,
+  Share,
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { getContactById, getContacts } from '../services/contactsService';
 import { getProperties } from '../services/propertiesService';
+import { getBookings } from '../services/bookingsService';
+import { getCurrentUser } from '../services/authService';
+import { generateConfirmationPDF } from '../services/bookingConfirmationService';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
@@ -74,6 +78,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
   const [loadingContact, setLoadingContact] = useState(!initialContact && !!booking.contactId);
   const [property, setProperty] = useState(initialProperty ?? null);
   const [loadingProperty, setLoadingProperty] = useState(!initialProperty && !!booking?.propertyId);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const loadProperty = useCallback(async () => {
     if (!booking?.propertyId) {
@@ -168,8 +173,48 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
     ]);
   };
 
-  const handleGenerateConfirmation = () => {
-    Alert.alert('Подтверждение бронирования', 'Генерация PDF — в разработке');
+  const getBookingNumber = useCallback((b, allBookings) => {
+    if (!b?.checkIn || !allBookings?.length) return '—';
+    const year = new Date(b.checkIn).getFullYear();
+    const yearShort = year % 100;
+    const sameYear = allBookings
+      .filter(x => new Date(x.checkIn).getFullYear() === year)
+      .sort((a, b) => new Date(a.createdAt || a.checkIn) - new Date(b.createdAt || b.checkIn));
+    const idx = sameYear.findIndex(x => x.id === b.id);
+    const seq = idx >= 0 ? idx + 1 : 0;
+    return `${seq}/${String(yearShort).padStart(2, '0')}`;
+  }, []);
+
+  const handleGenerateConfirmation = async () => {
+    if (!booking) return;
+    if (!property) {
+      Alert.alert(t('error'), 'Загрузите данные объекта');
+      return;
+    }
+    setGeneratingPdf(true);
+    try {
+      const [profile, bookings] = await Promise.all([
+        getCurrentUser(),
+        getBookings(property.id),
+      ]);
+      const confirmationNumber = getBookingNumber(booking, bookings);
+      const { uri } = await generateConfirmationPDF({
+        booking,
+        property,
+        contact: contact || null,
+        profile: profile || {},
+        confirmationNumber,
+      });
+      await Share.share({
+        url: uri,
+        type: 'application/pdf',
+        title: t('bdBookingDates') || 'Подтверждение бронирования',
+      });
+    } catch (e) {
+      Alert.alert(t('error'), e.message || 'Не удалось создать PDF');
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
   const b = booking || {};
@@ -191,8 +236,12 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
           <Image source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
         </TouchableOpacity>
         <View style={styles.actionsRight}>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleGenerateConfirmation} activeOpacity={0.7}>
-            <Image source={require('../../assets/icon-booking-confirmation.png')} style={styles.actionIcon} resizeMode="contain" />
+          <TouchableOpacity style={styles.actionBtn} onPress={handleGenerateConfirmation} activeOpacity={0.7} disabled={generatingPdf}>
+            {generatingPdf ? (
+              <ActivityIndicator size="small" color="#5DB8D4" />
+            ) : (
+              <Image source={require('../../assets/icon-booking-confirmation.png')} style={styles.actionIcon} resizeMode="contain" />
+            )}
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionBtn} onPress={() => onEdit?.(b)} activeOpacity={0.7}>
             <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
@@ -257,8 +306,20 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{t('bdBookingDates')}</Text>
-          <DetailRow label={t('bookingCheckIn')} value={formatBookingDate(b.checkIn)} />
-          <DetailRow label={t('bookingCheckOut')} value={formatBookingDate(b.checkOut)} />
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>{t('bookingCheckIn')}</Text>
+            <View style={styles.detailValueRow}>
+              <Text style={styles.detailValue}>{formatBookingDate(b.checkIn)}</Text>
+              {b.checkInTime ? <Text style={[styles.detailValue, styles.detailValueTime]}>{b.checkInTime}</Text> : null}
+            </View>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>{t('bookingCheckOut')}</Text>
+            <View style={styles.detailValueRow}>
+              <Text style={styles.detailValue}>{formatBookingDate(b.checkOut)}</Text>
+              {b.checkOutTime ? <Text style={[styles.detailValue, styles.detailValueTime]}>{b.checkOutTime}</Text> : null}
+            </View>
+          </View>
         </View>
 
         {(contact || loadingContact || b.contactId || b.notMyCustomer) ? (
@@ -444,6 +505,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: COLORS.title,
+  },
+  detailValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  detailValueTime: {
+    marginLeft: 20,
   },
   loader: {
     marginVertical: 8,

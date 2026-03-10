@@ -661,19 +661,32 @@ function StepAdditional({ data, setData, t, propertyType }) {
 
 function PriceFieldWithFrom({ label, value, onChangeText, isFrom, dataKey, setData, t }) {
   return (
-    <>
-      <Field label={label} value={value} onChangeText={onChangeText} keyboardType="numeric" />
-      <View style={s.priceFromRow}>
-        <Text style={s.priceFromLabel}>{t('priceFrom')}</Text>
-        <TouchableOpacity
-          style={[s.toggleTrack, isFrom && s.toggleTrackOn]}
-          onPress={() => setData(d => ({ ...d, [dataKey]: !d[dataKey] }))}
-          activeOpacity={0.7}
-        >
-          <View style={[s.toggleThumb, isFrom && s.toggleThumbOn]} />
-        </TouchableOpacity>
+    <View style={s.fieldWrap}>
+      <View style={s.priceFromLabelRow}>
+        <Text style={s.fieldLabel}>{label}</Text>
+        <View style={s.priceFromToggleWrap}>
+          <Text style={s.priceFromLabel}>{t('priceFrom')}</Text>
+          <TouchableOpacity
+            style={[s.toggleTrackSmall, isFrom && s.toggleTrackOn]}
+            onPress={() => setData(d => ({ ...d, [dataKey]: !d[dataKey] }))}
+            activeOpacity={0.7}
+          >
+            <View style={[s.toggleThumbSmall, isFrom && s.toggleThumbOn]} />
+          </TouchableOpacity>
+        </View>
       </View>
-    </>
+      <TextInput
+        style={s.input}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder=""
+        placeholderTextColor="#999"
+        keyboardType="numeric"
+        returnKeyType="done"
+        blurOnSubmit
+        onSubmitEditing={Keyboard.dismiss}
+      />
+    </View>
   );
 }
 
@@ -1132,11 +1145,21 @@ const s = StyleSheet.create({
   },
   toggleThumbOn: { alignSelf: 'flex-end', backgroundColor: '#4CAF50' },
 
-  priceFromRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end',
-    marginBottom: 14, paddingRight: 4,
+  priceFromLabelRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6,
   },
-  priceFromLabel: { fontSize: 14, color: '#6B6B6B', marginRight: 10 },
+  priceFromToggleWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
+  priceFromLabel: { fontSize: 12, color: '#6B6B6B' },
+  toggleTrackSmall: {
+    width: 36, height: 20, borderRadius: 10,
+    backgroundColor: '#D5D5D0', justifyContent: 'center', paddingHorizontal: 2,
+  },
+  toggleThumbSmall: {
+    width: 16, height: 16, borderRadius: 8, backgroundColor: '#FFF',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2, elevation: 2,
+  },
 
   waterTypeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   waterTypeBtn: {

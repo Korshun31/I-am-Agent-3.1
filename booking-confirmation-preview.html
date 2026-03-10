@@ -50,18 +50,12 @@
     .logo {
       width: 48px;
       height: 48px;
-      background: var(--accent);
-      border-radius: 6px;
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
-      font-weight: bold;
-      font-size: 10px;
-      text-align: center;
-      line-height: 1.2;
-      flex-shrink: 0;
     }
+    .logo svg { display: block; }
     .company { flex: 1; min-width: 0; }
     .company-name { font-size: 15px; font-weight: 700; color: var(--title); margin-bottom: 2px; }
     .company-addr { font-size: 11px; color: var(--subtitle); line-height: 1.3; }
@@ -108,7 +102,15 @@
     .section.obj { background: rgba(255,183,77,0.35); border-color: #FFB74D; }
     .section.guest { background: var(--block-yellow); border-color: var(--block-yellow-border); }
     .section.dates { background: var(--block-green); border-color: var(--block-green-border); }
-    .section.finance { background: var(--block-blue); border-color: var(--block-blue-border); }
+    .section.finance {
+      background: var(--block-blue);
+      border-color: var(--block-blue-border);
+      display: flex;
+      flex-direction: column;
+      align-self: stretch;
+      margin-bottom: 0;
+    }
+    .section.finance .footnotes { margin-top: auto; }
     .section.cond { background: rgba(248,187,208,0.3); border-color: #F48FB1; }
     .grid-2 + .section { margin-top: 12px; }
     .section-title {
@@ -122,7 +124,6 @@
       letter-spacing: 0.4px;
       margin-bottom: 6px;
     }
-    .section-title .icon { width: 14px; height: 14px; flex-shrink: 0; }
     table.info {
       width: 100%;
       border-collapse: collapse;
@@ -133,7 +134,7 @@
       vertical-align: top;
     }
     table.info td:first-child {
-      color: var(--label);
+      color: var(--title);
       width: 90px;
     }
     table.info td.bold { font-weight: 700; }
@@ -158,6 +159,10 @@
       font-style: italic;
       margin-top: 2px;
     }
+    .payment-plan-table { margin-top: 10px; width: 100%; border-collapse: collapse; font-size: 11px; color: var(--subtitle); border: none; }
+    .payment-plan-table td { padding: 4px 8px; border: none; vertical-align: top; }
+    .payment-plan-table .payment-date { font-weight: 700; color: var(--title); white-space: nowrap; width: 1%; }
+    .payment-plan-table .payment-amount { text-align: right; white-space: nowrap; width: 1%; }
     .footnotes {
       margin-top: 8px;
       padding-top: 8px;
@@ -214,7 +219,7 @@
 <body>
   <div class="page">
     <div class="header">
-      <div class="logo">LOGO</div>
+      <div class="logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 48" width="48" height="48"><rect x="2" y="8" width="12" height="32" rx="3" fill="#D87A5C" transform="rotate(-8 8 24)"/><rect x="18" y="6" width="12" height="32" rx="3" fill="#E5B84A" transform="rotate(-4 24 22)"/><rect x="34" y="4" width="12" height="32" rx="3" fill="#8BA882" transform="rotate(0 40 20)"/><rect x="50" y="6" width="12" height="32" rx="3" fill="#5BA3A8" transform="rotate(4 56 22)"/><rect x="66" y="8" width="12" height="32" rx="3" fill="#3D7D82" transform="rotate(8 72 24)"/></svg></div>
       <div class="company">
         <div class="company-name">Co LTD Samui 3.1</div>
         <div class="company-addr">123 Moo 1, Chaweng, Koh Samui, Surat Thani 84320</div>
@@ -231,20 +236,19 @@
     <div class="grid-2">
       <div class="left-col">
         <div class="section obj">
-          <div class="section-title">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-            Объект
-          </div>
+          <div class="section-title">Арендуемый объект недвижимости</div>
           <table class="info">
-            <tr><td>Название</td><td class="bold">Villa Ocean View A-12</td></tr>
+            <tr><td>Название</td><td class="bold">Tree villas<br>Односпальный дом BT001 (30)</td></tr>
             <tr><td>Адрес</td><td>45/2 Moo 4, Bophut, Koh Samui 84320</td></tr>
+            <tr><td>Спален</td><td>1</td></tr>
+            <tr><td>Санузлов</td><td>1</td></tr>
+            <tr><td>До пляжа</td><td>150 м</td></tr>
+            <tr><td>До магазина</td><td>200 м</td></tr>
+            <tr><td>Контакты агента</td><td>+7 999 123-45-67</td></tr>
           </table>
         </div>
         <div class="section guest">
-          <div class="section-title">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
-            Гость
-          </div>
+          <div class="section-title">Информация о клиенте</div>
           <table class="info">
             <tr><td>ФИО</td><td class="bold">Иван Петрович Сидоров</td></tr>
             <tr><td>Паспорт</td><td>AB 1234567</td></tr>
@@ -253,10 +257,7 @@
           </table>
         </div>
         <div class="section dates">
-          <div class="section-title">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-            Даты проживания
-          </div>
+          <div class="section-title">Даты проживания</div>
           <table class="info">
             <tr><td>Заезд</td><td>15.03.2025, 14:00</td></tr>
             <tr><td>Выезд</td><td>15.05.2025, 12:00</td></tr>
@@ -265,20 +266,27 @@
         </div>
       </div>
       <div class="section finance">
-        <div class="section-title">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-          Финансы
-        </div>
+        <div class="section-title">Финансы</div>
         <table class="finance-table">
           <tr><th>Наименование</th><th class="number">Thb</th></tr>
+          <tr><td>Аренда за месяц</td><td class="number">50 000</td></tr>
           <tr><td>Аренда (15.03.2025 – 15.05.2025)</td><td class="number">100 000</td></tr>
           <tr><td>Депозит бронирования<sup>1</sup></td><td class="number">30 000</td></tr>
           <tr><td>Сохранный депозит<sup>2</sup></td><td class="number">40 000</td></tr>
-          <tr class="total"><td>Итого</td><td class="number">170 000</td></tr>
-          <tr><td>Оплачено</td><td class="number">50 000</td></tr>
-          <tr class="total"><td>Остаток</td><td class="number">120 000</td></tr>
+          <tr class="total"><td>Итого</td><td class="number">140 000</td></tr>
+          <tr><td>Оплачено</td><td class="number">30 000</td></tr>
+          <tr class="total"><td>Остаток</td><td class="number">110 000</td></tr>
         </table>
-        <div class="formula">Сумма сохранного депозита указывается в бронировании.</div>
+        <div class="formula">Итого = аренда за период + сохранный депозит. Депозит бронирования входит в оплату первого месяца.</div>
+        <table class="payment-plan-table">
+          <tbody>
+            <tr><td class="payment-date">06.03.2025</td><td>«Депозит бронирования»</td><td class="payment-amount">30 000 Thb</td></tr>
+            <tr><td class="payment-date">15.03.2025</td><td>Доплата за первый месяц аренды (15.03.2025 - 15.04.2025)</td><td class="payment-amount">20 000 Thb</td></tr>
+            <tr><td class="payment-date">15.03.2025</td><td>«Сохранный депозит»</td><td class="payment-amount">40 000 Thb</td></tr>
+            <tr><td class="payment-date">15.04.2025</td><td>Оплата второго месяца (15.04.2025 - 15.05.2025)</td><td class="payment-amount">50 000 Thb</td></tr>
+            <tr><td class="payment-date">15.05.2025</td><td>Возврат «Сохранного депозита»</td><td class="payment-amount">40 000 Thb</td></tr>
+          </tbody>
+        </table>
         <div class="footnotes">
           <p><sup>1</sup> Депозит бронирования гарантирует приезд и заселение клиента. При неявке клиента депозит остаётся у собственника и не возвращается. При заселении депозит засчитывается в оплату первого месяца — клиент доплачивает лишь разницу.</p>
           <p><sup>2</sup> Сохранный депозит вносится однократно при заселении. Является гарантией оплаты коммунальных услуг и возмещения незначительных повреждений. Не покрывает крупные повреждения: например, при поломке телевизора клиент оплачивает его стоимость отдельно. Возвращается при выселении за вычетом коммунальных затрат за последний месяц проживания.</p>
@@ -287,10 +295,7 @@
     </div>
 
     <div class="section cond">
-      <div class="section-title">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
-        Условия
-      </div>
+      <div class="section-title">Условия</div>
       <p class="conditions">
         При заезде внести оставшуюся сумму и страховой депозит. Возврат депозита — после проверки объекта в течение 14 дней с даты выезда.
       </p>

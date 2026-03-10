@@ -266,6 +266,12 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
             <Text style={[styles.contactText, styles.contactTextLink]}>{email}</Text>
           </TouchableOpacity>
         ) : null}
+        {documentNumber ? (
+          <View style={styles.contactRow}>
+            <Image source={require('../../assets/icon-passport-id.png')} style={styles.contactIconImage} resizeMode="contain" />
+            <Text style={[styles.contactText, styles.contactTextBold]}>{documentNumber}</Text>
+          </View>
+        ) : null}
         {extraEmails && extraEmails.length > 0
           ? extraEmails.map((e, i) => (e ? (
               <TouchableOpacity key={`email-${i}`} style={styles.contactRow} onPress={() => openEmail(e)} activeOpacity={0.7}>
@@ -703,6 +709,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: COLORS.contactLink,
+  },
+  contactTextBold: {
+    fontWeight: '700',
   },
   menuBlock: {
     flexDirection: 'row',
