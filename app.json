@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "I am Agent",
+    "name": "I am Agent 3.1",
     "slug": "i-am-agent",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -13,13 +13,20 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.iamagent.app"
+      "bundleIdentifier": "com.iamagent.app31",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#F5F2EB"
       },
-      "package": "com.iamagent.app"
+      "package": "com.iamagent.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "single"
@@ -39,6 +46,12 @@
           "sounds": []
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "089db545-b4ef-448f-8486-57275d72c0f1"
+      }
+    },
+    "owner": "korshun31"
   }
 }
