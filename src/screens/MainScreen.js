@@ -39,6 +39,7 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
             user={user || {}}
             onUserUpdate={onUserUpdate}
             onOpenContacts={() => setScreenWithinAccount('contacts')}
+            isVisible={activeTab === 3}
           />
         )}
       </View>

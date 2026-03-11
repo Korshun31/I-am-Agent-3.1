@@ -13,6 +13,18 @@ const TAB_KEYS = [
 
 const OVERLAP = 22;
 
+// Светлая версия цвета вкладки для естественного выпуклого блика (не белый)
+function lightenForBevel(hex, amount = 0.55) {
+  const c = hex.replace('#', '').slice(0, 6);
+  const r = parseInt(c.slice(0, 2), 16);
+  const g = parseInt(c.slice(2, 4), 16);
+  const b = parseInt(c.slice(4, 6), 16);
+  const lr = Math.round(r + (255 - r) * amount);
+  const lg = Math.round(g + (255 - g) * amount);
+  const lb = Math.round(b + (255 - b) * amount);
+  return `rgba(${lr},${lg},${lb},0.55)`;
+}
+
 export default function BottomNav({ activeTab, onSelect }) {
   const { t } = useLanguage();
   return (
@@ -34,7 +46,11 @@ export default function BottomNav({ activeTab, onSelect }) {
               <View
                 style={[
                   styles.tabActive,
-                  { backgroundColor: tab.color },
+                  {
+                    backgroundColor: tab.color,
+                    borderTopColor: lightenForBevel(tab.color),
+                    borderLeftColor: lightenForBevel(tab.color, 0.45),
+                  },
                 ]}
               >
                 {typeof tab.icon === 'string' ? (
@@ -50,9 +66,14 @@ export default function BottomNav({ activeTab, onSelect }) {
               <View
                 style={[
                   styles.tabInactiveBlock,
-                  { backgroundColor: tab.color },
+                  {
+                    backgroundColor: tab.color,
+                    borderTopColor: lightenForBevel(tab.color),
+                    borderLeftColor: lightenForBevel(tab.color, 0.45),
+                  },
                   index === 0 && styles.tabInactiveFirst,
                   index > 0 && styles.tabInactiveOverlap,
+                  index > 0 && styles.tabShadowOverlap,
                 ]}
               >
                 {typeof tab.icon === 'string' ? (
@@ -97,6 +118,12 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderBottomWidth: 1,
+    borderRightWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderRightColor: 'rgba(0,0,0,0.08)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
@@ -108,6 +135,12 @@ const styles = StyleSheet.create({
   },
   tabInactiveOverlap: {
     borderTopLeftRadius: 16,
+  },
+  tabShadowOverlap: {
+    shadowColor: '#000',
+    shadowOffset: { width: -2, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
   tabInactiveIcon: {
     fontSize: 24,
@@ -128,6 +161,12 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderBottomWidth: 1,
+    borderRightWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.12)',
+    borderRightColor: 'rgba(0,0,0,0.1)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.14,

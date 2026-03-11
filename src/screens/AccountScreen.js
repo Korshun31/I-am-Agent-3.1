@@ -43,7 +43,7 @@ const SETTINGS_EXPANDED_HEIGHT = 122;
 const LOCATIONS_BOTTOM_PADDING = 10;
 const ANIM_DURATION = 280;
 
-export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpenContacts }) {
+export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpenContacts, isVisible }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsClosing, setSettingsClosing] = useState(false);
   const [locationsOpen, setLocationsOpen] = useState(false);
@@ -61,6 +61,9 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
   const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
   const [locationsContentHeight, setLocationsContentHeight] = useState(0);
   const [allowChangePassword, setAllowChangePassword] = useState(false);
+  const [companySectionOpen, setCompanySectionOpen] = useState(false);
+  const [companyClosing, setCompanyClosing] = useState(false);
+  const [companyContentHeight, setCompanyContentHeight] = useState(0);
   const [propertyStats, setPropertyStats] = useState({ standaloneHouses: 0, resortCount: 0, resortHouses: 0, condoCount: 0, condoApartments: 0, total: 0 });
   const [settingsContentHeight, setSettingsContentHeight] = useState(0);
   const { language, setLanguage, t } = useLanguage();
@@ -68,9 +71,14 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
   const settingsWasOpen = useRef(false);
   const locationsHeight = useRef(new Animated.Value(0)).current;
   const locationsWasOpen = useRef(false);
+  const companyHeight = useRef(new Animated.Value(0)).current;
+  const companyWasOpen = useRef(false);
+  const prevTabVisible = useRef(false);
   const { email = '', name = '', lastName = '', phone = '', telegram = '', documentNumber = '', extraPhones = [], extraEmails = [], whatsapp = '', photoUri = '', workAs = '', companyInfo = {} } = user;
 
   const displayName = [name, lastName].filter(Boolean).join(' ') || name || null;
+
+  const hasCompanyInfo = workAs === 'company' && companyInfo && (companyInfo.name || companyInfo.phone || companyInfo.email);
 
   const openPhone = (number) => {
     const clean = (number || '').replace(/\s/g, '');
@@ -122,6 +130,20 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
   }, [settingsOpen, settingsHeight, settingsContentHeight]);
 
   useEffect(() => {
+    const toValue = companySectionOpen ? companyContentHeight : 0;
+    const wasOpen = companyWasOpen.current;
+    companyWasOpen.current = companySectionOpen;
+    if (wasOpen && !companySectionOpen) setCompanyClosing(true);
+    Animated.timing(companyHeight, {
+      toValue,
+      duration: ANIM_DURATION,
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished && toValue === 0) setCompanyClosing(false);
+    });
+  }, [companySectionOpen, companyHeight, companyContentHeight]);
+
+  useEffect(() => {
     const toValue = locationsOpen ? locationsContentHeight + LOCATIONS_BOTTOM_PADDING : 0;
     const wasOpen = locationsWasOpen.current;
     locationsWasOpen.current = locationsOpen;
@@ -169,6 +191,15 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
       });
     } catch {}
   };
+
+  useEffect(() => {
+    if (isVisible && !prevTabVisible.current) {
+      setCompanySectionOpen(false);
+      setSettingsOpen(false);
+      setLocationsOpen(false);
+    }
+    prevTabVisible.current = isVisible;
+  }, [isVisible]);
 
   useEffect(() => {
     if (!email) return;
@@ -239,7 +270,7 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-      <View style={styles.myDetailsBlock}>
+      <View style={[styles.myDetailsBlock, hasCompanyInfo && styles.myDetailsBlockWithCompany]}>
         <View style={styles.myDetailsTitleRow}>
           <Text style={styles.myDetailsTitle}>{t('myDetails')}</Text>
           <TouchableOpacity
@@ -251,24 +282,30 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
           </TouchableOpacity>
         </View>
         {phone ? (
-          <TouchableOpacity style={styles.contactRow} onPress={() => openPhone(phone)} activeOpacity={0.7}>
+          <View style={styles.contactRow}>
             <Image source={require('../../assets/icon-contact-phone.png')} style={styles.contactIconImage} resizeMode="contain" />
-            <Text style={[styles.contactText, styles.contactTextLink]}>{phone}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity onPress={() => openPhone(phone)} activeOpacity={0.7}>
+              <Text style={[styles.contactText, styles.contactTextLink]}>{phone}</Text>
+            </TouchableOpacity>
+          </View>
         ) : null}
         {extraPhones && extraPhones.length > 0
           ? extraPhones.map((p, i) => (p ? (
-              <TouchableOpacity key={i} style={styles.contactRow} onPress={() => openPhone(p)} activeOpacity={0.7}>
+              <View key={i} style={styles.contactRow}>
                 <Image source={require('../../assets/icon-contact-phone.png')} style={styles.contactIconImage} resizeMode="contain" />
-                <Text style={[styles.contactText, styles.contactTextLink]}>{p}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity onPress={() => openPhone(p)} activeOpacity={0.7}>
+                  <Text style={[styles.contactText, styles.contactTextLink]}>{p}</Text>
+                </TouchableOpacity>
+              </View>
             ) : null))
           : null}
         {email ? (
-          <TouchableOpacity style={styles.contactRow} onPress={() => openEmail(email)} activeOpacity={0.7}>
+          <View style={styles.contactRow}>
             <Image source={require('../../assets/icon-contact-email.png')} style={styles.contactIconImage} resizeMode="contain" />
-            <Text style={[styles.contactText, styles.contactTextLink]}>{email}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity onPress={() => openEmail(email)} activeOpacity={0.7}>
+              <Text style={[styles.contactText, styles.contactTextLink]}>{email}</Text>
+            </TouchableOpacity>
+          </View>
         ) : null}
         {documentNumber ? (
           <View style={styles.contactRow}>
@@ -278,47 +315,63 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
         ) : null}
         {extraEmails && extraEmails.length > 0
           ? extraEmails.map((e, i) => (e ? (
-              <TouchableOpacity key={`email-${i}`} style={styles.contactRow} onPress={() => openEmail(e)} activeOpacity={0.7}>
+              <View key={`email-${i}`} style={styles.contactRow}>
                 <Image source={require('../../assets/icon-contact-email.png')} style={styles.contactIconImage} resizeMode="contain" />
-                <Text style={[styles.contactText, styles.contactTextLink]}>{e}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity onPress={() => openEmail(e)} activeOpacity={0.7}>
+                  <Text style={[styles.contactText, styles.contactTextLink]}>{e}</Text>
+                </TouchableOpacity>
+              </View>
             ) : null))
           : null}
         {telegram ? (
-          <TouchableOpacity style={styles.contactRow} onPress={() => openTelegram(telegram)} activeOpacity={0.7}>
+          <View style={styles.contactRow}>
             <Image source={require('../../assets/icon-contact-telegram.png')} style={styles.contactIconImage} resizeMode="contain" />
-            <Text style={[styles.contactText, styles.contactTextLink]}>{telegram}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity onPress={() => openTelegram(telegram)} activeOpacity={0.7}>
+              <Text style={[styles.contactText, styles.contactTextLink]}>{telegram}</Text>
+            </TouchableOpacity>
+          </View>
         ) : null}
         {whatsapp ? (
-          <TouchableOpacity style={styles.contactRow} onPress={() => openWhatsApp(whatsapp)} activeOpacity={0.7}>
+          <View style={styles.contactRow}>
             <Image source={require('../../assets/icon-contact-whatsapp.png')} style={styles.contactIconImage} resizeMode="contain" />
-            <Text style={[styles.contactText, styles.contactTextLink]}>{whatsapp}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity onPress={() => openWhatsApp(whatsapp)} activeOpacity={0.7}>
+              <Text style={[styles.contactText, styles.contactTextLink]}>{whatsapp}</Text>
+            </TouchableOpacity>
+          </View>
         ) : null}
 
-        {workAs === 'company' && companyInfo && (companyInfo.name || companyInfo.phone || companyInfo.email) ? (
+        {hasCompanyInfo ? (
           <>
-            <View style={[styles.myDetailsTitleRow, { marginTop: 20, marginBottom: 24 }]}>
-              <Text style={styles.myDetailsTitle}>{t('myCompany')}</Text>
-            </View>
-            {companyInfo.name ? (
-              <View style={styles.contactRow}>
-                <Text style={[styles.contactText, styles.contactTextBold]}>{companyInfo.name}</Text>
+            <TouchableOpacity
+              style={styles.companyTriangleCorner}
+              onPress={() => setCompanySectionOpen(!companySectionOpen)}
+              activeOpacity={0.8}
+            >
+              <Image
+                source={require('../../assets/chevron-down.png')}
+                style={[styles.companyChevronSame, companySectionOpen && styles.companyChevronRotated]}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+            <View
+              style={styles.companyMeasureWrap}
+              onLayout={(e) => setCompanyContentHeight(e.nativeEvent.layout.height)}
+            >
+              <View style={[styles.myDetailsTitleRow, styles.companyToggleRow]}>
+                <Text style={styles.myDetailsTitle}>{t('myCompany')}</Text>
               </View>
-            ) : null}
-            {companyInfo.phone ? (
-              <TouchableOpacity style={styles.contactRow} onPress={() => openPhone(companyInfo.phone)} activeOpacity={0.7}>
-                <Image source={require('../../assets/icon-contact-phone.png')} style={styles.contactIconImage} resizeMode="contain" />
-                <Text style={[styles.contactText, styles.contactTextLink]}>{companyInfo.phone}</Text>
-              </TouchableOpacity>
-            ) : null}
-            {companyInfo.email ? (
-              <TouchableOpacity style={styles.contactRow} onPress={() => openEmail(companyInfo.email)} activeOpacity={0.7}>
-                <Image source={require('../../assets/icon-contact-email.png')} style={styles.contactIconImage} resizeMode="contain" />
-                <Text style={[styles.contactText, styles.contactTextLink]}>{companyInfo.email}</Text>
-              </TouchableOpacity>
-            ) : null}
+              {companyInfo.name ? <View style={styles.contactRow}><Text style={[styles.contactText, styles.contactTextBold]}>{companyInfo.name}</Text></View> : null}
+              {companyInfo.phone ? <View style={styles.contactRow}><Image source={require('../../assets/icon-contact-phone.png')} style={styles.contactIconImage} resizeMode="contain" /><TouchableOpacity onPress={() => openPhone(companyInfo.phone)} activeOpacity={0.7}><Text style={[styles.contactText, styles.contactTextLink]}>{companyInfo.phone}</Text></TouchableOpacity></View> : null}
+              {companyInfo.email ? <View style={styles.contactRow}><Image source={require('../../assets/icon-contact-email.png')} style={styles.contactIconImage} resizeMode="contain" /><TouchableOpacity onPress={() => openEmail(companyInfo.email)} activeOpacity={0.7}><Text style={[styles.contactText, styles.contactTextLink]}>{companyInfo.email}</Text></TouchableOpacity></View> : null}
+            </View>
+            <Animated.View style={[styles.companyExpandedWrap, { height: companyHeight, overflow: 'hidden' }]}>
+              <View style={[styles.myDetailsTitleRow, styles.companyToggleRow]}>
+                <Text style={styles.myDetailsTitle}>{t('myCompany')}</Text>
+              </View>
+              {companyInfo.name ? <View style={styles.contactRow}><Text style={[styles.contactText, styles.contactTextBold]}>{companyInfo.name}</Text></View> : null}
+              {companyInfo.phone ? <View style={styles.contactRow}><Image source={require('../../assets/icon-contact-phone.png')} style={styles.contactIconImage} resizeMode="contain" /><TouchableOpacity onPress={() => openPhone(companyInfo.phone)} activeOpacity={0.7}><Text style={[styles.contactText, styles.contactTextLink]}>{companyInfo.phone}</Text></TouchableOpacity></View> : null}
+              {companyInfo.email ? <View style={styles.contactRow}><Image source={require('../../assets/icon-contact-email.png')} style={styles.contactIconImage} resizeMode="contain" /><TouchableOpacity onPress={() => openEmail(companyInfo.email)} activeOpacity={0.7}><Text style={[styles.contactText, styles.contactTextLink]}>{companyInfo.email}</Text></TouchableOpacity></View> : null}
+            </Animated.View>
           </>
         ) : null}
       </View>
@@ -733,6 +786,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  myDetailsBlockWithCompany: {
+    position: 'relative',
+  },
   myDetailsTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -934,8 +990,38 @@ const styles = StyleSheet.create({
   chevronIcon: {
     width: 14,
     height: 10,
+    marginRight: 4,
   },
   chevronIconOpen: {
+    transform: [{ rotate: '180deg' }],
+  },
+  companyToggleRow: {
+    marginTop: 20,
+  },
+  companyTriangleCorner: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    padding: 4,
+    zIndex: 10,
+    elevation: 10,
+  },
+  companyMeasureWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: -9999,
+    opacity: 0,
+  },
+  companyExpandedWrap: {
+    marginTop: 0,
+  },
+  companyChevronSame: {
+    width: 14,
+    height: 10,
+    transform: [{ rotate: '0deg' }],
+  },
+  companyChevronRotated: {
     transform: [{ rotate: '180deg' }],
   },
   bottomSpacer: { height: 20 },
