@@ -7,7 +7,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "postinstall": "patch-package && node scripts/patch-calendar-eu-week.js"
+    "postinstall": "(patch-package || true) && node scripts/patch-calendar-eu-week.js",
+    "verify-build": "node scripts/verify-build.js",
+    "build:ios": "npm run verify-build && eas build --platform ios"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

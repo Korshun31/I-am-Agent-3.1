@@ -30,6 +30,7 @@ import ContactDetailScreen from './ContactDetailScreen';
 import PropertyDetailScreen from './PropertyDetailScreen';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
+const BOTTOM_NAV_PADDING = 88;
 const ROW_HEIGHT = 45;
 const CHAR_WIDTH = 8;
 const COL_PADDING = 13;
@@ -644,6 +645,7 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
                 <ScrollView
                   ref={rightVerticalRef}
                   style={styles.gridScroll}
+                  contentContainerStyle={{ paddingBottom: BOTTOM_NAV_PADDING }}
                   showsVerticalScrollIndicator={true}
                   onScroll={handleRightVerticalScroll}
                   scrollEventThrottle={16}
@@ -1052,7 +1054,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   leftColContent: {
-    paddingBottom: 100,
+    paddingBottom: BOTTOM_NAV_PADDING,
   },
   yearCell: {
     height: ROW_HEIGHT,

@@ -22,7 +22,6 @@ import AddLocationsModal from '../components/AddLocationsModal';
 import { useLanguage } from '../context/LanguageContext';
 import { updateUserProfile, getCurrentUser, canChangePassword } from '../services/authService';
 import { getLocations, createLocation, updateLocation, deleteLocation, setLocationDistricts } from '../services/locationsService';
-import { getProperties } from '../services/propertiesService';
 
 const COLORS = {
   background: '#F5F2EB',
@@ -32,6 +31,7 @@ const COLORS = {
   settingsGreen: '#C5E3A8',
   locationsBlue: '#A8D0E6',
   contactsPink: '#E8B8C8',
+  statisticsPurple: '#B8A9C8',
   iconGray: '#6B6B6B',
   logoutRed: '#E85D4C',
   contactLink: '#D81B60',
@@ -43,7 +43,7 @@ const SETTINGS_EXPANDED_HEIGHT = 122;
 const LOCATIONS_BOTTOM_PADDING = 10;
 const ANIM_DURATION = 280;
 
-export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpenContacts, isVisible }) {
+export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpenContacts, onOpenStatistics, isVisible }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsClosing, setSettingsClosing] = useState(false);
   const [locationsOpen, setLocationsOpen] = useState(false);
@@ -64,7 +64,6 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
   const [companySectionOpen, setCompanySectionOpen] = useState(false);
   const [companyClosing, setCompanyClosing] = useState(false);
   const [companyContentHeight, setCompanyContentHeight] = useState(0);
-  const [propertyStats, setPropertyStats] = useState({ standaloneHouses: 0, resortCount: 0, resortHouses: 0, condoCount: 0, condoApartments: 0, total: 0 });
   const [settingsContentHeight, setSettingsContentHeight] = useState(0);
   const { language, setLanguage, t } = useLanguage();
   const settingsHeight = useRef(new Animated.Value(0)).current;
@@ -172,26 +171,6 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
     refreshCanChangePassword();
   }, [user?.id]);
 
-  const loadPropertyStats = async () => {
-    try {
-      const all = await getProperties();
-      const getParent = (id) => all.find((p) => p.id === id);
-      const standaloneHouses = all.filter((p) => p.type === 'house' && !p.resort_id).length;
-      const resortCount = all.filter((p) => p.type === 'resort' && !p.resort_id).length;
-      const resortHouses = all.filter((p) => p.type === 'house' && p.resort_id && getParent(p.resort_id)?.type === 'resort').length;
-      const condoCount = all.filter((p) => p.type === 'condo' && !p.resort_id).length;
-      const condoApartments = all.filter((p) => p.type === 'house' && p.resort_id && getParent(p.resort_id)?.type === 'condo').length;
-      setPropertyStats({
-        standaloneHouses,
-        resortCount,
-        resortHouses,
-        condoCount,
-        condoApartments,
-        total: standaloneHouses + resortHouses + condoApartments,
-      });
-    } catch {}
-  };
-
   useEffect(() => {
     if (isVisible && !prevTabVisible.current) {
       setCompanySectionOpen(false);
@@ -203,7 +182,6 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
 
   useEffect(() => {
     if (!email) return;
-    loadPropertyStats();
     getCurrentUser().then((profile) => {
       if (!profile) return;
       if (profile.language && ['en', 'th', 'ru'].includes(profile.language)) setLanguage(profile.language);
@@ -243,26 +221,6 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
             <View style={styles.avatar} />
           )}
           {displayName ? <Text style={styles.agentName}>{displayName}</Text> : null}
-        </View>
-        <View style={styles.statsBlock}>
-          <View style={styles.statsRow}>
-            <View style={styles.statsItem}>
-              <Image source={require('../../assets/icon-property-house-stats.png')} style={styles.statsIconLarge} resizeMode="contain" />
-              <Text style={styles.statsValueGreen}>{propertyStats.standaloneHouses}</Text>
-            </View>
-            <View style={styles.statsItem}>
-              <Image source={require('../../assets/icon-property-resort-stats.png')} style={styles.statsIconLarge} resizeMode="contain" />
-              <Text style={styles.statsValueWrap}><Text style={styles.statsValueSmall}>{propertyStats.resortCount}</Text><Text style={styles.statsValueSlash}> / </Text><Text style={styles.statsValueGreen}>{propertyStats.resortHouses}</Text></Text>
-            </View>
-            <View style={styles.statsItem}>
-              <Image source={require('../../assets/icon-property-condo-stats.png')} style={styles.statsIcon} resizeMode="contain" />
-              <Text style={styles.statsValueWrap}><Text style={styles.statsValueSmall}>{propertyStats.condoCount}</Text><Text style={styles.statsValueSlash}> / </Text><Text style={styles.statsValueGreen}>{propertyStats.condoApartments}</Text></Text>
-            </View>
-            <View style={styles.statsItem}>
-              <Image source={require('../../assets/icon-sum.png')} style={styles.statsIconSum} resizeMode="contain" />
-              <Text style={styles.statsValueGreen}>{propertyStats.total}</Text>
-            </View>
-          </View>
         </View>
       </View>
       <ScrollView
@@ -517,6 +475,18 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
         </View>
       </TouchableOpacity>
 
+      {/* Statistics — переход на экран статистики */}
+      <TouchableOpacity
+        style={[styles.menuBlock, styles.statisticsBlock]}
+        activeOpacity={0.85}
+        onPress={() => onOpenStatistics?.()}
+      >
+        <View style={styles.menuBlockLeft}>
+          <Image source={require('../../assets/icon-sum.png')} style={styles.menuBlockIconImage} resizeMode="contain" />
+          <Text style={styles.menuBlockLabel}>{t('statistics')}</Text>
+        </View>
+      </TouchableOpacity>
+
       <View style={styles.bottomSpacer} />
       </ScrollView>
     </View>
@@ -712,65 +682,6 @@ const styles = StyleSheet.create({
   agentName: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.title,
-  },
-  statsBlock: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    marginBottom: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  statsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statsIcon: {
-    width: 28,
-    height: 28,
-  },
-  statsIconLarge: {
-    width: 31,
-    height: 31,
-  },
-  statsIconSum: {
-    width: 24,
-    height: 24,
-  },
-  statsValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.title,
-  },
-  statsValueSmall: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.title,
-  },
-  statsValueGreen: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2E7D32',
-  },
-  statsValueWrap: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.title,
-  },
-  statsValueSlash: {
-    fontSize: 16,
-    fontWeight: '400',
     color: COLORS.title,
   },
   myDetailsBlock: {
@@ -976,6 +887,7 @@ const styles = StyleSheet.create({
     color: COLORS.contactLink,
   },
   contactsBlock: { backgroundColor: COLORS.contactsPink },
+  statisticsBlock: { backgroundColor: COLORS.statisticsPurple },
   menuBlockIcon: { fontSize: 22, marginRight: 12 },
   menuBlockIconImage: {
     width: 26,

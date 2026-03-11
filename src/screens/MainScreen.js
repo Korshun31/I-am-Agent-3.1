@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import BottomNav from '../components/BottomNav';
 import AccountScreen from './AccountScreen';
 import ContactsScreen from './ContactsScreen';
+import StatisticsScreen from './StatisticsScreen';
 import RealEstateScreen from './RealEstateScreen';
 import BookingCalendarScreen from './BookingCalendarScreen';
 import AgentCalendarScreen from './AgentCalendarScreen';
@@ -33,12 +34,15 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
       <View style={[styles.tabPanel, activeTab !== 3 && styles.tabPanelHidden]}>
         {screenWithinAccount === 'contacts' ? (
           <ContactsScreen onBack={() => setScreenWithinAccount('account')} />
+        ) : screenWithinAccount === 'statistics' ? (
+          <StatisticsScreen onBack={() => setScreenWithinAccount('account')} />
         ) : (
           <AccountScreen
             onLogout={onLogout}
             user={user || {}}
             onUserUpdate={onUserUpdate}
             onOpenContacts={() => setScreenWithinAccount('contacts')}
+            onOpenStatistics={() => setScreenWithinAccount('statistics')}
             isVisible={activeTab === 3}
           />
         )}
