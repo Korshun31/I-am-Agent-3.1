@@ -36,7 +36,7 @@
   "devDependencies": {
     "@babel/core": "^7.25.0",
     "@types/react": "~19.1.10",
-    "patch-package": "^8.0.0",
+    "patch-package": "7.0.2",
     "sharp": "^0.34.5",
     "typescript": "~5.9.2"
   },

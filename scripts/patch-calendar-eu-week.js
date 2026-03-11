@@ -71,6 +71,10 @@ function patchDisabledDates() {
         s = s.replace('disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates', 'disabledAfterToday = _a.disabledAfterToday, dimPastDates = _a.dimPastDates, disabledDates = _a.disabledDates');
         s = s.replace('disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday}', 'disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates}');
       }
+      if (!s.includes('eventCountsByDate')) {
+        s = s.replace('occupiedCheckOutDates = _a.occupiedCheckOutDates;', 'occupiedCheckOutDates = _a.occupiedCheckOutDates, eventCountsByDate = _a.eventCountsByDate;');
+        s = s.replace('occupiedCheckOutDates={occupiedCheckOutDates}/>);', 'occupiedCheckOutDates={occupiedCheckOutDates} eventCountsByDate={eventCountsByDate || {}}/>);');
+      }
     } else if (f === 'CalendarList.js') {
       if (!s.includes('disabledDates')) {
         s = s.replace('disabledAfterToday = _a.disabledAfterToday, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates, style = _a.style;');
@@ -90,6 +94,11 @@ function patchDisabledDates() {
         s = s.replace('disabledAfterToday={disabledAfterToday} disabledDates={disabledDates}', 'disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} disabledDates={disabledDates}');
         s = s.replace('[locale.today, startDate, endDate, disabledDates, occupiedCheckInDates, occupiedCheckOutDates]', '[locale.today, startDate, endDate, disabledDates, dimPastDates, occupiedCheckInDates, occupiedCheckOutDates]');
       }
+      if (!s.includes('eventCountsByDate')) {
+        s = s.replace('occupiedCheckOutDates = _a.occupiedCheckOutDates, style = _a.style;', 'occupiedCheckOutDates = _a.occupiedCheckOutDates, eventCountsByDate = _a.eventCountsByDate, style = _a.style;');
+        s = s.replace('occupiedCheckOutDates={occupiedCheckOutDates} style={style}', 'occupiedCheckOutDates={occupiedCheckOutDates} eventCountsByDate={eventCountsByDate || {}} style={style}');
+        s = s.replace('[locale.today, startDate, endDate, disabledDates, dimPastDates, occupiedCheckInDates, occupiedCheckOutDates]', '[locale.today, startDate, endDate, disabledDates, dimPastDates, occupiedCheckInDates, occupiedCheckOutDates, eventCountsByDate]');
+      }
     } else if (f === 'Month.js') {
       if (!s.includes('disabledDates = _a.disabledDates')) {
         s = s.replace('disabledAfterToday = _a.disabledAfterToday, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates, style = _a.style;');
@@ -107,6 +116,11 @@ function patchDisabledDates() {
         s = s.replace('disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates', 'disabledAfterToday = _a.disabledAfterToday, dimPastDates = _a.dimPastDates, disabledDates = _a.disabledDates');
         s = s.replace('disabledAfterToday={disabledAfterToday} disabledDates={disabledDates}', 'disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} disabledDates={disabledDates}');
       }
+      if (!s.includes('eventCountsByDate')) {
+        s = s.replace('occupiedCheckOutDates = _a.occupiedCheckOutDates, style = _a.style;', 'occupiedCheckOutDates = _a.occupiedCheckOutDates, eventCountsByDate = _a.eventCountsByDate, style = _a.style;');
+        s = s.replace('occupiedCheckOutDates={occupiedCheckOutDates} style={style}/>', 'occupiedCheckOutDates={occupiedCheckOutDates} eventCountsByDate={eventCountsByDate || {}} style={style}/>');
+        s = s.replace('occupiedCheckOutDates={occupiedCheckOutDates} style={style}', 'occupiedCheckOutDates={occupiedCheckOutDates} eventCountsByDate={eventCountsByDate || {}} style={style}');
+      }
     } else if (f === 'Week.js') {
       if (!s.includes('disabledDates')) {
         s = s.replace('disabledAfterToday = _a.disabledAfterToday, style = _a.style;', 'disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates, style = _a.style;');
@@ -114,10 +128,9 @@ function patchDisabledDates() {
         s = s.replace('(disabledBeforeToday && day.isBeforeToday) || (disabledAfterToday && day.isAfterToday)}', 'isDisabled}');
         s = s.replace('disabledAfterToday={disabledAfterToday} style={style}/>', 'disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} style={style}/>');
       }
-      if (!s.includes('isDisabled ? (<View')) {
-        s = s.replace('var isOccupied = disabledDates && day.date && disabledDates.indexOf(day.date) >= 0;\n            var isDisabled = (disabledBeforeToday && day.isBeforeToday) || (disabledAfterToday && day.isAfterToday) || isOccupied;\n            var DayComponent = day.date ? (<TouchableOpacity pointerEvents={isDisabled ? "none" : "auto"} disabled={isDisabled} style={{', 'var isOccupied = disabledDates && day.date && disabledDates.indexOf(day.date) >= 0;\n            var isDisabled = (disabledBeforeToday && day.isBeforeToday) || (disabledAfterToday && day.isAfterToday) || isOccupied;\n            var dayStyle = {');
-        s = s.replace('flex: 1,\n                height: is6Weeks ? 45 : 50,\n                alignItems: "center",\n            }} onPress={function () { return handlePress(day.date || ""); }} activeOpacity={1} key={day.date || i}>\n          <Day', 'flex: 1, height: is6Weeks ? 45 : 50, alignItems: "center" };\n            var DayComponent = day.date ? (isDisabled ? (<TouchableOpacity style={dayStyle} onPress={function () {}} activeOpacity={1} key={day.date || i}>\n          <Day');
-        s = s.replace('</TouchableOpacity>) : (<TouchableOpacity style={dayStyle} onPress={function () { return handlePress(day.date || ""); }} activeOpacity={1} key={day.date || i}>\n          <Day day={day} locale={locale} disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} style={style}/>\n        </TouchableOpacity>)) : (<View pointerEvents="none"');
+      if (!s.includes('isDisabled ? (<View') && !s.includes('var dayStyle = {')) {
+        s = s.replace('var DayComponent = day.date ? (<TouchableOpacity disabled={isDisabled} style={{', 'var dayStyle = { flex: 1, height: is6Weeks ? 45 : 50, alignItems: "center" };\n            var DayComponent = day.date ? (isDisabled ? (<TouchableOpacity style={dayStyle} onPress={function () {}} activeOpacity={1} key={day.date || i}>\n          <Day day={day} locale={locale} disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} style={style}/>\n        </TouchableOpacity>) : (<TouchableOpacity style={dayStyle} onPress={function () { return handlePress(day.date || ""); }} activeOpacity={1} key={day.date || i}>\n          <Day');
+        s = s.replace(/day={day} locale={locale} disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} style={style}\/\>\n        <\/TouchableOpacity>\) \) : \(<View style=\{\{ flex: 1, height: is6Weeks \? 45 : 50 \}\}/g, 'day={day} locale={locale} disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} style={style}/>\n        </TouchableOpacity>)) : (<View style={{ flex: 1, height: is6Weeks ? 45 : 50 }}');
       }
       if (!s.includes('prevProps.disabledDates')) {
         s = s.replace('if (JSON.stringify(prevProps.week) === JSON.stringify(nextProps.week))\n        return true;\n    return false;', 'if (JSON.stringify(prevProps.week) !== JSON.stringify(nextProps.week))\n        return false;\n    var pa = prevProps.disabledDates || [];\n    var na = nextProps.disabledDates || [];\n    if (pa.length !== na.length) return false;\n    for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    return true;');
@@ -132,9 +145,22 @@ function patchDisabledDates() {
         s = s.replace('disabledDates = _a.disabledDates, occupiedCheckInDates = _a.occupiedCheckInDates', 'disabledDates = _a.disabledDates, dimPastDates = _a.dimPastDates, occupiedCheckInDates = _a.occupiedCheckInDates');
         s = s.replace('disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} isOccupied={isOccupied}', 'disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} isOccupied={isOccupied}');
       }
+      if (!s.includes('eventCountsByDate')) {
+        s = s.replace('occupiedCheckOutDates = _a.occupiedCheckOutDates, style = _a.style;', 'occupiedCheckOutDates = _a.occupiedCheckOutDates, eventCountsByDate = _a.eventCountsByDate, style = _a.style;');
+        s = s.replace(/<Day day=\{day\} locale=\{locale\}/g, '<Day day={day} locale={locale} eventCountsByDate={eventCountsByDate || {}}');
+      }
       if (s.includes('pointerEvents="none" style={dayStyle}') || (s.includes('onStartShouldSetResponder') && s.includes('isDisabled ? (<View'))) {
         s = s.replace(/<View (?:pointerEvents="none" |onStartShouldSetResponder=\{function \(\) \{ return false; \}\} onMoveShouldSetResponder=\{function \(\) \{ return false; \}\} )?style={dayStyle} key={day\.date \|\| i}>\s*<Day/, '<TouchableOpacity style={dayStyle} onPress={function () {}} activeOpacity={1} key={day.date || i}>\n          <Day');
-        s = s.replace(/(\s*)<\/View>(\s*)\) : \(<TouchableOpacity style=\{dayStyle\} onPress=\{function \(\) \{ return handlePress)/, '$1</TouchableOpacity>$2) : (<TouchableOpacity style={dayStyle} onPress={function () { return handlePress');
+        const re = new RegExp('(\\s*)</View>(\\s*)\\) : \\(<TouchableOpacity style=\\{dayStyle\\} onPress=\\{function \\(\\) \\{ return handlePress');
+        s = s.replace(re, '$1</TouchableOpacity>$2) : (<TouchableOpacity style={dayStyle} onPress={function () { return handlePress');
+      }
+      // Repair: remove orphaned block left by partial replace (broken <Day> with flex:1 etc)
+      s = s.replace(/<Day\s+flex: 1,\s*height: is6Weeks \? 45 : 50,\s*alignItems: "center",?\s*\}\}\s*onPress=\{function \(\) \{ return handlePress\(day\.date \|\| ""\); \}\}\s*activeOpacity=\{1\}\s*key=\{day\.date \|\| i\}>\s*/g, '');
+      // Repair: add missing ) for ternary (day.date ? (isDisabled ? A : B) : C)
+      s = s.replace(/isOccupied=\{isOccupied\} style=\{style\}\/>\s*<\/TouchableOpacity>\) : \(<View style=\{\{ flex: 1, height: is6Weeks/g, 'isOccupied={isOccupied} style={style}/>\n        </TouchableOpacity>)) : (<View style={{ flex: 1, height: is6Weeks');
+      // Repair: define isDisabled (and deps) when used but missing - fixes "Property 'isDisabled' doesn't exist"
+      if (s.includes('isDisabled ? (<TouchableOpacity') && !s.includes('var isDisabled = ')) {
+        s = s.replace('var day = week[i];\n            var dayStyle = { flex: 1, height: is6Weeks ? 45 : 50, alignItems: "center" };', 'var day = week[i];\n            var isOccupied = disabledDates && day.date && disabledDates.indexOf(day.date) >= 0;\n            var isCheckIn = occupiedCheckInDates && day.date && occupiedCheckInDates.indexOf(day.date) >= 0;\n            var isCheckOut = occupiedCheckOutDates && day.date && occupiedCheckOutDates.indexOf(day.date) >= 0;\n            var isDisabled = (disabledBeforeToday && day.isBeforeToday) || (disabledAfterToday && day.isAfterToday) || isOccupied;\n            var dayStyle = { flex: 1, height: is6Weeks ? 45 : 50, alignItems: "center" };');
       }
     } else if (f === 'Day.js') {
       if (!s.includes('isOccupied = _a.isOccupied')) {
@@ -163,6 +189,11 @@ function patchDisabledDates() {
       if (!s.includes('dimPastDates = _a.dimPastDates')) {
         s = s.replace('disabledAfterToday = _a.disabledAfterToday, isOccupied = _a.isOccupied', 'disabledAfterToday = _a.disabledAfterToday, dimPastDates = _a.dimPastDates, isOccupied = _a.isOccupied');
         s = s.replace('(disabledBeforeToday && isBeforeToday) ||', '(disabledBeforeToday && isBeforeToday) ||\n            (dimPastDates && isBeforeToday) ||');
+      }
+      if (!s.includes('eventCountsByDate = _a.eventCountsByDate')) {
+        s = s.replace('style = _a.style;', 'style = _a.style, eventCountsByDate = _a.eventCountsByDate;');
+        s = s.replace('if (prevProps.isCheckOut !== nextProps.isCheckOut) return false;', 'if (prevProps.isCheckOut !== nextProps.isCheckOut) return false;\n    if (((prevProps.eventCountsByDate || {})[prevProps.day.date] || 0) !== ((nextProps.eventCountsByDate || {})[nextProps.day.date] || 0)) return false;');
+        s = s.replace('<Text pointerEvents={isOccupied ? \'none\' : \'auto\'} style={[{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText]}>\n            {dayjs(date).date()}\n          </Text>', '<Text pointerEvents={isOccupied ? \'none\' : \'auto\'} style={[{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText]}>{dayjs(date).date()}</Text>\n          {((eventCountsByDate || {})[date] || 0) > 0 ? (<View style={{ flexDirection: \'row\', marginTop: 1, justifyContent: \'center\', flexWrap: \'wrap\' }}>{Array.from({ length: Math.min(((eventCountsByDate || {})[date] || 0), 5) }).map(function (_, i) { return <View key={i} style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: \'#1d1c1d\', marginHorizontal: 0.5 }}/>; })}</View>) : null}');
       }
       if (!s.includes("borderColor: '#2E7D32'") && s.includes("backgroundColor: '#FFF0F0'")) {
         s = s.replace("if (isOccupied) {\n                markStyle = __assign(__assign({}, markStyle), { backgroundColor: '#FFF0F0', borderRadius: 4 });\n            }", "if (isOccupied) {\n                markStyle = __assign(__assign({}, markStyle), { backgroundColor: '#FFF0F0', borderRadius: 4 });\n                if (!isToday && isCheckIn) {\n                    markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: '#2E7D32' });\n                } else if (!isToday && isCheckOut) {\n                    markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: '#E85D4C' });\n                }\n            }");

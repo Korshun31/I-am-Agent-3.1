@@ -519,6 +519,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
               style={{
                 container: { backgroundColor: 'transparent' },
                 dayTextColor: '#1d1c1d',
+                todayColor: '#E85D4C',
                 holidayColor: '#E85D4C',
                 selectedDayBackgroundColor: '#FFB74D',
                 monthOverlayContainer: {
