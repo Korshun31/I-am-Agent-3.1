@@ -17,6 +17,9 @@ web-build/
 *.swp
 *.swo
 
+# Backups
+assets/icon-backup.png
+
 # OS
 .DS_Store
 Thumbs.db

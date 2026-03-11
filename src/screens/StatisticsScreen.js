@@ -69,12 +69,14 @@ export default function StatisticsScreen({ onBack }) {
       let checkInCurr = 0;
       all.forEach((b) => {
         if (b.notMyCustomer) return;
-        const createdDate = (b.createdAt ? dayjs(b.createdAt) : null) || (b.checkIn ? dayjs(b.checkIn) : null);
+        const createdStr = typeof b.createdAt === 'string' && b.createdAt.length >= 10 ? b.createdAt.substring(0, 10) : b.createdAt;
+        const checkInStr = typeof b.checkIn === 'string' && b.checkIn.length >= 10 ? b.checkIn.substring(0, 10) : b.checkIn;
+        const createdDate = (createdStr ? dayjs(createdStr) : null) || (checkInStr ? dayjs(checkInStr) : null);
         if (createdDate && createdDate.isValid()) {
           if (!createdDate.isBefore(prevMonthStart) && !createdDate.isAfter(prevMonthEnd)) prevCount++;
           if (!createdDate.isBefore(currMonthStart) && !createdDate.isAfter(currMonthEnd)) currCount++;
         }
-        const checkInDate = b.checkIn ? dayjs(b.checkIn) : null;
+        const checkInDate = checkInStr ? dayjs(checkInStr) : null;
         if (checkInDate && checkInDate.isValid()) {
           if (!checkInDate.isBefore(prevMonthStart) && !checkInDate.isAfter(prevMonthEnd)) checkInPrev++;
           if (!checkInDate.isBefore(currMonthStart) && !checkInDate.isAfter(currMonthEnd)) checkInCurr++;

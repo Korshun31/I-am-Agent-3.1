@@ -850,13 +850,19 @@ function CalendarRow({
   }, [bookings, getContactName]);
 
   const rowWidth = months.length * monthWidth;
-  const timelineStart = months.length > 0
-    ? dayjs().year(months[0].year).month(months[0].month).startOf('month')
-    : dayjs();
-  const timelineEnd = months.length > 0
-    ? dayjs().year(months[months.length - 1].year).month(months[months.length - 1].month).endOf('month')
-    : dayjs();
-  const totalDays = Math.max(1, timelineEnd.diff(timelineStart, 'day') + 1);
+
+  const dateToPx = (d) => {
+    const idx = months.findIndex(m => m.year === d.year() && m.month === d.month());
+    if (idx >= 0) {
+      const daysInMonth = d.daysInMonth();
+      const dayOfMonth = d.date();
+      return idx * monthWidth + ((dayOfMonth - 1) / daysInMonth) * monthWidth;
+    }
+    if (months.length === 0) return 0;
+    const first = dayjs().year(months[0].year).month(months[0].month).startOf('month');
+    if (d.isBefore(first)) return 0;
+    return rowWidth;
+  };
 
   return (
     <View style={[rowStyles.row, { height: rowHeight, width: rowWidth }]}>
@@ -874,12 +880,13 @@ function CalendarRow({
         );
       })}
       {bookings.map((b) => {
-        const cin = dayjs(b.checkIn);
-        const cout = dayjs(b.checkOut);
-        const startDay = Math.max(0, cin.diff(timelineStart, 'day'));
-        const endDay = Math.min(totalDays, cout.diff(timelineStart, 'day') + 1);
-        const leftPx = (startDay / totalDays) * rowWidth;
-        const widthPx = ((endDay - startDay) / totalDays) * rowWidth;
+        const checkInStr = typeof b.checkIn === 'string' && b.checkIn.length >= 10 ? b.checkIn.substring(0, 10) : b.checkIn;
+        const checkOutStr = typeof b.checkOut === 'string' && b.checkOut.length >= 10 ? b.checkOut.substring(0, 10) : b.checkOut;
+        const cin = dayjs(checkInStr);
+        const cout = dayjs(checkOutStr);
+        const leftPx = Math.max(0, dateToPx(cin));
+        const rightPx = Math.min(rowWidth, dateToPx(cout.add(1, 'day')));
+        const widthPx = Math.max(2, rightPx - leftPx);
         const rawColor = b.notMyCustomer ? COLORS.ownerBar : (globalColorMap[b.id] || PASTEL_COLORS[0]);
         const barColor = b.notMyCustomer ? rawColor : rawColor.replace(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i, (_, r, g, b) => `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, 0.6)`);
         const label = b.notMyCustomer
