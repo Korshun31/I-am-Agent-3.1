@@ -220,7 +220,6 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
   const [addBookingVisible, setAddBookingVisible] = useState(false);
   const [editEvent, setEditEvent] = useState(null);
   const [editBooking, setEditBooking] = useState(null);
-  const [allExpanded, setAllExpanded] = useState(false);
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [viewBookingDetail, setViewBookingDetail] = useState(null);
   const [editBookingDetailModalVisible, setEditBookingDetailModalVisible] = useState(false);
@@ -251,14 +250,12 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
 
   const toggleExpandAll = () => {
     LayoutAnimation.configureNext(DRAWER_ANIMATION);
-    if (!allExpanded) {
+    if (!allEventsExpanded) {
       const ids = new Set();
-      dayEvents.forEach((ev, i) => ids.add(ev.key));
+      dayEvents.forEach((ev) => ids.add(ev.key));
       setExpandedIds(ids);
-      setAllExpanded(true);
     } else {
       setExpandedIds(new Set());
-      setAllExpanded(false);
     }
   };
 
@@ -400,6 +397,8 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
 
   const dayEvents = mergedDayEvents;
 
+  const allEventsExpanded = dayEvents.length > 0 && dayEvents.every((ev) => expandedIds.has(ev.key));
+
   const eventCountsByDate = React.useMemo(() => {
     const counts = {};
     (bookings || []).forEach((b) => {
@@ -519,6 +518,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
               style={{
                 container: { backgroundColor: 'transparent' },
                 dayTextColor: '#1d1c1d',
+                disabledTextColor: '#bababe',
                 todayColor: '#E85D4C',
                 holidayColor: '#E85D4C',
                 selectedDayBackgroundColor: '#FFB74D',
@@ -575,7 +575,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
               </TouchableOpacity>
               <TouchableOpacity onPress={toggleExpandAll} activeOpacity={0.7} style={styles.eventsToolbarIconBtn}>
                 <Image
-                  source={allExpanded ? require('../../assets/icon-folder-open.png') : require('../../assets/icon-folder-closed.png')}
+                  source={allEventsExpanded ? require('../../assets/icon-folder-open.png') : require('../../assets/icon-folder-closed.png')}
                   style={styles.eventsToolbarIcon}
                   resizeMode="contain"
                 />

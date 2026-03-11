@@ -7,6 +7,7 @@ export const translations = {
     // Account screen
     account: 'Account',
     myDetails: 'My details',
+    myCompany: 'My company',
     settings: 'Settings',
     language: 'Language',
     notifications: 'Notifications',
@@ -376,6 +377,7 @@ export const translations = {
   th: {
     account: 'บัญชี',
     myDetails: 'ข้อมูลของฉัน',
+    myCompany: 'บริษัทของฉัน',
     settings: 'การตั้งค่า',
     language: 'ภาษา',
     notifications: 'การแจ้งเตือน',
@@ -729,6 +731,7 @@ export const translations = {
   ru: {
     account: 'Аккаунт',
     myDetails: 'Мои данные',
+    myCompany: 'Моя компания',
     settings: 'Настройки',
     language: 'Язык',
     notifications: 'Уведомления',

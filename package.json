@@ -26,6 +26,7 @@
     "expo-media-library": "~18.2.1",
     "expo-notifications": "~0.31.0",
     "expo-print": "~14.0.3",
+    "expo-sqlite": "^55.0.10",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",

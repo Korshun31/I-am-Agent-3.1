@@ -68,7 +68,7 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
   const settingsWasOpen = useRef(false);
   const locationsHeight = useRef(new Animated.Value(0)).current;
   const locationsWasOpen = useRef(false);
-  const { email = '', name = '', lastName = '', phone = '', telegram = '', documentNumber = '', extraPhones = [], extraEmails = [], whatsapp = '', photoUri = '' } = user;
+  const { email = '', name = '', lastName = '', phone = '', telegram = '', documentNumber = '', extraPhones = [], extraEmails = [], whatsapp = '', photoUri = '', workAs = '', companyInfo = {} } = user;
 
   const displayName = [name, lastName].filter(Boolean).join(' ') || name || null;
 
@@ -213,22 +213,24 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
           )}
           {displayName ? <Text style={styles.agentName}>{displayName}</Text> : null}
         </View>
-        <View style={styles.statsRow}>
-          <View style={styles.statsItem}>
-            <Image source={require('../../assets/icon-property-house-stats.png')} style={styles.statsIconLarge} resizeMode="contain" />
-            <Text style={styles.statsValueGreen}>{propertyStats.standaloneHouses}</Text>
-          </View>
-          <View style={styles.statsItem}>
-            <Image source={require('../../assets/icon-property-resort-stats.png')} style={styles.statsIconLarge} resizeMode="contain" />
-            <Text style={styles.statsValueWrap}><Text style={styles.statsValueSmall}>{propertyStats.resortCount}</Text><Text style={styles.statsValueSlash}> / </Text><Text style={styles.statsValueGreen}>{propertyStats.resortHouses}</Text></Text>
-          </View>
-          <View style={styles.statsItem}>
-            <Image source={require('../../assets/icon-property-condo-stats.png')} style={styles.statsIcon} resizeMode="contain" />
-            <Text style={styles.statsValueWrap}><Text style={styles.statsValueSmall}>{propertyStats.condoCount}</Text><Text style={styles.statsValueSlash}> / </Text><Text style={styles.statsValueGreen}>{propertyStats.condoApartments}</Text></Text>
-          </View>
-          <View style={styles.statsItem}>
-            <Image source={require('../../assets/icon-sum.png')} style={styles.statsIconSum} resizeMode="contain" />
-            <Text style={styles.statsValueGreen}>{propertyStats.total}</Text>
+        <View style={styles.statsBlock}>
+          <View style={styles.statsRow}>
+            <View style={styles.statsItem}>
+              <Image source={require('../../assets/icon-property-house-stats.png')} style={styles.statsIconLarge} resizeMode="contain" />
+              <Text style={styles.statsValueGreen}>{propertyStats.standaloneHouses}</Text>
+            </View>
+            <View style={styles.statsItem}>
+              <Image source={require('../../assets/icon-property-resort-stats.png')} style={styles.statsIconLarge} resizeMode="contain" />
+              <Text style={styles.statsValueWrap}><Text style={styles.statsValueSmall}>{propertyStats.resortCount}</Text><Text style={styles.statsValueSlash}> / </Text><Text style={styles.statsValueGreen}>{propertyStats.resortHouses}</Text></Text>
+            </View>
+            <View style={styles.statsItem}>
+              <Image source={require('../../assets/icon-property-condo-stats.png')} style={styles.statsIcon} resizeMode="contain" />
+              <Text style={styles.statsValueWrap}><Text style={styles.statsValueSmall}>{propertyStats.condoCount}</Text><Text style={styles.statsValueSlash}> / </Text><Text style={styles.statsValueGreen}>{propertyStats.condoApartments}</Text></Text>
+            </View>
+            <View style={styles.statsItem}>
+              <Image source={require('../../assets/icon-sum.png')} style={styles.statsIconSum} resizeMode="contain" />
+              <Text style={styles.statsValueGreen}>{propertyStats.total}</Text>
+            </View>
           </View>
         </View>
       </View>
@@ -293,6 +295,31 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
             <Image source={require('../../assets/icon-contact-whatsapp.png')} style={styles.contactIconImage} resizeMode="contain" />
             <Text style={[styles.contactText, styles.contactTextLink]}>{whatsapp}</Text>
           </TouchableOpacity>
+        ) : null}
+
+        {workAs === 'company' && companyInfo && (companyInfo.name || companyInfo.phone || companyInfo.email) ? (
+          <>
+            <View style={[styles.myDetailsTitleRow, { marginTop: 20, marginBottom: 24 }]}>
+              <Text style={styles.myDetailsTitle}>{t('myCompany')}</Text>
+            </View>
+            {companyInfo.name ? (
+              <View style={styles.contactRow}>
+                <Text style={[styles.contactText, styles.contactTextBold]}>{companyInfo.name}</Text>
+              </View>
+            ) : null}
+            {companyInfo.phone ? (
+              <TouchableOpacity style={styles.contactRow} onPress={() => openPhone(companyInfo.phone)} activeOpacity={0.7}>
+                <Image source={require('../../assets/icon-contact-phone.png')} style={styles.contactIconImage} resizeMode="contain" />
+                <Text style={[styles.contactText, styles.contactTextLink]}>{companyInfo.phone}</Text>
+              </TouchableOpacity>
+            ) : null}
+            {companyInfo.email ? (
+              <TouchableOpacity style={styles.contactRow} onPress={() => openEmail(companyInfo.email)} activeOpacity={0.7}>
+                <Image source={require('../../assets/icon-contact-email.png')} style={styles.contactIconImage} resizeMode="contain" />
+                <Text style={[styles.contactText, styles.contactTextLink]}>{companyInfo.email}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </>
         ) : null}
       </View>
 
@@ -634,13 +661,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.title,
   },
+  statsBlock: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    marginBottom: 12,
   },
   statsItem: {
     flexDirection: 'row',

@@ -1,5 +1,6 @@
 {
   "expo": {
+    "icon": "./assets/icon.png",
     "name": "I am Agent 3.1",
     "slug": "i-am-agent",
     "version": "1.0.0",
@@ -21,6 +22,7 @@
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#F5F2EB"
       },
       "package": "com.iamagent.app",

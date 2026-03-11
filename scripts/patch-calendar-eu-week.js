@@ -151,6 +151,10 @@ function patchDisabledDates() {
         s = s.replace('disabledDates = _a.disabledDates, occupiedCheckInDates = _a.occupiedCheckInDates', 'disabledDates = _a.disabledDates, dimPastDates = _a.dimPastDates, occupiedCheckInDates = _a.occupiedCheckInDates');
         s = s.replace('disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} isOccupied={isOccupied}', 'disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} isOccupied={isOccupied}');
       }
+      if (s.includes('dimPastDates = _a.dimPastDates') && !s.includes('dimPastDates={dimPastDates} isOccupied')) {
+        s = s.replace('disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} isCheckIn=', 'disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} isOccupied={isOccupied} isCheckIn=');
+        s = s.replace('disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} style={style}/>', 'disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} isOccupied={isOccupied} style={style}/>');
+      }
       if (!s.includes('eventCountsByDate')) {
         s = s.replace('occupiedCheckOutDates = _a.occupiedCheckOutDates, style = _a.style;', 'occupiedCheckOutDates = _a.occupiedCheckOutDates, eventCountsByDate = _a.eventCountsByDate, style = _a.style;');
         s = s.replace(/<Day day=\{day\} locale=\{locale\}/g, '<Day day={day} locale={locale} eventCountsByDate={eventCountsByDate || {}}');
@@ -209,6 +213,17 @@ function patchDisabledDates() {
       }
       if (!s.includes("borderColor: '#2E7D32'") && s.includes("backgroundColor: '#FFF0F0'")) {
         s = s.replace("if (isOccupied) {\n                markStyle = __assign(__assign({}, markStyle), { backgroundColor: '#FFF0F0', borderRadius: 4 });\n            }", "if (isOccupied) {\n                markStyle = __assign(__assign({}, markStyle), { backgroundColor: '#FFF0F0', borderRadius: 4 });\n                if (!isToday && isCheckIn) {\n                    markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: '#2E7D32' });\n                } else if (!isToday && isCheckOut) {\n                    markStyle = __assign(__assign({}, markStyle), { borderWidth: 2, borderColor: '#E85D4C' });\n                }\n            }");
+      }
+      if (s.includes("backgroundColor: '#E85D4C', justifyContent: 'center'") && !s.includes("isBeforeToday ? '#9E9E9E'")) {
+        s = s.replace("backgroundColor: '#E85D4C', justifyContent: 'center'", "backgroundColor: (isBeforeToday ? '#9E9E9E' : '#E85D4C'), justifyContent: 'center'");
+      }
+      if (s.includes('dimPastDates && isBeforeToday') && s.includes('markStyle = __assign')) {
+        s = s.replace('            if (dimPastDates && isBeforeToday) {\n                markStyle = __assign(__assign({}, markStyle), { backgroundColor: \'#E8E8E8\', borderRadius: 4 });\n            }\n            ', '            ');
+        s = s.replace('            if (dimPastDates && isBeforeToday) {\n                markStyle = __assign(__assign({}, markStyle), { opacity: 0.75 });\n            }\n            ', '            ');
+      }
+      if (s.includes('dayStyle, style === null') && !s.includes('dimPastDates && isBeforeToday ? [')) {
+        s = s.replace('<Text pointerEvents={isOccupied ? \'none\' : \'auto\'} style={[{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText]}', '<Text pointerEvents={isOccupied ? \'none\' : \'auto\'} style={dimPastDates && isBeforeToday ? [{ fontSize: 15, color: (style === null || style === void 0 ? void 0 : style.disabledTextColor) || \'#bababe\' }] : [{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText]}');
+        s = s.replace('style={[{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText, (dimPastDates && isBeforeToday) ? { color: (style === null || style === void 0 ? void 0 : style.disabledTextColor) || \'#bababe\' } : null]}', 'style={dimPastDates && isBeforeToday ? [{ fontSize: 15, color: (style === null || style === void 0 ? void 0 : style.disabledTextColor) || \'#bababe\' }] : [{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText]}');
       }
       if (s.includes('{locale.today}')) {
         s = s.replace(/\s*\{isToday \? \(<Text[^>]*>[\s\S]*?\{locale\.today\}[\s\S]*?<\/Text>\) : null\}/, '');
