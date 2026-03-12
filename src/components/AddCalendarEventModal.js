@@ -15,11 +15,20 @@ import {
   Image,
   Keyboard,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLanguage } from '../context/LanguageContext';
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../services/calendarEventsService';
-import { requestReminderPermissions, scheduleReminder, cancelReminder } from '../services/calendarRemindersService';
+import { requestReminderPermissions, scheduleReminder, cancelReminders } from '../services/calendarRemindersService';
 import { getCurrentUser } from '../services/authService';
+
+const REPEAT_OPTIONS = [
+  { value: null, key: 'agentCalendarRepeatNone' },
+  { value: 'daily', key: 'agentCalendarRepeatDaily' },
+  { value: 'weekly', key: 'agentCalendarRepeatWeekly' },
+  { value: 'monthly', key: 'agentCalendarRepeatMonthly' },
+  { value: 'yearly', key: 'agentCalendarRepeatYearly' },
+];
 
 const REMINDER_OPTIONS = [
   { value: 0, key: 'agentCalendarReminderAtEvent' },
@@ -70,15 +79,17 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
   const [color, setColor] = useState(CALENDAR_COLORS[0]);
   const [comments, setComments] = useState('');
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [showReminderPicker, setShowReminderPicker] = useState(false);
-  const [reminderMinutes, setReminderMinutes] = useState(null);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [showRepeatModal, setShowRepeatModal] = useState(false);
+  const [reminderMinutes, setReminderMinutes] = useState([]);
+  const [repeatType, setRepeatType] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const isEdit = !!editEvent;
 
   useEffect(() => {
-    if (showTimePicker || showReminderPicker) Keyboard.dismiss();
-  }, [showTimePicker, showReminderPicker]);
+    if (showTimePicker || showReminderModal || showRepeatModal) Keyboard.dismiss();
+  }, [showTimePicker, showReminderModal, showRepeatModal]);
 
   useEffect(() => {
     if (visible) {
@@ -88,7 +99,8 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
         setEventTime(editEvent.eventTime || null);
         setColor(editEvent.color || CALENDAR_COLORS[0]);
         setComments(editEvent.comments || '');
-        setReminderMinutes(editEvent.reminderMinutes ?? null);
+        setReminderMinutes(Array.isArray(editEvent.reminderMinutes) ? [...editEvent.reminderMinutes] : (editEvent.reminderMinutes != null ? [editEvent.reminderMinutes] : []));
+        setRepeatType(editEvent.repeatType || null);
       } else {
         const base = initialDate ? new Date(initialDate) : new Date();
         setTitle('');
@@ -96,7 +108,8 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
         setEventTime(null);
         setColor(CALENDAR_COLORS[0]);
         setComments('');
-        setReminderMinutes(null);
+        setReminderMinutes([]);
+        setRepeatType(null);
       }
     }
   }, [visible, editEvent, initialDate]);
@@ -112,22 +125,26 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
     const dateYMD = formatDateYMD(dateToUse);
     setSaving(true);
     try {
+      const prevReminders = Array.isArray(editEvent?.reminderMinutes) ? editEvent.reminderMinutes : (editEvent?.reminderMinutes != null ? [editEvent.reminderMinutes] : []);
       if (isEdit) {
-        await cancelReminder(editEvent.id);
+        await cancelReminders(editEvent.id, prevReminders);
         await updateCalendarEvent(editEvent.id, {
           title: name,
           eventDate: dateYMD,
           eventTime: timeStr,
           color,
           comments: (comments || '').trim() || null,
-          reminderMinutes: reminderMinutes,
+          reminderMinutes,
+          repeatType,
         });
-        if (reminderMinutes !== null && reminderMinutes !== undefined) {
+        if (reminderMinutes.length > 0) {
           const profile = await getCurrentUser();
           const settings = profile?.notificationSettings || {};
           const granted = await requestReminderPermissions();
           if (granted) {
-            await scheduleReminder(editEvent.id, dateYMD, timeStr, reminderMinutes, name, settings);
+            for (const m of reminderMinutes) {
+              await scheduleReminder(editEvent.id, dateYMD, timeStr, m, name, settings);
+            }
           }
         }
       } else {
@@ -137,14 +154,17 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
           eventTime: timeStr,
           color,
           comments: (comments || '').trim() || null,
-          reminderMinutes: reminderMinutes,
+          reminderMinutes,
+          repeatType,
         });
-        if (created?.id && reminderMinutes !== null && reminderMinutes !== undefined) {
+        if (created?.id && reminderMinutes.length > 0) {
           const profile = await getCurrentUser();
           const settings = profile?.notificationSettings || {};
           const granted = await requestReminderPermissions();
           if (granted) {
-            await scheduleReminder(created.id, dateYMD, timeStr, reminderMinutes, name, settings);
+            for (const m of reminderMinutes) {
+              await scheduleReminder(created.id, dateYMD, timeStr, m, name, settings);
+            }
           }
         }
       }
@@ -167,7 +187,8 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
         onPress: async () => {
           setSaving(true);
           try {
-            await cancelReminder(editEvent.id);
+            const prevRem = Array.isArray(editEvent.reminderMinutes) ? editEvent.reminderMinutes : (editEvent.reminderMinutes != null ? [editEvent.reminderMinutes] : []);
+            await cancelReminders(editEvent.id, prevRem);
             await deleteCalendarEvent(editEvent.id);
             onSaved?.();
             onClose();
@@ -239,12 +260,23 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
                 placeholder={t('agentCalendarEventNamePlaceholder')}
                 placeholderTextColor="#999"
                 autoCapitalize="sentences"
-                editable={!showTimePicker && !showReminderPicker}
-                showSoftInputOnFocus={!showTimePicker && !showReminderPicker}
+                editable={!showTimePicker && !showReminderModal && !showRepeatModal}
+                showSoftInputOnFocus={!showTimePicker && !showReminderModal && !showRepeatModal}
               />
 
               <Text style={styles.fieldLabel}>{t('agentCalendarEventTime')}</Text>
-              <TouchableOpacity style={styles.timeSelectRow} onPress={() => { Keyboard.dismiss(); setShowTimePicker(true); }} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.timeSelectRow}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  if (!eventTime) {
+                    const now = new Date();
+                    setEventTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
+                  }
+                  setShowTimePicker(true);
+                }}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.timeSelectText}>
                   {eventTime ? formatTimeDisplay(eventTime) : t('agentCalendarSelectEventTime')}
                 </Text>
@@ -267,33 +299,115 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
               )}
 
               <Text style={styles.fieldLabel}>{t('agentCalendarReminder')}</Text>
-              <TouchableOpacity style={styles.timeSelectRow} onPress={() => { Keyboard.dismiss(); setShowReminderPicker(true); }} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.timeSelectRow} onPress={() => { Keyboard.dismiss(); setShowReminderModal(true); }} activeOpacity={0.7}>
                 <Text style={styles.timeSelectText}>
-                  {reminderMinutes !== null
-                    ? t(REMINDER_OPTIONS.find(o => o.value === reminderMinutes)?.key || 'agentCalendarReminderAtEvent')
+                  {reminderMinutes.length > 0
+                    ? reminderMinutes.map((m) => t(REMINDER_OPTIONS.find(o => o.value === m)?.key || 'agentCalendarReminderAtEvent')).join(', ')
                     : t('agentCalendarReminderWhen')}
                 </Text>
               </TouchableOpacity>
-              {showReminderPicker && (
-                <View style={styles.pickerWrap}>
-                  <ScrollView style={styles.reminderPickerScroll} showsVerticalScrollIndicator>
-                    {REMINDER_OPTIONS.map((opt) => (
-                      <TouchableOpacity
-                        key={opt.value}
-                        style={[styles.reminderOption, reminderMinutes === opt.value && styles.reminderOptionSelected]}
-                        onPress={() => setReminderMinutes(opt.value)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.reminderOptionText, reminderMinutes === opt.value && styles.reminderOptionTextSelected]}>
-                          {t(opt.key)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                  <TouchableOpacity onPress={() => setShowReminderPicker(false)} style={styles.pickerDone}>
-                    <Text style={styles.pickerDoneText}>{t('agentCalendarTimeSelectBtn')}</Text>
-                  </TouchableOpacity>
-                </View>
+
+              {showReminderModal && (
+                <Modal transparent animationType="fade" visible statusBarTranslucent>
+                  <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowReminderModal(false)}>
+                    {Platform.OS === 'web' ? (
+                      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} />
+                    ) : (
+                      <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+                    )}
+                    <Pressable style={styles.reminderModalBoxWrap} onPress={(e) => e.stopPropagation()}>
+                      <View style={styles.reminderModalBox}>
+                        <View style={styles.reminderModalHeader}>
+                          <Text style={styles.reminderModalTitle}>{t('agentCalendarReminderWhen')}</Text>
+                          <TouchableOpacity onPress={() => setShowReminderModal(false)} style={styles.reminderModalClose}>
+                            <Text style={styles.reminderModalCloseText}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <ScrollView style={styles.reminderModalScroll} showsVerticalScrollIndicator>
+                          {REMINDER_OPTIONS.map((opt) => {
+                            const isSelected = reminderMinutes.includes(opt.value);
+                            return (
+                              <TouchableOpacity
+                                key={opt.value}
+                                style={[styles.reminderModalOption, isSelected && styles.reminderModalOptionSelected]}
+                                onPress={() => {
+                                  setReminderMinutes((prev) =>
+                                    isSelected ? prev.filter((v) => v !== opt.value) : [...prev, opt.value].sort((a, b) => a - b)
+                                  );
+                                }}
+                                activeOpacity={0.7}
+                              >
+                                <View style={[styles.reminderCheckbox, isSelected && styles.reminderCheckboxChecked]}>
+                                  {isSelected ? <Text style={styles.reminderCheckmark}>✓</Text> : null}
+                                </View>
+                                <Text style={[styles.reminderModalOptionText, isSelected && styles.reminderModalOptionTextSelected]}>
+                                  {t(opt.key)}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </ScrollView>
+                        <TouchableOpacity onPress={() => setShowReminderModal(false)} style={styles.reminderModalDone}>
+                          <Text style={styles.reminderModalDoneText}>{t('agentCalendarTimeSelectBtn')}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </Pressable>
+                  </Pressable>
+                </Modal>
+              )}
+
+              <Text style={styles.fieldLabel}>{t('agentCalendarRepeat')}</Text>
+              <TouchableOpacity style={styles.timeSelectRow} onPress={() => { Keyboard.dismiss(); setShowRepeatModal(true); }} activeOpacity={0.7}>
+                <Text style={styles.timeSelectText}>
+                  {repeatType ? t(REPEAT_OPTIONS.find(o => o.value === repeatType)?.key || 'agentCalendarRepeatSelect') : t('agentCalendarRepeatSelect')}
+                </Text>
+              </TouchableOpacity>
+
+              {showRepeatModal && (
+                <Modal transparent animationType="fade" visible statusBarTranslucent>
+                  <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowRepeatModal(false)}>
+                    {Platform.OS === 'web' ? (
+                      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} />
+                    ) : (
+                      <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+                    )}
+                    <Pressable style={styles.reminderModalBoxWrap} onPress={(e) => e.stopPropagation()}>
+                      <View style={styles.reminderModalBox}>
+                        <View style={styles.reminderModalHeader}>
+                          <Text style={styles.reminderModalTitle}>{t('agentCalendarRepeatSelect')}</Text>
+                          <TouchableOpacity onPress={() => setShowRepeatModal(false)} style={styles.reminderModalClose}>
+                            <Text style={styles.reminderModalCloseText}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <ScrollView style={styles.reminderModalScroll} showsVerticalScrollIndicator>
+                          {REPEAT_OPTIONS.map((opt) => {
+                            const isSelected = repeatType === opt.value;
+                            return (
+                              <TouchableOpacity
+                                key={opt.value ?? 'none'}
+                                style={[styles.reminderModalOption, isSelected && styles.reminderModalOptionSelected]}
+                                onPress={() => {
+                                  setRepeatType(opt.value);
+                                }}
+                                activeOpacity={0.7}
+                              >
+                                <View style={[styles.reminderCheckbox, isSelected && styles.reminderCheckboxChecked]}>
+                                  {isSelected ? <Text style={styles.reminderCheckmark}>✓</Text> : null}
+                                </View>
+                                <Text style={[styles.reminderModalOptionText, isSelected && styles.reminderModalOptionTextSelected]}>
+                                  {t(opt.key)}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </ScrollView>
+                        <TouchableOpacity onPress={() => setShowRepeatModal(false)} style={styles.reminderModalDone}>
+                          <Text style={styles.reminderModalDoneText}>{t('agentCalendarTimeSelectBtn')}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </Pressable>
+                  </Pressable>
+                </Modal>
               )}
 
               <Text style={styles.fieldLabel}>{t('agentCalendarEventColor')}</Text>
@@ -316,12 +430,12 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
                 placeholderTextColor="#999"
                 multiline
                 numberOfLines={3}
-                editable={!showTimePicker && !showReminderPicker}
-                showSoftInputOnFocus={!showTimePicker && !showReminderPicker}
+                editable={!showTimePicker && !showReminderModal && !showRepeatModal}
+                showSoftInputOnFocus={!showTimePicker && !showReminderModal && !showRepeatModal}
               />
             </ScrollView>
 
-            {!showTimePicker && !showReminderPicker && (
+            {!showTimePicker && !showReminderModal && !showRepeatModal && (
               <TouchableOpacity
                 style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
                 onPress={handleSave}
@@ -468,6 +582,95 @@ const styles = StyleSheet.create({
   reminderOptionTextSelected: {
     fontWeight: '700',
     color: '#D81B60',
+  },
+  reminderModalBoxWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  reminderModalBox: {
+    width: '100%',
+    maxWidth: 340,
+    maxHeight: '80%',
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  reminderModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0D8CC',
+  },
+  reminderModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2C2C2C',
+  },
+  reminderModalClose: {
+    padding: 8,
+  },
+  reminderModalCloseText: {
+    fontSize: 22,
+    color: '#6B6B6B',
+  },
+  reminderModalScroll: {
+    maxHeight: 320,
+  },
+  reminderModalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0D8CC',
+  },
+  reminderModalOptionSelected: {
+    backgroundColor: 'rgba(216, 27, 96, 0.08)',
+  },
+  reminderCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#6B6B6B',
+    backgroundColor: '#F5F2EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reminderCheckboxChecked: {
+    backgroundColor: '#5B8DEE',
+    borderColor: '#3A6FCC',
+  },
+  reminderCheckmark: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  reminderModalOptionText: {
+    fontSize: 16,
+    color: '#2C2C2C',
+  },
+  reminderModalOptionTextSelected: {
+    fontWeight: '700',
+    color: '#D81B60',
+  },
+  reminderModalDone: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  reminderModalDoneText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2E7D32',
   },
   pickerDone: {
     marginTop: 8,

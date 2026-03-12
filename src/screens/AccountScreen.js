@@ -53,7 +53,7 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
   const [notificationsModalVisible, setNotificationsModalVisible] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState({});
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
-  const [selectedCurrency, setSelectedCurrency] = useState('');
+  const [selectedCurrency, setSelectedCurrency] = useState('USD');
   const [addLocationsModalVisible, setAddLocationsModalVisible] = useState(false);
   const [editLocationData, setEditLocationData] = useState(null);
   const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
@@ -182,9 +182,11 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
     if (!email) return;
     getCurrentUser().then((profile) => {
       if (!profile) return;
-      if (profile.language && ['en', 'th', 'ru'].includes(profile.language)) setLanguage(profile.language);
+      const lang = ['en', 'th', 'ru'].includes(profile.language) ? profile.language : 'en';
+      const curr = ['USD', 'EUR', 'RUB', 'THB'].includes(profile.selectedCurrency) ? profile.selectedCurrency : 'USD';
+      setLanguage(lang);
       setNotificationSettings(profile.notificationSettings || {});
-      setSelectedCurrency(profile.selectedCurrency || '');
+      setSelectedCurrency(curr);
     }).catch(() => {});
     loadLocations();
   }, [email, setLanguage]);

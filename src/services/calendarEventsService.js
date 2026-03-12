@@ -15,7 +15,16 @@ import { supabase } from './supabase';
  * RLS: agent_id = auth.uid()
  */
 
+function normalizeReminderMinutes(val) {
+  if (val == null) return [];
+  if (Array.isArray(val)) return val.filter((n) => typeof n === 'number');
+  return typeof val === 'number' ? [val] : [];
+}
+
+const REPEAT_TYPES = ['daily', 'weekly', 'monthly', 'yearly'];
+
 function mapEvent(row) {
+  const rt = row.repeat_type && REPEAT_TYPES.includes(row.repeat_type) ? row.repeat_type : null;
   return {
     id: row.id,
     eventDate: row.event_date,
@@ -23,7 +32,8 @@ function mapEvent(row) {
     title: row.title,
     color: row.color,
     comments: row.comments || null,
-    reminderMinutes: row.reminder_minutes ?? null,
+    reminderMinutes: normalizeReminderMinutes(row.reminder_minutes),
+    repeatType: rt,
     createdAt: row.created_at,
   };
 }
@@ -50,6 +60,7 @@ export async function createCalendarEvent(event) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
+  const rt = event.repeatType && REPEAT_TYPES.includes(event.repeatType) ? event.repeatType : null;
   const row = {
     agent_id: session.user.id,
     event_date: event.eventDate,
@@ -57,7 +68,8 @@ export async function createCalendarEvent(event) {
     title: (event.title || '').trim(),
     color: event.color || '#64B5F6',
     comments: (event.comments || '').trim() || null,
-    reminder_minutes: event.reminderMinutes ?? null,
+    reminder_minutes: Array.isArray(event.reminderMinutes) && event.reminderMinutes.length > 0 ? event.reminderMinutes : [],
+    repeat_type: rt,
   };
 
   const { data, error } = await supabase
@@ -74,13 +86,15 @@ export async function updateCalendarEvent(id, event) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
+  const rt = event.repeatType && REPEAT_TYPES.includes(event.repeatType) ? event.repeatType : null;
   const updates = {
     event_date: event.eventDate,
     event_time: event.eventTime || null,
     title: (event.title || '').trim(),
     color: event.color || '#64B5F6',
     comments: (event.comments || '').trim() || null,
-    reminder_minutes: event.reminderMinutes ?? null,
+    reminder_minutes: Array.isArray(event.reminderMinutes) && event.reminderMinutes.length > 0 ? event.reminderMinutes : [],
+    repeat_type: rt,
   };
 
   const { data, error } = await supabase
@@ -106,4 +120,35 @@ export async function deleteCalendarEvent(id) {
     .eq('agent_id', session.user.id);
 
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Check if a recurring event occurs on the given date.
+ * @param {object} event - { eventDate, repeatType }
+ * @param {string} dateStr - "YYYY-MM-DD"
+ * @returns {boolean}
+ */
+export function eventOccursOnDate(event, dateStr) {
+  if (!event?.eventDate || !dateStr) return false;
+  const startYMD = String(event.eventDate).slice(0, 10);
+  if (dateStr < startYMD) return false;
+  if (!event.repeatType || !REPEAT_TYPES.includes(event.repeatType)) {
+    return dateStr === startYMD;
+  }
+  const [sy, sm, sd] = startYMD.split('-').map(Number);
+  const [dy, dm, dd] = dateStr.split('-').map(Number);
+  const startDayOfWeek = new Date(sy, sm - 1, sd).getDay();
+  const checkDayOfWeek = new Date(dy, dm - 1, dd).getDay();
+  switch (event.repeatType) {
+    case 'daily':
+      return true;
+    case 'weekly':
+      return startDayOfWeek === checkDayOfWeek;
+    case 'monthly':
+      return sd === dd;
+    case 'yearly':
+      return sm === dm && sd === dd;
+    default:
+      return dateStr === startYMD;
+  }
 }

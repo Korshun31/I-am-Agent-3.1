@@ -20,10 +20,20 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
     }
   };
 
+  const handleTabSelect = (newIndex) => {
+    if (newIndex === activeTab) return;
+    if (activeTab === 3) setScreenWithinAccount('account');
+    setActiveTab(newIndex);
+  };
+
   return (
     <View style={styles.container}>
       <View style={[styles.tabPanel, activeTab !== 0 && styles.tabPanelHidden]}>
-        <RealEstateScreen propertyToOpen={propertyToOpen} onPropertyOpened={() => setPropertyToOpen(null)} />
+        <RealEstateScreen
+          propertyToOpen={propertyToOpen}
+          onPropertyOpened={() => setPropertyToOpen(null)}
+          isVisible={activeTab === 0}
+        />
       </View>
       <View style={[styles.tabPanel, activeTab !== 1 && styles.tabPanelHidden]}>
         <BookingCalendarScreen isVisible={activeTab === 1} />
@@ -48,7 +58,7 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
         )}
       </View>
       <View style={styles.navOverlay} pointerEvents="box-none">
-        <BottomNav activeTab={activeTab} onSelect={setActiveTab} />
+        <BottomNav activeTab={activeTab} onSelect={handleTabSelect} />
       </View>
     </View>
   );

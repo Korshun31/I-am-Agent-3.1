@@ -21,6 +21,11 @@ export async function signUp({ email, password, name }) {
 
   if (profileError) throw new Error(profileError.message);
 
+  await supabase
+    .from('agents')
+    .update({ settings: { language: 'en', selectedCurrency: 'USD' } })
+    .eq('id', user.id);
+
   return getUserProfile(user.id);
 }
 
@@ -69,9 +74,9 @@ export async function getUserProfile(userId) {
     photoUri: data.photo_url || '',
     extraPhones: [],
     extraEmails: [],
-    language: settings.language || '',
+    language: settings.language || 'en',
     notificationSettings: settings.notificationSettings || {},
-    selectedCurrency: settings.selectedCurrency || '',
+    selectedCurrency: settings.selectedCurrency || 'USD',
     locations: Array.isArray(settings.locations) ? settings.locations : [],
     workAs: settings.workAs === 'company' ? 'company' : 'private',
     companyInfo,

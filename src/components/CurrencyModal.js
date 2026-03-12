@@ -34,12 +34,12 @@ export default function CurrencyModal({ visible, onClose, selectedCurrency = '',
   useEffect(() => {
     if (visible) {
       const cur = typeof selectedCurrency === 'string' ? selectedCurrency : (Array.isArray(selectedCurrency) && selectedCurrency[0]) || '';
-      setSelected(cur);
+      setSelected(cur && ['USD', 'EUR', 'RUB', 'THB'].includes(cur) ? cur : 'USD');
     }
   }, [visible, selectedCurrency]);
 
   const handleSave = () => {
-    onSave?.(selected);
+    onSave?.(selected || 'USD');
     onClose?.();
   };
 
@@ -67,7 +67,7 @@ export default function CurrencyModal({ visible, onClose, selectedCurrency = '',
                 <TouchableOpacity
                   key={cur.id}
                   style={styles.optionRow}
-                  onPress={() => setSelected(selected === cur.id ? '' : cur.id)}
+                  onPress={() => setSelected(cur.id)}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.checkbox, selected === cur.id && styles.checkboxChecked]}>

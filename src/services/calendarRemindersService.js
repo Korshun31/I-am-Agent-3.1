@@ -41,9 +41,13 @@ export async function ensureChannel(settings = {}) {
   } catch {}
 }
 
+function reminderIdentifier(eventId, minutes) {
+  return `calendar_reminder_${eventId}_${minutes}`;
+}
+
 /**
  * Schedule a local notification for a calendar event reminder.
- * @param {string} eventId - Event UUID (used as notification identifier for cancellation)
+ * @param {string} eventId - Event UUID
  * @param {string} eventDate - "YYYY-MM-DD"
  * @param {string|null} eventTime - "HH:mm" or "HH:mm:ss"
  * @param {number} reminderMinutes - Minutes before event (0 = at event time)
@@ -72,6 +76,8 @@ export async function scheduleReminder(eventId, eventDate, eventTime, reminderMi
     ? { date: triggerDate, channelId: NOTIFICATION_CHANNEL_ID }
     : triggerDate;
 
+  const identifier = reminderIdentifier(eventId, reminderMinutes);
+
   await Notifications.scheduleNotificationAsync({
     content: {
       title: title || 'Напоминание',
@@ -80,14 +86,28 @@ export async function scheduleReminder(eventId, eventDate, eventTime, reminderMi
       sound: settings.sound !== false ? true : null,
     },
     trigger,
-    identifier: eventId,
+    identifier,
   });
 }
 
+/** Cancel a single reminder (backward compat). */
 export async function cancelReminder(eventId) {
+  return cancelReminders(eventId, []);
+}
+
+/**
+ * Cancel all reminders for an event. For multiple-reminder support.
+ * @param {string} eventId - Event UUID
+ * @param {number[]} minutesArray - Array of reminder minutes to cancel (e.g. [60, 1440])
+ */
+export async function cancelReminders(eventId, minutesArray = []) {
   const Notifications = await getNotificationsModule();
   if (!Notifications) return;
   try {
+    const ids = minutesArray.map((m) => reminderIdentifier(eventId, m));
+    for (const id of ids) {
+      await Notifications.cancelScheduledNotificationAsync(id);
+    }
     await Notifications.cancelScheduledNotificationAsync(eventId);
   } catch {}
 }

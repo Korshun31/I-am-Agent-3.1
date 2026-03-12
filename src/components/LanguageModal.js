@@ -32,12 +32,12 @@ export default function LanguageModal({ visible, onClose, selectedLanguage = '',
 
   useEffect(() => {
     if (visible) {
-      setSelected(selectedLanguage || '');
+      setSelected(selectedLanguage && ['en', 'th', 'ru'].includes(selectedLanguage) ? selectedLanguage : 'en');
     }
   }, [visible, selectedLanguage]);
 
   const handleSave = () => {
-    onSave?.(selected);
+    onSave?.(selected || 'en');
     onClose?.();
   };
 

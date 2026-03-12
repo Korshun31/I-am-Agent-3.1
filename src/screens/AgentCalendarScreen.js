@@ -26,7 +26,7 @@ import { getBookings } from '../services/bookingsService';
 import { getCommissionDateAmounts } from '../services/commissionRemindersService';
 import { getProperties } from '../services/propertiesService';
 import { getContactById } from '../services/contactsService';
-import { getCalendarEvents } from '../services/calendarEventsService';
+import { getCalendarEvents, eventOccursOnDate } from '../services/calendarEventsService';
 import AddCalendarEventModal from '../components/AddCalendarEventModal';
 import AddBookingModal from '../components/AddBookingModal';
 import BookingDetailScreen from './BookingDetailScreen';
@@ -245,6 +245,11 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
     if (isVisible && !prevVisibleRef.current) {
       loadData();
     }
+    if (prevVisibleRef.current && !isVisible) {
+      setSelectedOwnerContact(null);
+      setViewBookingDetail(null);
+      setEditBookingDetailModalVisible(false);
+    }
     prevVisibleRef.current = isVisible;
   }, [isVisible, loadData]);
 
@@ -377,10 +382,9 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
     });
 
     (customEvents || []).forEach(e => {
-      const d = e.eventDate ? dayjs(e.eventDate).format('YYYY-MM-DD') : null;
-      if (d === selectedDate) {
+      if (eventOccursOnDate(e, selectedDate)) {
         list.push({
-          key: `c-${e.id}`,
+          key: `c-${e.id}-${selectedDate}`,
           type: 'custom',
           ...e,
         });
@@ -412,7 +416,18 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
       }
     });
     (customEvents || []).forEach((e) => {
-      if (e.eventDate) {
+      if (e.repeatType) {
+        const start = e.eventDate ? dayjs(e.eventDate) : null;
+        if (!start?.isValid()) return;
+        const rangeStart = dayjs().subtract(1, 'year').startOf('month');
+        const rangeEnd = dayjs().add(2, 'year').endOf('month');
+        let d = rangeStart.startOf('month');
+        while (d.isBefore(rangeEnd) || d.isSame(rangeEnd, 'day')) {
+          const dateStr = d.format('YYYY-MM-DD');
+          if (eventOccursOnDate(e, dateStr)) counts[dateStr] = (counts[dateStr] || 0) + 1;
+          d = d.add(1, 'day');
+        }
+      } else if (e.eventDate) {
         const d = dayjs(e.eventDate).format('YYYY-MM-DD');
         counts[d] = (counts[d] || 0) + 1;
       }
@@ -518,6 +533,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
               style={{
                 container: { backgroundColor: 'transparent' },
                 dayTextColor: '#1d1c1d',
+                dayNameText: { color: '#bababe' },
                 disabledTextColor: '#bababe',
                 todayColor: '#E85D4C',
                 holidayColor: '#E85D4C',

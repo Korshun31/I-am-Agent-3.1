@@ -150,6 +150,7 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
   const rightScrollRef = useRef(null);
   const rightVerticalRef = useRef(null);
   const scrollSyncRef = useRef(false);
+  const prevVisibleRef = useRef(isVisible);
 
   const topLevel = properties.filter(p => !p.resort_id);
   const children = properties.filter(p => p.resort_id);
@@ -261,6 +262,20 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
   useEffect(() => {
     if (isVisible) loadData(false);
   }, [isVisible, loadData]);
+
+  useEffect(() => {
+    if (prevVisibleRef.current && !isVisible) {
+      setSelectedProperty(null);
+      setSelectedBooking(null);
+      setSelectedOwnerContact(null);
+      setSelectedPropertyForDetail(null);
+      setPreloadedProperty(null);
+      setPreloadedContact(null);
+      setAddModalVisible(false);
+      setEditModalVisible(false);
+    }
+    prevVisibleRef.current = isVisible;
+  }, [isVisible]);
 
   const bookingsByProperty = React.useMemo(() => {
     const map = {};

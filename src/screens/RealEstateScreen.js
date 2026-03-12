@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -58,7 +58,7 @@ const COLORS = {
   searchBorder: '#E0D8CC',
 };
 
-export default function RealEstateScreen({ propertyToOpen, onPropertyOpened }) {
+export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isVisible = true }) {
   const { t } = useLanguage();
   const [properties, setProperties] = useState([]);
   const [filterVisible, setFilterVisible] = useState(false);
@@ -101,6 +101,15 @@ export default function RealEstateScreen({ propertyToOpen, onPropertyOpened }) {
       onPropertyOpened();
     }
   }, [propertyToOpen, onPropertyOpened]);
+
+  const prevVisible = useRef(isVisible);
+  useEffect(() => {
+    if (prevVisible.current && !isVisible) {
+      setSelectedProperty(null);
+      setBackTarget(null);
+    }
+    prevVisible.current = isVisible;
+  }, [isVisible]);
 
   const drawerAnimation = {
     duration: 300,
