@@ -167,10 +167,10 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
   };
 
   const handleDelete = () => {
-    Alert.alert(t('deleteContactTitle'), t('deleteContactConfirm'), [
-      { text: t('back'), style: 'cancel' },
+    Alert.alert(t('deleteContactConfirmTitle'), t('deleteContactConfirmMessage'), [
+      { text: t('no'), style: 'cancel' },
       {
-        text: t('remove'),
+        text: t('yes'),
         style: 'destructive',
         onPress: async () => {
           try {
@@ -410,16 +410,26 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
               />
             ) : null
           )}
-          <InfoRow
-            icon={require('../../assets/icon-contact-telegram.png')}
-            value={c.telegram}
-            onPress={() => openTelegram(c.telegram)}
-          />
-          <InfoRow
-            icon={require('../../assets/icon-contact-whatsapp.png')}
-            value={c.whatsapp}
-            onPress={() => openWhatsApp(c.whatsapp)}
-          />
+          {(c.extraTelegrams || []).map((v, i) =>
+            v ? (
+              <InfoRow
+                key={`tg-${i}`}
+                icon={require('../../assets/icon-contact-telegram.png')}
+                value={v}
+                onPress={() => openTelegram(v)}
+              />
+            ) : null
+          )}
+          {(c.extraWhatsapps || []).map((v, i) =>
+            v ? (
+              <InfoRow
+                key={`wa-${i}`}
+                icon={require('../../assets/icon-contact-whatsapp.png')}
+                value={v}
+                onPress={() => openWhatsApp(v)}
+              />
+            ) : null
+          )}
         </View>
 
         {(c.documentNumber || c.nationality || c.birthday) ? (

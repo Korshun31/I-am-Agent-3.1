@@ -262,14 +262,10 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
   };
 
   const confirmRemoveContact = (onConfirm) => {
-    Alert.alert(
-      t('removeContact'),
-      t('removeContactConfirm'),
-      [
-        { text: t('back'), style: 'cancel' },
-        { text: t('remove'), style: 'destructive', onPress: onConfirm },
-      ]
-    );
+    Alert.alert(t('removeContactConfirmTitle'), t('removeContactConfirm'), [
+      { text: t('no'), style: 'cancel' },
+      { text: t('yes'), style: 'destructive', onPress: onConfirm },
+    ]);
   };
 
   if (!visible) return null;

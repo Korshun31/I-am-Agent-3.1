@@ -12,7 +12,6 @@ import {
   Alert,
 } from 'react-native';
 import Constants from 'expo-constants';
-import AppPopup, { popupStyles } from '../components/AppPopup';
 import MyDetailsEditModal from '../components/MyDetailsEditModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import LanguageModal from '../components/LanguageModal';
@@ -49,7 +48,6 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
   const [locationsOpen, setLocationsOpen] = useState(false);
   const [locationsClosing, setLocationsClosing] = useState(false);
   const [locations, setLocations] = useState([]);
-  const [logoutPopupVisible, setLogoutPopupVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
   const [notificationsModalVisible, setNotificationsModalVisible] = useState(false);
@@ -206,7 +204,12 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
           <Text style={styles.headerTitle}>{t('account')}</Text>
           <TouchableOpacity
             style={styles.logoutBtn}
-            onPress={() => setLogoutPopupVisible(true)}
+            onPress={() => {
+              Alert.alert(t('logoutConfirmTitle'), t('logoutConfirmMessage'), [
+                { text: t('no'), style: 'cancel' },
+                { text: t('yes'), style: 'destructive', onPress: () => onLogout() },
+              ]);
+            }}
             activeOpacity={0.7}
           >
             <View style={styles.logoutIconWrap}>
@@ -490,35 +493,6 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
       <View style={styles.bottomSpacer} />
       </ScrollView>
     </View>
-
-    <AppPopup
-      visible={logoutPopupVisible}
-      onClose={() => setLogoutPopupVisible(false)}
-      title={t('logoutTitle')}
-    >
-      <Text style={popupStyles.message}>
-        {t('logoutMessage')}
-      </Text>
-      <View style={popupStyles.buttonRow}>
-        <TouchableOpacity
-          style={[popupStyles.button, popupStyles.buttonPrimary]}
-          onPress={() => {
-            setLogoutPopupVisible(false);
-            onLogout();
-          }}
-          activeOpacity={0.8}
-        >
-          <Text style={[popupStyles.buttonText, popupStyles.buttonTextPrimary]}>{t('logout')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[popupStyles.button, popupStyles.buttonSecondary]}
-          onPress={() => setLogoutPopupVisible(false)}
-          activeOpacity={0.8}
-        >
-          <Text style={popupStyles.buttonText}>{t('back')}</Text>
-        </TouchableOpacity>
-      </View>
-    </AppPopup>
 
     <MyDetailsEditModal
       visible={editModalVisible}

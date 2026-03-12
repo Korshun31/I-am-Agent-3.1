@@ -36,17 +36,15 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [telegram, setTelegram] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
   const [documentNumber, setDocumentNumber] = useState('');
   const [nationality, setNationality] = useState('');
   const [birthday, setBirthday] = useState('');
   const [photoUri, setPhotoUri] = useState('');
   const [extraPhones, setExtraPhones] = useState([]);
   const [extraEmails, setExtraEmails] = useState([]);
+  const [extraTelegrams, setExtraTelegrams] = useState([]);
+  const [extraWhatsapps, setExtraWhatsapps] = useState([]);
   const [showAddContactChoices, setShowAddContactChoices] = useState(false);
-  const [showTelegramField, setShowTelegramField] = useState(true);
-  const [showWhatsappField, setShowWhatsappField] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const scrollRef = useRef(null);
 
@@ -65,32 +63,28 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
         setLastName(editContact.lastName || '');
         setPhone(editContact.phone || '');
         setEmail(editContact.email || '');
-        setTelegram(editContact.telegram || '');
-        setWhatsapp(editContact.whatsapp || '');
         setDocumentNumber(editContact.documentNumber || '');
         setNationality(editContact.nationality || '');
         setBirthday(editContact.birthday || '');
         setPhotoUri(editContact.photoUri || '');
         setExtraPhones(Array.isArray(editContact.extraPhones) ? [...editContact.extraPhones] : []);
         setExtraEmails(Array.isArray(editContact.extraEmails) ? [...editContact.extraEmails] : []);
-        setShowTelegramField(!!(editContact.telegram || '').trim());
-        setShowWhatsappField(!!(editContact.whatsapp || '').trim());
+        setExtraTelegrams(Array.isArray(editContact.extraTelegrams) ? [...editContact.extraTelegrams] : (editContact.telegram ? [editContact.telegram] : []));
+        setExtraWhatsapps(Array.isArray(editContact.extraWhatsapps) ? [...editContact.extraWhatsapps] : (editContact.whatsapp ? [editContact.whatsapp] : []));
       } else {
         setName('');
         setLastName('');
         setPhone('');
         setEmail('');
-        setTelegram('');
-        setWhatsapp('');
         setDocumentNumber('');
         setNationality('');
         setBirthday('');
         setPhotoUri('');
         setExtraPhones([]);
         setExtraEmails([]);
+        setExtraTelegrams([]);
+        setExtraWhatsapps([]);
         setShowAddContactChoices(false);
-        setShowTelegramField(true);
-        setShowWhatsappField(false);
       }
     }
   }, [visible, editContact]);
@@ -105,14 +99,14 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
       lastName: lastName.trim(),
       phone: phone.trim(),
       email: email.trim(),
-      telegram: telegram.trim(),
-      whatsapp: whatsapp.trim(),
       documentNumber: documentNumber.trim(),
       nationality: nationality.trim(),
       birthday: birthday.trim(),
       photoUri: photoUri || '',
       extraPhones: extraPhones.filter((p) => (p || '').trim()),
       extraEmails: extraEmails.filter((e) => (e || '').trim()),
+      extraTelegrams: extraTelegrams.filter((t) => (t || '').trim()),
+      extraWhatsapps: extraWhatsapps.filter((w) => (w || '').trim()),
       type: contactType,
     });
     onClose?.();
@@ -159,12 +153,12 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
     setExtraEmails([...extraEmails, '']);
     setShowAddContactChoices(false);
   };
-  const addTelegramField = () => {
-    setShowTelegramField(true);
+  const addExtraTelegram = () => {
+    setExtraTelegrams([...extraTelegrams, '']);
     setShowAddContactChoices(false);
   };
-  const addWhatsappField = () => {
-    setShowWhatsappField(true);
+  const addExtraWhatsapp = () => {
+    setExtraWhatsapps([...extraWhatsapps, '']);
     setShowAddContactChoices(false);
   };
 
@@ -184,17 +178,33 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
   const removeExtraEmail = (index) => {
     setExtraEmails(extraEmails.filter((_, i) => i !== index));
   };
+  const updateExtraTelegram = (index, value) => {
+    const next = [...extraTelegrams];
+    next[index] = value;
+    setExtraTelegrams(next);
+  };
+  const removeExtraTelegram = (index) => {
+    setExtraTelegrams(extraTelegrams.filter((_, i) => i !== index));
+  };
+  const updateExtraWhatsapp = (index, value) => {
+    const next = [...extraWhatsapps];
+    next[index] = value;
+    setExtraWhatsapps(next);
+  };
+  const removeExtraWhatsapp = (index) => {
+    setExtraWhatsapps(extraWhatsapps.filter((_, i) => i !== index));
+  };
 
   const confirmRemoveContact = (onConfirm) => {
-    Alert.alert(t('removeContact'), t('removeContactConfirm'), [
-      { text: t('back'), style: 'cancel' },
-      { text: t('remove'), style: 'destructive', onPress: onConfirm },
+    Alert.alert(t('removeContactConfirmTitle'), t('removeContactConfirm'), [
+      { text: t('no'), style: 'cancel' },
+      { text: t('yes'), style: 'destructive', onPress: onConfirm },
     ]);
   };
 
   if (!visible) return null;
 
-  const hasExtraFields = showAddContactChoices || extraPhones.length > 0 || extraEmails.length > 0 || showWhatsappField;
+  const hasExtraFields = showAddContactChoices || extraPhones.length > 0 || extraEmails.length > 0 || extraTelegrams.length > 0 || extraWhatsapps.length > 0;
 
   return (
     <Modal transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
@@ -284,28 +294,38 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
                   autoCapitalize="none"
                 />
 
-                {showTelegramField ? (
-                  <TextInput
-                    style={styles.input}
-                    placeholder={t('telegram')}
-                    placeholderTextColor="#888"
-                    value={telegram}
-                    onChangeText={setTelegram}
-                    autoCapitalize="none"
-                  />
-                ) : null}
+                {extraTelegrams.map((val, index) => (
+                  <View key={`telegram-${index}`} style={styles.extraRow}>
+                    <TextInput
+                      style={[styles.input, styles.extraInput]}
+                      placeholder={t('telegram')}
+                      placeholderTextColor="#888"
+                      value={val}
+                      onChangeText={(v) => updateExtraTelegram(index, v)}
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity style={styles.removeBtn} onPress={() => confirmRemoveContact(() => removeExtraTelegram(index))} activeOpacity={0.8}>
+                      <Text style={styles.removeBtnText}>−</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
 
-                {showWhatsappField ? (
-                  <TextInput
-                    style={styles.input}
-                    placeholder={t('whatsapp')}
-                    placeholderTextColor="#888"
-                    value={whatsapp}
-                    onChangeText={setWhatsapp}
-                    keyboardType="phone-pad"
-                    returnKeyType="done"
-                  />
-                ) : null}
+                {extraWhatsapps.map((val, index) => (
+                  <View key={`whatsapp-${index}`} style={styles.extraRow}>
+                    <TextInput
+                      style={[styles.input, styles.extraInput]}
+                      placeholder={t('whatsapp')}
+                      placeholderTextColor="#888"
+                      value={val}
+                      onChangeText={(v) => updateExtraWhatsapp(index, v)}
+                      keyboardType="phone-pad"
+                      returnKeyType="done"
+                    />
+                    <TouchableOpacity style={styles.removeBtn} onPress={() => confirmRemoveContact(() => removeExtraWhatsapp(index))} activeOpacity={0.8}>
+                      <Text style={styles.removeBtnText}>−</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
 
                 {extraPhones.map((val, index) => (
                   <View key={`phone-${index}`} style={styles.extraRow}>
@@ -350,16 +370,12 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
                       <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addExtraEmail} activeOpacity={0.8}>
                         <Image source={require('../../assets/icon-contact-email.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
                       </TouchableOpacity>
-                      {!showTelegramField && (
-                        <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addTelegramField} activeOpacity={0.8}>
-                          <Image source={require('../../assets/icon-contact-telegram.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
-                        </TouchableOpacity>
-                      )}
-                      {!showWhatsappField && (
-                        <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addWhatsappField} activeOpacity={0.8}>
-                          <Image source={require('../../assets/icon-contact-whatsapp.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
-                        </TouchableOpacity>
-                      )}
+                      <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addExtraTelegram} activeOpacity={0.8}>
+                        <Image source={require('../../assets/icon-contact-telegram.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addExtraWhatsapp} activeOpacity={0.8}>
+                        <Image source={require('../../assets/icon-contact-whatsapp.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
+                      </TouchableOpacity>
                       <TouchableOpacity style={styles.addContactChoiceBtn} onPress={() => setShowAddContactChoices(false)} activeOpacity={0.8}>
                         <Image source={require('../../assets/icon-contact-cancel.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
                       </TouchableOpacity>
