@@ -334,7 +334,7 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
     ? `<img src="${escapeHtml(ci.logoUrl)}" alt="" style="width:144px;height:48px;object-fit:contain;max-width:144px;max-height:48px" />`
     : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 48" width="48" height="48"><rect x="2" y="8" width="12" height="32" rx="3" fill="#D87A5C" transform="rotate(-8 8 24)"/><rect x="18" y="6" width="12" height="32" rx="3" fill="#E5B84A" transform="rotate(-4 24 22)"/><rect x="34" y="4" width="12" height="32" rx="3" fill="#8BA882" transform="rotate(0 40 20)"/><rect x="50" y="6" width="12" height="32" rx="3" fill="#5BA3A8" transform="rotate(4 56 22)"/><rect x="66" y="8" width="12" height="32" rx="3" fill="#3D7D82" transform="rotate(8 72 24)"/></svg>';
 
-  const dateOfIssue = formatDate(new Date().toISOString().slice(0, 10));
+  const dateOfIssue = formatDate(b.createdAt ? new Date(b.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
   const paymentPlanRows = buildPaymentPlanRows({
     checkIn: b.checkIn,
     checkOut: b.checkOut,
@@ -508,8 +508,8 @@ function escapeHtml(s) {
 }
 
 /**
- * Generate PDF and optionally share.
- * @returns {Promise<{ uri: string }>}
+ * Generate PDF.
+ * @returns {Promise<{ uri: string, html: string }>}
  */
 export async function generateConfirmationPDF(params) {
   const html = buildConfirmationHTML(params);
@@ -517,5 +517,5 @@ export async function generateConfirmationPDF(params) {
     html,
     base64: false,
   });
-  return { uri };
+  return { uri, html };
 }

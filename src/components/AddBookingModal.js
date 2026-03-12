@@ -597,6 +597,7 @@ isMonthFirst
                         dimPastDates
                       style={{
                         container: { backgroundColor: 'transparent' },
+                        dayNameText: { color: '#bababe' },
                         monthOverlayContainer: {
                           width: Math.round((Math.min(Dimensions.get('window').width - 72, 368)) * 0.8),
                           height: 360,

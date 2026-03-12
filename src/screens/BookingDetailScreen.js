@@ -18,6 +18,7 @@ import { getProperties } from '../services/propertiesService';
 import { getBookings } from '../services/bookingsService';
 import { getCurrentUser } from '../services/authService';
 import { generateConfirmationPDF } from '../services/bookingConfirmationService';
+import PdfPreviewModal from '../components/PdfPreviewModal';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
@@ -79,6 +80,9 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
   const [property, setProperty] = useState(initialProperty ?? null);
   const [loadingProperty, setLoadingProperty] = useState(!initialProperty && !!booking?.propertyId);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [pdfPreviewVisible, setPdfPreviewVisible] = useState(false);
+  const [pdfPreviewUri, setPdfPreviewUri] = useState(null);
+  const [pdfPreviewHtml, setPdfPreviewHtml] = useState(null);
 
   const loadProperty = useCallback(async () => {
     if (!booking?.propertyId) {
@@ -198,7 +202,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
         getBookings(property.id),
       ]);
       const confirmationNumber = getBookingNumber(booking, bookings);
-      const { uri } = await generateConfirmationPDF({
+      const { uri, html } = await generateConfirmationPDF({
         booking,
         property,
         contact: contact || null,
@@ -206,15 +210,31 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
         confirmationNumber,
         language: language || 'ru',
       });
-      await Share.share({
-        url: uri,
-        type: 'application/pdf',
-        title: t('bdBookingDates') || 'Подтверждение бронирования',
-      });
+      setPdfPreviewUri(uri);
+      setPdfPreviewHtml(html);
+      setPdfPreviewVisible(true);
     } catch (e) {
       Alert.alert(t('error'), e.message || 'Не удалось создать PDF');
     } finally {
       setGeneratingPdf(false);
+    }
+  };
+
+  const handlePdfSend = async () => {
+    if (!pdfPreviewUri) return;
+    try {
+      const result = await Share.share({
+        url: pdfPreviewUri,
+        type: 'application/pdf',
+        title: t('pdfPreviewTitle') || 'Подтверждение бронирования',
+      });
+      if (result.action === Share.sharedAction) {
+        setPdfPreviewVisible(false);
+        setPdfPreviewUri(null);
+        setPdfPreviewHtml(null);
+      }
+    } catch (e) {
+      Alert.alert(t('error'), e.message || 'Не удалось отправить');
     }
   };
 
@@ -406,6 +426,18 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      <PdfPreviewModal
+        visible={pdfPreviewVisible}
+        pdfUri={pdfPreviewUri}
+        html={pdfPreviewHtml}
+        onClose={() => {
+          setPdfPreviewVisible(false);
+          setPdfPreviewUri(null);
+          setPdfPreviewHtml(null);
+        }}
+        onSend={handlePdfSend}
+      />
     </View>
   );
 }

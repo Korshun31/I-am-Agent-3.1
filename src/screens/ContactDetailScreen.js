@@ -488,17 +488,18 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
               <Text style={styles.cardTitle}>{t('clientBookings')}</Text>
             </View>
             {bookings.length > 0 ? (
-              bookings.map((b) => {
+              bookings.map((b, idx) => {
                 const prop = properties.find(p => p.id === b.propertyId);
                 const codeDisplay = buildPropertyCode(prop, properties);
                 const samePropBookings = byProperty[b.propertyId] || [];
                 const bookingNum = getBookingNumber(b, samePropBookings);
                 const codePart = `${codeDisplay} ${bookingNum}`;
                 const past = isPastBooking(b);
+                const isLast = idx === bookings.length - 1;
                 return (
                   <TouchableOpacity
                     key={b.id}
-                    style={[styles.bookingItem, past && styles.bookingItemPast]}
+                    style={[styles.bookingItem, past && styles.bookingItemPast, isLast && styles.bookingItemLast]}
                     onPress={() => {
                       setSelectedBooking(b);
                       setSelectedBookingTitle(codePart);
@@ -733,10 +734,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+    borderBottomColor: 'rgba(0,0,0,0.2)',
   },
   bookingItemPast: {
     opacity: 0.6,
+  },
+  bookingItemLast: {
+    borderBottomWidth: 0,
   },
   bookingItemIcon: {
     width: 19,
