@@ -234,7 +234,12 @@ export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isV
     children.forEach(p => {
       const parent = getParent(p.resort_id);
       if (filterFn(p, parent) && searchMatch(p, parent)) {
-        flatUnits.push({ ...p, _parentName: parent?.name || '', _parentType: parent?.type || null });
+        flatUnits.push({
+          ...p,
+          _parentName: parent?.name || '',
+          _parentType: parent?.type || null,
+          district: parent?.district ?? p.district,
+        });
       }
     });
     listToShow = [...flatUnits].sort((a, b) => {

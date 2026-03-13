@@ -87,3 +87,24 @@ export async function deleteProperty(id) {
 
   if (error) throw new Error(error.message);
 }
+
+/** Update district for all houses in a resort (cascade when resort district changes). */
+export async function updateResortChildrenDistrict(resortId, district) {
+  if (!resortId) return;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('Not authenticated');
+
+  const { data: children, error: fetchErr } = await supabase
+    .from('properties')
+    .select('id')
+    .eq('resort_id', resortId)
+    .eq('agent_id', session.user.id);
+
+  if (fetchErr || !children?.length) return;
+  const ids = children.map((c) => c.id);
+  await supabase
+    .from('properties')
+    .update({ district: district || null })
+    .in('id', ids)
+    .eq('agent_id', session.user.id);
+}

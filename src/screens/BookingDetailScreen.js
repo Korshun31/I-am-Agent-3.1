@@ -288,12 +288,12 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
             } />
             <PropertyInfoRow label={t('pdCity')} value={property.city ?? property._resort?.city} />
             <PropertyInfoRow label={t('propDistrict')} value={property.district ?? property._resort?.district} />
-            {(property._resort?.google_maps_link || property.google_maps_link) ? (
+            {(property.google_maps_link ?? property._resort?.google_maps_link) ? (
               <PropertyInfoRow
                 label={t('pdLocation')}
                 value={t('pdGoogleMapLink')}
                 isLink
-                onPress={() => Linking.openURL(property._resort?.google_maps_link || property.google_maps_link)}
+                onPress={() => Linking.openURL(property.google_maps_link ?? property._resort?.google_maps_link)}
               />
             ) : (
               <PropertyInfoRow label={t('pdLocation')} value="—" />

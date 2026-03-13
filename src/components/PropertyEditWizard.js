@@ -65,7 +65,7 @@ function Field({ label, value, onChangeText, placeholder, keyboardType, multilin
   );
 }
 
-function StepInfo({ data, setData, t, propertyType, locations, locationDistricts, onDistrictAdded, owners, onNewOwnerCreated, onOpenOwnerPicker, resortId, resortCode }) {
+function StepInfo({ data, setData, t, propertyType, locations, locationDistricts, onDistrictAdded, owners, onNewOwnerCreated, onOpenOwnerPicker, resortId, resortCode, parentResort }) {
   const [cityOpen, setCityOpen] = useState(false);
   const [districtOpen, setDistrictOpen] = useState(false);
   const [ownerPickerVisible, setOwnerPickerVisible] = useState(false);
@@ -226,57 +226,63 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
         )}
       </View>
 
-      {/* District picker */}
+      {/* District: read-only from resort for houses in resort, else picker */}
       <View style={s.fieldWrap}>
         <Text style={s.fieldLabel}>{t('propDistrict')}</Text>
-        <TouchableOpacity
-          style={s.pickerBtn}
-          onPress={() => { closeAllPickers('district'); setDistrictOpen(!districtOpen); }}
-          activeOpacity={0.7}
-        >
-          <Text style={[s.pickerBtnText, !data.district && s.pickerBtnPlaceholder]}>
-            {data.district || t('wizSelectDistrict')}
-          </Text>
-          <Text style={s.pickerArrow}>{districtOpen ? '▲' : '▼'}</Text>
-        </TouchableOpacity>
-        {districtOpen && (
-          <View style={s.pickerDropdown}>
-            {!data.location_id && (
-              <Text style={s.pickerEmpty}>{t('wizSelectCityFirst')}</Text>
-            )}
-            {uniqueDistricts.length > 0 && uniqueDistricts.map(d => (
-              <TouchableOpacity
-                key={d}
-                style={[s.pickerItem, data.district === d && s.pickerItemActive]}
-                onPress={() => handleSelectDistrict(d)}
-                activeOpacity={0.7}
-              >
-                <Text style={[s.pickerItemCity, data.district === d && s.pickerItemCityActive]}>{d}</Text>
-              </TouchableOpacity>
-            ))}
-            {data.location_id && (
-            <View style={s.newDistrictRow}>
-              <TextInput
-                style={s.newDistrictInput}
-                value={newDistrict}
-                onChangeText={setNewDistrict}
-                placeholder={t('wizNewDistrict')}
-                placeholderTextColor="#999"
-                returnKeyType="done"
-                onSubmitEditing={handleAddNewDistrict}
-              />
-              <TouchableOpacity style={s.newDistrictBtn} onPress={handleAddNewDistrict} activeOpacity={0.7}>
-                <Text style={s.newDistrictBtnText}>+</Text>
-              </TouchableOpacity>
-            </View>
-            )}
+        {isHouseInResort && parentResort ? (
+          <View style={[s.pickerBtn, { opacity: 0.9 }]}>
+            <Text style={s.pickerBtnText}>{parentResort.district || '—'}</Text>
           </View>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={s.pickerBtn}
+              onPress={() => { closeAllPickers('district'); setDistrictOpen(!districtOpen); }}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.pickerBtnText, !data.district && s.pickerBtnPlaceholder]}>
+                {data.district || t('wizSelectDistrict')}
+              </Text>
+              <Text style={s.pickerArrow}>{districtOpen ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+            {districtOpen && (
+              <View style={s.pickerDropdown}>
+                {!data.location_id && (
+                  <Text style={s.pickerEmpty}>{t('wizSelectCityFirst')}</Text>
+                )}
+                {uniqueDistricts.length > 0 && uniqueDistricts.map(d => (
+                  <TouchableOpacity
+                    key={d}
+                    style={[s.pickerItem, data.district === d && s.pickerItemActive]}
+                    onPress={() => handleSelectDistrict(d)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.pickerItemCity, data.district === d && s.pickerItemCityActive]}>{d}</Text>
+                  </TouchableOpacity>
+                ))}
+                {data.location_id && (
+                <View style={s.newDistrictRow}>
+                  <TextInput
+                    style={s.newDistrictInput}
+                    value={newDistrict}
+                    onChangeText={setNewDistrict}
+                    placeholder={t('wizNewDistrict')}
+                    placeholderTextColor="#999"
+                    returnKeyType="done"
+                    onSubmitEditing={handleAddNewDistrict}
+                  />
+                  <TouchableOpacity style={s.newDistrictBtn} onPress={handleAddNewDistrict} activeOpacity={0.7}>
+                    <Text style={s.newDistrictBtnText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+                )}
+              </View>
+            )}
+          </>
         )}
       </View>
 
-      {!isHouseInResort && (
-        <Field label={t('pdLocation') + ' (Google Maps)'} value={data.google_maps_link} onChangeText={v => setData(d => ({ ...d, google_maps_link: v }))} placeholder="https://maps.google.com/..." />
-      )}
+      <Field label={t('pdLocation') + ' (Google Maps)'} value={data.google_maps_link} onChangeText={v => setData(d => ({ ...d, google_maps_link: v }))} placeholder="https://maps.google.com/..." />
 
       <Field label={t('pdAddress')} value={data.address} onChangeText={v => setData(d => ({ ...d, address: v }))} placeholder={t('pdAddressPlaceholder')} />
 
@@ -749,7 +755,11 @@ function toStr(val) {
   return val != null ? String(val) : '';
 }
 
-function buildInitialData(p) {
+function buildInitialData(p, parentResort) {
+  const isHouseInResort = Boolean(p.resort_id);
+  const district = isHouseInResort && parentResort ? (parentResort.district || '') : (p.district || '');
+  const googleMapsLink = p.google_maps_link || (parentResort?.google_maps_link || '');
+  const address = p.address || (parentResort?.address || '');
   return {
     name: p.name || '',
     code: p.code || '',
@@ -760,9 +770,9 @@ function buildInitialData(p) {
     owner_id_2: p.owner_id_2 || null,
     _ownerName: '',
     _owner2Name: '',
-    district: p.district || '',
-    google_maps_link: p.google_maps_link || '',
-    address: p.address || '',
+    district,
+    google_maps_link: googleMapsLink,
+    address,
     bedrooms: toStr(p.bedrooms),
     bathrooms: toStr(p.bathrooms),
     area: toStr(p.area),
@@ -804,7 +814,9 @@ function toNum(val) {
   return isNaN(n) ? null : n;
 }
 
-function buildUpdates(data) {
+function buildUpdates(data, property, parentResort) {
+  const isHouseInResort = Boolean(property?.resort_id);
+  const district = isHouseInResort && parentResort ? (parentResort.district || '').trim() : (data.district || '').trim();
   return {
     name: data.name.trim(),
     code: data.code.trim(),
@@ -813,7 +825,7 @@ function buildUpdates(data) {
     location_id: data.location_id || null,
     owner_id: data.owner_id || null,
     owner_id_2: data.owner_id_2 || null,
-    district: data.district.trim(),
+    district,
     google_maps_link: data.google_maps_link.trim(),
     address: data.address.trim(),
     bedrooms: toNum(data.bedrooms),
@@ -867,12 +879,12 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
 
   useEffect(() => {
     if (visible && property) {
-      setData(buildInitialData(property));
+      setData(buildInitialData(property, parentResort));
       setStep(0);
       getLocations().then(setLocations).catch(() => {});
       loadOwners();
     }
-  }, [visible, property]);
+  }, [visible, property, parentResort]);
 
   useEffect(() => {
     if (visible && data.location_id) {
@@ -948,7 +960,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       }
       setUploadProgress('');
 
-      const updates = buildUpdates(data);
+      const updates = buildUpdates(data, property, parentResort);
       await onSave(updates);
     } catch (e) {
       Alert.alert(t('error'), e.message || 'Error');
@@ -978,6 +990,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
           onOpenOwnerPicker={loadOwners}
           resortId={property?.resort_id}
           resortCode={property?.code}
+          parentResort={parentResort}
         />
       );
       case 'chars': return <StepCharacteristics data={data} setData={setData} t={t} propertyType={property.type} />;

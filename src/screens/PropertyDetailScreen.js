@@ -19,7 +19,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
-import { getProperties, updateProperty, createPropertyFull } from '../services/propertiesService';
+import { getProperties, updateProperty, createPropertyFull, updateResortChildrenDistrict } from '../services/propertiesService';
 import { deletePhotoFromStorage } from '../services/storageService';
 import { getContacts } from '../services/contactsService';
 import { getBookings, deleteBooking, updateBooking } from '../services/bookingsService';
@@ -474,7 +474,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
   const marketDistance = p.market_distance ?? resort?.market_distance;
   const city = p.city ?? resort?.city;
   const district = p.district ?? resort?.district;
-  const googleMapsLink = resort ? resort.google_maps_link : p.google_maps_link;
+  const googleMapsLink = p.google_maps_link ?? resort?.google_maps_link;
   const codeDisplay = resort
     ? (resort.code || '') + (p.code_suffix ? ` (${p.code_suffix})` : '')
     : p.code;
@@ -768,7 +768,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
         resortHouses.map(h => (
           <ResortHouseItem
             key={h.id}
-            item={h}
+            item={{ ...h, district: p.district ?? h.district }}
             resortCode={p.code}
             expanded={expandedHouseIds.has(h.id)}
             onToggle={() => toggleHouseExpand(h.id)}
@@ -1162,6 +1162,11 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       setP(merged);
       setWizardVisible(false);
       loadOwnerData(merged);
+      if ((p.type === 'resort' || p.type === 'condo') && updates.district !== undefined && String(updates.district || '') !== String(p.district || '')) {
+        try {
+          await updateResortChildrenDistrict(p.id, updates.district);
+        } catch {}
+      }
       onPropertyUpdated?.();
     } catch (e) {
       throw e;
@@ -1177,6 +1182,8 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     location_id: p.location_id || null,
     owner_id: p.owner_id || null,
     district: p.district || '',
+    google_maps_link: p.google_maps_link || '',
+    address: p.address || '',
   };
 
   const draftApartmentInCondo = {
@@ -1188,6 +1195,8 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     location_id: p.location_id || null,
     owner_id: p.owner_id || null,
     district: p.district || '',
+    google_maps_link: p.google_maps_link || '',
+    address: p.address || '',
   };
 
   const handleAddHouseSave = async (updates) => {
