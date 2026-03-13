@@ -9,6 +9,7 @@
     "web": "expo start --web",
     "postinstall": "(patch-package || true) && node scripts/patch-calendar-eu-week.js",
     "verify-build": "node scripts/verify-build.js",
+    "prepare-testflight": "node scripts/prepare-testflight.js",
     "build:ios": "npm run verify-build && eas build --platform ios"
   },
   "dependencies": {

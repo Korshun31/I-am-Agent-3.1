@@ -36,6 +36,7 @@ import { cancelBookingReminders } from '../services/bookingRemindersService';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const CALENDAR_SCALE = 1.1;
 const CALENDAR_COLORS = [
   '#E57373', '#FF8A65', '#FFB74D', '#FFD54F',
   '#81C784', '#4DB6AC', '#64B5F6',
@@ -123,6 +124,7 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
       : event.notMyCustomer
       ? EVENT_BLOCK_COLORS.other
       : (event.eventType === 'checkIn' ? EVENT_BLOCK_COLORS.checkInMine : EVENT_BLOCK_COLORS.checkOutMine);
+    const objName = event.objectDisplayName || '';
     return (
       <View style={[styles.eventCard, styles.eventCardPropertyStyle, { backgroundColor: blockColors.bg, borderColor: blockColors.border }]}>
         <View style={styles.eventRow}>
@@ -130,6 +132,9 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
             <Image source={typeIcon} style={styles.eventTypeIcon} resizeMode="contain" />
             <Text style={styles.eventName} numberOfLines={1}>{displayName}</Text>
           </TouchableOpacity>
+          {objName ? (
+            <Text style={styles.eventObjectLabel} numberOfLines={1} ellipsizeMode="tail">{objName}</Text>
+          ) : null}
           <TouchableOpacity onPress={onToggle} style={styles.expandBtn} activeOpacity={0.5}>
             <Image source={require('../../assets/chevron-down.png')} style={[styles.chevronIcon, expanded && styles.chevronIconOpen]} resizeMode="contain" />
           </TouchableOpacity>
@@ -307,9 +312,22 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
       const unit = prop.code_suffix ? ` (${prop.code_suffix})` : '';
       return `${code}${unit}`.trim() || '—';
     };
+    const getObjectDisplayName = (b) => {
+      const prop = propsMap[b.propertyId];
+      if (!prop) return '—';
+      const parent = prop.resort_id ? propsMap[prop.resort_id] : null;
+      if (parent) return (parent.name || parent.code || '').trim() || '—';
+      return (prop.name || prop.code || '').trim() || '—';
+    };
+    const truncateLabel = (s, maxLen = 24) => {
+      if (!s || typeof s !== 'string') return '';
+      const t = String(s).trim();
+      return t.length <= maxLen ? t : t.slice(0, maxLen - 3) + '...';
+    };
 
     (bookings || []).forEach(b => {
       if (!b.checkIn) return;
+      const objName = truncateLabel(getObjectDisplayName(b));
       const d = dayjs(b.checkIn).format('YYYY-MM-DD');
       if (d === selectedDate) {
         list.push({
@@ -320,6 +338,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
           booking: b,
           property: propsMap[b.propertyId],
           propertyLabel: getPropertyLabel(b),
+          objectDisplayName: objName,
           bookingNum: getBookingNumber(b, bookings),
           fullBookingCode: `${getPropertyLabel(b)} ${getBookingNumber(b, bookings)}`.trim(),
           notMyCustomer: b.notMyCustomer,
@@ -336,6 +355,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
           booking: b,
           property: propsMap[b.propertyId],
           propertyLabel: getPropertyLabel(b),
+          objectDisplayName: objName,
           bookingNum: getBookingNumber(b, bookings),
           fullBookingCode: `${getPropertyLabel(b)} ${getBookingNumber(b, bookings)}`.trim(),
           notMyCustomer: b.notMyCustomer,
@@ -353,6 +373,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
           booking: b,
           property: propsMap[b.propertyId],
           propertyLabel: label,
+          objectDisplayName: truncateLabel(getObjectDisplayName(b)),
           fullBookingCode: codeAndNum,
           commissionTitle: `${t('commissionOneTimeEvent')} ${codeAndNum} (${b.ownerCommissionOneTime})`,
           commissionAmount: b.ownerCommissionOneTime,
@@ -371,6 +392,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
               booking: b,
               property: propsMap[b.propertyId],
               propertyLabel: label,
+              objectDisplayName: truncateLabel(getObjectDisplayName(b)),
               fullBookingCode: codeAndNum,
               commissionTitle: `${t('commissionMonthlyEvent')} ${codeAndNum} (${amount})${suffix}`,
               commissionAmount: amount,
@@ -539,8 +561,8 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
                 holidayColor: '#E85D4C',
                 selectedDayBackgroundColor: '#FFB74D',
                 monthOverlayContainer: {
-                  width: Math.round((Math.min(SCREEN_WIDTH - 72, 368)) * 0.8),
-                  height: 360,
+                  width: Math.round((Math.min(SCREEN_WIDTH - 72, 368)) * 0.8 * CALENDAR_SCALE),
+                  height: Math.round(360 * CALENDAR_SCALE),
                   backgroundColor: 'rgba(255,255,255,0.95)',
                   borderRadius: 12,
                   marginRight: 16,
@@ -556,7 +578,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
                 monthNameText: { textAlign: 'center' },
               }}
               flatListProps={(() => {
-                const w = Math.round((Math.min(SCREEN_WIDTH - 72, 368)) * 0.8);
+                const w = Math.round((Math.min(SCREEN_WIDTH - 72, 368)) * 0.8 * CALENDAR_SCALE);
                 const slot = w + 16;
                 const viewportWidth = SCREEN_WIDTH - 40;
                 const padH = Math.max(0, (viewportWidth - w) / 2);
@@ -569,7 +591,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
                   bounces: true,
                   alwaysBounceHorizontal: true,
                   snapToOffsets: Array.from({ length: monthCount }, (_, i) => {
-                    const itemCenter = padH + slot * i + slot / 2;
+                    const itemCenter = padH + slot * i + w / 2;
                     return itemCenter - viewportWidth / 2;
                   }),
                   snapToAlignment: 'center',
@@ -759,6 +781,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#2C2C2C',
+  },
+  eventObjectLabel: {
+    fontSize: 13,
+    color: '#6B6B6B',
+    maxWidth: 120,
+    marginRight: 8,
   },
   eventTimeCenter: {
     marginRight: 25,

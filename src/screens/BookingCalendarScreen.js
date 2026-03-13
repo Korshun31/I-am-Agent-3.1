@@ -126,7 +126,7 @@ function getOwnerLabel(width, labels) {
   return min || '';
 }
 
-export default function BookingCalendarScreen({ isVisible = true } = {}) {
+export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose } = {}) {
   const { t, language } = useLanguage();
   const [properties, setProperties] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -227,7 +227,11 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
     (filterValues.amenities?.length ?? 0) > 0
   );
 
-  const listToShow = hasActiveFilter ? flatUnits() : flatUnits();
+  let listToShow = hasActiveFilter ? flatUnits() : flatUnits();
+  if (propertyIdsFilter && propertyIdsFilter.length > 0) {
+    const idSet = new Set(propertyIdsFilter);
+    listToShow = listToShow.filter((u) => idSet.has(u.id));
+  }
   const allCities = [
     ...topLevel.map(p => p.city),
     ...children.map(p => (getParent(p.resort_id)?.city ?? p.city)),
@@ -564,19 +568,21 @@ export default function BookingCalendarScreen({ isVisible = true } = {}) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.fixedTop}>
-        <View style={styles.header}>
-          <View style={styles.headerSpacer} />
-          <Text style={styles.headerTitle}>{t('bookingCalendar')}</Text>
-          <TouchableOpacity
-            style={[styles.filterBtn, hasActiveFilter && styles.filterBtnActive]}
-            onPress={() => setFilterVisible(true)}
-            activeOpacity={0.7}
-          >
-            <Image source={require('../../assets/icon-filter.png')} style={[styles.filterIcon, hasActiveFilter && styles.filterIconActive]} resizeMode="contain" />
-          </TouchableOpacity>
+      {!embeddedInModal && (
+        <View style={styles.fixedTop}>
+          <View style={styles.header}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.headerTitle}>{t('bookingCalendar')}</Text>
+            <TouchableOpacity
+              style={[styles.filterBtn, hasActiveFilter && styles.filterBtnActive]}
+              onPress={() => setFilterVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Image source={require('../../assets/icon-filter.png')} style={[styles.filterIcon, hasActiveFilter && styles.filterIconActive]} resizeMode="contain" />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      )}
 
       {listToShow.length === 0 ? (
         <View style={styles.emptyWrap}>

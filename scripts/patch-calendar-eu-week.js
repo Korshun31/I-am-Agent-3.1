@@ -115,9 +115,11 @@ function patchDisabledDates() {
         s = s.replace('disabledDates={disabledDates} style={style}/>', 'disabledDates={disabledDates} occupiedCheckInDates={occupiedCheckInDates} occupiedCheckOutDates={occupiedCheckOutDates} style={style}/>');
         s = s.replace('for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    return true;\n}', 'for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    var pci = prevProps.occupiedCheckInDates || []; var nci = nextProps.occupiedCheckInDates || []; if (pci.length !== nci.length) return false; for (var i = 0; i < pci.length; i++) { if (pci[i] !== nci[i]) return false; }\n    var pco = prevProps.occupiedCheckOutDates || []; var nco = nextProps.occupiedCheckOutDates || []; if (pco.length !== nco.length) return false; for (var i = 0; i < pco.length; i++) { if (pco[i] !== nco[i]) return false; }\n    if (prevProps.dimPastDates !== nextProps.dimPastDates) return false;\n    return true;\n}');
       }
-      if (!s.includes('dimPastDates')) {
+      if (!s.includes('dimPastDates = _a.dimPastDates')) {
         s = s.replace('disabledAfterToday = _a.disabledAfterToday, disabledDates = _a.disabledDates', 'disabledAfterToday = _a.disabledAfterToday, dimPastDates = _a.dimPastDates, disabledDates = _a.disabledDates');
-        s = s.replace('disabledAfterToday={disabledAfterToday} disabledDates={disabledDates}', 'disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} disabledDates={disabledDates}');
+      }
+      if (!s.includes('dimPastDates={dimPastDates} disabledDates={disabledDates}') && s.includes('disabledAfterToday={disabledAfterToday} disabledDates={disabledDates} occupiedCheckInDates=')) {
+        s = s.replace('disabledAfterToday={disabledAfterToday} disabledDates={disabledDates} occupiedCheckInDates=', 'disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} disabledDates={disabledDates} occupiedCheckInDates=');
       }
       if (!s.includes('eventCountsByDate')) {
         s = s.replace('occupiedCheckOutDates = _a.occupiedCheckOutDates, style = _a.style;', 'occupiedCheckOutDates = _a.occupiedCheckOutDates, eventCountsByDate = _a.eventCountsByDate, style = _a.style;');
@@ -147,12 +149,17 @@ function patchDisabledDates() {
         s = s.replace('isOccupied={isOccupied} style={style}/>', 'isOccupied={isOccupied} isCheckIn={isCheckIn} isCheckOut={isCheckOut} style={style}/>');
         s = s.replace('for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    return true;\n}\nexport default memo(Week', 'for (var i = 0; i < pa.length; i++) { if (pa[i] !== na[i]) return false; }\n    var pci = prevProps.occupiedCheckInDates || []; var nci = nextProps.occupiedCheckInDates || []; if (pci.length !== nci.length) return false; for (var i = 0; i < pci.length; i++) { if (pci[i] !== nci[i]) return false; }\n    var pco = prevProps.occupiedCheckOutDates || []; var nco = nextProps.occupiedCheckOutDates || []; if (pco.length !== nco.length) return false; for (var i = 0; i < pco.length; i++) { if (pco[i] !== nco[i]) return false; }\n    if (prevProps.dimPastDates !== nextProps.dimPastDates) return false;\n    return true;\n}\nexport default memo(Week');
       }
-      if (!s.includes('dimPastDates')) {
+      if (!s.includes('dimPastDates = _a.dimPastDates')) {
         s = s.replace('disabledDates = _a.disabledDates, occupiedCheckInDates = _a.occupiedCheckInDates', 'disabledDates = _a.disabledDates, dimPastDates = _a.dimPastDates, occupiedCheckInDates = _a.occupiedCheckInDates');
+      }
+      if (!s.includes('dimPastDates={dimPastDates}') && s.includes('isOccupied={isOccupied}')) {
         s = s.replace('disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} isOccupied={isOccupied}', 'disabledBeforeToday={disabledBeforeToday} disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} isOccupied={isOccupied}');
       }
       if (s.includes('dimPastDates = _a.dimPastDates') && !s.includes('dimPastDates={dimPastDates} isOccupied')) {
         s = s.replace('disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} isCheckIn=', 'disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} isOccupied={isOccupied} isCheckIn=');
+        s = s.replace('disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} style={style}/>', 'disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} isOccupied={isOccupied} style={style}/>');
+      }
+      if (s.includes('<Day day={day}') && s.includes('disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} style={style}/>') && !s.includes('disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} isOccupied={isOccupied} style={style}/>')) {
         s = s.replace('disabledAfterToday={disabledAfterToday} isOccupied={isOccupied} style={style}/>', 'disabledAfterToday={disabledAfterToday} dimPastDates={dimPastDates} isOccupied={isOccupied} style={style}/>');
       }
       if (!s.includes('eventCountsByDate')) {
@@ -222,8 +229,8 @@ function patchDisabledDates() {
         s = s.replace('            if (dimPastDates && isBeforeToday) {\n                markStyle = __assign(__assign({}, markStyle), { opacity: 0.75 });\n            }\n            ', '            ');
       }
       if (s.includes('dayStyle, style === null') && !s.includes('dimPastDates && isBeforeToday ? [')) {
-        s = s.replace('<Text pointerEvents={isOccupied ? \'none\' : \'auto\'} style={[{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText]}', '<Text pointerEvents={isOccupied ? \'none\' : \'auto\'} style={dimPastDates && isBeforeToday ? [{ fontSize: 15, color: (style === null || style === void 0 ? void 0 : style.disabledTextColor) || \'#bababe\' }] : [{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText]}');
-        s = s.replace('style={[{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText, (dimPastDates && isBeforeToday) ? { color: (style === null || style === void 0 ? void 0 : style.disabledTextColor) || \'#bababe\' } : null]}', 'style={dimPastDates && isBeforeToday ? [{ fontSize: 15, color: (style === null || style === void 0 ? void 0 : style.disabledTextColor) || \'#bababe\' }] : [{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText]}');
+        s = s.replace('<Text pointerEvents={isOccupied ? \'none\' : \'auto\'} style={[{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText]}', '<Text pointerEvents={isOccupied ? \'none\' : \'auto\'} style={dimPastDates && isBeforeToday ? [{ fontSize: 15, color: (style && style.dayNameText && style.dayNameText.color) || (style === null || style === void 0 ? void 0 : style.disabledTextColor) || \'#bababe\' }] : [{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText]}');
+        s = s.replace('style={[{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText, (dimPastDates && isBeforeToday) ? { color: (style === null || style === void 0 ? void 0 : style.disabledTextColor) || \'#bababe\' } : null]}', 'style={dimPastDates && isBeforeToday ? [{ fontSize: 15, color: (style && style.dayNameText && style.dayNameText.color) || (style === null || style === void 0 ? void 0 : style.disabledTextColor) || \'#bababe\' }] : [{ fontSize: 15 }, dayStyle, style === null || style === void 0 ? void 0 : style.dayText]}');
       }
       if (s.includes('{locale.today}')) {
         s = s.replace(/\s*\{isToday \? \(<Text[^>]*>[\s\S]*?\{locale\.today\}[\s\S]*?<\/Text>\) : null\}/, '');
@@ -233,7 +240,43 @@ function patchDisabledDates() {
   });
 }
 
+/**
+ * Scale Agent Calendar month blocks by 10% (Month, Week, Day, CalendarList).
+ * Run after patchDisabledDates.
+ */
+function patchCalendarScale10() {
+  const root = path.join(__dirname, '..', 'node_modules', 'react-native-calendar-range-picker', 'dist');
+  const files = ['Month.js', 'Week.js', 'Day.js', 'CalendarList.js'];
+  files.forEach((f) => {
+    const p = path.join(root, f);
+    if (!fs.existsSync(p)) return;
+    let s = fs.readFileSync(p, 'utf8');
+    if (f === 'Month.js') {
+      s = s.replace('paddingTop: 20,', 'paddingTop: 22,');
+      s = s.replace('var PADDING_HORIZONTAL = 10;', 'var PADDING_HORIZONTAL = 11;');
+      s = s.replace('height: 30,', 'height: 33,');
+      s = s.replace(/dayNamesContainer: \{\s*height: 50,/g, 'dayNamesContainer: {\n        height: 55,');
+      s = s.replace('fontSize: 16,', 'fontSize: 18,');
+      s = s.replace('dayName: {\n        fontSize: 15,', 'dayName: {\n        fontSize: 17,');
+    } else if (f === 'Week.js') {
+      s = s.replace('height: is6Weeks ? 45 : 50', 'height: is6Weeks ? 50 : 55');
+      s = s.replace('flex: 1, height: is6Weeks ? 45 : 50 }', 'flex: 1, height: is6Weeks ? 50 : 55 }');
+    } else if (f === 'Day.js') {
+      s = s.replace(/width: 30,\s*height: 30,/g, 'width: 33,\n        height: 33,');
+      s = s.replace(/height: 30,/g, 'height: 33,');
+      s = s.replace(/borderRadius: 15/g, 'borderRadius: 17');
+      s = s.replace(/top: -4, right: -4, minWidth: 14, height: 14, borderRadius: 7/g, 'top: -4, right: -4, minWidth: 15, height: 15, borderRadius: 8');
+      s = s.replace(/fontSize: 15/g, 'fontSize: 17');
+      s = s.replace(/fontSize: 9/g, 'fontSize: 10');
+    } else if (f === 'CalendarList.js') {
+      s = s.replace('var LAYOUT_HEIGHT = 370;', 'var LAYOUT_HEIGHT = 407;');
+    }
+    fs.writeFileSync(p, s);
+  });
+}
+
 patchData();
 patchLocale();
 patchMonth();
 patchDisabledDates();
+patchCalendarScale10();
