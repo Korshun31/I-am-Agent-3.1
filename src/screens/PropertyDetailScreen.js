@@ -26,6 +26,7 @@ import { getBookings, deleteBooking, updateBooking } from '../services/bookingsS
 import { cancelBookingReminders } from '../services/bookingRemindersService';
 import PropertyEditWizard from '../components/PropertyEditWizard';
 import AddBookingModal from '../components/AddBookingModal';
+import PropertyBookingCalendarModal from '../components/PropertyBookingCalendarModal';
 import ContactDetailScreen from './ContactDetailScreen';
 import BookingDetailScreen from './BookingDetailScreen';
 
@@ -452,7 +453,7 @@ function getBookingNumber(booking, allBookings) {
   return `${seq}/${String(yearShort).padStart(2, '0')}`;
 }
 
-function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onOwner2Press, onPhotoPress, onVideoPress, resort, refreshBookingsTrigger, onBookingPress }) {
+function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onOwner2Press, onPhotoPress, onVideoPress, resort, refreshBookingsTrigger, onBookingPress, onOpenBookingCalendar }) {
   const amenities = p.amenities || {};
   const [bookings, setBookings] = useState([]);
 
@@ -534,9 +535,15 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
       ) : null}
 
       <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
-        <View style={styles.sectionTitleRow}>
-            <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
-            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
+        <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
+            <View style={styles.sectionTitleLeft}>
+              <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
+            </View>
+            <TouchableOpacity onPress={() => onOpenBookingCalendar?.([p.id], resort ? codeDisplay : (p.name || p.code || ''))} style={styles.calendarLinkRow} activeOpacity={0.7}>
+              <Text style={styles.calendarLinkText}>{t('bookingCalendar')}</Text>
+              <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
+            </TouchableOpacity>
           </View>
         {bookings.length > 0 ? (
           bookings.map((b) => {
@@ -617,7 +624,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
   );
 }
 
-function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshResortHousesTrigger, refreshBookingsTrigger, newHouseIdToExpand, onExpandedNewHouse, onHousePress, onBookingPress }) {
+function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshResortHousesTrigger, refreshBookingsTrigger, newHouseIdToExpand, onExpandedNewHouse, onHousePress, onBookingPress, onOpenBookingCalendar }) {
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const ownerName = p.ownerName || '';
@@ -712,9 +719,15 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
       <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
 
       <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
-        <View style={styles.sectionTitleRow}>
-            <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
-            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
+        <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
+            <View style={styles.sectionTitleLeft}>
+              <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
+            </View>
+            <TouchableOpacity onPress={() => onOpenBookingCalendar?.(resortHouses.map((h) => h.id), p.name || p.code || '')} style={styles.calendarLinkRow} activeOpacity={0.7}>
+              <Text style={styles.calendarLinkText}>{t('bookingCalendar')}</Text>
+              <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
+            </TouchableOpacity>
           </View>
         {aggregatedBookings.length > 0 ? (
           aggregatedBookings.map((b) => {
@@ -836,7 +849,7 @@ function CondoApartmentItem({ item, expanded, onToggle, onPress }) {
   );
 }
 
-function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshApartmentsTrigger, refreshBookingsTrigger, onApartmentPress, onBookingPress }) {
+function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshApartmentsTrigger, refreshBookingsTrigger, onApartmentPress, onBookingPress, onOpenBookingCalendar }) {
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const [apartments, setApartments] = useState([]);
@@ -932,9 +945,15 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
       <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
 
       <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
-        <View style={styles.sectionTitleRow}>
-            <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
-            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
+        <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
+            <View style={styles.sectionTitleLeft}>
+              <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
+            </View>
+            <TouchableOpacity onPress={() => onOpenBookingCalendar?.(apartments.map((a) => a.id), p.name || p.code || '')} style={styles.calendarLinkRow} activeOpacity={0.7}>
+              <Text style={styles.calendarLinkText}>{t('bookingCalendar')}</Text>
+              <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
+            </TouchableOpacity>
           </View>
         {aggregatedBookings.length > 0 ? (
           aggregatedBookings.map((b) => {
@@ -1013,6 +1032,9 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const [addHouseWizardVisible, setAddHouseWizardVisible] = useState(false);
   const [addApartmentWizardVisible, setAddApartmentWizardVisible] = useState(false);
   const [addBookingVisible, setAddBookingVisible] = useState(false);
+  const [calendarModalVisible, setCalendarModalVisible] = useState(false);
+  const [calendarPropertyIds, setCalendarPropertyIds] = useState([]);
+  const [calendarSubtitle, setCalendarSubtitle] = useState('');
   const [refreshResortHousesTrigger, setRefreshResortHousesTrigger] = useState(0);
   const [refreshApartmentsTrigger, setRefreshApartmentsTrigger] = useState(0);
   const [newHouseIdToExpand, setNewHouseIdToExpand] = useState(null);
@@ -1347,6 +1369,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
               setSelectedBookingTitle(codePart || '');
               setSelectedBookingProperty(property || null);
             }}
+            onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
           />
         ) : p.type === 'condo' ? (
           <CondoDetailContent
@@ -1364,6 +1387,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
               setSelectedBookingTitle(codePart || '');
               setSelectedBookingProperty(property || null);
             }}
+            onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
           />
         ) : (
           <HouseDetailContent
@@ -1382,6 +1406,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
               setSelectedBooking(b);
               setSelectedBookingTitle(codePart || '');
             }}
+            onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
           />
         )}
 
@@ -1433,6 +1458,13 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           }}
         />
       )}
+
+      <PropertyBookingCalendarModal
+        visible={calendarModalVisible}
+        onClose={() => setCalendarModalVisible(false)}
+        propertyIds={calendarPropertyIds}
+        subtitle={calendarSubtitle}
+      />
     </View>
   );
 }
@@ -1524,6 +1556,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
     gap: 8,
+  },
+  bookingListHeaderRow: {
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sectionTitleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  calendarLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 4,
+  },
+  calendarLinkText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#D81B60',
+  },
+  calendarIcon: {
+    width: 26,
+    height: 26,
   },
   sectionTitleIcon: {
     width: 22,
