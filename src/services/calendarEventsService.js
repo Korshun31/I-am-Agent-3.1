@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { syncIfEnabled } from './dataUploadService';
 
 /**
  * Таблица calendar_events в Supabase:
@@ -79,6 +80,7 @@ export async function createCalendarEvent(event) {
     .single();
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
   return mapEvent(data);
 }
 
@@ -106,6 +108,7 @@ export async function updateCalendarEvent(id, event) {
     .single();
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
   return mapEvent(data);
 }
 
@@ -120,6 +123,7 @@ export async function deleteCalendarEvent(id) {
     .eq('agent_id', session.user.id);
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
 }
 
 /**

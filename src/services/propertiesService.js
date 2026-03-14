@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { syncIfEnabled } from './dataUploadService';
 
 export async function getProperties() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -36,6 +37,7 @@ export async function createProperty({ name, code, type, location_id, owner_id }
     .single();
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
   return data;
 }
 
@@ -56,6 +58,7 @@ export async function createPropertyFull(updates) {
     .single();
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
   return data;
 }
 
@@ -72,6 +75,7 @@ export async function updateProperty(id, updates) {
     .single();
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
   return data;
 }
 
@@ -86,6 +90,42 @@ export async function deleteProperty(id) {
     .eq('agent_id', session.user.id);
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
+}
+
+/**
+ * Update district for all properties in a location that had the old district.
+ * Used when renaming or deleting a district in location_districts.
+ * Cascades to resort/condo children.
+ */
+export async function updatePropertiesDistrictForLocation(locationId, oldDistrict, newDistrict) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('Not authenticated');
+
+  const { data: props, error: fetchErr } = await supabase
+    .from('properties')
+    .select('id, type, resort_id')
+    .eq('agent_id', session.user.id)
+    .eq('location_id', locationId)
+    .eq('district', oldDistrict);
+
+  if (fetchErr || !props?.length) {
+    syncIfEnabled();
+    return;
+  }
+
+  const ids = props.map((p) => p.id);
+  await supabase
+    .from('properties')
+    .update({ district: newDistrict || null })
+    .in('id', ids)
+    .eq('agent_id', session.user.id);
+
+  const resortIds = props.filter((p) => p.type === 'resort' || p.type === 'condo').map((p) => p.id);
+  for (const rid of resortIds) {
+    await updateResortChildrenDistrict(rid, newDistrict);
+  }
+  syncIfEnabled();
 }
 
 /** Update district for all houses in a resort (cascade when resort district changes). */
@@ -107,4 +147,5 @@ export async function updateResortChildrenDistrict(resortId, district) {
     .update({ district: district || null })
     .in('id', ids)
     .eq('agent_id', session.user.id);
+  syncIfEnabled();
 }

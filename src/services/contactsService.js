@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { syncIfEnabled } from './dataUploadService';
 
 export async function getContacts(type) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -67,6 +68,7 @@ export async function createContact(contactData) {
     .single();
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
   return mapContact(data);
 }
 
@@ -106,6 +108,7 @@ export async function updateContact(id, contactData) {
     .single();
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
   return mapContact(data);
 }
 
@@ -120,6 +123,7 @@ export async function deleteContact(id) {
     .eq('agent_id', session.user.id);
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
 }
 
 function mapContact(row) {

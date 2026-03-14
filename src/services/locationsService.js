@@ -1,4 +1,6 @@
 import { supabase } from './supabase';
+import { syncIfEnabled } from './dataUploadService';
+import { updatePropertiesDistrictForLocation } from './propertiesService';
 
 export async function getLocations() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -34,6 +36,7 @@ export async function createLocation({ country, region, city }) {
     .single();
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
   return mapLocation(data);
 }
 
@@ -55,6 +58,7 @@ export async function updateLocation(id, { country, region, city }) {
     .single();
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
   return mapLocation(data);
 }
 
@@ -69,6 +73,7 @@ export async function deleteLocation(id) {
     .eq('agent_id', session.user.id);
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
 }
 
 export async function getLocationDistricts(locationId) {
@@ -97,13 +102,36 @@ export async function setLocationDistricts(locationId, districts) {
   if (delError) throw new Error(delError.message);
 
   const unique = [...new Set((districts || []).map((d) => (d || '').trim()).filter(Boolean))];
-  if (unique.length === 0) return;
+  if (unique.length === 0) {
+    syncIfEnabled();
+    return;
+  }
 
   const rows = unique.map((district) => ({ location_id: locationId, district }));
 
   const { error: insError } = await supabase.from('location_districts').insert(rows);
 
   if (insError) throw new Error(insError.message);
+  syncIfEnabled();
+}
+
+/** Rename a district: update location_districts and cascade to all properties. */
+export async function updateDistrictName(locationId, oldName, newName) {
+  const trimmed = (newName || '').trim();
+  if (!trimmed || trimmed === oldName) return;
+
+  const current = await getLocationDistricts(locationId);
+  const updated = current.map((d) => (d === oldName ? trimmed : d));
+  await setLocationDistricts(locationId, updated);
+  await updatePropertiesDistrictForLocation(locationId, oldName, trimmed);
+}
+
+/** Remove a district: delete from location_districts and clear district in all affected properties. */
+export async function removeDistrict(locationId, districtName) {
+  const current = await getLocationDistricts(locationId);
+  const updated = current.filter((d) => d !== districtName);
+  await setLocationDistricts(locationId, updated);
+  await updatePropertiesDistrictForLocation(locationId, districtName, null);
 }
 
 function formatLocation(loc) {

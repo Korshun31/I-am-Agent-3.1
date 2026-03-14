@@ -13,7 +13,7 @@ import {
   KeyboardAvoidingView,
   Alert,
 } from 'react-native';
-import { getLocationDistricts, setLocationDistricts } from '../services/locationsService';
+import { getLocationDistricts, setLocationDistricts, updateDistrictName, removeDistrict } from '../services/locationsService';
 import { BlurView } from 'expo-blur';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -130,6 +130,8 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
   const [districts, setDistricts] = useState([]);
   const [showAddDistrictInput, setShowAddDistrictInput] = useState(false);
   const [newDistrictValue, setNewDistrictValue] = useState('');
+  const [editingDistrict, setEditingDistrict] = useState(null);
+  const [editDistrictValue, setEditDistrictValue] = useState('');
 
   const csc = getCountryStateCity();
   const countries = useMemo(() => {
@@ -163,6 +165,8 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
     if (visible) {
       setShowAddDistrictInput(false);
       setNewDistrictValue('');
+      setEditingDistrict(null);
+      setEditDistrictValue('');
       if (editLocationData && csc) {
         const parsed = parseLocationString(editLocationData.displayName || '', csc);
         setCountry(parsed.country);
@@ -214,6 +218,66 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
     setDistricts((prev) => [...prev, trimmed].sort());
     setNewDistrictValue('');
     setShowAddDistrictInput(false);
+  };
+
+  const handleStartEditDistrict = (d) => {
+    setEditingDistrict(d);
+    setEditDistrictValue(d);
+  };
+
+  const handleConfirmEditDistrict = async () => {
+    const trimmed = editDistrictValue.trim();
+    if (!trimmed || !editingDistrict) {
+      setEditingDistrict(null);
+      setEditDistrictValue('');
+      return;
+    }
+    if (trimmed === editingDistrict) {
+      setEditingDistrict(null);
+      setEditDistrictValue('');
+      return;
+    }
+    if (districts.includes(trimmed) && trimmed !== editingDistrict) {
+      setEditDistrictValue('');
+      return;
+    }
+    const locationId = editLocationData?.id;
+    if (locationId) {
+      try {
+        await updateDistrictName(locationId, editingDistrict, trimmed);
+      } catch (e) {
+        Alert.alert(t('error') || 'Error', e?.message || 'Failed to update district');
+        return;
+      }
+    }
+    setDistricts((prev) => prev.map((x) => (x === editingDistrict ? trimmed : x)).sort());
+    setEditingDistrict(null);
+    setEditDistrictValue('');
+  };
+
+  const handleCancelEditDistrict = () => {
+    setEditingDistrict(null);
+    setEditDistrictValue('');
+  };
+
+  const handleDeleteDistrict = async (d) => {
+    const msg = (t('deleteDistrictConfirm') || 'Delete district?') + '\n\n' + (t('deleteDistrictConfirmMessage') || 'Properties using this district will have their district cleared.');
+    const doDelete = () => {
+      const locationId = editLocationData?.id;
+      if (locationId) {
+        removeDistrict(locationId, d).catch((e) => Alert.alert(t('error') || 'Error', e?.message));
+      }
+      setDistricts((prev) => prev.filter((x) => x !== d));
+    };
+    if (Platform.OS === 'web' || typeof Alert?.alert !== 'function') {
+      if (typeof window !== 'undefined' && window.confirm?.(msg)) doDelete();
+    } else {
+      Alert.alert(
+        t('deleteDistrictConfirm') || 'Delete district?',
+        t('deleteDistrictConfirmMessage') || 'Properties using this district will have their district cleared.',
+        [{ text: t('no'), style: 'cancel' }, { text: t('yes'), style: 'destructive', onPress: doDelete }]
+      );
+    }
   };
 
 
@@ -306,7 +370,37 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
                 {districts.length > 0 && (
                   <View style={styles.districtsList}>
                     {districts.map((d) => (
-                      <Text key={d} style={styles.districtItem}>{d}</Text>
+                      <View key={d} style={styles.districtRow}>
+                        {editingDistrict === d ? (
+                          <>
+                            <TextInput
+                              style={styles.editDistrictInput}
+                              value={editDistrictValue}
+                              onChangeText={setEditDistrictValue}
+                              placeholder={t('locationsNewDistrictPlaceholder')}
+                              placeholderTextColor="#999"
+                              autoFocus
+                              onSubmitEditing={handleConfirmEditDistrict}
+                            />
+                            <TouchableOpacity style={styles.districtActionBtn} onPress={handleConfirmEditDistrict} activeOpacity={0.7}>
+                              <Text style={styles.districtActionConfirm}>✓</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.districtActionBtn} onPress={handleCancelEditDistrict} activeOpacity={0.7}>
+                              <Text style={styles.districtActionCancel}>✕</Text>
+                            </TouchableOpacity>
+                          </>
+                        ) : (
+                          <>
+                            <Text style={styles.districtItem} numberOfLines={1}>{d}</Text>
+                            <TouchableOpacity style={styles.districtActionBtn} onPress={() => handleStartEditDistrict(d)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                              <Image source={require('../../assets/pencil-icon.png')} style={styles.districtIcon} resizeMode="contain" />
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.districtActionBtn} onPress={() => handleDeleteDistrict(d)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                              <Text style={styles.districtMinusIcon}>−</Text>
+                            </TouchableOpacity>
+                          </>
+                        )}
+                      </View>
                     ))}
                   </View>
                 )}
@@ -504,10 +598,52 @@ const styles = StyleSheet.create({
   districtsList: {
     marginBottom: 10,
   },
+  districtRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    gap: 8,
+  },
   districtItem: {
+    flex: 1,
     fontSize: 16,
     color: COLORS.title,
-    paddingVertical: 4,
+  },
+  editDistrictInput: {
+    flex: 1,
+    backgroundColor: COLORS.fieldBg,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: COLORS.title,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  districtActionBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  districtIcon: {
+    width: 18,
+    height: 18,
+  },
+  districtMinusIcon: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#E85D4C',
+  },
+  districtActionConfirm: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2E7D32',
+  },
+  districtActionCancel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#999',
   },
   addDistrictLinkWrap: {
     marginTop: 4,

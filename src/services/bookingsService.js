@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { cancelCommissionReminders } from './commissionRemindersService';
+import { syncIfEnabled } from './dataUploadService';
 
 export async function getBookings(propertyId = null, contactId = null) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -64,6 +65,7 @@ export async function createBooking(booking) {
     .single();
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
   return mapBooking(data);
 }
 
@@ -104,6 +106,7 @@ export async function updateBooking(id, booking) {
     .single();
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
   return mapBooking(data);
 }
 
@@ -119,6 +122,7 @@ export async function deleteBooking(id) {
     .eq('agent_id', session.user.id);
 
   if (error) throw new Error(error.message);
+  syncIfEnabled();
 }
 
 function mapBooking(row) {
