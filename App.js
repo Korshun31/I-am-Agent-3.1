@@ -21,6 +21,7 @@ import Preloader from './src/screens/Preloader';
 import Login from './src/screens/Login';
 import Registration from './src/screens/Registration';
 import MainScreen from './src/screens/MainScreen';
+import WebMainScreen from './src/web/WebMainScreen';
 import { getCurrentUser, signOut } from './src/services/authService';
 
 const initialUser = { email: '', name: '', lastName: '', phone: '', telegram: '', documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '', photoUri: '' };
@@ -43,8 +44,13 @@ export default function App() {
         setScreen('login');
       }
     }
-    const timer = setTimeout(checkSession, 2500);
-    return () => clearTimeout(timer);
+    
+    if (Platform.OS === 'web') {
+      checkSession();
+    } else {
+      const timer = setTimeout(checkSession, 2500);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   const goToMain = (userData) => {
@@ -93,8 +99,8 @@ export default function App() {
     <ErrorBoundary>
     <LanguageProvider>
       <StatusBar style="dark" />
-      {screen === 'preloader' && <Preloader />}
-      {screen === 'login' && (
+      {screen === 'preloader' && Platform.OS !== 'web' && <Preloader />}
+      {(screen === 'login' || (screen === 'preloader' && Platform.OS === 'web')) && (
         <Login
           onSignUp={() => setScreen('registration')}
           onLogin={(user) => goToMain(user)}
@@ -107,7 +113,11 @@ export default function App() {
         />
       )}
       {screen === 'main' && (
-        <MainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
+        Platform.OS === 'web' ? (
+          <WebMainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
+        ) : (
+          <MainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
+        )
       )}
     </LanguageProvider>
     </ErrorBoundary>
