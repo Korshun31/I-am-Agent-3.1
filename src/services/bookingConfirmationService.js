@@ -9,7 +9,7 @@ const CONF = {
     sectionGuest: 'Guest information',
     sectionDates: 'Stay dates',
     sectionFinance: 'Finances',
-    sectionCond: 'Terms',
+    sectionCond: 'Additional terms',
     name: 'Name',
     fullName: 'Name',
     address: 'Address',
@@ -34,7 +34,7 @@ const CONF = {
     formula: 'Total = rent for period + security deposit. Booking deposit is included in the first month payment.',
     footnote1: 'Booking deposit guarantees arrival and check-in. If guest does not show, deposit stays with owner. At check-in, deposit counts toward first month — guest pays the difference only.',
     footnote2: 'Security deposit is paid once at check-in. Covers utilities and minor damages. Does not cover major damages. Returned at check-out minus utilities for the last month.',
-    condText: 'Pay remainder and security deposit at check-in. Deposit return — after property inspection within 14 days of check-out.',
+    condText: 'The guest agrees to treat the rental property, furniture, equipment and owner\'s belongings with care. The guest is liable for any damage, breakage or loss caused by the guest or persons present at the property at the guest\'s invitation and must compensate the full cost of such damage. Normal wear and tear from proper use is not subject to compensation.\n\nThe guest must comply with the laws of the country of stay, the rules of residence in the property and public order. Use of the property for purposes other than accommodation, subletting or transfer to third parties without the owner\'s/agent\'s consent, and any actions that violate the rights of neighbours or cause nuisance are prohibited.\n\nIn the event of emergencies (flooding, equipment failure, etc.) the guest must notify the owner/agent immediately.\n\nIf the guest is unable to arrive for any reason and decides to cancel the rental, the booking deposit is non-refundable.',
     guest: 'Guest',
     ownerAgent: 'Owner / Agent',
     footer: 'Document generated automatically. Questions — see contacts above.',
@@ -56,7 +56,7 @@ const CONF = {
     sectionGuest: 'Информация о клиенте',
     sectionDates: 'Даты проживания',
     sectionFinance: 'Финансы',
-    sectionCond: 'Условия',
+    sectionCond: 'Дополнительные условия',
     name: 'Название',
     fullName: 'ФИО',
     address: 'Адрес',
@@ -81,7 +81,7 @@ const CONF = {
     formula: 'Итого = аренда за период + сохранный депозит. Депозит бронирования входит в оплату первого месяца.',
     footnote1: 'Депозит бронирования гарантирует приезд и заселение клиента. При неявке клиента депозит остаётся у собственника и не возвращается. При заселении депозит засчитывается в оплату первого месяца — клиент доплачивает лишь разницу.',
     footnote2: 'Сохранный депозит вносится однократно при заселении. Является гарантией оплаты коммунальных услуг и возмещения незначительных повреждений. Не покрывает крупные повреждения. Возвращается при выселении за вычетом коммунальных затрат за последний месяц проживания.',
-    condText: 'При заезде внести оставшуюся сумму и сохранный депозит. Возврат депозита — после проверки объекта в течение 14 дней с даты выезда.',
+    condText: 'Гость обязуется бережно относиться к объекту аренды, мебели, оборудованию и имуществу собственника. За повреждения, поломки или порчу имущества, произошедшие по вине гостя или лиц, находящихся в объекте по его приглашению, гость несёт материальную ответственность и обязан возместить причинённый ущерб в полном объёме. Естественный износ при надлежащем использовании к возмещению не относится.\n\nГость обязан соблюдать законодательство страны пребывания, правила проживания в объекте и общественный порядок. Запрещается использование объекта в целях, не связанных с проживанием, передача объекта третьим лицам без согласования с собственником/агентом, а также действия, ущемляющие права соседей или создающие неудобства.\n\nПри возникновении аварийных ситуаций (затопление, поломка оборудования, иное) гость обязан незамедлительно сообщить собственнику/агенту.\n\nЕсли гость по каким-либо причинам не смог приехать и принял решение отказаться от аренды, депозит бронирования не возвращается.',
     guest: 'Гость',
     ownerAgent: 'Собственник / Агент',
     footer: 'Документ сформирован автоматически. Вопросы — по контактам выше.',
@@ -103,7 +103,7 @@ const CONF = {
     sectionGuest: 'ข้อมูลลูกค้า',
     sectionDates: 'วันที่เข้าพัก',
     sectionFinance: 'การเงิน',
-    sectionCond: 'เงื่อนไข',
+    sectionCond: 'เงื่อนไขเพิ่มเติม',
     name: 'ชื่อ',
     fullName: 'ชื่อ',
     address: 'ที่อยู่',
@@ -128,7 +128,7 @@ const CONF = {
     formula: 'รวม = ค่าเช่าตลอดระยะ + เงินมัดจำ',
     footnote1: 'มัดจำการจองรับประกันการมาถึงและการเช็คอิน',
     footnote2: 'เงินมัดจำชำระครั้งเดียวตอนเช็คอิน',
-    condText: 'ชำระยอดคงเหลือและเงินมัดจำที่เช็คอิน',
+    condText: 'ลูกค้าต้องดูแลที่พัก เฟอร์นิเจอร์ อุปกรณ์และทรัพย์สินของเจ้าของอย่างระมัดระวัง ลูกค้าต้องรับผิดชอบค่าเสียหายจากการทำลายหรือความเสียหายที่เกิดจากลูกค้าหรือผู้ที่ลูกค้าเชิญมา และต้องชดใช้ค่าสินไหมทดแทนเต็มจำนวน การสึกหรอตามปกติจากการใช้งานที่เหมาะสมไม่รวมอยู่ในการชดใช้\n\nลูกค้าต้องปฏิบัติตามกฎหมายของประเทศที่พัก กฎการพักในที่พักและความสงบเรียบร้อย ห้ามใช้ที่พักเพื่อวัตถุประสงค์อื่นนอกจากการพักอาศัย ห้ามให้เช่าหรือโอนให้บุคคลที่สามโดยไม่ได้รับความยินยอมจากเจ้าของ/ตัวแทน และห้ามกระทำการที่ละเมิดสิทธิของเพื่อนบ้านหรือก่อความรำคาญ\n\nหากเกิดเหตุฉุกเฉิน (น้ำท่วม อุปกรณ์ขัดข้อง ฯลฯ) ลูกค้าต้องแจ้งเจ้าของ/ตัวแทนทันที\n\nหากลูกค้าไม่สามารถเดินทางมาได้ด้วยเหตุผลใดก็ตามและตัดสินใจยกเลิกการเช่า เงินมัดจำการจองจะไม่คืนให้',
     guest: 'ลูกค้า',
     ownerAgent: 'เจ้าของ / ตัวแทน',
     footer: 'เอกสารสร้างอัตโนมัติ',
@@ -230,7 +230,11 @@ function buildPaymentPlanRows(b, lang = 'ru') {
     const endStr = formatDate(realEnd);
     const daysInPeriod = Math.round((realEnd - periodStart) / (24 * 60 * 60 * 1000));
     const daysInFullMonth = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0).getDate();
-    const rentForPeriod = Math.round((pm / daysInFullMonth) * daysInPeriod);
+    let rentForPeriod = Math.round((pm / daysInFullMonth) * daysInPeriod);
+    // Первый месяц: если период покрывает почти полный календарный месяц, считаем полную ставку (доплата = аренда за месяц − депозит)
+    if (monthNum === 1 && daysInPeriod >= daysInFullMonth - 1) {
+      rentForPeriod = pm;
+    }
 
     const paymentDate = formatDate(periodStart);
     if (monthNum === 1) {
@@ -282,7 +286,17 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
 
   const guestName = [c.name, c.lastName].filter(Boolean).join(' ').trim() || '—';
   const guestPassport = b.passportId || c.documentNumber || '—';
-  const guestContacts = [c.phone, c.email].filter(Boolean).join(', ') || '—';
+  const guestContacts = (() => {
+    const phone = (c.phone || '').trim();
+    const telegram = (c.telegram || '').trim();
+    const whatsapp = (c.whatsapp || '').trim();
+    const email = (c.email || '').trim();
+    if (phone) return phone;
+    if (telegram) return `Telegram: ${telegram}`;
+    if (whatsapp) return `WhatsApp: ${whatsapp}`;
+    if (email) return email;
+    return '—';
+  })();
   const adults = b.adults ?? c.adults ?? '—';
   const children = b.children ?? c.children ?? '—';
 
@@ -360,7 +374,7 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
     @page { size: A4; margin: 14mm; }
     :root { --bg: #F5F2EB; --card: #FFFFFF; --title: #2C2C2C; --subtitle: #5A5A5A; --label: #8A8A8A; --accent: #5DB8D4; --border: #E0DAD2; --block-blue: rgba(187,222,251,0.5); --block-blue-border: #64B5F6; --block-yellow: rgba(255,204,0,0.2); --block-yellow-border: #FFCC00; --block-green: rgba(168,230,163,0.35); --block-green-border: #A8E6A3; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: var(--title); background: var(--bg); padding: 16px; margin: 0; font-size: 13px; }
-    .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: var(--card); padding: 18px 24px; }
+    .page { width: 210mm; margin: 0 auto; background: var(--card); padding: 18px 24px; }
     .header { padding-bottom: 6px; border-bottom: 2px solid var(--accent); }
     .header-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .logo { width: 144px; min-width: 144px; height: 48px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
@@ -402,7 +416,7 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
     .footnotes { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 10px; color: var(--subtitle); line-height: 1.4; }
     .footnotes p { margin: 0 0 6px 0; }
     .footnotes sup { color: var(--accent); font-weight: 600; }
-    .conditions { font-size: 11px; color: var(--subtitle); line-height: 1.4; margin: 0; }
+    .conditions { font-size: 10px; color: var(--subtitle); line-height: 1.4; margin: 0; }
     .signatures { display: flex; gap: 40px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
     .sig-block { flex: 1; }
     .sig-line { border-bottom: 1px solid var(--title); height: 28px; margin-bottom: 2px; }
@@ -482,7 +496,7 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
     </div>
     <div class="section cond">
       <div class="section-title">${s.sectionCond}</div>
-      <p class="conditions">${s.condText}</p>
+      <p class="conditions">${(s.condText || '').replace(/\n\n/g, '<br><br>')}</p>
     </div>
     <div class="signatures">
       <div class="sig-block"><div class="sig-line"></div><div class="sig-label">${s.guest}</div></div>

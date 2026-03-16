@@ -541,7 +541,6 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
             </View>
             <TouchableOpacity onPress={() => onOpenBookingCalendar?.([p.id], resort ? codeDisplay : (p.name || p.code || ''))} style={styles.calendarLinkRow} activeOpacity={0.7}>
-              <Text style={styles.calendarLinkText}>{t('bookingCalendar')}</Text>
               <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
             </TouchableOpacity>
           </View>
@@ -725,7 +724,6 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
             </View>
             <TouchableOpacity onPress={() => onOpenBookingCalendar?.(resortHouses.map((h) => h.id), p.name || p.code || '')} style={styles.calendarLinkRow} activeOpacity={0.7}>
-              <Text style={styles.calendarLinkText}>{t('bookingCalendar')}</Text>
               <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
             </TouchableOpacity>
           </View>
@@ -951,7 +949,6 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
             </View>
             <TouchableOpacity onPress={() => onOpenBookingCalendar?.(apartments.map((a) => a.id), p.name || p.code || '')} style={styles.calendarLinkRow} activeOpacity={0.7}>
-              <Text style={styles.calendarLinkText}>{t('bookingCalendar')}</Text>
               <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
             </TouchableOpacity>
           </View>
