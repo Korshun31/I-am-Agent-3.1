@@ -33,6 +33,7 @@ function mapEvent(row) {
     title: row.title,
     color: row.color,
     comments: row.comments || null,
+    isCompleted: !!row.is_completed,
     reminderMinutes: normalizeReminderMinutes(row.reminder_minutes),
     repeatType: rt,
     createdAt: row.created_at,
@@ -69,6 +70,7 @@ export async function createCalendarEvent(event) {
     title: (event.title || '').trim(),
     color: event.color || '#64B5F6',
     comments: (event.comments || '').trim() || null,
+    is_completed: event.isCompleted ?? false,
     reminder_minutes: Array.isArray(event.reminderMinutes) && event.reminderMinutes.length > 0 ? event.reminderMinutes : [],
     repeat_type: rt,
   };
@@ -95,6 +97,7 @@ export async function updateCalendarEvent(id, event) {
     title: (event.title || '').trim(),
     color: event.color || '#64B5F6',
     comments: (event.comments || '').trim() || null,
+    is_completed: event.isCompleted ?? false,
     reminder_minutes: Array.isArray(event.reminderMinutes) && event.reminderMinutes.length > 0 ? event.reminderMinutes : [],
     repeat_type: rt,
   };

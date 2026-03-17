@@ -26,7 +26,7 @@ import { getBookings } from '../services/bookingsService';
 import { getCommissionDateAmounts } from '../services/commissionRemindersService';
 import { getProperties } from '../services/propertiesService';
 import { getContactById } from '../services/contactsService';
-import { getCalendarEvents, eventOccursOnDate } from '../services/calendarEventsService';
+import { getCalendarEvents, eventOccursOnDate, updateCalendarEvent } from '../services/calendarEventsService';
 import AddCalendarEventModal from '../components/AddCalendarEventModal';
 import AddBookingModal from '../components/AddBookingModal';
 import BookingDetailScreen from './BookingDetailScreen';
@@ -92,8 +92,27 @@ const DRAWER_ANIMATION = {
   delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
 };
 
-function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBooking, isBooking, t }) {
+function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBooking, isBooking, t, onStatusChange }) {
   const [contactName, setContactName] = useState('');
+  const [localCompleted, setLocalCompleted] = useState(!!event.isCompleted);
+
+  useEffect(() => {
+    setLocalCompleted(!!event.isCompleted);
+  }, [event.isCompleted]);
+
+  const handleToggleCompleted = async () => {
+    const newVal = !localCompleted;
+    setLocalCompleted(newVal);
+    if (!isBooking) {
+      try {
+        await updateCalendarEvent(event.id, { ...event, isCompleted: newVal });
+        onStatusChange?.();
+      } catch (e) {
+        setLocalCompleted(!newVal);
+        Alert.alert(t('error'), e.message);
+      }
+    }
+  };
 
   useEffect(() => {
     if (!isBooking || !event.booking) return;
@@ -183,13 +202,18 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
       <View style={styles.eventRow}>
         <TouchableOpacity style={styles.eventMainArea} onPress={() => {}} activeOpacity={1}>
           <View style={[styles.customEventDot, { backgroundColor: event.color || '#81C784' }]} />
-          <Text style={styles.eventName} numberOfLines={1}>{event.title}</Text>
+          <Text style={[styles.eventName, localCompleted && styles.eventNameDimmed]} numberOfLines={1} ellipsizeMode="tail">{event.title}</Text>
         </TouchableOpacity>
         {event.eventTime ? (
           <View style={styles.eventTimeCenter}>
-            <Text style={styles.eventTimeText}>{formatTimeDisplay(event.eventTime)}</Text>
+            <Text style={[styles.eventTimeText, localCompleted && styles.textDimmed]}>{formatTimeDisplay(event.eventTime)}</Text>
           </View>
         ) : null}
+        {localCompleted && (
+          <View style={styles.checkIconBadge}>
+            <Text style={styles.checkIconBadgeText}>✓</Text>
+          </View>
+        )}
         <TouchableOpacity onPress={onToggle} style={styles.expandBtn} activeOpacity={0.5}>
           <Image source={require('../../assets/chevron-down.png')} style={[styles.chevronIcon, expanded && styles.chevronIconOpen]} resizeMode="contain" />
         </TouchableOpacity>
@@ -205,9 +229,23 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
           {event.comments ? (
             <Text style={styles.eventComments}>{event.comments}</Text>
           ) : null}
-          <TouchableOpacity style={styles.editBtn} onPress={onEdit}>
-            <Text style={styles.editBtnText}>{t('editContact')}</Text>
-          </TouchableOpacity>
+          <View style={styles.eventFooterRow}>
+            <TouchableOpacity 
+              style={styles.completedCheckboxRow} 
+              onPress={handleToggleCompleted}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.miniCheckbox, localCompleted && styles.miniCheckboxChecked]}>
+                {localCompleted && <Text style={styles.miniCheckmark}>✓</Text>}
+              </View>
+              <Text style={[styles.completedLabel, localCompleted && styles.completedLabelActive]}>
+                {t('agentCalendarEventCompleted')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.editBtn} onPress={onEdit}>
+              <Text style={styles.editBtnText}>{t('editContact')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
     </View>
@@ -230,8 +268,8 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
   const [editBookingDetailModalVisible, setEditBookingDetailModalVisible] = useState(false);
   const [selectedOwnerContact, setSelectedOwnerContact] = useState(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (opts = {}) => {
+    if (!opts.silent) setLoading(true);
     try {
       const [b, e, p] = await Promise.all([
         getBookings(),
@@ -242,7 +280,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
       setCustomEvents(e);
       setProperties(p);
     } catch {}
-    setLoading(false);
+    if (!opts.silent) setLoading(false);
   }, []);
 
   const prevVisibleRef = useRef(false);
@@ -637,6 +675,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
                 onOpenBooking={handleViewBooking}
                 isBooking={ev.type === 'booking'}
                 t={t}
+                onStatusChange={() => loadData({ silent: true })}
               />
             ))
           )}
@@ -778,6 +817,7 @@ const styles = StyleSheet.create({
   },
   eventName: {
     flex: 1,
+    minWidth: 0,
     fontSize: 15,
     fontWeight: '600',
     color: '#2C2C2C',
@@ -864,5 +904,74 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#D81B60',
+  },
+  eventFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  completedCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  miniCheckbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#2C2C2C',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniCheckboxChecked: {
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
+  },
+  miniCheckmark: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  completedLabel: {
+    fontSize: 14,
+    color: '#2C2C2C',
+  },
+  completedLabelActive: {
+    color: '#2E7D32',
+    fontWeight: '700',
+  },
+  eventNameDimmed: {
+    color: '#868E96',
+  },
+  textDimmed: {
+    color: '#868E96',
+  },
+  checkIconSmall: {
+    width: 14,
+    height: 14,
+    marginLeft: 10,
+    flexShrink: 0,
+  },
+  checkIconLeftOfArrow: {
+    width: 14,
+    height: 14,
+    marginRight: 10,
+    flexShrink: 0,
+  },
+  checkIconBadge: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#2E7D32',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  checkIconBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
   },
 });

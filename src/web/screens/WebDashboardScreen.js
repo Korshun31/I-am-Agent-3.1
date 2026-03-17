@@ -185,9 +185,17 @@ export default function WebDashboardScreen({ user }) {
   };
 
   const handleEventSaved = async () => {
-    setEventModalVisible(false);
+    // setEventModalVisible(false); // Убираем закрытие окна
     await loadDashboardData();
-    // Принудительно обновляем календарную ленту, если у нее есть свой ключ или через пропс
+    
+    // Если у нас открыто модальное окно редактирования, обновляем объект в нем
+    if (editingEvent) {
+      const calendarEvents = await getCalendarEvents();
+      const updated = calendarEvents.find(e => e.id === editingEvent.id);
+      if (updated) {
+        setEditingEvent(updated);
+      }
+    }
   };
 
   const handleEditEvent = (event) => {
@@ -207,7 +215,7 @@ export default function WebDashboardScreen({ user }) {
   const renderAgendaItem = (item, type) => (
     <TouchableOpacity 
       key={item.id} 
-      style={styles.agendaItem}
+      style={[styles.agendaItem, item.isCompleted && styles.agendaItemCompleted]}
       onPress={() => type === 'EVENT' ? handleEditEvent(item) : null}
       activeOpacity={type === 'EVENT' ? 0.7 : 1}
     >
@@ -232,8 +240,15 @@ export default function WebDashboardScreen({ user }) {
           </>
         ) : type === 'EVENT' ? (
           <>
-            <Text style={styles.agendaCode}>{item.title}</Text>
-            <Text style={styles.agendaPropName}>{item.time || ''}</Text>
+            <View style={styles.eventTitleRow}>
+              <Text style={[styles.agendaCode, item.isCompleted && styles.textDimmed]}>{item.title}</Text>
+              {item.isCompleted && (
+                <View style={styles.checkIconBadge}>
+                  <Text style={styles.checkIconText}>✓</Text>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.agendaPropName, item.isCompleted && styles.textDimmed]}>{item.time || ''}</Text>
           </>
         ) : (
           <>
@@ -306,7 +321,9 @@ export default function WebDashboardScreen({ user }) {
           <View style={styles.agendaRow}>
             <View style={styles.agendaColumn}>
               <View style={styles.sectionCard}>
-                <Text style={styles.sectionTitle}>Заселения {dateTitle} ({filteredEvents.checkIns.length})</Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Заселения {dateTitle} ({filteredEvents.checkIns.length})</Text>
+                </View>
                 <ScrollView style={styles.agendaScroll} showsVerticalScrollIndicator={true}>
                   {filteredEvents.checkIns.length > 0 ? (
                     filteredEvents.checkIns.map(b => renderAgendaItem(b, 'IN'))
@@ -318,7 +335,9 @@ export default function WebDashboardScreen({ user }) {
             </View>
             <View style={styles.agendaColumn}>
               <View style={styles.sectionCard}>
-                <Text style={styles.sectionTitle}>Выезды {dateTitle} ({filteredEvents.checkOuts.length})</Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Выезды {dateTitle} ({filteredEvents.checkOuts.length})</Text>
+                </View>
                 <ScrollView style={styles.agendaScroll} showsVerticalScrollIndicator={true}>
                   {filteredEvents.checkOuts.length > 0 ? (
                     filteredEvents.checkOuts.map(b => renderAgendaItem(b, 'OUT'))
@@ -399,7 +418,13 @@ const styles = StyleSheet.create({
     minHeight: 120,
     ...Platform.select({ web: { boxShadow: '0 4px 12px rgba(0,0,0,0.05)' } }),
   },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  sectionHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 12, // Уменьшил отступ с 20 до 12
+    height: 28, 
+  },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#212529' },
   addEventBtn: {
     width: 28,
@@ -425,6 +450,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 15,
+  },
+  agendaItemCompleted: {
+    opacity: 0.6,
+  },
+  eventTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  checkIconBadge: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#2E7D32',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkIconText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  textDimmed: {
+    color: '#ADB5BD',
   },
   badgeIn: { backgroundColor: '#E8F5E9' },
   badgeOut: { backgroundColor: '#FCE4EC' },

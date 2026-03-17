@@ -60,23 +60,31 @@ export default function WebAddCalendarEventModal({ visible, onClose, onSaved, ed
   const [color, setColor] = useState(CALENDAR_COLORS[0]);
   const [comments, setComments] = useState('');
   const [repeatType, setRepeatType] = useState(null);
+  const [isCompleted, setIsCompleted] = useState(false);
   const [saving, setSaving] = useState(false);
+  
+  // Добавляем локальное состояние для данных события, чтобы обновлять их без закрытия модалки
+  const [currentEventData, setCurrentEventData] = useState(null);
   
   const [showReminderDropdown, setShowReminderDropdown] = useState(false);
   const [showRepeatDropdown, setShowRepeatDropdown] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const isEdit = !!editEvent;
 
   useEffect(() => {
     if (visible) {
-      if (editEvent) {
-        setTitle(editEvent.title || '');
-        setEventDate(editEvent.eventDate ? new Date(editEvent.eventDate) : null);
-        setEventTime(editEvent.eventTime || '');
-        setReminderMinutes(Array.isArray(editEvent.reminderMinutes) ? [...editEvent.reminderMinutes] : []);
-        setColor(editEvent.color || CALENDAR_COLORS[0]);
-        setComments(editEvent.comments || '');
-        setRepeatType(editEvent.repeatType || null);
+      const targetEvent = currentEventData || editEvent;
+      if (targetEvent) {
+        setTitle(targetEvent.title || '');
+        setEventDate(targetEvent.eventDate ? new Date(targetEvent.eventDate) : null);
+        setEventTime(targetEvent.eventTime || '');
+        setReminderMinutes(Array.isArray(targetEvent.reminderMinutes) ? [...targetEvent.reminderMinutes] : []);
+        setColor(targetEvent.color || CALENDAR_COLORS[0]);
+        setComments(targetEvent.comments || '');
+        setRepeatType(targetEvent.repeatType || null);
+        setIsCompleted(!!targetEvent.isCompleted);
+        if (!currentEventData) setIsEditing(false);
       } else {
         const base = initialDate ? new Date(initialDate) : new Date();
         setTitle('');
@@ -86,11 +94,17 @@ export default function WebAddCalendarEventModal({ visible, onClose, onSaved, ed
         setColor(CALENDAR_COLORS[0]);
         setComments('');
         setRepeatType(null);
+        setIsCompleted(false);
+        setIsEditing(true);
       }
+    } else {
+      // Сбрасываем локальное состояние при закрытии
+      setCurrentEventData(null);
     }
-  }, [visible, editEvent, initialDate]);
+  }, [visible, editEvent, initialDate, currentEventData]);
 
   const handleTimeInput = (text) => {
+    if (!isEditing) return;
     let cleaned = text.replace(/\D/g, '');
     if (cleaned.length > 4) cleaned = cleaned.slice(0, 4);
     let formatted = cleaned;
@@ -110,29 +124,36 @@ export default function WebAddCalendarEventModal({ visible, onClose, onSaved, ed
     const dateYMD = formatDateYMD(dateToUse);
     setSaving(true);
     try {
+      const payload = {
+        title: name,
+        eventDate: dateYMD,
+        eventTime: eventTime || null,
+        color,
+        comments: (comments || '').trim() || null,
+        reminderMinutes,
+        repeatType,
+        isCompleted: isCompleted,
+      };
+
       if (isEdit) {
-        await updateCalendarEvent(editEvent.id, {
-          title: name,
-          eventDate: dateYMD,
-          eventTime: eventTime || null,
-          color,
-          comments: (comments || '').trim() || null,
-          reminderMinutes,
-          repeatType,
+        await updateCalendarEvent(editEvent.id, payload);
+        // Обновляем локальное состояние, чтобы кнопка "Сохранить" исчезла сразу
+        setCurrentEventData({
+          ...editEvent,
+          ...payload,
+          isCompleted: isCompleted // мапим для соответствия структуре объекта
         });
       } else {
-        await createCalendarEvent({
-          title: name,
-          eventDate: dateYMD,
-          eventTime: eventTime || null,
-          color,
-          comments: (comments || '').trim() || null,
-          reminderMinutes,
-          repeatType,
-        });
+        await createCalendarEvent(payload);
       }
+      
       onSaved?.();
-      onClose();
+      
+      if (isEdit) {
+        setIsEditing(false);
+      } else {
+        onClose();
+      }
     } catch (e) {
       alert(e.message);
     } finally {
@@ -164,6 +185,7 @@ export default function WebAddCalendarEventModal({ visible, onClose, onSaved, ed
   const year = d.getFullYear();
 
   const toggleReminder = (val) => {
+    if (!isEditing) return;
     setReminderMinutes(prev => 
       prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val].sort((a,b) => a-b)
     );
@@ -180,56 +202,68 @@ export default function WebAddCalendarEventModal({ visible, onClose, onSaved, ed
     return opt ? t(opt.key) : t('agentCalendarRepeatNone');
   };
 
+  const showSaveButton = isEditing || (isEdit && isCompleted !== !!(currentEventData?.isCompleted ?? editEvent.isCompleted));
+
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.backdrop}>
         <View style={styles.box}>
           <View style={styles.headerRow}>
-            {isEdit ? (
+            {isEdit && isEditing ? (
               <TouchableOpacity onPress={handleDelete} style={styles.trashBtn}>
                 <Image source={require('../../../assets/trash-icon.png')} style={styles.trashIcon} resizeMode="contain" />
               </TouchableOpacity>
             ) : (
               <View style={styles.trashBtn} />
             )}
-            <Text style={styles.title}>{isEdit ? t('agentCalendarEditEvent') : t('agentCalendarAddEvent')}</Text>
+            <Text style={styles.title}>
+              {isEdit ? (isEditing ? t('agentCalendarEditEvent') : t('agentCalendarEventTitle')) : t('agentCalendarAddEvent')}
+            </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Text style={styles.closeIcon}>✕</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.dateHeaderRow}>
-            <Text style={styles.dateHeaderText}>
-              <Text style={styles.dateHeaderRed}>{day}</Text> {month} {year}
-            </Text>
+            <View style={styles.dateHeaderContent}>
+              <Text style={styles.dateHeaderText}>
+                <Text style={styles.dateHeaderRed}>{day}</Text> {month} {year}
+              </Text>
+              {isEdit && !isEditing && (
+                <TouchableOpacity 
+                  onPress={() => setIsEditing(true)} 
+                  style={styles.editIconBtn}
+                  activeOpacity={0.7}
+                >
+                  <Image source={require('../../../assets/pencil-icon.png')} style={styles.editIcon} resizeMode="contain" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
-          {/* 
-            ОСНОВНОЕ ИЗМЕНЕНИЕ: 
-            Мы убираем ScrollView вокруг выпадающих списков, 
-            чтобы они могли выходить за пределы контейнера через z-index.
-          */}
           <View style={styles.formContent}>
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>{t('agentCalendarEventName')}</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, !isEditing && styles.inputReadOnly]}
                 value={title}
                 onChangeText={setTitle}
                 placeholder={t('agentCalendarEventNamePlaceholder')}
                 placeholderTextColor="#ADB5BD"
+                editable={isEditing}
               />
             </View>
 
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>{t('agentCalendarEventTime')}</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, !isEditing && styles.inputReadOnly]}
                 value={eventTime}
                 onChangeText={handleTimeInput}
                 placeholder="HH:mm"
                 placeholderTextColor="#ADB5BD"
                 maxLength={5}
+                editable={isEditing}
               />
             </View>
 
@@ -237,17 +271,20 @@ export default function WebAddCalendarEventModal({ visible, onClose, onSaved, ed
               <View style={[styles.fieldGroup, { flex: 1 }]}>
                 <Text style={styles.fieldLabel}>{t('agentCalendarReminder')}</Text>
                 <TouchableOpacity 
-                  style={styles.customSelect} 
+                  style={[styles.customSelect, !isEditing && styles.inputReadOnly]} 
                   onPress={() => {
-                    setShowReminderDropdown(!showReminderDropdown);
-                    setShowRepeatDropdown(false);
+                    if (isEditing) {
+                      setShowReminderDropdown(!showReminderDropdown);
+                      setShowRepeatDropdown(false);
+                    }
                   }}
+                  activeOpacity={isEditing ? 0.7 : 1}
                 >
                   <Text style={styles.customSelectText} numberOfLines={1}>{getReminderLabel()}</Text>
-                  <Text style={styles.chevron}>{showReminderDropdown ? '▲' : '▼'}</Text>
+                  {isEditing && <Text style={styles.chevron}>{showReminderDropdown ? '▲' : '▼'}</Text>}
                 </TouchableOpacity>
                 
-                {showReminderDropdown && (
+                {showReminderDropdown && isEditing && (
                   <View style={styles.dropdownList}>
                     <ScrollView nestedScrollEnabled style={{ maxHeight: 200 }}>
                       {REMINDER_OPTIONS.map(opt => {
@@ -274,20 +311,23 @@ export default function WebAddCalendarEventModal({ visible, onClose, onSaved, ed
 
               <View style={{ width: 20 }} />
 
-              <View style={[styles.fieldGroup, { flex: 1 }]}>
+              <View style={[styles.fieldGroup, { flex: 1, zIndex: 1000 }]}>
                 <Text style={styles.fieldLabel}>{t('agentCalendarRepeat')}</Text>
                 <TouchableOpacity 
-                  style={styles.customSelect} 
+                  style={[styles.customSelect, !isEditing && styles.inputReadOnly]} 
                   onPress={() => {
-                    setShowRepeatDropdown(!showRepeatDropdown);
-                    setShowReminderDropdown(false);
+                    if (isEditing) {
+                      setShowRepeatDropdown(!showRepeatDropdown);
+                      setShowReminderDropdown(false);
+                    }
                   }}
+                  activeOpacity={isEditing ? 0.7 : 1}
                 >
                   <Text style={styles.customSelectText} numberOfLines={1}>{getRepeatLabel()}</Text>
-                  <Text style={styles.chevron}>{showRepeatDropdown ? '▲' : '▼'}</Text>
+                  {isEditing && <Text style={styles.chevron}>{showRepeatDropdown ? '▲' : '▼'}</Text>}
                 </TouchableOpacity>
                 
-                {showRepeatDropdown && (
+                {showRepeatDropdown && isEditing && (
                   <View style={styles.dropdownList}>
                     <ScrollView nestedScrollEnabled style={{ maxHeight: 200 }}>
                       {REPEAT_OPTIONS.map(opt => {
@@ -323,7 +363,8 @@ export default function WebAddCalendarEventModal({ visible, onClose, onSaved, ed
                   <TouchableOpacity
                     key={c}
                     style={[styles.colorDot, { backgroundColor: c }, color === c && styles.colorDotSelected]}
-                    onPress={() => setColor(c)}
+                    onPress={() => isEditing && setColor(c)}
+                    activeOpacity={isEditing ? 0.7 : 1}
                   />
                 ))}
               </View>
@@ -332,30 +373,50 @@ export default function WebAddCalendarEventModal({ visible, onClose, onSaved, ed
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>{t('agentCalendarEventComments')}</Text>
               <TextInput
-                style={[styles.input, styles.commentsInput]}
+                style={[styles.input, styles.commentsInput, !isEditing && styles.inputReadOnly]}
                 value={comments}
                 onChangeText={setComments}
                 placeholder={t('agentCalendarEventCommentsPlaceholder')}
                 placeholderTextColor="#ADB5BD"
                 multiline
                 numberOfLines={3}
+                editable={isEditing}
               />
             </View>
+
+            {isEdit && (
+              <View style={styles.completedSection}>
+                <TouchableOpacity 
+                  style={styles.completedRow} 
+                  onPress={() => setIsCompleted(!isCompleted)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.checkbox, isCompleted && styles.checkboxCheckedSuccess]}>
+                    {isCompleted && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                  <Text style={[styles.completedText, isCompleted && styles.completedTextActive]}>
+                    {isCompleted ? 'Выполнено' : 'Отметить как выполненное'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.saveBtnText}>{t('save')}</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          {showSaveButton && (
+            <View style={styles.footer}>
+              <TouchableOpacity
+                style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+                onPress={handleSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Сохранить</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -375,7 +436,7 @@ const styles = StyleSheet.create({
     maxWidth: 500,
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    overflow: 'visible', // КРИТИЧНО: разрешаем выход за границы
+    overflow: 'visible',
     ...Platform.select({
       web: {
         boxShadow: '0 20px 50px rgba(0,0,0,0.2)',
@@ -391,9 +452,23 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F1F3F5',
   },
-  trashBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  trashIcon: { width: 20, height: 20, tintColor: '#FF4D4F' },
-  title: { fontSize: 20, fontWeight: '700', color: '#212529' },
+  trashBtn: { 
+    width: 40, 
+    height: 40, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  trashIcon: { 
+    width: 24, 
+    height: 24,
+  },
+  title: { 
+    fontSize: 20, 
+    fontWeight: '700', 
+    color: '#212529',
+    flex: 1,
+    textAlign: 'center'
+  },
   closeBtn: { 
     width: 40, 
     height: 40, 
@@ -405,16 +480,41 @@ const styles = StyleSheet.create({
   closeIcon: { fontSize: 18, color: '#ADB5BD', fontWeight: '600' },
   dateHeaderRow: { 
     paddingVertical: 16, 
-    alignItems: 'center', 
     backgroundColor: '#F8F9FA',
     borderBottomWidth: 1,
     borderBottomColor: '#E9ECEF',
   },
+  dateHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    paddingHorizontal: 60,
+  },
   dateHeaderText: { fontSize: 18, fontWeight: '700', color: '#495057' },
   dateHeaderRed: { color: '#D81B60' },
+  editIconBtn: {
+    position: 'absolute',
+    right: 24,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    ...Platform.select({ web: { boxShadow: '0 2px 4px rgba(0,0,0,0.05)' } }),
+  },
+  editIcon: {
+    width: 20,
+    height: 20,
+  },
   formContent: {
-    padding: 24,
-    overflow: 'visible', // КРИТИЧНО: разрешаем выход за границы
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 0,
+    overflow: 'visible',
   },
   fieldGroup: { marginBottom: 16, position: 'relative' },
   fieldLabel: { 
@@ -434,6 +534,11 @@ const styles = StyleSheet.create({
     color: '#212529',
     borderWidth: 1,
     borderColor: '#E9ECEF',
+  },
+  inputReadOnly: {
+    backgroundColor: '#F1F3F5',
+    borderColor: 'transparent',
+    color: '#495057',
   },
   row: { flexDirection: 'row', position: 'relative' },
   customSelect: {
@@ -483,6 +588,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#D81B60',
     borderColor: '#D81B60',
   },
+  checkboxCheckedSuccess: {
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
+  },
   checkmark: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
   radio: {
     width: 18,
@@ -505,6 +614,24 @@ const styles = StyleSheet.create({
   dropdownOptionText: { fontSize: 14, color: '#495057' },
   dropdownOptionTextSelected: { color: '#212529', fontWeight: '700' },
   
+  completedSection: {
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  completedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  completedText: {
+    fontSize: 15,
+    color: '#495057',
+    fontWeight: '600',
+  },
+  completedTextActive: {
+    color: '#2E7D32',
+  },
+
   commentsInput: { minHeight: 80, textAlignVertical: 'top' },
   colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   colorDot: { 
@@ -519,9 +646,8 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.05 }]
   },
   footer: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F3F5',
+    paddingHorizontal: 24,
+    paddingBottom: 24,
   },
   saveBtn: {
     backgroundColor: '#2E7D32',

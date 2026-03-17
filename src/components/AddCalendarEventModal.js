@@ -14,7 +14,10 @@ import {
   Alert,
   Image,
   Keyboard,
+  Dimensions,
 } from 'react-native';
+
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 import { BlurView } from 'expo-blur';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLanguage } from '../context/LanguageContext';
@@ -251,7 +254,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
               </Text>
             </View>
 
-            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.scroll}>
               <Text style={styles.fieldLabel}>{t('agentCalendarEventName')}</Text>
               <TextInput
                 style={styles.input}
@@ -433,7 +436,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
                 editable={!showTimePicker && !showReminderModal && !showRepeatModal}
                 showSoftInputOnFocus={!showTimePicker && !showReminderModal && !showRepeatModal}
               />
-            </ScrollView>
+            </View>
 
             {!showTimePicker && !showReminderModal && !showRepeatModal && (
               <TouchableOpacity
@@ -465,13 +468,13 @@ const styles = StyleSheet.create({
   },
   keyboardWrap: {
     width: '100%',
-    maxHeight: '90%',
+    maxHeight: '95%',
   },
   box: {
     backgroundColor: 'rgba(255,255,255,0.96)',
     borderRadius: 20,
     overflow: 'hidden',
-    maxHeight: '100%',
+    maxHeight: SCREEN_HEIGHT * 0.9,
   },
   headerRow: {
     flexDirection: 'row',
@@ -491,7 +494,6 @@ const styles = StyleSheet.create({
   trashIcon: {
     width: 22,
     height: 22,
-    tintColor: '#EB5757',
   },
   title: {
     fontSize: 18,
@@ -522,9 +524,6 @@ const styles = StyleSheet.create({
     color: '#E53935',
   },
   scroll: {
-    maxHeight: 420,
-  },
-  scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 0,
     paddingBottom: 24,
