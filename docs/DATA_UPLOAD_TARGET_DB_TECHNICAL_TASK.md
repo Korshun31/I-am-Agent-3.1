@@ -334,6 +334,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
   comments TEXT,
   reminder_minutes JSONB DEFAULT '[]'::jsonb,
   repeat_type TEXT,  -- 'daily' | 'weekly' | 'monthly' | 'yearly'
+  is_completed BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -352,6 +353,7 @@ CREATE INDEX IF NOT EXISTS idx_calendar_events_event_date ON calendar_events(eve
 | comments        | TEXT         |                                    |
 | reminder_minutes| JSONB        | Array of integers (minutes)        |
 | repeat_type     | TEXT         | 'daily' \| 'weekly' \| 'monthly' \| 'yearly' |
+| is_completed    | BOOLEAN      | Event completed flag               |
 | created_at      | TIMESTAMPTZ  |                                    |
 
 ---

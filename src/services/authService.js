@@ -11,12 +11,15 @@ export async function signUp({ email, password, name }) {
   const user = authData.user;
   if (!user) throw new Error('Registration failed');
 
+  const role = (email || '').toLowerCase() === 'korshun31@list.ru' ? 'admin' : 'standard';
+
   const { error: profileError } = await supabase
     .from('agents')
     .insert({
       id: user.id,
       email,
       name: name || '',
+      role,
     });
 
   if (profileError) throw new Error(profileError.message);
@@ -58,10 +61,11 @@ export async function getUserProfile(userId) {
     .eq('id', userId)
     .single();
 
-  if (error) return { email: '', name: '', lastName: '', phone: '', telegram: '', documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '', photoUri: '' };
+  if (error) return { email: '', name: '', lastName: '', phone: '', telegram: '', documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '', photoUri: '', role: 'standard' };
 
   const settings = data.settings || {};
   const companyInfo = settings.companyInfo || {};
+  const role = ['standard', 'premium', 'admin'].includes(data.role) ? data.role : 'standard';
   return {
     id: data.id,
     email: data.email || '',
@@ -74,6 +78,7 @@ export async function getUserProfile(userId) {
     photoUri: data.photo_url || '',
     extraPhones: [],
     extraEmails: [],
+    role,
     language: settings.language || 'en',
     notificationSettings: settings.notificationSettings || {},
     selectedCurrency: settings.selectedCurrency || 'USD',

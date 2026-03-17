@@ -22,6 +22,8 @@ import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useLanguage } from '../context/LanguageContext';
+import { getCurrentUser } from '../services/authService';
+import { getPhotoLimitForProperty } from '../constants/roleFeatures';
 import { getLocations, getLocationDistricts, setLocationDistricts } from '../services/locationsService';
 import { getContacts, createContact } from '../services/contactsService';
 import { uploadPhoto, isLocalUri } from '../services/storageService';
@@ -484,7 +486,6 @@ function StepComments({ data, setData, t, property }) {
 
 const MAX_PHOTO_SIDE = 1600;
 const PHOTO_QUALITY = 0.85;
-const MAX_PHOTOS_PER_PROPERTY = 10;
 
 async function resizePhotoIfNeeded(uri, width, height) {
   const maxSide = Math.max(width || 0, height || 0);
@@ -499,14 +500,15 @@ async function resizePhotoIfNeeded(uri, width, height) {
   return resized;
 }
 
-function StepMedia({ data, setData, t }) {
+function StepMedia({ data, setData, t, maxPhotos }) {
+  const limit = maxPhotos ?? 10;
   const photos = Array.isArray(data.photos) ? data.photos : [];
   const videos = Array.isArray(data.videos) ? data.videos : [];
   const [videoUrl, setVideoUrl] = useState('');
   const [processing, setProcessing] = useState(false);
 
   const pickPhoto = async () => {
-    const remain = MAX_PHOTOS_PER_PROPERTY - photos.length;
+    const remain = limit - photos.length;
     if (remain <= 0) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -523,7 +525,7 @@ function StepMedia({ data, setData, t }) {
           const uri = await resizePhotoIfNeeded(a.uri, a.width, a.height);
           uris.push(uri);
         }
-        setData(d => ({ ...d, photos: [...(d.photos || []), ...uris].slice(0, MAX_PHOTOS_PER_PROPERTY) }));
+        setData(d => ({ ...d, photos: [...(d.photos || []), ...uris].slice(0, limit) }));
       } finally {
         setProcessing(false);
       }
@@ -568,7 +570,7 @@ function StepMedia({ data, setData, t }) {
             </TouchableOpacity>
           </View>
         ))}
-        {photos.length < MAX_PHOTOS_PER_PROPERTY && (
+        {photos.length < limit && (
         <TouchableOpacity style={s.mediaAddBtn} onPress={pickPhoto} activeOpacity={0.7} disabled={processing}>
           {processing ? (
             <ActivityIndicator size="small" color={COLORS.green} />
@@ -581,8 +583,8 @@ function StepMedia({ data, setData, t }) {
         </TouchableOpacity>
         )}
       </View>
-      {photos.length >= MAX_PHOTOS_PER_PROPERTY && (
-        <Text style={s.mediaLimitNote}>{t('wizPhotoLimit')}</Text>
+      {photos.length >= limit && (
+        <Text style={s.mediaLimitNote}>{t('wizPhotoLimit').replace('{count}', limit)}</Text>
       )}
 
       <View style={[s.mediaSectionTitleRow, { marginTop: 20 }]}>
@@ -814,7 +816,7 @@ function toNum(val) {
   return isNaN(n) ? null : n;
 }
 
-function buildUpdates(data, property, parentResort) {
+function buildUpdates(data, property, parentResort, maxPhotos = 10) {
   const isHouseInResort = Boolean(property?.resort_id);
   const district = isHouseInResort && parentResort ? (parentResort.district || '').trim() : (data.district || '').trim();
   return {
@@ -838,7 +840,7 @@ function buildUpdates(data, property, parentResort) {
     description: data.description.trim(),
     comments: data.comments.trim(),
     website_url: (data.website_url || '').trim(),
-    photos: (data.photos || []).slice(0, MAX_PHOTOS_PER_PROPERTY),
+    photos: (data.photos || []).slice(0, maxPhotos),
     videos: data.videos || [],
     amenities: data.amenities,
     air_conditioners: toNum(data.air_conditioners),
@@ -872,6 +874,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
   const [locations, setLocations] = useState([]);
   const [locationDistricts, setLocationDistrictsState] = useState([]);
   const [owners, setOwners] = useState([]);
+  const [maxPhotos, setMaxPhotos] = useState(10);
   const scrollRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -883,6 +886,9 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       setStep(0);
       getLocations().then(setLocations).catch(() => {});
       loadOwners();
+      getCurrentUser()
+        .then(u => setMaxPhotos(getPhotoLimitForProperty(u?.role || 'standard')))
+        .catch(() => setMaxPhotos(10));
     }
   }, [visible, property, parentResort]);
 
@@ -960,7 +966,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       }
       setUploadProgress('');
 
-      const updates = buildUpdates(data, property, parentResort);
+      const updates = buildUpdates(data, property, parentResort, maxPhotos);
       await onSave(updates);
     } catch (e) {
       Alert.alert(t('error'), e.message || 'Error');
@@ -995,7 +1001,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       );
       case 'chars': return <StepCharacteristics data={data} setData={setData} t={t} propertyType={property.type} />;
       case 'desc': return <StepDescription data={data} setData={setData} t={t} />;
-      case 'media': return <StepMedia data={data} setData={setData} t={t} />;
+      case 'media': return <StepMedia data={data} setData={setData} t={t} maxPhotos={maxPhotos} />;
       case 'amenities': return <StepAmenities data={data} setData={setData} t={t} />;
       case 'additional': return <StepAdditional data={data} setData={setData} t={t} propertyType={property.type} />;
       case 'pricing': return <StepPricing data={data} setData={setData} t={t} />;

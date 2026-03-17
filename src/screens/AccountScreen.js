@@ -20,6 +20,7 @@ import CurrencyModal from '../components/CurrencyModal';
 import AddLocationsModal from '../components/AddLocationsModal';
 import DataUploadModal from '../components/DataUploadModal';
 import { useLanguage } from '../context/LanguageContext';
+import { ROLES } from '../constants/roleFeatures';
 import { updateUserProfile, getCurrentUser, canChangePassword } from '../services/authService';
 import { getLocations, createLocation, updateLocation, deleteLocation, setLocationDistricts } from '../services/locationsService';
 
@@ -39,7 +40,6 @@ const COLORS = {
 
 const BLOCK_VERTICAL_PADDING = 16; // Верхний и нижний отступ блока: от края до первой/последней строки
 const BLOCK_ROW_GAP = 8; // Отступ между строками внутри блока (header↔content, content↔content, last↔action)
-const SETTINGS_EXPANDED_HEIGHT = 122;
 const LOCATIONS_BOTTOM_PADDING = 10;
 const ANIM_DURATION = 280;
 
@@ -73,7 +73,8 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
   const companyHeight = useRef(new Animated.Value(0)).current;
   const companyWasOpen = useRef(false);
   const prevTabVisible = useRef(false);
-  const { email = '', name = '', lastName = '', phone = '', telegram = '', documentNumber = '', extraPhones = [], extraEmails = [], whatsapp = '', photoUri = '', workAs = '', companyInfo = {} } = user;
+  const { email = '', name = '', lastName = '', phone = '', telegram = '', documentNumber = '', extraPhones = [], extraEmails = [], whatsapp = '', photoUri = '', workAs = '', companyInfo = {}, role = 'standard' } = user;
+  const isAdmin = role === ROLES.ADMIN;
 
   const displayName = [name, lastName].filter(Boolean).join(' ') || name || null;
 
@@ -355,14 +356,16 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
             <Image source={require('../../assets/icon-settings-notifications.png')} style={styles.settingsItemIcon} resizeMode="contain" />
             <Text style={styles.settingsItemLabel}>{t('notifications')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.settingsItem} activeOpacity={0.8}>
+          <TouchableOpacity style={!isAdmin && !allowChangePassword ? [styles.settingsItem, styles.settingsItemLast] : styles.settingsItem} activeOpacity={0.8}>
             <Image source={require('../../assets/icon-settings-currency.png')} style={styles.settingsItemIcon} resizeMode="contain" />
             <Text style={styles.settingsItemLabel}>{t('currencySelection')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={allowChangePassword ? styles.settingsItem : [styles.settingsItem, styles.settingsItemLast]} activeOpacity={0.8}>
-            <Image source={require('../../assets/icon-sum.png')} style={styles.settingsItemIcon} resizeMode="contain" />
-            <Text style={styles.settingsItemLabel}>{t('dataUploadDb')}</Text>
-          </TouchableOpacity>
+          {isAdmin ? (
+            <TouchableOpacity style={allowChangePassword ? styles.settingsItem : [styles.settingsItem, styles.settingsItemLast]} activeOpacity={0.8}>
+              <Image source={require('../../assets/icon-sum.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+              <Text style={styles.settingsItemLabel}>{t('dataUploadDb')}</Text>
+            </TouchableOpacity>
+          ) : null}
           {allowChangePassword ? (
             <TouchableOpacity style={[styles.settingsItem, styles.settingsItemLast]} activeOpacity={0.8}>
               <Image source={require('../../assets/icon-change-password.png')} style={styles.settingsItemIcon} resizeMode="contain" />
@@ -399,14 +402,16 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
               <Image source={require('../../assets/icon-settings-notifications.png')} style={styles.settingsItemIcon} resizeMode="contain" />
               <Text style={styles.settingsItemLabel}>{t('notifications')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.settingsItem} onPress={() => setCurrencyModalVisible(true)} activeOpacity={0.8}>
+            <TouchableOpacity style={!isAdmin && !allowChangePassword ? [styles.settingsItem, styles.settingsItemLast] : styles.settingsItem} onPress={() => setCurrencyModalVisible(true)} activeOpacity={0.8}>
               <Image source={require('../../assets/icon-settings-currency.png')} style={styles.settingsItemIcon} resizeMode="contain" />
               <Text style={styles.settingsItemLabel}>{t('currencySelection')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={allowChangePassword ? styles.settingsItem : [styles.settingsItem, styles.settingsItemLast]} onPress={() => setDataUploadModalVisible(true)} activeOpacity={0.8}>
-              <Image source={require('../../assets/icon-sum.png')} style={styles.settingsItemIcon} resizeMode="contain" />
-              <Text style={styles.settingsItemLabel}>{t('dataUploadDb')}</Text>
-            </TouchableOpacity>
+            {isAdmin ? (
+              <TouchableOpacity style={allowChangePassword ? styles.settingsItem : [styles.settingsItem, styles.settingsItemLast]} onPress={() => setDataUploadModalVisible(true)} activeOpacity={0.8}>
+                <Image source={require('../../assets/icon-sum.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+                <Text style={styles.settingsItemLabel}>{t('dataUploadDb')}</Text>
+              </TouchableOpacity>
+            ) : null}
             {allowChangePassword ? (
               <TouchableOpacity style={[styles.settingsItem, styles.settingsItemLast]} onPress={() => setChangePasswordModalVisible(true)} activeOpacity={0.8}>
                 <Image source={require('../../assets/icon-change-password.png')} style={styles.settingsItemIcon} resizeMode="contain" />

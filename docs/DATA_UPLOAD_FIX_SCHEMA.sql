@@ -97,3 +97,4 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now
 ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#64B5F6';
 ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS reminder_minutes JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS repeat_type TEXT;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS is_completed BOOLEAN DEFAULT false;
