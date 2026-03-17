@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Linking, Image } from 'react-native';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
@@ -7,6 +7,7 @@ import { getProperties } from '../../services/propertiesService';
 import { getContacts } from '../../services/contactsService';
 import { getCalendarEvents, eventOccursOnDate } from '../../services/calendarEventsService';
 import { getCommissionDateAmounts } from '../../services/commissionRemindersService';
+import { supabase } from '../../services/supabase';
 import WebCalendarStrip from '../components/WebCalendarStrip';
 import WebAddCalendarEventModal from '../components/WebAddCalendarEventModal';
 import WebFlightTracker from '../components/WebFlightTracker';
@@ -124,6 +125,25 @@ export default function WebDashboardScreen({ user }) {
 
   useEffect(() => {
     loadDashboardData();
+  }, []);
+
+  // Ref всегда указывает на актуальную версию loadDashboardData (с текущим selectedDate в замыкании)
+  const loadDashboardDataRef = useRef(loadDashboardData);
+  useEffect(() => {
+    loadDashboardDataRef.current = loadDashboardData;
+  });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('dashboard-calendar-events-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, (payload) => {
+        console.log('[Realtime] dashboard calendar_events change:', payload);
+        loadDashboardDataRef.current();
+      })
+      .subscribe((status, err) => {
+        console.log('[Realtime] Dashboard subscription status:', status, err || '');
+      });
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const updateEventsForDate = (date, bookings, properties, contacts, calendarEvents, allComms) => {

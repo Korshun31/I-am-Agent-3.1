@@ -5,7 +5,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
  * Базовый каркас веб-версии.
  * Только структура: Сайдбар слева, контент справа.
  */
-export default function WebLayout({ children, activeTab, onTabChange }) {
+export default function WebLayout({ children, activeTab, onTabChange, fullHeight }) {
   const menuItems = [
     { id: 'dashboard', label: 'Рабочая панель' },
     { id: 'properties', label: 'Объекты' },
@@ -37,7 +37,7 @@ export default function WebLayout({ children, activeTab, onTabChange }) {
       </View>
 
       {/* Main Content Area */}
-      <View style={styles.content}>
+      <View style={[styles.content, fullHeight && styles.contentFull]}>
         {children}
       </View>
     </View>
@@ -91,5 +91,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 40,
+  },
+  contentFull: {
+    padding: 0,
+    overflow: 'hidden',
   },
 });
