@@ -12,6 +12,10 @@ import WebCalendarStrip from '../components/WebCalendarStrip';
 import WebAddCalendarEventModal from '../components/WebAddCalendarEventModal';
 import WebFlightTracker from '../components/WebFlightTracker';
 
+const ICON_PHONE    = require('../../../assets/icon-contact-phone.png');
+const ICON_TELEGRAM = require('../../../assets/icon-contact-telegram.png');
+const ICON_WHATSAPP = require('../../../assets/icon-contact-whatsapp.png');
+
 dayjs.extend(isBetween);
 
 export default function WebDashboardScreen({ user }) {
@@ -260,14 +264,7 @@ export default function WebDashboardScreen({ user }) {
           </>
         ) : type === 'EVENT' ? (
           <>
-            <View style={styles.eventTitleRow}>
-              <Text style={[styles.agendaCode, item.isCompleted && styles.textDimmed]}>{item.title}</Text>
-              {item.isCompleted && (
-                <View style={styles.checkIconBadge}>
-                  <Text style={styles.checkIconText}>✓</Text>
-                </View>
-              )}
-            </View>
+            <Text style={[styles.agendaCode, item.isCompleted && styles.textDimmed]}>{item.title}</Text>
             <Text style={[styles.agendaPropName, item.isCompleted && styles.textDimmed]}>{item.time || ''}</Text>
           </>
         ) : (
@@ -278,15 +275,20 @@ export default function WebDashboardScreen({ user }) {
           </>
         )}
       </View>
+      {type === 'EVENT' && item.isCompleted && (
+        <View style={styles.checkIconBadge}>
+          <Text style={styles.checkIconText}>✓</Text>
+        </View>
+      )}
       <View style={styles.agendaActions}>
-        {item.clientTelegram ? (
-          <TouchableOpacity style={[styles.msgBtn, styles.tgBtn]} onPress={() => openTelegram(item.clientTelegram)}>
-            <Image source={require('../../../assets/icon-contacts.png')} style={styles.btnIcon} resizeMode="contain" />
+        {item.clientPhone ? (
+          <TouchableOpacity style={[styles.msgBtn, styles.phoneBtn]} onPress={() => openWhatsApp(item.clientPhone)}>
+            <Image source={ICON_WHATSAPP} style={styles.btnIcon} resizeMode="contain" />
           </TouchableOpacity>
         ) : null}
-        {item.clientPhone ? (
-          <TouchableOpacity style={[styles.msgBtn, styles.waBtn]} onPress={() => openWhatsApp(item.clientPhone)}>
-            <Image source={require('../../../assets/icon-contacts.png')} style={styles.btnIcon} resizeMode="contain" />
+        {item.clientTelegram ? (
+          <TouchableOpacity style={[styles.msgBtn, styles.tgBtn]} onPress={() => openTelegram(item.clientTelegram)}>
+            <Image source={ICON_TELEGRAM} style={styles.btnIcon} resizeMode="contain" />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -297,7 +299,11 @@ export default function WebDashboardScreen({ user }) {
   const dateTitle = isToday ? 'сегодня' : selectedDate.format('DD MMMM');
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.containerContent}
+      showsVerticalScrollIndicator={true}
+    >
       <Text style={styles.welcome}>Рабочая панель</Text>
       
       <View style={styles.statsRow}>
@@ -404,7 +410,8 @@ export default function WebDashboardScreen({ user }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, ...Platform.select({ web: { marginRight: -40 } }) },
+  containerContent: { ...Platform.select({ web: { paddingRight: 40 } }) },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 100 },
   welcome: { fontSize: 24, fontWeight: '700', color: '#212529', marginBottom: 30 },
   statsRow: { flexDirection: 'row', gap: 20, marginBottom: 30 },
@@ -433,7 +440,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 24,
+    paddingTop: 24,
+    paddingBottom: 24,
+    paddingLeft: 24,
+    paddingRight: 4,
     maxHeight: 320,
     minHeight: 120,
     ...Platform.select({ web: { boxShadow: '0 4px 12px rgba(0,0,0,0.05)' } }),
@@ -442,7 +452,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     alignItems: 'center', 
-    marginBottom: 12, // Уменьшил отступ с 20 до 12
+    marginBottom: 12,
+    paddingRight: 18,
     height: 28, 
   },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#212529' },
@@ -480,12 +491,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   checkIconBadge: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: '#2E7D32',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 16,
+    flexShrink: 0,
   },
   checkIconText: {
     color: '#FFFFFF',
@@ -505,9 +518,9 @@ const styles = StyleSheet.create({
   agendaPropName: { fontSize: 12, color: '#868E96', marginBottom: 2 },
   agendaClient: { fontSize: 13, color: '#5DB8D4', fontWeight: '600' },
   agendaActions: { flexDirection: 'row', gap: 6 },
-  msgBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  waBtn: { backgroundColor: '#2E7D32' },
-  tgBtn: { backgroundColor: '#0088CC' },
-  btnIcon: { width: 16, height: 16, tintColor: '#FFFFFF' },
+  msgBtn: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  phoneBtn: { backgroundColor: '#E8F5E9' },
+  tgBtn: { backgroundColor: '#E3F2FD' },
+  btnIcon: { width: 22, height: 22 },
   emptyText: { color: '#ADB5BD', fontSize: 14, fontStyle: 'italic', textAlign: 'center', marginTop: 40 },
 });

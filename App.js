@@ -23,6 +23,7 @@ import Registration from './src/screens/Registration';
 import MainScreen from './src/screens/MainScreen';
 import WebMainScreen from './src/web/WebMainScreen';
 import { getCurrentUser, signOut } from './src/services/authService';
+import { supabase } from './src/services/supabase';
 
 const initialUser = { email: '', name: '', lastName: '', phone: '', telegram: '', documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '', photoUri: '' };
 
@@ -44,13 +45,24 @@ export default function App() {
         setScreen('login');
       }
     }
-    
+
     if (Platform.OS === 'web') {
       checkSession();
     } else {
       const timer = setTimeout(checkSession, 2500);
       return () => clearTimeout(timer);
     }
+  }, []);
+
+  // Auto sign-out when Supabase refresh token becomes invalid
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED_ERROR') {
+        setUser(initialUser);
+        setScreen('login');
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   const goToMain = (userData) => {

@@ -1,5 +1,102 @@
 import { supabase } from './supabase';
 import { syncIfEnabled } from './dataUploadService';
+import * as FileSystem from 'expo-file-system/legacy';
+
+// Bucket name in Supabase Storage
+const PHOTOS_BUCKET = 'contact-photos';
+
+/**
+ * Uploads a local photo URI to Supabase Storage.
+ * Returns the public https:// URL, or the original URI on failure.
+ */
+export async function uploadContactPhoto(localUri) {
+  if (!localUri || localUri.startsWith('http')) return localUri;
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Не авторизован');
+
+    const ext = (localUri.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z]/g, '') || 'jpg';
+    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+    const fileName = `${session.user.id}/${Date.now()}.${ext}`;
+
+    // Use FormData — the standard React Native way to upload any file URI
+    const formData = new FormData();
+    formData.append('file', { uri: localUri, name: fileName, type: mimeType });
+
+    const uploadUrl = `https://doosuanuttihcyxtkarf.supabase.co/storage/v1/object/${PHOTOS_BUCKET}/${fileName}`;
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'x-upsert': 'true',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Storage error: ${errText}`);
+    }
+
+    const { data } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(fileName);
+    console.log('[uploadContactPhoto] Success:', data.publicUrl);
+    return data.publicUrl;
+  } catch (e) {
+    console.error('[uploadContactPhoto] Exception:', e.message);
+    throw e;
+  }
+}
+
+/**
+ * Migration: uploads all local contact photos to Supabase Storage.
+ * Safe to run multiple times — skips contacts that already have https:// URLs.
+ * After all photos are migrated it finds 0 local files and finishes instantly.
+ */
+export async function migrateContactPhotos() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+
+    const { data: rows, error } = await supabase
+      .from('contacts')
+      .select('id, photo_url')
+      .eq('agent_id', session.user.id)
+      .not('photo_url', 'is', null)
+      .neq('photo_url', '');
+
+    if (error || !rows?.length) return;
+
+    const local = rows.filter(r => r.photo_url && !r.photo_url.startsWith('http'));
+    if (!local.length) return;
+
+    console.log(`[PhotoMigration] Found ${local.length} contacts with local photos`);
+
+    let migrated = 0;
+    for (const row of local) {
+      try {
+        const info = await FileSystem.getInfoAsync(row.photo_url);
+        if (!info.exists) continue;
+
+        const publicUrl = await uploadContactPhoto(row.photo_url);
+        if (publicUrl.startsWith('http')) {
+          await supabase
+            .from('contacts')
+            .update({ photo_url: publicUrl, updated_at: new Date().toISOString() })
+            .eq('id', row.id);
+          migrated++;
+          console.log(`[PhotoMigration] ✓ Migrated contact ${row.id}`);
+        }
+      } catch (e) {
+        console.warn(`[PhotoMigration] Failed for contact ${row.id}:`, e.message);
+      }
+    }
+
+    console.log(`[PhotoMigration] Done. Migrated ${migrated}/${local.length}`);
+  } catch (e) {
+    console.warn('[PhotoMigration] Error:', e.message);
+  }
+}
 
 export async function getContacts(type) {
   const { data: { session } } = await supabase.auth.getSession();

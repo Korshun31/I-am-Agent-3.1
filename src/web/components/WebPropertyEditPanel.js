@@ -1,9 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Switch, Animated, Modal, ActivityIndicator,
+  TextInput, Switch, Animated, Modal, ActivityIndicator, Image, Platform,
 } from 'react-native';
 import { updateProperty, createPropertyFull, createProperty } from '../../services/propertiesService';
+import { supabase } from '../../services/supabase';
+
+const ICON_TAB_MAIN      = require('../../../assets/icon-tab-main.png');
+const ICON_TAB_PRICES    = require('../../../assets/icon-tab-prices.png');
+const ICON_TAB_UTILITIES = require('../../../assets/icon-tab-utilities.png');
+const ICON_TAB_AMENITIES = require('../../../assets/icon-tab-amenities.png');
+const ICON_TAB_PHOTOS    = require('../../../assets/icon-tab-photos.png');
+const ICON_TOGGLE_PETS    = require('../../../assets/icon-toggle-pets.png');
+const ICON_TOGGLE_BOOKING = require('../../../assets/icon-toggle-booking.png');
+const PHOTOS_BUCKET      = 'property-photos';
 
 const ACCENT = '#D81B60';
 const C = {
@@ -13,30 +23,31 @@ const C = {
 };
 
 const TABS = [
-  { key: 'main',      label: '📋 Основное' },
-  { key: 'prices',    label: '💰 Цены' },
-  { key: 'utilities', label: '🔌 Коммунальные' },
-  { key: 'amenities', label: '🏠 Удобства' },
+  { key: 'main',      label: 'Основное',     icon: ICON_TAB_MAIN      },
+  { key: 'prices',    label: 'Цены',          icon: ICON_TAB_PRICES    },
+  { key: 'utilities', label: 'Коммунальные',  icon: ICON_TAB_UTILITIES },
+  { key: 'amenities', label: 'Удобства',      icon: ICON_TAB_AMENITIES },
+  { key: 'photos',    label: 'Фото',          icon: ICON_TAB_PHOTOS    },
 ];
 
 const AMENITY_KEYS = [
-  { key: 'swimming_pool',   label: '🏊 Бассейн' },
-  { key: 'gym',             label: '🏋️ Спортзал' },
-  { key: 'parking',         label: '🅿️ Парковка' },
-  { key: 'internet',        label: '🌐 Интернет' },
-  { key: 'tv',              label: '📺 ТВ' },
-  { key: 'washing_machine', label: '🫧 Стир. машина' },
-  { key: 'dishwasher',      label: '🍽️ Посудомойка' },
-  { key: 'fridge',          label: '🧊 Холодильник' },
-  { key: 'stove',           label: '🍳 Плита' },
-  { key: 'oven',            label: '♨️ Духовка' },
-  { key: 'hood',            label: '💨 Вытяжка' },
-  { key: 'microwave',       label: '📡 Микроволновка' },
-  { key: 'kettle',          label: '🫖 Чайник' },
-  { key: 'toaster',         label: '🍞 Тостер' },
-  { key: 'coffee_machine',  label: '☕ Кофемашина' },
-  { key: 'multi_cooker',    label: '🥘 Мультиварка' },
-  { key: 'blender',         label: '🥤 Блендер' },
+  { key: 'swimming_pool',   label: 'Бассейн',      icon: require('../../../assets/icon-amenity-swimming_pool.png') },
+  { key: 'gym',             label: 'Спортзал',     icon: require('../../../assets/icon-amenity-gym.png') },
+  { key: 'parking',         label: 'Парковка',     icon: require('../../../assets/icon-amenity-parking.png') },
+  { key: 'internet',        label: 'Интернет',     icon: require('../../../assets/icon-amenity-internet.png') },
+  { key: 'tv',              label: 'ТВ',           icon: require('../../../assets/icon-amenity-tv.png') },
+  { key: 'washing_machine', label: 'Стир. машина', icon: require('../../../assets/icon-amenity-washing_machine.png') },
+  { key: 'dishwasher',      label: 'Посудомойка',  icon: require('../../../assets/icon-amenity-dishwasher.png') },
+  { key: 'fridge',          label: 'Холодильник',  icon: require('../../../assets/icon-amenity-fridge.png') },
+  { key: 'stove',           label: 'Плита',        icon: require('../../../assets/icon-amenity-stove.png') },
+  { key: 'oven',            label: 'Духовка',      icon: require('../../../assets/icon-amenity-oven.png') },
+  { key: 'hood',            label: 'Вытяжка',      icon: require('../../../assets/icon-amenity-hood.png') },
+  { key: 'microwave',       label: 'Микроволновка',icon: require('../../../assets/icon-amenity-microwave.png') },
+  { key: 'kettle',          label: 'Чайник',       icon: require('../../../assets/icon-amenity-kettle.png') },
+  { key: 'toaster',         label: 'Тостер',       icon: require('../../../assets/icon-amenity-toaster.png') },
+  { key: 'coffee_machine',  label: 'Кофемашина',   icon: require('../../../assets/icon-amenity-coffee_machine.png') },
+  { key: 'multi_cooker',    label: 'Мультиварка',  icon: require('../../../assets/icon-amenity-multi_cooker.png') },
+  { key: 'blender',         label: 'Блендер',      icon: require('../../../assets/icon-amenity-blender.png') },
 ];
 
 // ─── Small form components ────────────────────────────────────────────────────
@@ -80,10 +91,11 @@ function FieldRow({ label, children, required }) {
   );
 }
 
-function FieldToggle({ label, value, onChange }) {
+function FieldToggle({ label, icon, value, onChange, compact }) {
   return (
-    <View style={s.toggleRow}>
-      <Text style={s.toggleLabel}>{label}</Text>
+    <View style={[s.toggleRow, compact && s.toggleRowCompact]}>
+      {icon && <Image source={icon} style={s.toggleIcon} resizeMode="contain" />}
+      <Text style={[s.toggleLabel, compact && s.toggleLabelCompact]}>{label}</Text>
       <Switch
         value={!!value}
         onValueChange={onChange}
@@ -127,6 +139,8 @@ function buildForm(property, parentProperty) {
       type: property.type || 'house',
       city: property.city || '',
       district: property.district || '',
+      houses_count: property.houses_count ?? '',
+      floors: property.floors ?? '',
       bedrooms: property.bedrooms ?? '',
       bathrooms: property.bathrooms ?? '',
       area: property.area ?? '',
@@ -156,6 +170,8 @@ function buildForm(property, parentProperty) {
       pets_allowed: property.pets_allowed ?? null,
       long_term_booking: property.long_term_booking ?? null,
       amenities: property.amenities || {},
+      photos: property.photos || [],
+      video_url: property.video_url || '',
     };
   }
   // create mode
@@ -164,6 +180,7 @@ function buildForm(property, parentProperty) {
     type: 'house',
     city: parentProperty?.city || '',
     district: parentProperty?.district || '',
+    houses_count: '', floors: '',
     bedrooms: '', bathrooms: '', area: '',
     beach_distance: parentProperty?.beach_distance ?? '',
     market_distance: parentProperty?.market_distance ?? '',
@@ -184,6 +201,8 @@ function buildForm(property, parentProperty) {
     pets_allowed: parentProperty?.pets_allowed ?? null,
     long_term_booking: parentProperty?.long_term_booking ?? null,
     amenities: parentProperty?.amenities ? { ...parentProperty.amenities } : {},
+    photos: [],
+    video_url: '',
   };
 }
 
@@ -197,28 +216,56 @@ function buildForm(property, parentProperty) {
 export default function WebPropertyEditPanel({ visible, mode, property, parentProperty, onClose, onSaved }) {
   const [tab, setTab] = useState('main');
   const [form, setForm] = useState(() => buildForm(property, parentProperty));
+
+  // Determine if this is a parent resort/condo (not a child unit)
+  const effectiveType = mode === 'create-unit' ? (parentProperty?.type || 'house') : (property?.type || form.type);
+  const isChildUnit = mode === 'create-unit' || Boolean(property?.resort_id);
+  const isParent = !isChildUnit && (effectiveType === 'resort' || effectiveType === 'condo');
+  const visibleTabs = isParent
+    ? TABS.filter(t => t.key === 'main' || t.key === 'photos')
+    : TABS;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const slideAnim = useRef(new Animated.Value(540)).current;
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const slideAnim    = useRef(new Animated.Value(540)).current;
+  const backdropAnim = useRef(new Animated.Value(0)).current;
+  const [mounted, setMounted] = useState(false);
 
   // Reset form and animate when visibility changes
   useEffect(() => {
     if (visible) {
+      setMounted(true);
       setForm(buildForm(property, parentProperty));
       setTab('main');
       setError('');
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start();
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 11,
+        }),
+        Animated.timing(backdropAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else {
-      Animated.timing(slideAnim, {
-        toValue: 540,
-        duration: 220,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 540,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropAnim, {
+          toValue: 0,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (finished) setMounted(false);
+      });
     }
   }, [visible, property?.id]);
 
@@ -244,6 +291,8 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       type: form.type,
       city: form.city.trim() || null,
       district: form.district.trim() || null,
+      houses_count: numOrNull(form.houses_count),
+      floors: numOrNull(form.floors),
       bedrooms: numOrNull(form.bedrooms),
       bathrooms: numOrNull(form.bathrooms),
       area: numOrNull(form.area),
@@ -251,8 +300,8 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       market_distance: numOrNull(form.market_distance),
       google_maps_link: form.google_maps_link.trim() || '',
       website_url: form.website_url.trim() || '',
-      description: form.description.trim() || null,
-      comments: form.comments.trim() || null,
+      description: form.description.trim() || '',
+      comments: form.comments.trim() || '',
       price_monthly: numOrNull(form.price_monthly),
       price_monthly_is_from: form.price_monthly_is_from,
       booking_deposit: numOrNull(form.booking_deposit),
@@ -273,6 +322,8 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       pets_allowed: form.pets_allowed,
       long_term_booking: form.long_term_booking,
       amenities: form.amenities,
+      photos: form.photos || [],
+      video_url: form.video_url.trim() || null,
     };
 
     try {
@@ -283,7 +334,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
         saved = await createPropertyFull({
           ...updates,
           resort_id: parentProperty.id,
-          type: 'house',
+          type: parentProperty.type,
         });
       } else {
         saved = await createProperty({
@@ -301,6 +352,45 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
     } finally {
       setSaving(false);
     }
+  };
+
+  const handlePickPhotos = () => {
+    if (Platform.OS !== 'web') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.multiple = true;
+    input.onchange = async (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      setUploadingPhoto(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const newUrls = [];
+        for (const file of files) {
+          const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+          const fileName = `${session.user.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: upErr } = await supabase.storage
+            .from(PHOTOS_BUCKET)
+            .upload(fileName, file, { upsert: true, contentType: file.type });
+          if (upErr) { setError(`Ошибка: ${upErr.message}`); continue; }
+          const { data: pub } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(fileName);
+          newUrls.push(pub.publicUrl);
+        }
+        if (newUrls.length) {
+          setForm(f => ({ ...f, photos: [...(f.photos || []), ...newUrls] }));
+        }
+      } catch (e) {
+        setError(`Ошибка загрузки: ${e.message}`);
+      } finally {
+        setUploadingPhoto(false);
+      }
+    };
+    input.click();
+  };
+
+  const handleRemovePhoto = (idx) => {
+    setForm(f => ({ ...f, photos: f.photos.filter((_, i) => i !== idx) }));
   };
 
   const title = mode === 'edit'
@@ -323,7 +413,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
             {mode === 'edit' && property?.resort_id ? (
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{form.code}</Text>
-                <Text style={s.fieldInputReadonlyHint}>🔒 изменяется у родителя</Text>
+                <Text style={s.fieldInputReadonlyHint}>🔒</Text>
               </View>
             ) : (
               <FieldInput value={form.code} onChangeText={v => set('code', v)} placeholder="CW01" />
@@ -357,7 +447,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
             {mode === 'edit' && property?.resort_id ? (
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{form.city || '—'}</Text>
-                <Text style={s.fieldInputReadonlyHint}>🔒 у родителя</Text>
+                <Text style={s.fieldInputReadonlyHint}>🔒</Text>
               </View>
             ) : (
               <FieldInput value={form.city} onChangeText={v => set('city', v)} placeholder="Ko Samui" />
@@ -369,7 +459,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
             {mode === 'edit' && property?.resort_id ? (
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{form.district || '—'}</Text>
-                <Text style={s.fieldInputReadonlyHint}>🔒 у родителя</Text>
+                <Text style={s.fieldInputReadonlyHint}>🔒</Text>
               </View>
             ) : (
               <FieldInput value={form.district} onChangeText={v => set('district', v)} placeholder="BanTai" />
@@ -380,23 +470,54 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
 
       <SectionDivider title="Параметры" />
 
-      <View style={s.row3}>
-        <View style={{ flex: 1 }}>
-          <FieldRow label="Спальни">
-            <FieldInput value={form.bedrooms} onChangeText={v => set('bedrooms', v)} placeholder="2" numeric />
-          </FieldRow>
-        </View>
-        <View style={{ flex: 1 }}>
-          <FieldRow label="Ванные">
-            <FieldInput value={form.bathrooms} onChangeText={v => set('bathrooms', v)} placeholder="1" numeric />
-          </FieldRow>
-        </View>
-        <View style={{ flex: 1 }}>
-          <FieldRow label="Площадь м²">
-            <FieldInput value={form.area} onChangeText={v => set('area', v)} placeholder="55" numeric />
-          </FieldRow>
-        </View>
-      </View>
+      {/* Resort: houses count */}
+      {isParent && effectiveType === 'resort' && (
+        <FieldRow label="Кол-во домов">
+          <FieldInput value={form.houses_count} onChangeText={v => set('houses_count', v)} placeholder="10" numeric />
+        </FieldRow>
+      )}
+
+      {/* Condo: floors */}
+      {isParent && effectiveType === 'condo' && (
+        <FieldRow label="Этажей">
+          <FieldInput value={form.floors} onChangeText={v => set('floors', v)} placeholder="7" numeric />
+        </FieldRow>
+      )}
+
+      {/* House / child unit: bedrooms, bathrooms, area + air conditioners + internet speed */}
+      {!isParent && (
+        <>
+          <View style={s.row3}>
+            <View style={{ flex: 1 }}>
+              <FieldRow label="Спальни">
+                <FieldInput value={form.bedrooms} onChangeText={v => set('bedrooms', v)} placeholder="2" numeric />
+              </FieldRow>
+            </View>
+            <View style={{ flex: 1 }}>
+              <FieldRow label="Ванные">
+                <FieldInput value={form.bathrooms} onChangeText={v => set('bathrooms', v)} placeholder="1" numeric />
+              </FieldRow>
+            </View>
+            <View style={{ flex: 1 }}>
+              <FieldRow label="Площадь м²">
+                <FieldInput value={form.area} onChangeText={v => set('area', v)} placeholder="55" numeric />
+              </FieldRow>
+            </View>
+          </View>
+          <View style={s.row2}>
+            <View style={{ flex: 1 }}>
+              <FieldRow label="Кондиционеры">
+                <FieldInput value={form.air_conditioners} onChangeText={v => set('air_conditioners', v)} placeholder="2" numeric />
+              </FieldRow>
+            </View>
+            <View style={{ flex: 1 }}>
+              <FieldRow label="Интернет (Мбит/с)">
+                <FieldInput value={form.internet_speed} onChangeText={v => set('internet_speed', v)} placeholder="300" numeric />
+              </FieldRow>
+            </View>
+          </View>
+        </>
+      )}
 
       <SectionDivider title="Расположение" />
 
@@ -417,9 +538,11 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
         <FieldInput value={form.google_maps_link} onChangeText={v => set('google_maps_link', v)} placeholder="https://maps.google.com/..." />
       </FieldRow>
 
-      <FieldRow label="Сайт объекта">
-        <FieldInput value={form.website_url} onChangeText={v => set('website_url', v)} placeholder="https://..." />
-      </FieldRow>
+      {!isParent && (
+        <FieldRow label="Сайт объекта">
+          <FieldInput value={form.website_url} onChangeText={v => set('website_url', v)} placeholder="https://..." />
+        </FieldRow>
+      )}
 
       <SectionDivider title="Описание" />
 
@@ -440,26 +563,26 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       <FieldRow label="Цена в месяц (฿)">
         <FieldInput value={form.price_monthly} onChangeText={v => set('price_monthly', v)} placeholder="15 000" numeric />
       </FieldRow>
-      <FieldToggle label="Цена от…" value={form.price_monthly_is_from} onChange={v => set('price_monthly_is_from', v)} />
+      <FieldToggle label="от" compact value={form.price_monthly_is_from} onChange={v => set('price_monthly_is_from', v)} />
 
       <SectionDivider title="Депозиты" />
 
-      <FieldRow label="Задаток — бронь (฿)">
+      <FieldRow label="Депозит бронирования (฿)">
         <FieldInput value={form.booking_deposit} onChangeText={v => set('booking_deposit', v)} placeholder="5 000" numeric />
       </FieldRow>
-      <FieldToggle label="Задаток от…" value={form.booking_deposit_is_from} onChange={v => set('booking_deposit_is_from', v)} />
+      <FieldToggle label="от" compact value={form.booking_deposit_is_from} onChange={v => set('booking_deposit_is_from', v)} />
 
-      <FieldRow label="Залог (฿)">
+      <FieldRow label="Сохранный депозит (฿)">
         <FieldInput value={form.save_deposit} onChangeText={v => set('save_deposit', v)} placeholder="10 000" numeric />
       </FieldRow>
-      <FieldToggle label="Залог от…" value={form.save_deposit_is_from} onChange={v => set('save_deposit_is_from', v)} />
+      <FieldToggle label="от" compact value={form.save_deposit_is_from} onChange={v => set('save_deposit_is_from', v)} />
 
       <SectionDivider title="Комиссия" />
 
-      <FieldRow label="Комиссия (%)">
-        <FieldInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="5" numeric />
+      <FieldRow label="Комиссия (฿)">
+        <FieldInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="15 000" numeric />
       </FieldRow>
-      <FieldToggle label="Комиссия от…" value={form.commission_is_from} onChange={v => set('commission_is_from', v)} />
+      <FieldToggle label="от" compact value={form.commission_is_from} onChange={v => set('commission_is_from', v)} />
     </>
   );
 
@@ -505,48 +628,76 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
         <FieldInput value={form.exit_cleaning_price} onChangeText={v => set('exit_cleaning_price', v)} placeholder="1 000" numeric />
       </FieldRow>
 
-      <SectionDivider title="Технические параметры" />
+    </>
+  );
 
-      <View style={s.row2}>
-        <View style={{ flex: 1 }}>
-          <FieldRow label="Кондиционеры (шт.)">
-            <FieldInput value={form.air_conditioners} onChangeText={v => set('air_conditioners', v)} placeholder="2" numeric />
-          </FieldRow>
-        </View>
-        <View style={{ flex: 1 }}>
-          <FieldRow label="Интернет (Мбит/с)">
-            <FieldInput value={form.internet_speed} onChangeText={v => set('internet_speed', v)} placeholder="100" numeric />
-          </FieldRow>
-        </View>
+  const renderPhotosTab = () => (
+    <>
+      <SectionDivider title="Фотографии" />
+      <View style={s.photosGrid}>
+        {(form.photos || []).map((uri, idx) => (
+          <View key={idx} style={s.photoThumb}>
+            <Image source={{ uri }} style={s.photoThumbImg} resizeMode="cover" />
+            <TouchableOpacity style={s.photoRemoveBtn} onPress={() => handleRemovePhoto(idx)}>
+              <Text style={s.photoRemoveText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+        <TouchableOpacity style={s.photoAddBtn} onPress={handlePickPhotos} disabled={uploadingPhoto}>
+          {uploadingPhoto
+            ? <ActivityIndicator size="small" color={ACCENT} />
+            : <Text style={s.photoAddText}>＋ Добавить фото</Text>
+          }
+        </TouchableOpacity>
+      </View>
+
+      <SectionDivider title="Видео" />
+      <View style={s.fieldRow}>
+        <TextInput
+          style={s.input}
+          value={form.video_url}
+          onChangeText={v => set('video_url', v)}
+          placeholder="Ссылка на видео (YouTube, Vimeo...)"
+          placeholderTextColor={C.light}
+          autoCapitalize="none"
+          keyboardType="url"
+        />
       </View>
     </>
   );
 
   const renderAmenities = () => (
     <>
-      <SectionDivider title="Политика" />
+      <SectionDivider title="Особенности" />
 
       <FieldToggle
-        label="🐾 Домашние животные разрешены"
+        icon={ICON_TOGGLE_PETS}
+        label="Домашние животные разрешены"
         value={form.pets_allowed}
         onChange={v => set('pets_allowed', v)}
       />
       <FieldToggle
-        label="📅 Долгосрочная аренда"
+        icon={ICON_TOGGLE_BOOKING}
+        label="Бронирование на дальние даты"
         value={form.long_term_booking}
         onChange={v => set('long_term_booking', v)}
       />
 
-      <SectionDivider title="Удобства в объекте" />
+      <SectionDivider title="Удобства" />
 
       <View style={s.amenitiesGrid}>
-        {AMENITY_KEYS.map(({ key, label }) => (
+        {AMENITY_KEYS.map(({ key, label, icon }) => (
           <TouchableOpacity
             key={key}
             style={[s.amenityChip, form.amenities[key] && s.amenityChipActive]}
             onPress={() => setAmenity(key, !form.amenities[key])}
             activeOpacity={0.75}
           >
+            <Image
+              source={icon}
+              style={[s.amenityChipIcon, form.amenities[key] && s.amenityChipIconActive]}
+              resizeMode="contain"
+            />
             <Text style={[s.amenityChipText, form.amenities[key] && s.amenityChipTextActive]}>
               {label}
             </Text>
@@ -558,13 +709,18 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
-  if (!visible && slideAnim._value >= 539) return null;
+  if (!mounted) return null;
 
   return (
-    <Modal visible={visible || slideAnim._value < 539} transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
       <View style={s.overlay}>
-        {/* Dim backdrop */}
-        <TouchableOpacity style={s.backdrop} onPress={onClose} activeOpacity={1} />
+        {/* Dim backdrop — animated opacity */}
+        <Animated.View
+          style={[s.backdrop, { opacity: backdropAnim }]}
+          pointerEvents={visible ? 'auto' : 'none'}
+        >
+          <TouchableOpacity style={{ flex: 1 }} onPress={onClose} activeOpacity={1} />
+        </Animated.View>
 
         {/* Sliding panel */}
         <Animated.View style={[s.panel, { transform: [{ translateX: slideAnim }] }]}>
@@ -585,17 +741,18 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
           </View>
 
           {/* Tabs */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsScroll} contentContainerStyle={s.tabs}>
-            {TABS.map(t => (
+          <View style={s.tabs}>
+            {visibleTabs.map(t => (
               <TouchableOpacity
                 key={t.key}
                 style={[s.tabBtn, tab === t.key && s.tabBtnActive]}
                 onPress={() => setTab(t.key)}
               >
-                <Text style={[s.tabBtnText, tab === t.key && s.tabBtnTextActive]}>{t.label}</Text>
+                <Image source={t.icon} style={[s.tabBtnIcon, tab === t.key && s.tabBtnIconActive]} resizeMode="contain" />
+                <Text style={[s.tabBtnText, tab === t.key && s.tabBtnTextActive]} numberOfLines={1}>{t.label}</Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
+          </View>
 
           {/* Form content */}
           <ScrollView style={s.formScroll} showsVerticalScrollIndicator={false} contentContainerStyle={s.formContent}>
@@ -603,6 +760,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
             {tab === 'prices'    && renderPrices()}
             {tab === 'utilities' && renderUtilities()}
             {tab === 'amenities' && renderAmenities()}
+            {tab === 'photos' && renderPhotosTab()}
             <View style={{ height: 24 }} />
           </ScrollView>
 
@@ -634,12 +792,13 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
 const s = StyleSheet.create({
   overlay: {
     flex: 1,
-    flexDirection: 'row',
     justifyContent: 'flex-end',
+    flexDirection: 'row',
   },
   backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   panel: {
     width: 540,
@@ -671,15 +830,39 @@ const s = StyleSheet.create({
   closeBtnText: { fontSize: 16, color: C.muted },
 
   // Tabs
-  tabsScroll: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: C.border },
-  tabs: { flexDirection: 'row', paddingHorizontal: 16, gap: 4 },
+  tabs: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
   tabBtn: {
-    paddingHorizontal: 14, paddingVertical: 12,
+    flex: 1,
+    paddingVertical: 10,
     borderBottomWidth: 2, borderBottomColor: 'transparent',
+    alignItems: 'center', justifyContent: 'center', gap: 4,
   },
   tabBtnActive: { borderBottomColor: ACCENT },
-  tabBtnText: { fontSize: 13, fontWeight: '500', color: C.muted },
+  tabBtnIcon: { width: 22, height: 22, opacity: 0.3 },
+  tabBtnIconActive: { opacity: 1 },
+  tabBtnText: { fontSize: 11, fontWeight: '500', color: C.muted },
   tabBtnTextActive: { color: ACCENT, fontWeight: '700' },
+
+  // Photos tab
+  photosGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
+  photoThumb: { width: 100, height: 80, borderRadius: 8, overflow: 'hidden', position: 'relative' },
+  photoThumbImg: { width: '100%', height: '100%' },
+  photoRemoveBtn: {
+    position: 'absolute', top: 4, right: 4,
+    backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 10,
+    width: 20, height: 20, alignItems: 'center', justifyContent: 'center',
+  },
+  photoRemoveText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
+  photoAddBtn: {
+    width: 100, height: 80, borderRadius: 8,
+    borderWidth: 1.5, borderColor: C.border, borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: C.surface,
+  },
+  photoAddText: { fontSize: 12, color: C.muted, textAlign: 'center' },
 
   // Form
   formScroll: { flex: 1 },
@@ -719,11 +902,20 @@ const s = StyleSheet.create({
   toggleRow: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: '#F8F9FA',
-    marginBottom: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1, borderBottomColor: C.border,
   },
-  toggleLabel: { fontSize: 14, color: C.text },
+  toggleRowCompact: {
+    justifyContent: 'flex-end',
+    paddingVertical: 6,
+    gap: 8,
+    borderBottomWidth: 0,
+    marginBottom: 2,
+  },
+  toggleIcon: { width: 22, height: 22, marginRight: 8 },
+  toggleLabel: { flex: 1, fontSize: 14, color: C.text },
+  toggleLabelCompact: { fontSize: 12, color: C.muted, fontWeight: '600' },
 
   selectRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   selectOption: {
@@ -735,15 +927,24 @@ const s = StyleSheet.create({
   selectOptionText: { fontSize: 13, color: C.muted, fontWeight: '500' },
   selectOptionTextActive: { color: ACCENT, fontWeight: '700' },
 
-  amenitiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  amenityChip: {
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 20, borderWidth: 1, borderColor: C.border,
-    backgroundColor: C.bg,
+  amenitiesGrid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    marginTop: 8, gap: 8,
+    paddingHorizontal: 4,
   },
-  amenityChipActive: { borderColor: ACCENT, backgroundColor: C.accentBg },
-  amenityChipText: { fontSize: 13, color: C.muted },
-  amenityChipTextActive: { color: ACCENT, fontWeight: '600' },
+  amenityChip: {
+    width: '31%',
+    paddingHorizontal: 10, paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.bg,
+    alignItems: 'center',
+  },
+  amenityChipActive: { backgroundColor: C.accentBg, borderColor: ACCENT },
+  amenityChipIcon: { width: 20, height: 20, marginBottom: 3, opacity: 0.5 },
+  amenityChipIconActive: { opacity: 1 },
+  amenityChipText: { fontSize: 11, color: C.muted, textAlign: 'center' },
+  amenityChipTextActive: { color: ACCENT, fontWeight: '700' },
 
   // Footer
   footer: {

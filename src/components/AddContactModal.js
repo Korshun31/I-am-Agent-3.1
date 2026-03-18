@@ -18,6 +18,7 @@ import {
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { uploadContactPhoto } from '../services/contactsService';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const COLORS = {
@@ -46,6 +47,7 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
   const [extraWhatsapps, setExtraWhatsapps] = useState([]);
   const [showAddContactChoices, setShowAddContactChoices] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -89,11 +91,30 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
     }
   }, [visible, editContact]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert(t('error'), t('enterName') || 'Please enter a name.');
       return;
     }
+
+    // Upload photo to Supabase Storage if it's a local file
+    let finalPhotoUri = photoUri || '';
+    if (finalPhotoUri && !finalPhotoUri.startsWith('http')) {
+      setUploadingPhoto(true);
+      try {
+        finalPhotoUri = await uploadContactPhoto(finalPhotoUri);
+      } catch (uploadErr) {
+        setUploadingPhoto(false);
+        Alert.alert(
+          'Ошибка загрузки фото',
+          uploadErr.message + '\n\nПроверьте что bucket "contact-photos" создан в Supabase Storage.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      setUploadingPhoto(false);
+    }
+
     onSave?.({
       name: name.trim(),
       lastName: lastName.trim(),
@@ -102,7 +123,7 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
       documentNumber: documentNumber.trim(),
       nationality: nationality.trim(),
       birthday: birthday.trim(),
-      photoUri: photoUri || '',
+      photoUri: finalPhotoUri,
       extraPhones: extraPhones.filter((p) => (p || '').trim()),
       extraEmails: extraEmails.filter((e) => (e || '').trim()),
       extraTelegrams: extraTelegrams.filter((t) => (t || '').trim()),
@@ -427,8 +448,15 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
                 </View>
               </ScrollView>
 
-              <TouchableOpacity style={styles.saveBtn} onPress={() => { Keyboard.dismiss(); handleSave(); }} activeOpacity={0.7}>
-                <Text style={styles.saveBtnText}>{t('save')}</Text>
+              <TouchableOpacity
+                style={[styles.saveBtn, uploadingPhoto && { opacity: 0.7 }]}
+                onPress={() => { Keyboard.dismiss(); handleSave(); }}
+                activeOpacity={0.7}
+                disabled={uploadingPhoto}
+              >
+                <Text style={styles.saveBtnText}>
+                  {uploadingPhoto ? '⏳ Загрузка фото...' : t('save')}
+                </Text>
               </TouchableOpacity>
             </View>
           </Pressable>

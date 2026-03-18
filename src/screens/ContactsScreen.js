@@ -14,7 +14,7 @@ import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import AddContactModal from '../components/AddContactModal';
 import ContactDetailScreen from './ContactDetailScreen';
-import { getContacts, createContact } from '../services/contactsService';
+import { getContacts, createContact, migrateContactPhotos } from '../services/contactsService';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -92,6 +92,14 @@ export default function ContactsScreen({ onBack }) {
   useEffect(() => {
     loadContacts();
   }, [loadContacts]);
+
+  // One-time migration: upload local photos to Supabase Storage
+  useEffect(() => {
+    migrateContactPhotos().then(() => {
+      // Reload contacts so new https:// URLs are reflected
+      loadContacts();
+    });
+  }, []);
 
   const handleSaveContact = async (data) => {
     try {
