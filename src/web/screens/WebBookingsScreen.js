@@ -1,0 +1,1012 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  ActivityIndicator, Image, TextInput,
+} from 'react-native';
+import dayjs from 'dayjs';
+import 'dayjs/locale/ru';
+dayjs.locale('ru');
+
+import { getBookings, deleteBooking } from '../../services/bookingsService';
+import { getProperties } from '../../services/propertiesService';
+import { getContacts } from '../../services/contactsService';
+import WebBookingEditPanel from '../components/WebBookingEditPanel';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const ACCENT   = '#D81B60';
+const C = {
+  bg: '#F4F6F9', surface: '#FFFFFF', border: '#E9ECEF',
+  text: '#212529', muted: '#6C757D', light: '#ADB5BD',
+  accent: ACCENT, accentBg: '#FCE4EC',
+  green: '#2E7D32', greenBg: '#E8F5E9',
+  blue: '#1565C0', blueBg: '#E3F2FD',
+  amber: '#C2920E', amberBg: '#FFF8E1',
+};
+
+const MONTH_W = 130;   // px per month column
+const ROW_H   = 48;    // px per property row
+const LEFT_W  = 130;   // px for left property name column
+
+const BOOKING_COLORS = [
+  '#4FC3F7','#81C784','#FFB74D','#BA68C8',
+  '#F06292','#4DD0E1','#AED581','#FFD54F',
+  '#FF8A65','#A5D6A7','#80DEEA','#CE93D8',
+  '#FFCC02','#80CBC4','#EF9A9A','#90A4AE',
+];
+
+const TYPE_COLOR = {
+  house:  { border: '#C2920E', bg: '#FFFDE7', text: '#C2920E' },
+  resort: { border: '#2E7D32', bg: '#E8F5E9', text: '#2E7D32' },
+  condo:  { border: '#1565C0', bg: '#E3F2FD', text: '#1565C0' },
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Returns the pre-computed effectiveType (annotated during load)
+function getEffectiveType(prop) {
+  if (!prop) return 'house';
+  return prop.effectiveType || prop.type || 'house';
+}
+
+function fmt(n) {
+  if (n == null) return '—';
+  return Number(n).toLocaleString('ru-RU') + ' ฿';
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  return dayjs(d).format('DD.MM.YY');
+}
+
+function fmtDateLong(d) {
+  if (!d) return '—';
+  return dayjs(d).format('DD MMM YYYY');
+}
+
+function nightsCount(checkIn, checkOut) {
+  if (!checkIn || !checkOut) return 0;
+  return dayjs(checkOut).diff(dayjs(checkIn), 'day');
+}
+
+// Build timeline: Jan(prev year) → Dec(next year) = 36 months
+function buildMonths() {
+  const year = dayjs().year();
+  const start = dayjs(`${year - 1}-01-01`).startOf('month');
+  const end   = dayjs(`${year + 1}-12-01`).startOf('month');
+  const months = [];
+  let m = start;
+  while (m.isBefore(end) || m.isSame(end, 'month')) {
+    months.push(m);
+    m = m.add(1, 'month');
+  }
+  return months;
+}
+
+// Convert a date to X pixel offset within the timeline
+function dateToPx(dateStr, months) {
+  if (!dateStr) return 0;
+  const d = dayjs(dateStr);
+  const start = months[0];
+  const end = months[months.length - 1].endOf('month');
+  if (d.isBefore(start)) return 0;
+  if (d.isAfter(end)) return months.length * MONTH_W;
+  const totalDays = end.diff(start, 'day') + 1;
+  const dayOffset = d.diff(start, 'day');
+  return (dayOffset / totalDays) * months.length * MONTH_W;
+}
+
+// Total timeline width
+function timelineWidth(months) {
+  return months.length * MONTH_W;
+}
+
+// Assign colors to bookings (round-robin, grey for notMyCustomer)
+function assignColors(bookings) {
+  const map = {};
+  let idx = 0;
+  bookings.forEach(b => {
+    if (b.notMyCustomer) {
+      map[b.id] = '#BDBDBD';
+    } else {
+      map[b.id] = BOOKING_COLORS[idx % BOOKING_COLORS.length];
+      idx++;
+    }
+  });
+  return map;
+}
+
+// Filter properties based on selected filter
+function filterProperties(properties, bookings, filter) {
+  const today = dayjs().format('YYYY-MM-DD');
+  if (filter === 'all') return properties;
+  const withFuture = new Set();
+  const withoutFuture = new Set();
+  properties.forEach(p => {
+    const hasActive = bookings.some(b =>
+      b.propertyId === p.id && b.checkOut >= today
+    );
+    if (hasActive) withFuture.add(p.id);
+    else withoutFuture.add(p.id);
+  });
+  if (filter === 'booked')    return properties.filter(p => withFuture.has(p.id));
+  if (filter === 'free')      return properties.filter(p => withoutFuture.has(p.id));
+  return properties;
+}
+
+// ─── Booking Status Badge ─────────────────────────────────────────────────────
+
+function statusInfo(checkIn, checkOut) {
+  const today = dayjs();
+  const ci = dayjs(checkIn);
+  const co = dayjs(checkOut);
+  if (co.isBefore(today, 'day'))  return { label: 'Завершено',  color: C.muted,  bg: '#F0F0F0' };
+  if (ci.isAfter(today, 'day'))   return { label: 'Предстоящее',color: C.blue,   bg: C.blueBg };
+  return                                  { label: 'Текущее',   color: C.green,  bg: C.greenBg };
+}
+
+// ─── Booking Detail Panel ─────────────────────────────────────────────────────
+
+function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  if (!booking) return null;
+
+  const st = statusInfo(booking.checkIn, booking.checkOut);
+  const nights = nightsCount(booking.checkIn, booking.checkOut);
+  const tc = TYPE_COLOR[getEffectiveType(property)] || TYPE_COLOR.house;
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteBooking(booking.id);
+      onDelete();
+    } catch (e) {
+      alert('Ошибка удаления: ' + e.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  function Section({ title, children }) {
+    return (
+      <View style={d.section}>
+        <Text style={d.sectionTitle}>{title}</Text>
+        {children}
+      </View>
+    );
+  }
+
+  function InfoRow({ label, value, accent }) {
+    if (value == null || value === '' || value === '—') return null;
+    return (
+      <View style={d.infoRow}>
+        <Text style={d.infoLabel}>{label}</Text>
+        <Text style={[d.infoValue, accent && { color: ACCENT, fontWeight: '700' }]}>{value}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={d.container}>
+      {/* Header */}
+      <View style={d.header}>
+        <View style={{ flex: 1 }}>
+          <View style={[d.statusBadge, { backgroundColor: st.bg }]}>
+            <Text style={[d.statusText, { color: st.color }]}>{st.label}</Text>
+          </View>
+          <Text style={d.propName} numberOfLines={1}>
+            {property?.name || 'Объект'}
+          </Text>
+          <View style={d.propMeta}>
+            <View style={[d.typeDot, { backgroundColor: tc.border }]} />
+            <Text style={[d.propCode, { color: tc.text }]}>
+              {property?.code || ''}
+              {property?.code_suffix ? ` (${property.code_suffix})` : ''}
+            </Text>
+            {property?.city ? <Text style={d.propCity}> · {property.city}</Text> : null}
+          </View>
+        </View>
+        <View style={d.headerActions}>
+          <TouchableOpacity style={d.editBtn} onPress={onEdit}>
+            <Text style={d.editBtnText}>Изменить</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={d.closeBtn} onPress={onClose}>
+            <Text style={d.closeBtnText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {confirmDelete && (
+        <View style={d.confirmBar}>
+          <Text style={d.confirmText}>Удалить бронирование безвозвратно?</Text>
+          <TouchableOpacity style={d.confirmYes} onPress={handleDelete} disabled={deleting}>
+            <Text style={d.confirmYesText}>{deleting ? '...' : 'Удалить'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={d.confirmNo} onPress={() => setConfirmDelete(false)}>
+            <Text style={d.confirmNoText}>Отмена</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <ScrollView style={d.scroll} showsVerticalScrollIndicator={false}>
+        {/* Dates */}
+        <Section title="ДАТЫ">
+          <View style={d.datesRow}>
+            <View style={d.dateBlock}>
+              <Text style={d.dateLabel}>Заезд</Text>
+              <Text style={d.dateValue}>{fmtDateLong(booking.checkIn)}</Text>
+              {booking.checkInTime ? <Text style={d.dateTime}>{booking.checkInTime}</Text> : null}
+            </View>
+            <View style={d.dateSep}>
+              <Text style={d.dateSepLine}>→</Text>
+              <Text style={d.dateSepNights}>{nights} н.</Text>
+            </View>
+            <View style={d.dateBlock}>
+              <Text style={d.dateLabel}>Выезд</Text>
+              <Text style={d.dateValue}>{fmtDateLong(booking.checkOut)}</Text>
+              {booking.checkOutTime ? <Text style={d.dateTime}>{booking.checkOutTime}</Text> : null}
+            </View>
+          </View>
+        </Section>
+
+        {/* Client */}
+        <Section title="КЛИЕНТ">
+          {booking.notMyCustomer ? (
+            <Text style={d.ownerLabel}>Бронь владельца</Text>
+          ) : (
+            <>
+              <InfoRow label="Имя" value={contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : '—'} />
+              <InfoRow label="Документ" value={booking.passportId} />
+              {contact?.phone ? <InfoRow label="Телефон" value={contact.phone} /> : null}
+              {contact?.telegram ? <InfoRow label="Telegram" value={contact.telegram} /> : null}
+            </>
+          )}
+        </Section>
+
+        {/* Prices */}
+        <Section title="СТОИМОСТЬ">
+          <InfoRow label="Аренда/мес" value={fmt(booking.priceMonthly)} accent />
+          <InfoRow label="Итого" value={fmt(booking.totalPrice)} accent />
+          <InfoRow label="Депозит брони" value={fmt(booking.bookingDeposit)} />
+          <InfoRow label="Сохранный депозит" value={fmt(booking.saveDeposit)} />
+          <InfoRow label="Комиссия агента" value={fmt(booking.commission)} />
+          <InfoRow label="Комиссия влад. (разово)" value={fmt(booking.ownerCommissionOneTime)} />
+          <InfoRow label="Комиссия влад. (мес.)" value={fmt(booking.ownerCommissionMonthly)} />
+        </Section>
+
+        {/* Guests */}
+        {(booking.adults || booking.children || booking.pets) ? (
+          <Section title="ГОСТИ">
+            <InfoRow label="Взрослых" value={booking.adults} />
+            <InfoRow label="Детей" value={booking.children} />
+            {booking.pets ? <InfoRow label="Животные" value="Есть" /> : null}
+          </Section>
+        ) : null}
+
+        {/* Comments */}
+        {booking.comments ? (
+          <Section title="КОММЕНТАРИЙ">
+            <Text style={d.commentText}>{booking.comments}</Text>
+          </Section>
+        ) : null}
+
+        {/* Photos */}
+        {booking.photos?.length > 0 ? (
+          <Section title="ФОТО">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+              {booking.photos.map((url, i) => (
+                <Image key={i} source={{ uri: url }} style={d.photo} resizeMode="cover" />
+              ))}
+            </ScrollView>
+          </Section>
+        ) : null}
+
+        {/* Delete */}
+        <View style={d.deleteRow}>
+          <TouchableOpacity
+            style={d.deleteBtn}
+            onPress={() => setConfirmDelete(true)}
+          >
+            <Text style={d.deleteBtnText}>Удалить бронирование</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ height: 32 }} />
+      </ScrollView>
+    </View>
+  );
+}
+
+const d = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.surface, borderLeftWidth: 1, borderLeftColor: C.border },
+  header: { flexDirection: 'row', alignItems: 'flex-start', padding: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: C.border },
+  statusBadge: { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 6 },
+  statusText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  propName: { fontSize: 17, fontWeight: '700', color: C.text, marginBottom: 4 },
+  propMeta: { flexDirection: 'row', alignItems: 'center' },
+  typeDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  propCode: { fontSize: 13, fontWeight: '700' },
+  propCity: { fontSize: 13, color: C.muted },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 12 },
+  editBtn: { backgroundColor: C.accentBg, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
+  editBtnText: { fontSize: 13, color: ACCENT, fontWeight: '700' },
+  closeBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  closeBtnText: { fontSize: 18, color: C.muted },
+  confirmBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3F3', padding: 12, borderBottomWidth: 1, borderBottomColor: '#FFCDD2', gap: 8 },
+  confirmText: { flex: 1, fontSize: 13, color: C.text },
+  confirmYes: { backgroundColor: '#E53935', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6 },
+  confirmYesText: { fontSize: 12, color: '#FFF', fontWeight: '700' },
+  confirmNo: { borderWidth: 1, borderColor: C.border, borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6 },
+  confirmNoText: { fontSize: 12, color: C.muted },
+  scroll: { flex: 1 },
+  section: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: C.border },
+  sectionTitle: { fontSize: 10, fontWeight: '800', color: C.light, letterSpacing: 1, marginBottom: 10 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
+  infoLabel: { fontSize: 13, color: C.muted, flex: 1 },
+  infoValue: { fontSize: 13, color: C.text, fontWeight: '500', textAlign: 'right', flex: 1 },
+  datesRow: { flexDirection: 'row', alignItems: 'center' },
+  dateBlock: { flex: 1 },
+  dateLabel: { fontSize: 11, color: C.light, fontWeight: '700', letterSpacing: 0.5, marginBottom: 3 },
+  dateValue: { fontSize: 14, color: C.text, fontWeight: '600' },
+  dateTime: { fontSize: 12, color: C.muted, marginTop: 2 },
+  dateSep: { alignItems: 'center', paddingHorizontal: 12 },
+  dateSepLine: { fontSize: 16, color: C.light },
+  dateSepNights: { fontSize: 11, color: C.muted, marginTop: 2 },
+  ownerLabel: { fontSize: 14, color: C.muted, fontStyle: 'italic', paddingVertical: 4 },
+  commentText: { fontSize: 13, color: C.text, lineHeight: 20 },
+  photo: { width: 90, height: 90, borderRadius: 8, marginRight: 8 },
+  deleteRow: { padding: 20, paddingBottom: 0 },
+  deleteBtn: { borderWidth: 1, borderColor: '#FFCDD2', borderRadius: 8, padding: 12, alignItems: 'center' },
+  deleteBtnText: { fontSize: 13, color: '#E53935', fontWeight: '600' },
+});
+
+// ─── Gantt Chart ──────────────────────────────────────────────────────────────
+
+function GanttChart({ properties, bookings, contacts, months, colorMap, onSelectBooking, selectedBookingId }) {
+  const totalW = timelineWidth(months);
+  const today = dayjs();
+  const todayX = dateToPx(today.format('YYYY-MM-DD'), months);
+
+  return (
+    <View style={g.container}>
+      {/* Fixed left column + scrollable right in sync */}
+      <ScrollView style={g.vertScroll} showsVerticalScrollIndicator={false}>
+        <View style={g.rows}>
+          {properties.map((prop, pi) => {
+            const propBookings = bookings.filter(b => b.propertyId === prop.id);
+                        const tc = TYPE_COLOR[getEffectiveType(prop)] || TYPE_COLOR.house;
+                        const fullCode = prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '');
+
+            return (
+              <View key={prop.id} style={[g.row, pi % 2 === 1 && g.rowAlt]}>
+                {/* Left: property name */}
+                <View style={[g.leftCell, { borderLeftColor: tc.border }]}>
+                  <Text style={[g.propCode, { color: tc.text }]} numberOfLines={1}>{fullCode}</Text>
+                  <Text style={g.propName} numberOfLines={1}>{prop.name}</Text>
+                </View>
+
+                {/* Right: timeline bar area */}
+                <View style={[g.timelineCell, { width: totalW }]}>
+                  {/* Today line */}
+                  <View style={[g.todayLine, { left: todayX }]} />
+
+                  {/* Booking bars */}
+                  {propBookings.map(bk => {
+                    const x1 = dateToPx(bk.checkIn, months);
+                    const x2 = dateToPx(bk.checkOut, months);
+                    const w  = Math.max(x2 - x1, 6);
+                    const color = colorMap[bk.id] || '#90A4AE';
+                    const isSelected = bk.id === selectedBookingId;
+                    const contact = contacts.find(c => c.id === bk.contactId);
+                    const label = bk.notMyCustomer
+                      ? 'Владелец'
+                      : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : '');
+
+                    return (
+                      <TouchableOpacity
+                        key={bk.id}
+                        style={[
+                          g.bar,
+                          { left: x1, width: w, backgroundColor: color },
+                          isSelected && g.barSelected,
+                        ]}
+                        onPress={() => onSelectBooking(bk)}
+                        activeOpacity={0.8}
+                      >
+                        {w >= 40 && (
+                          <Text style={g.barDate} numberOfLines={1}>
+                            {dayjs(bk.checkIn).format('DD.MM')}
+                          </Text>
+                        )}
+                        {w >= 80 && (
+                          <Text style={g.barLabel} numberOfLines={1}>{label}</Text>
+                        )}
+                        {w >= 40 && (
+                          <Text style={g.barDateRight} numberOfLines={1}>
+                            {dayjs(bk.checkOut).format('DD.MM')}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const g = StyleSheet.create({
+  container: { flex: 1, flexDirection: 'column' },
+  vertScroll: { flex: 1 },
+  rows: {},
+  row: { flexDirection: 'row', height: ROW_H, backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border },
+  rowAlt: { backgroundColor: '#FAFBFC' },
+  leftCell: {
+    width: LEFT_W, minWidth: LEFT_W, maxWidth: LEFT_W,
+    justifyContent: 'center', paddingHorizontal: 10,
+    borderLeftWidth: 3, borderBottomWidth: 0,
+    borderRightWidth: 1, borderRightColor: C.border,
+    backgroundColor: C.surface,
+  },
+  propCode: { fontSize: 12, fontWeight: '700' },
+  propName: { fontSize: 10, color: C.muted, marginTop: 1 },
+  timelineCell: { height: ROW_H, position: 'relative', overflow: 'hidden' },
+  todayLine: { position: 'absolute', top: 0, bottom: 0, width: 1.5, backgroundColor: '#E53935', zIndex: 1, opacity: 0.6 },
+  bar: {
+    position: 'absolute', top: 7, height: ROW_H - 14,
+    borderRadius: 4, flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 4, overflow: 'hidden',
+  },
+  barSelected: { borderWidth: 2, borderColor: C.text, opacity: 1 },
+  barDate: { fontSize: 9, color: 'rgba(0,0,0,0.6)', fontWeight: '600' },
+  barLabel: { flex: 1, fontSize: 10, color: 'rgba(0,0,0,0.75)', fontWeight: '500', textAlign: 'center', marginHorizontal: 2 },
+  barDateRight: { fontSize: 9, color: 'rgba(0,0,0,0.6)', fontWeight: '600' },
+});
+
+// ─── List View ────────────────────────────────────────────────────────────────
+
+function ListView({ bookings, properties, contacts, colorMap, onSelectBooking, selectedBookingId }) {
+  const today = dayjs().format('YYYY-MM-DD');
+
+  const upcoming = bookings.filter(b => b.checkIn > today).sort((a, b) => a.checkIn.localeCompare(b.checkIn));
+  const current  = bookings.filter(b => b.checkIn <= today && b.checkOut >= today).sort((a, b) => a.checkOut.localeCompare(b.checkOut));
+  const past     = bookings.filter(b => b.checkOut < today).sort((a, b) => b.checkOut.localeCompare(a.checkOut));
+
+  function Group({ title, color, items }) {
+    if (!items.length) return null;
+    return (
+      <View style={lv.group}>
+        <View style={[lv.groupHeader, { borderLeftColor: color }]}>
+          <Text style={[lv.groupTitle, { color }]}>{title}</Text>
+          <Text style={lv.groupCount}>{items.length}</Text>
+        </View>
+        {items.map(bk => {
+          const prop = properties.find(p => p.id === bk.propertyId);
+          const contact = contacts.find(c => c.id === bk.contactId);
+          const tc = TYPE_COLOR[getEffectiveType(prop)] || TYPE_COLOR.house;
+          const color = colorMap[bk.id] || '#90A4AE';
+          const isSelected = bk.id === selectedBookingId;
+          const nights = nightsCount(bk.checkIn, bk.checkOut);
+          const fullCode = prop ? (prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '')) : '—';
+          const clientName = bk.notMyCustomer
+            ? 'Бронь владельца'
+            : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() || '—' : '—');
+
+          return (
+            <TouchableOpacity
+              key={bk.id}
+              style={[lv.row, isSelected && lv.rowSelected]}
+              onPress={() => onSelectBooking(bk)}
+              activeOpacity={0.75}
+            >
+              <View style={[lv.colorDot, { backgroundColor: color }]} />
+              <View style={[lv.codeChip, { borderColor: tc.border, backgroundColor: tc.bg }]}>
+                <Text style={[lv.codeText, { color: tc.text }]}>{fullCode}</Text>
+              </View>
+              <View style={lv.propInfo}>
+                <Text style={lv.propName} numberOfLines={1}>{prop?.name || '—'}</Text>
+                <Text style={lv.clientName} numberOfLines={1}>{clientName}</Text>
+              </View>
+              <View style={lv.dates}>
+                <Text style={lv.dateIn}>{fmtDate(bk.checkIn)}</Text>
+                <Text style={lv.dateArrow}>→</Text>
+                <Text style={lv.dateOut}>{fmtDate(bk.checkOut)}</Text>
+                <Text style={lv.nights}>{nights}н</Text>
+              </View>
+              <View style={lv.price}>
+                {bk.totalPrice ? (
+                  <Text style={lv.priceText}>{Number(bk.totalPrice).toLocaleString('ru-RU')} ฿</Text>
+                ) : (
+                  <Text style={lv.priceEmpty}>—</Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={lv.scroll} showsVerticalScrollIndicator={false}>
+      <Group title="Текущие"     color={C.green} items={current}  />
+      <Group title="Предстоящие" color={C.blue}  items={upcoming} />
+      <Group title="Прошедшие"   color={C.muted} items={past}     />
+      <View style={{ height: 40 }} />
+    </ScrollView>
+  );
+}
+
+const lv = StyleSheet.create({
+  scroll: { flex: 1 },
+  group: { marginBottom: 4 },
+  groupHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, borderLeftWidth: 3, backgroundColor: '#FAFBFC', borderBottomWidth: 1, borderBottomColor: C.border },
+  groupTitle: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
+  groupCount: { marginLeft: 8, fontSize: 12, color: C.muted, fontWeight: '600' },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.surface, gap: 10 },
+  rowSelected: { backgroundColor: '#FFF0F6' },
+  colorDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  codeChip: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, flexShrink: 0 },
+  codeText: { fontSize: 11, fontWeight: '700' },
+  propInfo: { flex: 1, minWidth: 0 },
+  propName: { fontSize: 13, color: C.text, fontWeight: '600' },
+  clientName: { fontSize: 12, color: C.muted, marginTop: 1 },
+  dates: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
+  dateIn: { fontSize: 12, color: C.text, fontWeight: '500' },
+  dateArrow: { fontSize: 11, color: C.light },
+  dateOut: { fontSize: 12, color: C.text, fontWeight: '500' },
+  nights: { fontSize: 11, color: C.muted, marginLeft: 4 },
+  price: { minWidth: 90, alignItems: 'flex-end', flexShrink: 0 },
+  priceText: { fontSize: 13, color: ACCENT, fontWeight: '700' },
+  priceEmpty: { fontSize: 13, color: C.light },
+});
+
+// ─── Month Header Row ─────────────────────────────────────────────────────────
+
+function MonthHeader({ months }) {
+  const today = dayjs();
+  return (
+    <View style={mh.row}>
+      <View style={mh.leftSpacer} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEnabled={false} style={mh.scroll}>
+        {months.map((m, i) => {
+          const isCurrent = m.isSame(today, 'month');
+          const isPast = m.isBefore(today, 'month');
+          return (
+            <View
+              key={i}
+              style={[
+                mh.cell,
+                isCurrent && mh.cellCurrent,
+                isPast && mh.cellPast,
+              ]}
+            >
+              <Text style={[mh.monthName, isCurrent && mh.monthNameCurrent]}>
+                {m.format('MMM')}
+              </Text>
+              <Text style={[mh.yearText, isCurrent && { color: '#E53935' }]}>
+                {m.format('YY')}
+              </Text>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+const mh = StyleSheet.create({
+  row: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: C.border, backgroundColor: C.surface },
+  leftSpacer: { width: LEFT_W, borderRightWidth: 1, borderRightColor: C.border },
+  scroll: { flex: 1 },
+  cell: { width: MONTH_W, alignItems: 'center', paddingVertical: 8, borderRightWidth: 1, borderRightColor: C.border, backgroundColor: '#FAFAFA' },
+  cellCurrent: { backgroundColor: '#E8F5E9' },
+  cellPast: { backgroundColor: '#F5F3EF' },
+  monthName: { fontSize: 12, fontWeight: '600', color: C.text, textTransform: 'capitalize' },
+  monthNameCurrent: { color: C.green, fontWeight: '800' },
+  yearText: { fontSize: 10, color: C.muted, marginTop: 1 },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
+export default function WebBookingsScreen() {
+  const [bookings, setBookings]     = useState([]);
+  const [properties, setProperties] = useState([]);
+  const [contacts, setContacts]     = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [viewMode, setViewMode]     = useState('gantt'); // 'gantt' | 'list'
+  const [propFilter, setPropFilter] = useState('all');   // 'all' | 'booked' | 'free'
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [editPanelMode, setEditPanelMode]     = useState(null); // null | 'create' | 'edit'
+  const [search, setSearch]         = useState('');
+
+  const months  = buildMonths();
+  const totalW  = timelineWidth(months);
+  const colorMap = assignColors(bookings);
+
+  const ganttScrollRef = useRef(null); // single scroll container for gantt
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [bk, pr, co] = await Promise.all([
+        getBookings(),
+        getProperties(),
+        getContacts('clients'),
+      ]);
+      setBookings(bk);
+      // Build parent map for effective type resolution
+      const parentMap = {};
+      pr.forEach(p => { parentMap[p.id] = p; });
+      // Only bookable units: all houses (standalone, in resort, in condo)
+      const bookable = pr
+        .filter(p => p.type === 'house')
+        .map(p => {
+          if (p.resort_id) {
+            const parent = parentMap[p.resort_id];
+            return { ...p, effectiveType: parent?.type || 'resort' };
+          }
+          return { ...p, effectiveType: 'house' };
+        });
+      setProperties(bookable);
+      setContacts(co);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Auto-scroll gantt so current month is the 2nd visible column
+  useEffect(() => {
+    if (!loading && viewMode === 'gantt') {
+      const currentMonthX = dateToPx(dayjs().startOf('month').format('YYYY-MM-DD'), months);
+      const offset = Math.max(0, currentMonthX - MONTH_W);
+      setTimeout(() => {
+        const node = ganttScrollRef.current;
+        if (node) node.scrollLeft = offset;
+      }, 150);
+    }
+  }, [loading, viewMode]);
+
+  const selectedProperty = selectedBooking
+    ? properties.find(p => p.id === selectedBooking.propertyId)
+    : null;
+  const selectedContact = selectedBooking
+    ? contacts.find(c => c.id === selectedBooking.contactId)
+    : null;
+
+  // Filter + search properties
+  let visibleProps = filterProperties(properties, bookings, propFilter);
+  if (search.trim()) {
+    const q = search.trim().toLowerCase();
+    visibleProps = visibleProps.filter(p =>
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.code || '').toLowerCase().includes(q)
+    );
+  }
+
+  const visibleBookings = viewMode === 'list'
+    ? (search.trim()
+        ? bookings.filter(b => {
+            const prop = properties.find(p => p.id === b.propertyId);
+            const contact = contacts.find(c => c.id === b.contactId);
+            const q = search.trim().toLowerCase();
+            return (prop?.name || '').toLowerCase().includes(q) ||
+              (prop?.code || '').toLowerCase().includes(q) ||
+              (contact?.name || '').toLowerCase().includes(q) ||
+              (contact?.lastName || '').toLowerCase().includes(q);
+          })
+        : bookings.filter(b => {
+            if (propFilter === 'all') return true;
+            const today = dayjs().format('YYYY-MM-DD');
+            const hasActive = b.checkOut >= today;
+            return propFilter === 'booked' ? hasActive : !hasActive;
+          })
+      )
+    : bookings;
+
+  const showDetail = !!selectedBooking;
+
+  if (loading) {
+    return (
+      <View style={s.loadingWrap}>
+        <ActivityIndicator size="large" color={ACCENT} />
+        <Text style={s.loadingText}>Загрузка бронирований…</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={s.root}>
+      {/* ── Toolbar ── */}
+      <View style={s.toolbar}>
+        <Text style={s.toolbarTitle}>Бронирования</Text>
+
+        {/* Search */}
+        <View style={s.searchWrap}>
+          <Text style={s.searchIcon}>🔍</Text>
+          <TextInput
+            style={s.searchInput}
+            placeholder="Поиск объекта или клиента…"
+            placeholderTextColor={C.light}
+            value={search}
+            onChangeText={setSearch}
+          />
+        </View>
+
+        {/* Property filter */}
+        <View style={s.filterGroup}>
+          {[
+            { key: 'all',    label: 'Все' },
+            { key: 'booked', label: 'С бронированием' },
+            { key: 'free',   label: 'Свободные' },
+          ].map(f => (
+            <TouchableOpacity
+              key={f.key}
+              style={[s.filterBtn, propFilter === f.key && s.filterBtnActive]}
+              onPress={() => setPropFilter(f.key)}
+            >
+              <Text style={[s.filterBtnText, propFilter === f.key && s.filterBtnTextActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* View toggle */}
+        <View style={s.viewToggle}>
+          <TouchableOpacity
+            style={[s.viewBtn, viewMode === 'gantt' && s.viewBtnActive]}
+            onPress={() => setViewMode('gantt')}
+          >
+            <Text style={[s.viewBtnText, viewMode === 'gantt' && s.viewBtnTextActive]}>
+              Календарь
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.viewBtn, viewMode === 'list' && s.viewBtnActive]}
+            onPress={() => setViewMode('list')}
+          >
+            <Text style={[s.viewBtnText, viewMode === 'list' && s.viewBtnTextActive]}>
+              Список
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Add booking */}
+        <TouchableOpacity style={s.addBtn} onPress={() => { setSelectedBooking(null); setEditPanelMode('create'); }}>
+          <Text style={s.addBtnText}>+ Добавить</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Body ── */}
+      <View style={s.body}>
+        {/* Left + Gantt / List */}
+        <View style={[s.mainArea, showDetail && s.mainAreaWithDetail]}>
+          {viewMode === 'gantt' ? (
+            <>
+              {/* Gantt: single overflow:auto container — CSS sticky works for both axes */}
+              <View style={s.ganttOuter}>
+                <View ref={ganttScrollRef} style={s.ganttScroll}>
+                  <View style={{ minWidth: LEFT_W + totalW }}>
+                    {/* Sticky header row */}
+                    <View style={[s.ganttHeaderRow, { position: 'sticky', top: 0, zIndex: 10 }]}>
+                      {/* Corner cell — sticky left + top */}
+                      <View style={[s.ganttLeftHeader, { position: 'sticky', left: 0, zIndex: 11 }]} />
+                      {months.map((m, i) => {
+                        const today = dayjs();
+                        const isCurrent = m.isSame(today, 'month');
+                        const isPast = m.isBefore(today, 'month');
+                        return (
+                          <View key={i} style={[s.monthCell, isCurrent && s.monthCellCurrent, isPast && s.monthCellPast]}>
+                            <Text style={[s.monthName, isCurrent && s.monthNameCurrent]}>{m.format('MMM')}</Text>
+                            <Text style={[s.yearName, isCurrent && { color: '#E53935' }]}>{m.format('YY')}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+
+                    {/* Property rows */}
+                    {visibleProps.map((prop, pi) => {
+                      const tc = TYPE_COLOR[getEffectiveType(prop)] || TYPE_COLOR.house;
+                      const fullCode = prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '');
+                      const propBookings = bookings.filter(b => b.propertyId === prop.id);
+                      const todayX = dateToPx(dayjs().format('YYYY-MM-DD'), months);
+                      return (
+                        <View key={prop.id} style={s.ganttRowWrap}>
+                          {/* Sticky left cell */}
+                          <View style={[s.ganttLeftCell, { position: 'sticky', left: 0, zIndex: 2, borderLeftColor: tc.border }, pi % 2 === 1 && s.ganttLeftCellAlt]}>
+                            <Text style={[s.ganttCode, { color: tc.text }]} numberOfLines={1}>{fullCode}</Text>
+                            <Text style={s.ganttPropName} numberOfLines={1}>{prop.name}</Text>
+                          </View>
+
+                          {/* Timeline */}
+                          <View style={[s.ganttRow, { width: totalW }]}>
+                            {/* Month background bands */}
+                            {months.map((m, mi) => {
+                              const now = dayjs();
+                              const isMPast = m.isBefore(now, 'month');
+                              const isMCurrent = m.isSame(now, 'month');
+                              return (
+                                <View
+                                  key={mi}
+                                  pointerEvents="none"
+                                  style={[
+                                    s.monthBand,
+                                    { left: mi * MONTH_W },
+                                    isMPast && s.monthBandPast,
+                                    isMCurrent && s.monthBandCurrent,
+                                  ]}
+                                />
+                              );
+                            })}
+                            <View style={[s.todayLine, { left: todayX }]} />
+                            {propBookings.map(bk => {
+                              const x1 = dateToPx(bk.checkIn, months);
+                              const x2 = dateToPx(bk.checkOut, months);
+                              const w  = Math.max(x2 - x1, 6);
+                              const color = colorMap[bk.id] || '#90A4AE';
+                              const isSelected = bk.id === selectedBooking?.id;
+                              const contact = contacts.find(c => c.id === bk.contactId);
+                              const label = bk.notMyCustomer
+                                ? 'Владелец'
+                                : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : '');
+                              return (
+                                <TouchableOpacity
+                                  key={bk.id}
+                                  style={[s.bar, { left: x1, width: w, backgroundColor: color }, isSelected && s.barSelected]}
+                                  onPress={() => setSelectedBooking(bk)}
+                                  activeOpacity={0.8}
+                                >
+                                  {w >= 50 && <Text style={s.barDateL} numberOfLines={1}>{dayjs(bk.checkIn).format('DD.MM')}</Text>}
+                                  {w >= 110 && <Text style={s.barLabel} numberOfLines={1}>{label}</Text>}
+                                  {w >= 50 && <Text style={s.barDateR} numberOfLines={1}>{dayjs(bk.checkOut).format('DD.MM')}</Text>}
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              </View>
+            </>
+          ) : (
+            <ListView
+              bookings={visibleBookings}
+              properties={properties}
+              contacts={contacts}
+              colorMap={colorMap}
+              onSelectBooking={setSelectedBooking}
+              selectedBookingId={selectedBooking?.id}
+            />
+          )}
+        </View>
+
+        {/* Detail panel */}
+        {showDetail && (
+          <View style={s.detailPanel}>
+            <BookingDetail
+              booking={selectedBooking}
+              property={selectedProperty}
+              contact={selectedContact}
+              onEdit={() => setEditPanelMode('edit')}
+              onDelete={() => { setSelectedBooking(null); load(); }}
+              onClose={() => setSelectedBooking(null)}
+            />
+          </View>
+        )}
+      </View>
+
+      {/* Edit panel */}
+      <WebBookingEditPanel
+        visible={editPanelMode !== null}
+        mode={editPanelMode || 'create'}
+        booking={editPanelMode === 'edit' ? selectedBooking : null}
+        properties={properties}
+        contacts={contacts}
+        onClose={() => setEditPanelMode(null)}
+        onSaved={(saved) => {
+          setEditPanelMode(null);
+          load();
+          if (saved) setSelectedBooking(saved);
+        }}
+      />
+    </View>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.bg, flexDirection: 'column' },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
+  loadingText: { fontSize: 15, color: C.muted },
+
+  // Toolbar
+  toolbar: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 20, paddingVertical: 12,
+    backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border,
+    flexWrap: 'wrap',
+  },
+  toolbarTitle: { fontSize: 18, fontWeight: '800', color: C.text },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, minWidth: 220, borderWidth: 1, borderColor: C.border },
+  searchIcon: { fontSize: 13, marginRight: 6 },
+  searchInput: { flex: 1, fontSize: 13, color: C.text, outlineStyle: 'none' },
+  filterGroup: { flexDirection: 'row', gap: 4 },
+  filterBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
+  filterBtnActive: { backgroundColor: C.accentBg, borderColor: ACCENT },
+  filterBtnText: { fontSize: 12, color: C.muted, fontWeight: '500' },
+  filterBtnTextActive: { color: ACCENT, fontWeight: '700' },
+  viewToggle: { flexDirection: 'row', backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
+  viewBtn: { paddingHorizontal: 14, paddingVertical: 7 },
+  viewBtnActive: { backgroundColor: ACCENT },
+  viewBtnText: { fontSize: 12, color: C.muted, fontWeight: '600' },
+  viewBtnTextActive: { color: '#FFF' },
+  addBtn: { marginLeft: 'auto', backgroundColor: ACCENT, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 },
+  addBtnText: { fontSize: 13, color: '#FFF', fontWeight: '700' },
+
+  // Body
+  body: { flex: 1, flexDirection: 'row' },
+  mainArea: { flex: 1, overflow: 'hidden' },
+  mainAreaWithDetail: { flex: 1 },
+  detailPanel: { width: 360, borderLeftWidth: 1, borderLeftColor: C.border },
+
+  // Gantt
+  ganttOuter: { flex: 1, overflow: 'hidden' },
+  ganttScroll: { flex: 1, overflow: 'auto' },
+  ganttHeaderRow: {
+    flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: C.border,
+    backgroundColor: C.surface,
+  },
+  ganttLeftHeader: {
+    width: LEFT_W, flexShrink: 0,
+    borderRightWidth: 1, borderRightColor: C.border,
+    backgroundColor: C.surface,
+  },
+  monthCell: { width: MONTH_W, flexShrink: 0, alignItems: 'center', paddingVertical: 8, borderRightWidth: 1, borderRightColor: C.border, backgroundColor: '#FAFAFA' },
+  monthCellCurrent: { backgroundColor: '#E8F5E9' },
+  monthCellPast: { backgroundColor: '#F5F3EF' },
+  monthName: { fontSize: 12, fontWeight: '600', color: C.text, textTransform: 'capitalize' },
+  monthNameCurrent: { color: C.green, fontWeight: '800' },
+  yearName: { fontSize: 10, color: C.muted, marginTop: 1 },
+  // Row wrapper (left cell + timeline side by side)
+  ganttRowWrap: { flexDirection: 'row', height: ROW_H, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.surface },
+  ganttLeftCell: {
+    width: LEFT_W, flexShrink: 0, height: ROW_H,
+    justifyContent: 'center', paddingHorizontal: 10,
+    borderLeftWidth: 3, borderRightWidth: 1, borderRightColor: C.border,
+    backgroundColor: C.surface,
+  },
+  ganttLeftCellAlt: { backgroundColor: '#F5F3EF' },
+  ganttCode: { fontSize: 12, fontWeight: '700' },
+  ganttPropName: { fontSize: 10, color: C.muted, marginTop: 1 },
+  ganttRow: { height: ROW_H, position: 'relative' },
+  monthBand: {
+    position: 'absolute', top: 0, bottom: 0, width: MONTH_W,
+    borderRightWidth: 1, borderRightColor: 'rgba(0,0,0,0.1)',
+  },
+  monthBandPast:    { backgroundColor: '#EDE9E3' },
+  monthBandCurrent: { backgroundColor: 'rgba(212,237,218,0.55)' },
+  todayLine: { position: 'absolute', top: 0, bottom: 0, width: 1.5, backgroundColor: '#E53935', zIndex: 1, opacity: 0.55 },
+  bar: {
+    position: 'absolute', top: 6, height: ROW_H - 12,
+    borderRadius: 18, flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 8, overflow: 'hidden',
+  },
+  barSelected: { borderWidth: 2, borderColor: 'rgba(0,0,0,0.4)' },
+  barDateL: { fontSize: 11, color: 'rgba(0,0,0,0.7)', fontWeight: '500' },
+  barLabel: { flex: 1, fontSize: 12, color: 'rgba(0,0,0,0.8)', fontWeight: '500', textAlign: 'center', marginHorizontal: 4 },
+  barDateR: { fontSize: 11, color: 'rgba(0,0,0,0.7)', fontWeight: '500' },
+});

@@ -4,6 +4,7 @@ import WebLayout from './components/WebLayout';
 import WebDashboardScreen from './screens/WebDashboardScreen';
 import WebPropertiesScreen from './screens/WebPropertiesScreen';
 import WebContactsScreen from './screens/WebContactsScreen';
+import WebBookingsScreen from './screens/WebBookingsScreen';
 
 /**
  * Точка входа в веб-интерфейс.
@@ -66,6 +67,8 @@ export default function WebMainScreen({ user, onLogout }) {
         return <WebPropertiesScreen initialPropertyId={propertiesInitialId} />;
       case 'contacts':
         return <WebContactsScreen onNavigateToProperty={navigateToProperty} />;
+      case 'bookings':
+        return <WebBookingsScreen />;
       default:
         return (
           <View style={styles.card}>
@@ -80,7 +83,7 @@ export default function WebMainScreen({ user, onLogout }) {
     <WebLayout
       activeTab={activeTab}
       onTabChange={(tab) => { setActiveTab(tab); if (tab !== 'properties') setPropertiesInitialId(null); }}
-      fullHeight={activeTab === 'properties' || activeTab === 'contacts'}
+      fullHeight={activeTab === 'properties' || activeTab === 'contacts' || activeTab === 'bookings'}
     >
       {renderContent()}
     </WebLayout>
