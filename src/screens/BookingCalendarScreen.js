@@ -19,8 +19,9 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import 'dayjs/locale/th';
 import { useLanguage } from '../context/LanguageContext';
-import { getProperties, deleteProperty } from '../services/propertiesService';
-import { getBookings, deleteBooking } from '../services/bookingsService';
+import { useAppData } from '../context/AppDataContext';
+import { deleteProperty } from '../services/propertiesService';
+import { deleteBooking } from '../services/bookingsService';
 import { cancelBookingReminders } from '../services/bookingRemindersService';
 import { getContactById, getContacts } from '../services/contactsService';
 import FilterBottomSheet from '../components/FilterBottomSheet';
@@ -128,12 +129,11 @@ function getOwnerLabel(width, labels) {
 
 export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose } = {}) {
   const { t, language } = useLanguage();
-  const [properties, setProperties] = useState([]);
-  const [bookings, setBookings] = useState([]);
+  const { properties, bookings, propertiesLoading, refreshProperties, refreshBookings } = useAppData();
   const [contactsCache, setContactsCache] = useState({});
   const [filterVisible, setFilterVisible] = useState(false);
   const [filterValues, setFilterValues] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [year, setYear] = useState(dayjs().year());
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -246,26 +246,13 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const loadData = useCallback(async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
     try {
-      const [props, books] = await Promise.all([
-        getProperties(),
-        getBookings(),
-      ]);
-      setProperties(props);
-      setBookings(books);
+      await Promise.all([refreshProperties(), refreshBookings()]);
     } catch (e) {
-      console.error('BookingCalendar load error:', e);
+      console.error('BookingCalendar loadData error:', e);
     } finally {
       if (showSpinner) setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  useEffect(() => {
-    if (isVisible) loadData(false);
-  }, [isVisible, loadData]);
+  }, [refreshProperties, refreshBookings]);
 
   useEffect(() => {
     if (prevVisibleRef.current && !isVisible) {
@@ -425,14 +412,13 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     setPreloadedProperty(null);
     setPreloadedContact(null);
     try {
-      const [propResult, contactResult] = await Promise.all([
-        (async () => {
-          if (!booking?.propertyId) return null;
-          const all = await getProperties();
-          const prop = all.find(p => p.id === booking.propertyId);
-          if (!prop) return null;
-          let resort = null;
-          if (prop.resort_id) resort = all.find(p => p.id === prop.resort_id) || null;
+          const [propResult, contactResult] = await Promise.all([
+          (async () => {
+            if (!booking?.propertyId) return null;
+            const prop = properties.find(p => p.id === booking.propertyId);
+            if (!prop) return null;
+            let resort = null;
+            if (prop.resort_id) resort = properties.find(p => p.id === prop.resort_id) || null;
           const owners = await getContacts('owners');
           const owner = prop.owner_id ? owners.find(o => o.id === prop.owner_id) : null;
           const owner2 = prop.owner_id_2 ? owners.find(o => o.id === prop.owner_id_2) : null;

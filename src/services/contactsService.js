@@ -107,7 +107,8 @@ export async function getContacts(type) {
     .select('*')
     .eq('agent_id', session.user.id)
     .eq('type', type)
-    .order('name', { ascending: true });
+    .order('name', { ascending: true })
+    .limit(10000);
 
   if (error) {
     console.error('getContacts error:', error.message);

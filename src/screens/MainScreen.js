@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import BottomNav from '../components/BottomNav';
 import AccountScreen from './AccountScreen';
@@ -8,38 +8,48 @@ import RealEstateScreen from './RealEstateScreen';
 import BookingCalendarScreen from './BookingCalendarScreen';
 import AgentCalendarScreen from './AgentCalendarScreen';
 
+// Мемоизируем тяжёлые экраны — перерисовываются только если изменились их пропсы
+const MemoRealEstate      = memo(RealEstateScreen);
+const MemoBookingCalendar = memo(BookingCalendarScreen);
+const MemoAgentCalendar   = memo(AgentCalendarScreen);
+
 export default function MainScreen({ onLogout, user, onUserUpdate }) {
   const [activeTab, setActiveTab] = useState(3);
   const [screenWithinAccount, setScreenWithinAccount] = useState('account');
   const [propertyToOpen, setPropertyToOpen] = useState(null);
 
-  const handleOpenProperty = (property) => {
+  // useCallback — стабильные ссылки, memo на экранах работает корректно
+  const handleOpenProperty = useCallback((property) => {
     if (property) {
       setPropertyToOpen(property);
       setActiveTab(0);
     }
-  };
+  }, []);
 
-  const handleTabSelect = (newIndex) => {
-    if (newIndex === activeTab) return;
-    if (activeTab === 3) setScreenWithinAccount('account');
-    setActiveTab(newIndex);
-  };
+  const handlePropertyOpened = useCallback(() => setPropertyToOpen(null), []);
+
+  const handleTabSelect = useCallback((newIndex) => {
+    setActiveTab(prev => {
+      if (newIndex === prev) return prev;
+      if (prev === 3) setScreenWithinAccount('account');
+      return newIndex;
+    });
+  }, []);
 
   return (
     <View style={styles.container}>
       <View style={[styles.tabPanel, activeTab !== 0 && styles.tabPanelHidden]}>
-        <RealEstateScreen
+        <MemoRealEstate
           propertyToOpen={propertyToOpen}
-          onPropertyOpened={() => setPropertyToOpen(null)}
+          onPropertyOpened={handlePropertyOpened}
           isVisible={activeTab === 0}
         />
       </View>
       <View style={[styles.tabPanel, activeTab !== 1 && styles.tabPanelHidden]}>
-        <BookingCalendarScreen isVisible={activeTab === 1} />
+        <MemoBookingCalendar isVisible={activeTab === 1} />
       </View>
       <View style={[styles.tabPanel, activeTab !== 2 && styles.tabPanelHidden]}>
-        <AgentCalendarScreen isVisible={activeTab === 2} onOpenProperty={handleOpenProperty} />
+        <MemoAgentCalendar isVisible={activeTab === 2} onOpenProperty={handleOpenProperty} />
       </View>
       <View style={[styles.tabPanel, activeTab !== 3 && styles.tabPanelHidden]}>
         {screenWithinAccount === 'contacts' ? (

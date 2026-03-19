@@ -22,9 +22,8 @@ import Constants from 'expo-constants';
 import dayjs from 'dayjs';
 import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
-import { getBookings } from '../services/bookingsService';
 import { getCommissionDateAmounts } from '../services/commissionRemindersService';
-import { getProperties } from '../services/propertiesService';
+import { useAppData } from '../context/AppDataContext';
 import { getContactById } from '../services/contactsService';
 import { getCalendarEvents, eventOccursOnDate, updateCalendarEvent } from '../services/calendarEventsService';
 import AddCalendarEventModal from '../components/AddCalendarEventModal';
@@ -254,10 +253,9 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
 
 export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenProperty }) {
   const { t, language } = useLanguage();
+  const { properties, bookings, refreshProperties, refreshBookings } = useAppData();
   const [selectedDate, setSelectedDate] = useState(() => formatDateYMD(new Date()));
-  const [bookings, setBookings] = useState([]);
   const [customEvents, setCustomEvents] = useState([]);
-  const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addEventVisible, setAddEventVisible] = useState(false);
   const [addBookingVisible, setAddBookingVisible] = useState(false);
@@ -268,25 +266,36 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
   const [editBookingDetailModalVisible, setEditBookingDetailModalVisible] = useState(false);
   const [selectedOwnerContact, setSelectedOwnerContact] = useState(null);
 
-  const loadData = useCallback(async (opts = {}) => {
+  // Загружаем только события календаря — properties/bookings уже есть в общем сторе
+  const loadEvents = useCallback(async (opts = {}) => {
     if (!opts.silent) setLoading(true);
     try {
-      const [b, e, p] = await Promise.all([
-        getBookings(),
-        getCalendarEvents(),
-        getProperties(),
-      ]);
-      setBookings(b);
+      const e = await getCalendarEvents();
       setCustomEvents(e);
-      setProperties(p);
     } catch {}
     if (!opts.silent) setLoading(false);
   }, []);
 
+  // Полное обновление (после мутаций): события + общий стор
+  const loadData = useCallback(async (opts = {}) => {
+    if (!opts.silent) setLoading(true);
+    try {
+      const [e] = await Promise.all([
+        getCalendarEvents(),
+        refreshProperties(),
+        refreshBookings(),
+      ]);
+      setCustomEvents(e);
+    } catch {}
+    if (!opts.silent) setLoading(false);
+  }, [refreshProperties, refreshBookings]);
+
+  const hasLoadedRef = useRef(false); // загружаем только один раз при первом открытии
   const prevVisibleRef = useRef(false);
   useEffect(() => {
-    if (isVisible && !prevVisibleRef.current) {
-      loadData();
+    if (isVisible && !hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      loadEvents(); // только события — properties уже в AppDataContext
     }
     if (prevVisibleRef.current && !isVisible) {
       setSelectedOwnerContact(null);
@@ -294,7 +303,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
       setEditBookingDetailModalVisible(false);
     }
     prevVisibleRef.current = isVisible;
-  }, [isVisible, loadData]);
+  }, [isVisible, loadEvents]);
 
   const toggleExpandAll = () => {
     LayoutAnimation.configureNext(DRAWER_ANIMATION);

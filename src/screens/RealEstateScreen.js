@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TextInput,
   Image,
   Animated,
@@ -20,7 +20,8 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
-import { getProperties, createProperty, updateProperty, deleteProperty } from '../services/propertiesService';
+import { useAppData } from '../context/AppDataContext';
+import { createProperty, deleteProperty } from '../services/propertiesService';
 import AddPropertyModal from '../components/AddPropertyModal';
 import FilterBottomSheet from '../components/FilterBottomSheet';
 import PropertyDetailScreen from './PropertyDetailScreen';
@@ -60,10 +61,9 @@ const COLORS = {
 
 export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isVisible = true }) {
   const { t } = useLanguage();
-  const [properties, setProperties] = useState([]);
+  const { properties, propertiesLoading: loading, refreshProperties } = useAppData();
   const [filterVisible, setFilterVisible] = useState(false);
   const [filterValues, setFilterValues] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [allExpanded, setAllExpanded] = useState(false);
@@ -71,29 +71,22 @@ export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isV
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [backTarget, setBackTarget] = useState(null);
 
-  const navigateToProperty = (property) => {
-    setBackTarget(selectedProperty);
+  // Refs so callbacks stay stable (no stale closure issues)
+  const selectedPropertyRef = useRef(null);
+  const backTargetRef = useRef(null);
+  useEffect(() => { selectedPropertyRef.current = selectedProperty; }, [selectedProperty]);
+  useEffect(() => { backTargetRef.current = backTarget; }, [backTarget]);
+
+  const navigateToProperty = useCallback((property) => {
+    setBackTarget(selectedPropertyRef.current);
     setSelectedProperty(property);
-  };
-
-  const handleBack = () => {
-    const target = backTarget;
-    setBackTarget(null);
-    setSelectedProperty(target ?? null);
-  };
-
-  const loadProperties = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await getProperties();
-      setProperties(data);
-    } catch {}
-    setLoading(false);
   }, []);
 
-  useEffect(() => {
-    loadProperties();
-  }, [loadProperties]);
+  const handleBack = useCallback(() => {
+    const target = backTargetRef.current;
+    setBackTarget(null);
+    setSelectedProperty(target ?? null);
+  }, []);
 
   useEffect(() => {
     if (propertyToOpen && onPropertyOpened) {
@@ -118,18 +111,20 @@ export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isV
     delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
   };
 
-  const toggleExpandAll = () => {
+  const toggleExpandAll = useCallback(() => {
     LayoutAnimation.configureNext(drawerAnimation);
-    if (!allExpanded) {
-      setExpandedIds(new Set(listToShow.map(p => p.id)));
-      setAllExpanded(true);
-    } else {
-      setExpandedIds(new Set());
-      setAllExpanded(false);
-    }
-  };
+    setAllExpanded(prev => {
+      if (!prev) {
+        setExpandedIds(new Set(listToShow.map(p => p.id)));
+        return true;
+      } else {
+        setExpandedIds(new Set());
+        return false;
+      }
+    });
+  }, [listToShow]);
 
-  const toggleItemExpand = (id) => {
+  const toggleItemExpand = useCallback((id) => {
     LayoutAnimation.configureNext(drawerAnimation);
     setExpandedIds(prev => {
       const next = new Set(prev);
@@ -137,19 +132,19 @@ export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isV
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
-  const handleSaveProperty = async (data) => {
+  const handleSaveProperty = useCallback(async (data) => {
     try {
       await createProperty(data);
       setAddModalVisible(false);
-      loadProperties();
+      refreshProperties();
     } catch (e) {
       Alert.alert(t('error'), e.message);
     }
-  };
+  }, [refreshProperties, t]);
 
-  const handleDeleteProperty = (prop) => {
+  const handleDeleteProperty = useCallback((prop) => {
     Alert.alert(t('pdDeleteTitle'), t('pdDeleteConfirm'), [
       { text: t('no'), style: 'cancel' },
       {
@@ -157,116 +152,127 @@ export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isV
           try {
             await deleteProperty(prop.id);
             setSelectedProperty(null);
-            loadProperties();
+            refreshProperties();
           } catch (e) {
             Alert.alert(t('error'), e.message);
           }
         },
       },
     ]);
-  };
+  }, [refreshProperties, t]);
 
-  const topLevel = properties.filter(p => !p.resort_id);
-  const children = properties.filter(p => p.resort_id);
-  const getParent = (id) => properties.find(pr => pr.id === id);
+  // ─── Derived data — memoized so they only recompute when inputs change ─────
+  const { listToShow, uniqueCities, uniqueDistricts, hasActiveFilter } = useMemo(() => {
+    const topLevel = properties.filter(p => !p.resort_id);
+    const children = properties.filter(p => p.resort_id);
+    const getParent = (id) => properties.find(pr => pr.id === id);
 
-  const filterFn = (p, parent) => {
-    if (!filterValues) return true;
-    const f = filterValues;
-    const cityVal = p.city ?? parent?.city;
-    const districtVal = p.district ?? parent?.district;
-    if (f.city && cityVal !== f.city) return false;
-    if (f.districts?.length > 0 && !f.districts.includes(districtVal)) return false;
-    const unitParentType = parent?.type;
-    if (f.types?.length > 0) {
-      const matches = f.types.some(t => {
-        if (t === 'house') return !p.resort_id && p.type === 'house';
-        if (t === 'resort') return unitParentType === 'resort';
-        if (t === 'condo') return unitParentType === 'condo';
-        return false;
-      });
-      if (!matches) return false;
-    }
-    if (f.bedrooms?.length > 0) {
-      const br = p.bedrooms;
-      if (br == null) return false;
-      const matches = f.bedrooms.some(b => b === 5 ? br >= 5 : br === b);
-      if (!matches) return false;
-    }
-    const price = p.price_monthly != null ? Number(p.price_monthly) : null;
-    if (f.priceMin != null && (price == null || price < f.priceMin)) return false;
-    if (f.priceMax != null && (price == null || price > f.priceMax)) return false;
-    if (f.pets === true && !p.pets_allowed) return false;
-    if (f.longTerm === true && !p.long_term_booking) return false;
-    if (f.amenities?.length > 0) {
-      const am = p.amenities || {};
-      if (!f.amenities.every(k => am[k])) return false;
-    }
-    return true;
-  };
+    const hasActiveFilter = filterValues && (
+      filterValues.city ||
+      (filterValues.districts?.length ?? 0) > 0 ||
+      (filterValues.types?.length ?? 0) > 0 ||
+      (filterValues.bedrooms?.length ?? 0) > 0 ||
+      filterValues.priceMin != null ||
+      filterValues.priceMax != null ||
+      filterValues.pets === true ||
+      filterValues.longTerm === true ||
+      (filterValues.amenities?.length ?? 0) > 0
+    );
 
-  const hasActiveFilter = filterValues && (
-    filterValues.city ||
-    (filterValues.districts?.length ?? 0) > 0 ||
-    (filterValues.types?.length ?? 0) > 0 ||
-    (filterValues.bedrooms?.length ?? 0) > 0 ||
-    filterValues.priceMin != null ||
-    filterValues.priceMax != null ||
-    filterValues.pets === true ||
-    filterValues.longTerm === true ||
-    (filterValues.amenities?.length ?? 0) > 0
-  );
+    const q = searchQuery.trim().toLowerCase();
 
-  const q = searchQuery.trim().toLowerCase();
-  const searchMatch = (p, parent) => !q || (
-    (p.name || '').toLowerCase().includes(q) ||
-    (p.code || '').toLowerCase().includes(q) ||
-    (p.code_suffix || '').toLowerCase().includes(q) ||
-    (parent?.name || '').toLowerCase().includes(q)
-  );
-
-  let listToShow;
-  if (hasActiveFilter) {
-    const flatUnits = [];
-    topLevel.filter(p => p.type === 'house').forEach(p => {
-      if (filterFn(p, null) && searchMatch(p, null)) flatUnits.push({ ...p, _parentName: null, _parentType: null });
-    });
-    children.forEach(p => {
-      const parent = getParent(p.resort_id);
-      if (filterFn(p, parent) && searchMatch(p, parent)) {
-        flatUnits.push({
-          ...p,
-          _parentName: parent?.name || '',
-          _parentType: parent?.type || null,
-          district: parent?.district ?? p.district,
+    const filterFn = (p, parent) => {
+      if (!filterValues) return true;
+      const f = filterValues;
+      const cityVal = p.city ?? parent?.city;
+      const districtVal = p.district ?? parent?.district;
+      if (f.city && cityVal !== f.city) return false;
+      if (f.districts?.length > 0 && !f.districts.includes(districtVal)) return false;
+      const unitParentType = parent?.type;
+      if (f.types?.length > 0) {
+        const matches = f.types.some(tp => {
+          if (tp === 'house') return !p.resort_id && p.type === 'house';
+          if (tp === 'resort') return unitParentType === 'resort';
+          if (tp === 'condo') return unitParentType === 'condo';
+          return false;
         });
+        if (!matches) return false;
       }
-    });
-    listToShow = [...flatUnits].sort((a, b) => {
-      const codeA = (a._parentName ? a._parentName + ' ' : '') + (a.code || '') + (a.code_suffix ? ` ${a.code_suffix}` : '');
-      const codeB = (b._parentName ? b._parentName + ' ' : '') + (b.code || '') + (b.code_suffix ? ` ${b.code_suffix}` : '');
-      return compareByCodeOrName({ code: codeA, name: a.name }, { code: codeB, name: b.name });
-    });
-  } else {
-    const searchFiltered = q
-      ? topLevel.filter(p =>
-          (p.name || '').toLowerCase().includes(q) ||
-          (p.code || '').toLowerCase().includes(q)
-        )
-      : topLevel;
-    listToShow = [...searchFiltered].sort((a, b) => compareByCodeOrName(a, b));
-  }
+      if (f.bedrooms?.length > 0) {
+        const br = p.bedrooms;
+        if (br == null) return false;
+        const matches = f.bedrooms.some(b => b === 5 ? br >= 5 : br === b);
+        if (!matches) return false;
+      }
+      const price = p.price_monthly != null ? Number(p.price_monthly) : null;
+      if (f.priceMin != null && (price == null || price < f.priceMin)) return false;
+      if (f.priceMax != null && (price == null || price > f.priceMax)) return false;
+      if (f.pets === true && !p.pets_allowed) return false;
+      if (f.longTerm === true && !p.long_term_booking) return false;
+      if (f.amenities?.length > 0) {
+        const am = p.amenities || {};
+        if (!f.amenities.every(k => am[k])) return false;
+      }
+      return true;
+    };
 
-  const allCities = [
-    ...topLevel.map(p => p.city),
-    ...children.map(p => (getParent(p.resort_id)?.city ?? p.city)),
-  ].filter(Boolean);
-  const uniqueCities = [...new Set(allCities)].sort();
-  const allDistricts = [
-    ...topLevel.map(p => p.district),
-    ...children.map(p => (getParent(p.resort_id)?.district ?? p.district)),
-  ].filter(Boolean);
-  const uniqueDistricts = [...new Set(allDistricts)].sort();
+    const searchMatch = (p, parent) => !q || (
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.code || '').toLowerCase().includes(q) ||
+      (p.code_suffix || '').toLowerCase().includes(q) ||
+      (parent?.name || '').toLowerCase().includes(q)
+    );
+
+    let list;
+    if (hasActiveFilter) {
+      const flatUnits = [];
+      topLevel.filter(p => p.type === 'house').forEach(p => {
+        if (filterFn(p, null) && searchMatch(p, null))
+          flatUnits.push({ ...p, _parentName: null, _parentType: null });
+      });
+      children.forEach(p => {
+        const parent = getParent(p.resort_id);
+        if (filterFn(p, parent) && searchMatch(p, parent)) {
+          flatUnits.push({
+            ...p,
+            _parentName: parent?.name || '',
+            _parentType: parent?.type || null,
+            district: parent?.district ?? p.district,
+          });
+        }
+      });
+      list = [...flatUnits].sort((a, b) => {
+        const codeA = (a._parentName ? a._parentName + ' ' : '') + (a.code || '') + (a.code_suffix ? ` ${a.code_suffix}` : '');
+        const codeB = (b._parentName ? b._parentName + ' ' : '') + (b.code || '') + (b.code_suffix ? ` ${b.code_suffix}` : '');
+        return compareByCodeOrName({ code: codeA, name: a.name }, { code: codeB, name: b.name });
+      });
+    } else {
+      const searchFiltered = q
+        ? topLevel.filter(p =>
+            (p.name || '').toLowerCase().includes(q) ||
+            (p.code || '').toLowerCase().includes(q)
+          )
+        : topLevel;
+      list = [...searchFiltered].sort((a, b) => compareByCodeOrName(a, b));
+    }
+
+    const allCities = [
+      ...topLevel.map(p => p.city),
+      ...children.map(p => (getParent(p.resort_id)?.city ?? p.city)),
+    ].filter(Boolean);
+
+    const allDistricts = [
+      ...topLevel.map(p => p.district),
+      ...children.map(p => (getParent(p.resort_id)?.district ?? p.district)),
+    ].filter(Boolean);
+
+    return {
+      listToShow: list,
+      uniqueCities: [...new Set(allCities)].sort(),
+      uniqueDistricts: [...new Set(allDistricts)].sort(),
+      hasActiveFilter: Boolean(hasActiveFilter),
+    };
+  }, [properties, searchQuery, filterValues]);
 
   if (selectedProperty) {
     return (
@@ -274,7 +280,7 @@ export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isV
         property={selectedProperty}
         onBack={handleBack}
         onDelete={() => handleDeleteProperty(selectedProperty)}
-        onPropertyUpdated={loadProperties}
+        onPropertyUpdated={refreshProperties}
         onSelectProperty={navigateToProperty}
       />
     );
@@ -329,15 +335,25 @@ export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isV
           <Text style={styles.emptyText}>{t('realEstateEmpty')}</Text>
         </View>
       ) : (
-        <ScrollView
-          style={styles.listScroll}
+        <FlatList
+          data={listToShow}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => (
+            <PropertyItem
+              item={item}
+              expanded={expandedIds.has(item.id)}
+              onToggle={toggleItemExpand}
+              onPress={navigateToProperty}
+              t={t}
+            />
+          )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-        >
-          {listToShow.map((item) => (
-            <PropertyItem key={item.id} item={item} expanded={expandedIds.has(item.id)} onToggle={() => toggleItemExpand(item.id)} onPress={() => navigateToProperty(item)} t={t} />
-          ))}
-        </ScrollView>
+          removeClippedSubviews
+          initialNumToRender={12}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+        />
       )}
 
       <AddPropertyModal

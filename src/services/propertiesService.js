@@ -9,7 +9,8 @@ export async function getProperties() {
     .from('properties')
     .select('*')
     .eq('agent_id', session.user.id)
-    .order('name', { ascending: true });
+    .order('name', { ascending: true })
+    .limit(10000);
 
   if (error) {
     console.error('getProperties error:', error.message);

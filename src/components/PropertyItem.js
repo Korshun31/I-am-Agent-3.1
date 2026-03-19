@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import {
   View,
   Text,
@@ -20,8 +20,12 @@ export const TYPE_ICONS = {
   condo:  require('../../assets/icon-property-condo.png'),
 };
 
-export default function PropertyItem({ item, expanded, onToggle, onPress, t }) {
+function PropertyItem({ item, expanded, onToggle, onPress, t }) {
   const arrowAnim = useState(() => new Animated.Value(0))[0];
+
+  // Stable handlers — depend only on stable parent callbacks + item.id
+  const handleToggle = useCallback(() => onToggle(item.id), [onToggle, item.id]);
+  const handlePress  = useCallback(() => onPress(item),    [onPress,  item]);
 
   const cardType = item._parentType
     ? item._parentType
@@ -47,7 +51,7 @@ export default function PropertyItem({ item, expanded, onToggle, onPress, t }) {
   return (
     <View style={[styles.propertyCard, { backgroundColor: colors.bg, borderColor: colors.border }]}>
       <View style={styles.propertyRow}>
-        <TouchableOpacity style={styles.propertyMainArea} onPress={onPress} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.propertyMainArea} onPress={handlePress} activeOpacity={0.7}>
           {typeof icon === 'string' ? (
             <Text style={styles.propertyIcon}>{icon}</Text>
           ) : (
@@ -56,7 +60,7 @@ export default function PropertyItem({ item, expanded, onToggle, onPress, t }) {
           <Text style={styles.propertyName} numberOfLines={1}>{displayName}</Text>
         </TouchableOpacity>
         <Text style={styles.propertyCode}>{codeDisplay}</Text>
-        <TouchableOpacity onPress={onToggle} activeOpacity={0.5} style={styles.expandBtn}>
+        <TouchableOpacity onPress={handleToggle} activeOpacity={0.5} style={styles.expandBtn}>
           <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
             <Image source={require('../../assets/icon-arrow-down.png')} style={styles.expandArrowImage} resizeMode="contain" />
           </Animated.View>
@@ -122,6 +126,8 @@ export default function PropertyItem({ item, expanded, onToggle, onPress, t }) {
     </View>
   );
 }
+
+export default memo(PropertyItem);
 
 const styles = StyleSheet.create({
   propertyCard: {

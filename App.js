@@ -17,6 +17,7 @@ if (Platform.OS !== 'web') {
   } catch {}
 }
 import { LanguageProvider } from './src/context/LanguageContext';
+import { AppDataProvider } from './src/context/AppDataContext';
 import Preloader from './src/screens/Preloader';
 import Login from './src/screens/Login';
 import Registration from './src/screens/Registration';
@@ -128,7 +129,9 @@ export default function App() {
         Platform.OS === 'web' ? (
           <WebMainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
         ) : (
-          <MainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
+          <AppDataProvider>
+            <MainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
+          </AppDataProvider>
         )
       )}
     </LanguageProvider>

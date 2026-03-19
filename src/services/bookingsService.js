@@ -10,7 +10,8 @@ export async function getBookings(propertyId = null, contactId = null) {
     .from('bookings')
     .select('*')
     .eq('agent_id', session.user.id)
-    .order('check_in', { ascending: false });
+    .order('check_in', { ascending: false })
+    .limit(10000);
 
   if (propertyId) {
     q = q.eq('property_id', propertyId);

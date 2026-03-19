@@ -49,7 +49,8 @@ export async function getCalendarEvents() {
     .select('*')
     .eq('agent_id', session.user.id)
     .order('event_date', { ascending: true })
-    .order('event_time', { ascending: true, nullsFirst: false });
+    .order('event_time', { ascending: true, nullsFirst: false })
+    .limit(10000);
 
   if (error) {
     console.error('getCalendarEvents error:', error.message);
