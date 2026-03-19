@@ -157,6 +157,7 @@ export async function createContact(contactData) {
     extra_emails: contactData.extraEmails || [],
     extra_telegrams: extraTg,
     extra_whatsapps: extraWa,
+    documents: contactData.documents || [],
   };
 
   const { data, error } = await supabase
@@ -195,6 +196,7 @@ export async function updateContact(id, contactData) {
   if (contactData.photoUri !== undefined) updates.photo_url = contactData.photoUri;
   if (contactData.extraPhones !== undefined) updates.extra_phones = contactData.extraPhones;
   if (contactData.extraEmails !== undefined) updates.extra_emails = contactData.extraEmails;
+  if (contactData.documents !== undefined) updates.documents = contactData.documents;
   updates.updated_at = new Date().toISOString();
 
   const { data, error } = await supabase
@@ -244,5 +246,6 @@ function mapContact(row) {
     extraEmails: Array.isArray(row.extra_emails) ? row.extra_emails : [],
     extraTelegrams,
     extraWhatsapps,
+    documents: Array.isArray(row.documents) ? row.documents : [],
   };
 }

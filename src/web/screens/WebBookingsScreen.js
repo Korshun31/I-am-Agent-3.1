@@ -11,6 +11,7 @@ import { getBookings, deleteBooking } from '../../services/bookingsService';
 import { getProperties } from '../../services/propertiesService';
 import { getContacts } from '../../services/contactsService';
 import WebBookingEditPanel from '../components/WebBookingEditPanel';
+import WebPropertyDetailPanel from '../components/WebPropertyDetailPanel';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -624,6 +625,7 @@ export default function WebBookingsScreen() {
   const [propFilter, setPropFilter] = useState('all');   // 'all' | 'booked' | 'free'
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [editPanelMode, setEditPanelMode]     = useState(null); // null | 'create' | 'edit'
+  const [propDetailProperty, setPropDetailProperty] = useState(null);
   const [search, setSearch]         = useState('');
 
   const months  = buildMonths();
@@ -823,11 +825,15 @@ export default function WebBookingsScreen() {
                       const todayX = dateToPx(dayjs().format('YYYY-MM-DD'), months);
                       return (
                         <View key={prop.id} style={s.ganttRowWrap}>
-                          {/* Sticky left cell */}
-                          <View style={[s.ganttLeftCell, { position: 'sticky', left: 0, zIndex: 2, borderLeftColor: tc.border }, pi % 2 === 1 && s.ganttLeftCellAlt]}>
+                          {/* Sticky left cell — clickable to open/close property detail */}
+                          <TouchableOpacity
+                            style={[s.ganttLeftCell, s.ganttLeftCellBtn, { position: 'sticky', left: 0, zIndex: 2, borderLeftColor: tc.border }, pi % 2 === 1 && s.ganttLeftCellAlt, propDetailProperty?.id === prop.id && s.ganttLeftCellSelected]}
+                            onPress={() => setPropDetailProperty(prop)}
+                            activeOpacity={0.7}
+                          >
                             <Text style={[s.ganttCode, { color: tc.text }]} numberOfLines={1}>{fullCode}</Text>
                             <Text style={s.ganttPropName} numberOfLines={1}>{prop.name}</Text>
-                          </View>
+                          </TouchableOpacity>
 
                           {/* Timeline */}
                           <View style={[s.ganttRow, { width: totalW }]}>
@@ -907,6 +913,14 @@ export default function WebBookingsScreen() {
           </View>
         )}
       </View>
+
+      {/* Property detail panel — slides from RIGHT */}
+      <WebPropertyDetailPanel
+        visible={propDetailProperty !== null}
+        property={propDetailProperty}
+        bookings={bookings}
+        onClose={() => setPropDetailProperty(null)}
+      />
 
       {/* Edit panel */}
       <WebBookingEditPanel
@@ -990,6 +1004,8 @@ const s = StyleSheet.create({
     backgroundColor: C.surface,
   },
   ganttLeftCellAlt: { backgroundColor: '#F5F3EF' },
+  ganttLeftCellBtn: { cursor: 'pointer' },
+  ganttLeftCellSelected: { backgroundColor: '#FCE4EC' },
   ganttCode: { fontSize: 12, fontWeight: '700' },
   ganttPropName: { fontSize: 10, color: C.muted, marginTop: 1 },
   ganttRow: { height: ROW_H, position: 'relative' },

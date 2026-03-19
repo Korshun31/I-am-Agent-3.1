@@ -1,130 +1,272 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
-  ScrollView, Animated, ActivityIndicator, Platform,
+  ScrollView, Animated, ActivityIndicator, Platform, Image,
 } from 'react-native';
 import { createContact, updateContact } from '../../services/contactsService';
+import { supabase } from '../../services/supabase';
 
 const ACCENT = '#D81B60';
 const C = {
-  bg: '#F4F6F9', surface: '#FFFFFF', border: '#E9ECEF',
-  text: '#212529', muted: '#6C757D', light: '#ADB5BD',
+  bg:          '#F8F9FA',
+  surface:     '#FFFFFF',
+  border:      '#E9ECEF',
+  borderFocus: ACCENT,
+  text:        '#1A1D23',
+  muted:       '#6B7280',
+  light:       '#B0B7C3',
+  accentBg:    '#FDF0F5',
 };
 
-// ─── Field ───────────────────────────────────────────────────────────────────
+// ─── Contact method types ────────────────────────────────────────────────────
 
-function Field({ label, value, onChangeText, placeholder, keyboardType, multiline }) {
+const METHOD_TYPES = [
+  { type: 'phone',    label: 'Телефон',  icon: '📞', placeholder: '+66 99 999 9999', keyboardType: 'phone-pad' },
+  { type: 'telegram', label: 'Telegram', icon: '✈️', placeholder: '@username или +79991234567' },
+  { type: 'whatsapp', label: 'WhatsApp', icon: '💬', placeholder: '+66 99 999 9999',  keyboardType: 'phone-pad' },
+  { type: 'email',    label: 'Email',    icon: '📧', placeholder: 'mail@example.com', keyboardType: 'email-address' },
+];
+
+function methodConfig(type) {
+  return METHOD_TYPES.find(m => m.type === type) || METHOD_TYPES[0];
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+let _uid = 0;
+function uid() { return ++_uid; }
+
+function fieldsToMethods(contact) {
+  const methods = [];
+  if (contact.phone)     methods.push({ id: uid(), type: 'phone',    value: contact.phone });
+  if (contact.phone2)    methods.push({ id: uid(), type: 'phone',    value: contact.phone2 });
+  const tgs = contact.extraTelegrams || (contact.telegram ? [contact.telegram] : []);
+  tgs.forEach(v => v && methods.push({ id: uid(), type: 'telegram', value: v }));
+  const was = contact.extraWhatsapps || (contact.whatsapp ? [contact.whatsapp] : []);
+  was.forEach(v => v && methods.push({ id: uid(), type: 'whatsapp', value: v }));
+  if (contact.email)     methods.push({ id: uid(), type: 'email',    value: contact.email });
+  if (contact.email2)    methods.push({ id: uid(), type: 'email',    value: contact.email2 });
+  return methods;
+}
+
+function methodsToPayload(methods) {
+  const phones    = methods.filter(m => m.type === 'phone'    && m.value.trim()).map(m => m.value.trim());
+  const telegrams = methods.filter(m => m.type === 'telegram' && m.value.trim()).map(m => m.value.trim());
+  const whatsapps = methods.filter(m => m.type === 'whatsapp' && m.value.trim()).map(m => m.value.trim());
+  const emails    = methods.filter(m => m.type === 'email'    && m.value.trim()).map(m => m.value.trim());
+  return {
+    phone:          phones[0]    || '',
+    extraPhones:    phones.slice(1),
+    extraTelegrams: telegrams,
+    extraWhatsapps: whatsapps,
+    email:          emails[0]    || '',
+    extraEmails:    emails.slice(1),
+  };
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function SectionCard({ title, children }) {
   return (
-    <View style={s.field}>
-      <Text style={s.fieldLabel}>{label}</Text>
-      <TextInput
-        style={[s.fieldInput, multiline && s.fieldInputMulti]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder || ''}
-        placeholderTextColor={C.light}
-        keyboardType={keyboardType || 'default'}
-        multiline={!!multiline}
-        numberOfLines={multiline ? 3 : 1}
-      />
+    <View style={s.card}>
+      <Text style={s.cardTitle}>{title}</Text>
+      <View style={s.cardBody}>{children}</View>
     </View>
   );
 }
 
-// ─── TypeSelect ───────────────────────────────────────────────────────────────
-
-function TypeSelect({ value, onChange }) {
+function FField({ label, value, onChange, placeholder, keyboardType, dateType }) {
+  const [focused, setFocused] = useState(false);
+  const isDate = dateType && Platform.OS === 'web';
   return (
     <View style={s.field}>
-      <Text style={s.fieldLabel}>Тип контакта *</Text>
-      <View style={s.typeRow}>
-        {[
-          { key: 'clients', label: 'Клиент',       color: '#1565C0', bg: '#E3F2FD' },
-          { key: 'owners',  label: 'Собственник',  color: '#C2920E', bg: '#FFF8E1' },
-        ].map(opt => (
-          <TouchableOpacity
-            key={opt.key}
-            style={[
-              s.typeBtn,
-              value === opt.key && { backgroundColor: opt.bg, borderColor: opt.color },
-            ]}
-            onPress={() => onChange(opt.key)}
-            activeOpacity={0.8}
-          >
-            <Text style={[s.typeBtnText, value === opt.key && { color: opt.color, fontWeight: '700' }]}>
-              {opt.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <Text style={s.fieldLabel}>{label}</Text>
+      <View style={[s.inputWrap, focused && s.inputWrapFocused]}>
+        {isDate ? (
+          <input
+            type="date"
+            value={value || ''}
+            onChange={e => onChange(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            style={{
+              flex: 1, border: 'none', background: 'transparent',
+              fontSize: 14, color: value ? C.text : C.light,
+              outline: 'none', fontFamily: 'inherit', padding: 0,
+              colorScheme: 'light',
+            }}
+          />
+        ) : (
+          <TextInput
+            style={s.input}
+            value={value}
+            onChangeText={onChange}
+            placeholder={placeholder || ''}
+            placeholderTextColor={C.light}
+            keyboardType={keyboardType || 'default'}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+          />
+        )}
       </View>
+    </View>
+  );
+}
+
+function ContactMethodRow({ method, onUpdate, onRemove }) {
+  const [focused, setFocused] = useState(false);
+  const cfg = methodConfig(method.type);
+  return (
+    <View style={[s.methodRow, focused && s.methodRowFocused]}>
+      <Text style={s.methodIcon}>{cfg.icon}</Text>
+      <TextInput
+        style={s.methodInput}
+        value={method.value}
+        onChangeText={v => onUpdate(method.id, v)}
+        placeholder={cfg.placeholder}
+        placeholderTextColor={C.light}
+        keyboardType={cfg.keyboardType || 'default'}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+      />
+      <TouchableOpacity style={s.methodRemove} onPress={() => onRemove(method.id)}>
+        <Text style={s.methodRemoveText}>✕</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function TypeSelect({ value, onChange }) {
+  const opts = [
+    { key: 'clients', label: 'Клиент',      color: '#1D4ED8', bg: '#DBEAFE' },
+    { key: 'owners',  label: 'Собственник', color: '#92680A', bg: '#FEF3C7' },
+  ];
+  return (
+    <View style={s.typeRow}>
+      {opts.map(opt => (
+        <TouchableOpacity
+          key={opt.key}
+          style={[s.typeBtn, value === opt.key && { backgroundColor: opt.bg, borderColor: opt.color }]}
+          onPress={() => onChange(opt.key)}
+          activeOpacity={0.8}
+        >
+          <Text style={[s.typeBtnText, value === opt.key && { color: opt.color, fontWeight: '700' }]}>
+            {opt.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
-export default function WebContactEditPanel({ visible, mode, contact, onClose, onSaved }) {
-  const slideAnim = useRef(new Animated.Value(420)).current;
+export default function WebContactEditPanel({ visible, mode, contact, onClose, onSaved, lockType }) {
+  const slideAnim = useRef(new Animated.Value(440)).current;
+  const backdropAnim = useRef(new Animated.Value(0)).current;
+  const [mounted, setMounted] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
   const [error, setError] = useState('');
+  const fileInputRef = useRef(null);
 
   const [form, setForm] = useState({
-    type: 'clients',
-    name: '', lastName: '',
-    phone: '', email: '',
-    telegram: '', whatsapp: '',
-    phone2: '', email2: '',
-    telegram2: '', whatsapp2: '',
-    nationality: '', birthday: '',
-    documentNumber: '',
+    type: 'clients', name: '', lastName: '',
+    nationality: '', birthday: '', documentNumber: '',
   });
+  const [contactMethods, setContactMethods] = useState([]);
+  const [documents, setDocuments] = useState([]);
 
-  // Slide animation
-  useEffect(() => {
-    Animated.spring(slideAnim, {
-      toValue: visible ? 0 : 420,
-      useNativeDriver: true,
-      tension: 80, friction: 12,
-    }).start();
-  }, [visible]);
-
-  // Fill form when editing
+  // Animation
   useEffect(() => {
     if (visible) {
-      setError('');
-      if (mode === 'edit' && contact) {
-        const tgs = contact.extraTelegrams || (contact.telegram ? [contact.telegram] : []);
-        const was = contact.extraWhatsapps || (contact.whatsapp ? [contact.whatsapp] : []);
-        const phs = contact.extraPhones || [];
-        const ems = contact.extraEmails  || [];
-        setForm({
-          type:           contact.type || 'clients',
-          name:           contact.name || '',
-          lastName:       contact.lastName || '',
-          phone:          contact.phone || '',
-          email:          contact.email || '',
-          telegram:       tgs[0] || '',
-          whatsapp:       was[0] || '',
-          phone2:         phs[0] || '',
-          email2:         ems[0] || '',
-          telegram2:      tgs[1] || '',
-          whatsapp2:      was[1] || '',
-          nationality:    contact.nationality || '',
-          birthday:       contact.birthday || '',
-          documentNumber: contact.documentNumber || '',
-        });
-      } else {
-        setForm({
-          type: 'clients', name: '', lastName: '',
-          phone: '', email: '', telegram: '', whatsapp: '',
-          phone2: '', email2: '', telegram2: '', whatsapp2: '',
-          nationality: '', birthday: '', documentNumber: '',
-        });
-      }
+      setMounted(true);
+      Animated.parallel([
+        Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }),
+        Animated.timing(backdropAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnim, { toValue: 440, duration: 260, useNativeDriver: true }),
+        Animated.timing(backdropAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
+      ]).start(() => setMounted(false));
+    }
+  }, [visible]);
+
+  // Fill form
+  useEffect(() => {
+    if (!visible) return;
+    setError('');
+    if (mode === 'edit' && contact) {
+      setForm({
+        type:           contact.type || 'clients',
+        name:           contact.name || '',
+        lastName:       contact.lastName || '',
+        nationality:    contact.nationality || '',
+        birthday:       contact.birthday || '',
+        documentNumber: contact.documentNumber || '',
+      });
+      setContactMethods(fieldsToMethods(contact));
+      setDocuments(contact.documents || []);
+    } else {
+      setForm({
+        type:           lockType || contact?.type || 'clients',
+        name:           contact?.name || '',
+        lastName:       contact?.lastName || '',
+        nationality:    '',
+        birthday:       '',
+        documentNumber: '',
+      });
+      setContactMethods([]);
+      setDocuments([]);
     }
   }, [visible, mode, contact]);
 
-  const set = (key) => (val) => setForm(prev => ({ ...prev, [key]: val }));
+  const setF = (key) => (val) => setForm(prev => ({ ...prev, [key]: val }));
+
+  const addMethod = (type) => {
+    setContactMethods(prev => [...prev, { id: uid(), type, value: '' }]);
+  };
+  const removeMethod = (id) => {
+    setContactMethods(prev => prev.filter(m => m.id !== id));
+  };
+  const updateMethod = (id, value) => {
+    setContactMethods(prev => prev.map(m => m.id === id ? { ...m, value } : m));
+  };
+
+  // Web file input for documents
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.multiple = true;
+    input.style.display = 'none';
+    input.onchange = async (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      setUploadingDoc(true);
+      try {
+        const urls = await Promise.all(files.map(async file => {
+          const ext = file.name.split('.').pop();
+          const path = `contacts/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: upErr } = await supabase.storage.from('contact-photos').upload(path, file);
+          if (upErr) throw upErr;
+          const { data } = supabase.storage.from('contact-photos').getPublicUrl(path);
+          return data.publicUrl;
+        }));
+        setDocuments(prev => [...prev, ...urls]);
+      } catch (e) {
+        setError('Ошибка загрузки фото');
+      } finally {
+        setUploadingDoc(false);
+        input.value = '';
+      }
+    };
+    fileInputRef.current = input;
+    document.body.appendChild(input);
+    return () => document.body.removeChild(input);
+  }, []);
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError('Введите имя'); return; }
@@ -135,17 +277,12 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
         type:           form.type,
         name:           form.name.trim(),
         lastName:       form.lastName.trim(),
-        phone:          form.phone.trim(),
-        email:          form.email.trim(),
         nationality:    form.nationality.trim(),
         birthday:       form.birthday.trim(),
         documentNumber: form.documentNumber.trim(),
-        extraPhones:    [form.phone2].filter(Boolean),
-        extraEmails:    [form.email2].filter(Boolean),
-        extraTelegrams: [form.telegram, form.telegram2].filter(Boolean),
-        extraWhatsapps: [form.whatsapp, form.whatsapp2].filter(Boolean),
+        ...methodsToPayload(contactMethods),
+        documents,
       };
-
       let saved;
       if (mode === 'edit' && contact) {
         saved = await updateContact(contact.id, payload);
@@ -160,137 +297,273 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
     }
   };
 
-  if (!visible) return null;
+  if (!mounted) return null;
 
   const title = mode === 'edit' ? 'Редактировать контакт' : 'Новый контакт';
 
   return (
-    <Animated.View style={[s.panel, { transform: [{ translateX: slideAnim }] }]}>
+    <>
+      {/* Backdrop */}
+      <Animated.View style={[s.backdrop, { opacity: backdropAnim }]} pointerEvents={visible ? 'auto' : 'none'}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
 
-      {/* Header */}
-      <View style={s.panelHeader}>
-        <Text style={s.panelTitle}>{title}</Text>
-        <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.7}>
-          <Text style={s.closeBtnText}>✕</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Panel */}
+      <Animated.View style={[s.panel, { transform: [{ translateX: slideAnim }] }]}>
 
-      {/* Form */}
-      <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
-
-        <TypeSelect value={form.type} onChange={set('type')} />
-
-        <View style={s.section}>
-          <Text style={s.sectionLabel}>ОСНОВНОЕ</Text>
-          <Field label="Имя *"       value={form.name}     onChangeText={set('name')}     placeholder="Иван" />
-          <Field label="Фамилия"     value={form.lastName} onChangeText={set('lastName')} placeholder="Петров" />
-          <Field label="Гражданство" value={form.nationality} onChangeText={set('nationality')} placeholder="Россия" />
-          <Field label="Дата рождения" value={form.birthday} onChangeText={set('birthday')} placeholder="YYYY-MM-DD" />
-          <Field label="Номер документа" value={form.documentNumber} onChangeText={set('documentNumber')} placeholder="AB1234567" />
+        {/* Header */}
+        <View style={s.header}>
+          <View style={s.headerAccent} />
+          <View style={s.headerContent}>
+            <Text style={s.headerTitle}>{title}</Text>
+            <Text style={s.headerSub}>
+              {mode === 'edit' ? 'Изменение данных контакта' : 'Заполните данные нового контакта'}
+            </Text>
+          </View>
+          <TouchableOpacity style={s.closeBtn} onPress={onClose}>
+            <Text style={s.closeBtnText}>✕</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={s.section}>
-          <Text style={s.sectionLabel}>ТЕЛЕФОНЫ</Text>
-          <Field label="Телефон"      value={form.phone}  onChangeText={set('phone')}  placeholder="+66 99 999 9999" keyboardType="phone-pad" />
-          <Field label="Доп. телефон" value={form.phone2} onChangeText={set('phone2')} placeholder="+7 999 999 9999" keyboardType="phone-pad" />
+        {/* Form */}
+        <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
+
+          {/* Тип — скрываем если тип зафиксирован */}
+          {!lockType && (
+            <SectionCard title="Тип контакта">
+              <TypeSelect value={form.type} onChange={setF('type')} />
+            </SectionCard>
+          )}
+
+          {/* Основное */}
+          <SectionCard title="Основное">
+            <View style={s.row2}>
+              <View style={{ flex: 1 }}>
+                <FField label="Имя *"    value={form.name}     onChange={setF('name')}     placeholder="Иван" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <FField label="Фамилия"  value={form.lastName} onChange={setF('lastName')} placeholder="Петров" />
+              </View>
+            </View>
+            <View style={s.row2}>
+              <View style={{ flex: 1 }}>
+                <FField label="Гражданство" value={form.nationality}    onChange={setF('nationality')}    placeholder="Россия" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <FField label="Дата рождения" value={form.birthday}     onChange={setF('birthday')}       placeholder="YYYY-MM-DD" dateType />
+              </View>
+            </View>
+            <FField label="Номер документа" value={form.documentNumber} onChange={setF('documentNumber')} placeholder="AB1234567" />
+          </SectionCard>
+
+          {/* Контакты */}
+          <SectionCard title="Контакты">
+            {/* Existing methods */}
+            {contactMethods.length > 0 && (
+              <View style={s.methodsList}>
+                {contactMethods.map(m => (
+                  <ContactMethodRow
+                    key={m.id}
+                    method={m}
+                    onUpdate={updateMethod}
+                    onRemove={removeMethod}
+                  />
+                ))}
+              </View>
+            )}
+
+            {/* Add pills */}
+            <View style={s.addMethodWrap}>
+              <Text style={s.addMethodHint}>
+                {contactMethods.length === 0 ? 'Добавьте способ связи:' : 'Добавить ещё:'}
+              </Text>
+              <View style={s.addMethodPills}>
+                {METHOD_TYPES.map(mt => (
+                  <TouchableOpacity
+                    key={mt.type}
+                    style={s.addPill}
+                    onPress={() => addMethod(mt.type)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={s.addPillText}>{mt.icon}  + {mt.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </SectionCard>
+
+          {/* Документы / Фото */}
+          <SectionCard title="Документы и фото">
+            <Text style={s.docHint}>Паспорт, виза, договор и другие документы</Text>
+            <View style={s.docGrid}>
+              {documents.map((uri, i) => (
+                <View key={i} style={s.docThumb}>
+                  <Image source={{ uri }} style={s.docImg} resizeMode="cover" />
+                  <TouchableOpacity
+                    style={s.docRemove}
+                    onPress={() => setDocuments(prev => prev.filter((_, idx) => idx !== i))}
+                  >
+                    <Text style={s.docRemoveText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              <TouchableOpacity
+                style={s.docAdd}
+                onPress={() => fileInputRef.current?.click()}
+                disabled={uploadingDoc}
+              >
+                {uploadingDoc
+                  ? <ActivityIndicator size="small" color={ACCENT} />
+                  : <>
+                      <Text style={s.docAddIcon}>+</Text>
+                      <Text style={s.docAddText}>Фото</Text>
+                    </>
+                }
+              </TouchableOpacity>
+            </View>
+          </SectionCard>
+
+          {error ? (
+            <View style={s.errorBanner}>
+              <Text style={s.errorText}>⚠️  {error}</Text>
+            </View>
+          ) : null}
+
+          <View style={{ height: 8 }} />
+        </ScrollView>
+
+        {/* Footer */}
+        <View style={s.footer}>
+          <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
+            <Text style={s.cancelBtnText}>Отмена</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
+            {saving
+              ? <ActivityIndicator color="#FFF" size="small" />
+              : <Text style={s.saveBtnText}>Сохранить</Text>
+            }
+          </TouchableOpacity>
         </View>
 
-        <View style={s.section}>
-          <Text style={s.sectionLabel}>МЕССЕНДЖЕРЫ</Text>
-          <Field label="Telegram"      value={form.telegram}  onChangeText={set('telegram')}  placeholder="@username или +79991234567" />
-          <Field label="Доп. Telegram" value={form.telegram2} onChangeText={set('telegram2')} placeholder="@username2" />
-          <Field label="WhatsApp"      value={form.whatsapp}  onChangeText={set('whatsapp')}  placeholder="+66 99 999 9999" keyboardType="phone-pad" />
-          <Field label="Доп. WhatsApp" value={form.whatsapp2} onChangeText={set('whatsapp2')} placeholder="+7 999 999 9999" keyboardType="phone-pad" />
-        </View>
-
-        <View style={s.section}>
-          <Text style={s.sectionLabel}>EMAIL</Text>
-          <Field label="Email"       value={form.email}  onChangeText={set('email')}  placeholder="mail@example.com" keyboardType="email-address" />
-          <Field label="Доп. Email"  value={form.email2} onChangeText={set('email2')} placeholder="other@example.com" keyboardType="email-address" />
-        </View>
-
-        {error ? <Text style={s.error}>{error}</Text> : null}
-
-      </ScrollView>
-
-      {/* Footer */}
-      <View style={s.footer}>
-        <TouchableOpacity style={s.cancelBtn} onPress={onClose} activeOpacity={0.7}>
-          <Text style={s.cancelBtnText}>Отмена</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.saveBtn} onPress={handleSave} activeOpacity={0.8} disabled={saving}>
-          {saving
-            ? <ActivityIndicator color="#FFF" size="small" />
-            : <Text style={s.saveBtnText}>Сохранить</Text>
-          }
-        </TouchableOpacity>
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </>
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
 const s = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    zIndex: 200,
+  },
   panel: {
     position: 'absolute', top: 0, right: 0, bottom: 0,
-    width: 420,
-    backgroundColor: C.surface,
-    borderLeftWidth: 1,
-    borderLeftColor: C.border,
+    width: 440, zIndex: 201,
+    backgroundColor: C.bg,
     flexDirection: 'column',
-    zIndex: 100,
-    ...Platform.select({ web: { boxShadow: '-4px 0 24px rgba(0,0,0,0.10)' } }),
+    ...Platform.select({ web: { boxShadow: '-6px 0 32px rgba(0,0,0,0.14)' } }),
   },
-  panelHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: 20, borderBottomWidth: 1, borderBottomColor: C.border,
-  },
-  panelTitle: { fontSize: 18, fontWeight: '800', color: C.text },
-  closeBtn:   { padding: 6 },
-  closeBtnText: { fontSize: 18, color: C.light },
 
+  // Header
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: C.surface,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+    paddingRight: 16,
+  },
+  headerAccent:  { width: 4, alignSelf: 'stretch', backgroundColor: ACCENT },
+  headerContent: { flex: 1, paddingVertical: 16, paddingHorizontal: 16 },
+  headerTitle:   { fontSize: 18, fontWeight: '700', color: C.text, marginBottom: 2 },
+  headerSub:     { fontSize: 12, color: C.muted },
+  closeBtn:      { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: C.bg },
+  closeBtnText:  { fontSize: 15, color: C.muted },
+
+  // Scroll
   scroll:        { flex: 1 },
-  scrollContent: { padding: 20, paddingBottom: 10 },
+  scrollContent: { padding: 16, gap: 12 },
 
-  section:      { marginBottom: 20 },
-  sectionLabel: {
-    fontSize: 11, fontWeight: '800', color: C.light,
-    letterSpacing: 0.8, marginBottom: 10,
+  // Cards
+  card:      { backgroundColor: C.surface, borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
+  cardTitle: { fontSize: 12, fontWeight: '700', color: C.muted, letterSpacing: 0.5, paddingHorizontal: 16, paddingTop: 13, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.bg },
+  cardBody:  { padding: 14, gap: 10 },
+
+  // Fields
+  row2:  { flexDirection: 'row', gap: 10 },
+  field: { gap: 5 },
+  fieldLabel: { fontSize: 12, fontWeight: '600', color: C.muted },
+  inputWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: C.surface, borderRadius: 8,
+    borderWidth: 1.5, borderColor: C.border,
+    paddingHorizontal: 11, paddingVertical: 9, minHeight: 42,
   },
+  inputWrapFocused: { borderColor: ACCENT },
+  input: { flex: 1, fontSize: 14, color: C.text, outlineStyle: 'none', padding: 0 },
 
-  field:       { marginBottom: 12 },
-  fieldLabel:  { fontSize: 12, fontWeight: '600', color: C.muted, marginBottom: 5 },
-  fieldInput: {
-    backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.border,
-    paddingHorizontal: 12, paddingVertical: 9, fontSize: 14, color: C.text,
-    ...Platform.select({ web: { outlineStyle: 'none' } }),
-  },
-  fieldInputMulti: { minHeight: 80, textAlignVertical: 'top' },
-
+  // Type selector
   typeRow: { flexDirection: 'row', gap: 10 },
   typeBtn: {
-    flex: 1, paddingVertical: 10, borderRadius: 8,
+    flex: 1, paddingVertical: 11, borderRadius: 8,
     borderWidth: 1.5, borderColor: C.border,
     alignItems: 'center', backgroundColor: C.bg,
   },
   typeBtnText: { fontSize: 14, color: C.muted },
 
-  error: {
-    color: '#C62828', fontSize: 13, textAlign: 'center',
-    paddingVertical: 8, marginTop: 4,
+  // Contact methods list
+  methodsList: { gap: 8, marginBottom: 4 },
+  methodRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: C.bg, borderRadius: 8,
+    borderWidth: 1.5, borderColor: C.border,
+    paddingLeft: 12, paddingRight: 6, paddingVertical: 6, minHeight: 44,
   },
+  methodRowFocused: { borderColor: ACCENT },
+  methodIcon:   { fontSize: 17, width: 24, textAlign: 'center' },
+  methodInput:  { flex: 1, fontSize: 14, color: C.text, outlineStyle: 'none', padding: 0 },
+  methodRemove: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
+  methodRemoveText: { fontSize: 14, color: C.light },
 
+  // Add pills
+  addMethodWrap:  { gap: 8 },
+  addMethodHint:  { fontSize: 12, color: C.muted },
+  addMethodPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  addPill: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1.5, borderColor: C.border, borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 7,
+    backgroundColor: C.surface,
+  },
+  addPillText: { fontSize: 13, color: C.text, fontWeight: '500' },
+
+  // Documents / photos
+  docHint:      { fontSize: 12, color: C.muted, marginBottom: 6 },
+  docGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  docThumb:     { width: 80, height: 80, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: C.border, position: 'relative' },
+  docImg:       { width: '100%', height: '100%' },
+  docRemove:    { position: 'absolute', top: 3, right: 3, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  docRemoveText:{ fontSize: 10, color: '#FFF', fontWeight: '700' },
+  docAdd:       { width: 80, height: 80, borderRadius: 10, borderWidth: 2, borderColor: C.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 2 },
+  docAddIcon:   { fontSize: 22, color: C.light },
+  docAddText:   { fontSize: 11, color: C.muted },
+
+  // Error
+  errorBanner: {
+    backgroundColor: '#FFF5F5', borderRadius: 8,
+    borderWidth: 1, borderColor: '#FCA5A5',
+    paddingHorizontal: 12, paddingVertical: 10,
+  },
+  errorText: { fontSize: 13, color: '#DC2626' },
+
+  // Footer
   footer: {
     flexDirection: 'row', gap: 10, padding: 16,
     borderTopWidth: 1, borderTopColor: C.border,
+    backgroundColor: C.surface,
   },
-  cancelBtn: {
-    flex: 1, paddingVertical: 12, borderRadius: 8,
-    borderWidth: 1, borderColor: C.border, alignItems: 'center',
-  },
+  cancelBtn:     { flex: 1, paddingVertical: 13, borderRadius: 10, borderWidth: 1.5, borderColor: C.border, alignItems: 'center' },
   cancelBtnText: { fontSize: 14, fontWeight: '600', color: C.muted },
-  saveBtn: {
-    flex: 2, paddingVertical: 12, borderRadius: 8,
-    backgroundColor: ACCENT, alignItems: 'center',
-  },
-  saveBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  saveBtn:       { flex: 2, paddingVertical: 13, borderRadius: 10, backgroundColor: ACCENT, alignItems: 'center', ...Platform.select({ web: { boxShadow: '0 4px 12px rgba(216,27,96,0.3)' } }) },
+  saveBtnText:   { fontSize: 14, fontWeight: '700', color: '#FFF' },
 });
