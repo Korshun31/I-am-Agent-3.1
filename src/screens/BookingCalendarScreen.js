@@ -127,9 +127,11 @@ function getOwnerLabel(width, labels) {
   return min || '';
 }
 
-export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose } = {}) {
+export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose, onReady } = {}) {
   const { t, language } = useLanguage();
   const { properties, bookings, propertiesLoading, refreshProperties, refreshBookings } = useAppData();
+
+  useEffect(() => { onReady?.(); }, []);
   const [contactsCache, setContactsCache] = useState({});
   const [filterVisible, setFilterVisible] = useState(false);
   const [filterValues, setFilterValues] = useState(null);

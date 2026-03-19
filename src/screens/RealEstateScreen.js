@@ -59,9 +59,11 @@ const COLORS = {
   searchBorder: '#E0D8CC',
 };
 
-export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isVisible = true }) {
+export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isVisible = true, onReady }) {
   const { t } = useLanguage();
   const { properties, propertiesLoading: loading, refreshProperties } = useAppData();
+
+  useEffect(() => { onReady?.(); }, []);
   const [filterVisible, setFilterVisible] = useState(false);
   const [filterValues, setFilterValues] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');

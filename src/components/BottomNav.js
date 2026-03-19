@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -27,10 +27,20 @@ function lightenForBevel(hex, amount = 0.55) {
 
 export default function BottomNav({ activeTab, onSelect }) {
   const { t } = useLanguage();
+  const [localTab, setLocalTab] = useState(activeTab);
+
+  // Sync when parent changes tab programmatically (e.g. handleOpenProperty)
+  useEffect(() => { setLocalTab(activeTab); }, [activeTab]);
+
+  const handlePress = (index) => {
+    setLocalTab(index); // instant visual feedback, no parent re-render needed
+    onSelect(index);
+  };
+
   return (
     <View style={styles.container}>
       {TAB_KEYS.map((tab, index) => {
-        const isActive = activeTab === index;
+        const isActive = localTab === index;
         return (
           <TouchableOpacity
             key={tab.key}
@@ -39,7 +49,7 @@ export default function BottomNav({ activeTab, onSelect }) {
               index > 0 && { marginLeft: -OVERLAP },
               isActive ? styles.tabWrapperActive : { zIndex: index },
             ]}
-            onPress={() => onSelect(index)}
+            onPress={() => handlePress(index)}
             activeOpacity={0.85}
           >
             {isActive ? (

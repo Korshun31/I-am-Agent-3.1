@@ -251,9 +251,11 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
   );
 }
 
-export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenProperty }) {
+export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenProperty, onReady }) {
   const { t, language } = useLanguage();
   const { properties, bookings, refreshProperties, refreshBookings } = useAppData();
+
+  useEffect(() => { onReady?.(); }, []);
   const [selectedDate, setSelectedDate] = useState(() => formatDateYMD(new Date()));
   const [customEvents, setCustomEvents] = useState([]);
   const [loading, setLoading] = useState(true);
