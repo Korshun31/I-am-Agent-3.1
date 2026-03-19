@@ -1,4 +1,4 @@
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, memo, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import BottomNav from '../components/BottomNav';
 import AccountScreen from './AccountScreen';
@@ -18,11 +18,18 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
   const [screenWithinAccount, setScreenWithinAccount] = useState('account');
   const [propertyToOpen, setPropertyToOpen] = useState(null);
 
-  // useCallback — стабильные ссылки, memo на экранах работает корректно
+  // Отслеживаем какие вкладки уже посещались — монтируем только при первом визите
+  const visitedRef = useRef(new Set([3])); // Аккаунт открыт по умолчанию
+  const [visited, setVisited] = useState(new Set([3]));
+
   const handleOpenProperty = useCallback((property) => {
     if (property) {
       setPropertyToOpen(property);
       setActiveTab(0);
+      if (!visitedRef.current.has(0)) {
+        visitedRef.current = new Set([...visitedRef.current, 0]);
+        setVisited(new Set(visitedRef.current));
+      }
     }
   }, []);
 
@@ -34,22 +41,33 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
       if (prev === 3) setScreenWithinAccount('account');
       return newIndex;
     });
+    // Помечаем вкладку как посещённую — контент монтируется
+    if (!visitedRef.current.has(newIndex)) {
+      visitedRef.current = new Set([...visitedRef.current, newIndex]);
+      setVisited(new Set(visitedRef.current));
+    }
   }, []);
 
   return (
     <View style={styles.container}>
       <View style={[styles.tabPanel, activeTab !== 0 && styles.tabPanelHidden]}>
-        <MemoRealEstate
-          propertyToOpen={propertyToOpen}
-          onPropertyOpened={handlePropertyOpened}
-          isVisible={activeTab === 0}
-        />
+        {visited.has(0) && (
+          <MemoRealEstate
+            propertyToOpen={propertyToOpen}
+            onPropertyOpened={handlePropertyOpened}
+            isVisible={activeTab === 0}
+          />
+        )}
       </View>
       <View style={[styles.tabPanel, activeTab !== 1 && styles.tabPanelHidden]}>
-        <MemoBookingCalendar isVisible={activeTab === 1} />
+        {visited.has(1) && (
+          <MemoBookingCalendar isVisible={activeTab === 1} />
+        )}
       </View>
       <View style={[styles.tabPanel, activeTab !== 2 && styles.tabPanelHidden]}>
-        <MemoAgentCalendar isVisible={activeTab === 2} onOpenProperty={handleOpenProperty} />
+        {visited.has(2) && (
+          <MemoAgentCalendar isVisible={activeTab === 2} onOpenProperty={handleOpenProperty} />
+        )}
       </View>
       <View style={[styles.tabPanel, activeTab !== 3 && styles.tabPanelHidden]}>
         {screenWithinAccount === 'contacts' ? (

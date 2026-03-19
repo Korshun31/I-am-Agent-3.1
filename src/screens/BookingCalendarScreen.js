@@ -191,7 +191,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return true;
   }, [filterValues]);
 
-  const flatUnits = useCallback(() => {
+  const { listToShow, uniqueCities, uniqueDistricts } = React.useMemo(() => {
     const units = [];
     topLevel.filter(p => p.type === 'house').forEach(p => {
       if (filterFn(p, null)) {
@@ -208,40 +208,29 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         });
       }
     });
-    return [...units].sort((a, b) => {
+    let list = [...units].sort((a, b) => {
       const codeA = (a._parentCode ? a._parentCode + ' ' : '') + (a.code_suffix ?? a.code ?? '');
       const codeB = (b._parentCode ? b._parentCode + ' ' : '') + (b.code_suffix ?? b.code ?? '');
       return compareByCodeOrName({ code: codeA, name: a.name }, { code: codeB, name: b.name });
     });
-  }, [topLevel, children, getParent, filterFn]);
-
-  const hasActiveFilter = filterValues && (
-    filterValues.city ||
-    (filterValues.districts?.length ?? 0) > 0 ||
-    (filterValues.types?.length ?? 0) > 0 ||
-    (filterValues.bedrooms?.length ?? 0) > 0 ||
-    filterValues.priceMin != null ||
-    filterValues.priceMax != null ||
-    filterValues.pets === true ||
-    filterValues.longTerm === true ||
-    (filterValues.amenities?.length ?? 0) > 0
-  );
-
-  let listToShow = hasActiveFilter ? flatUnits() : flatUnits();
-  if (propertyIdsFilter && propertyIdsFilter.length > 0) {
-    const idSet = new Set(propertyIdsFilter);
-    listToShow = listToShow.filter((u) => idSet.has(u.id));
-  }
-  const allCities = [
-    ...topLevel.map(p => p.city),
-    ...children.map(p => (getParent(p.resort_id)?.city ?? p.city)),
-  ].filter(Boolean);
-  const uniqueCities = [...new Set(allCities)].sort();
-  const allDistricts = [
-    ...topLevel.map(p => p.district),
-    ...children.map(p => (getParent(p.resort_id)?.district ?? p.district)),
-  ].filter(Boolean);
-  const uniqueDistricts = [...new Set(allDistricts)].sort();
+    if (propertyIdsFilter && propertyIdsFilter.length > 0) {
+      const idSet = new Set(propertyIdsFilter);
+      list = list.filter((u) => idSet.has(u.id));
+    }
+    const allCities = [
+      ...topLevel.map(p => p.city),
+      ...children.map(p => (getParent(p.resort_id)?.city ?? p.city)),
+    ].filter(Boolean);
+    const allDistricts = [
+      ...topLevel.map(p => p.district),
+      ...children.map(p => (getParent(p.resort_id)?.district ?? p.district)),
+    ].filter(Boolean);
+    return {
+      listToShow: list,
+      uniqueCities: [...new Set(allCities)].sort(),
+      uniqueDistricts: [...new Set(allDistricts)].sort(),
+    };
+  }, [topLevel, children, getParent, filterFn, propertyIdsFilter]);
 
   const loadData = useCallback(async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
