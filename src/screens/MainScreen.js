@@ -8,7 +8,6 @@ import RealEstateScreen from './RealEstateScreen';
 import BookingCalendarScreen from './BookingCalendarScreen';
 import AgentCalendarScreen from './AgentCalendarScreen';
 
-// Мемоизируем тяжёлые экраны — перерисовываются только если изменились их пропсы
 const MemoRealEstate      = memo(RealEstateScreen);
 const MemoBookingCalendar = memo(BookingCalendarScreen);
 const MemoAgentCalendar   = memo(AgentCalendarScreen);
@@ -18,13 +17,28 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
   const [screenWithinAccount, setScreenWithinAccount] = useState('account');
   const [propertyToOpen, setPropertyToOpen] = useState(null);
 
-  // Отслеживаем какие вкладки уже посещались — монтируем только при первом визите
-  const visitedRef = useRef(new Set([3])); // Аккаунт открыт по умолчанию
+  const visitedRef = useRef(new Set([3]));
   const [visited, setVisited] = useState(new Set([3]));
+  const activeTabRef = useRef(3);
+
+  // Refs на нативные View — для мгновенного обновления opacity без React
+  const tab0Ref = useRef(null);
+  const tab1Ref = useRef(null);
+  const tab2Ref = useRef(null);
+  const tab3Ref = useRef(null);
 
   const handleOpenProperty = useCallback((property) => {
     if (property) {
       setPropertyToOpen(property);
+      // Мгновенно показываем вкладку База через нативный слой
+      const refs = [tab0Ref, tab1Ref, tab2Ref, tab3Ref];
+      refs.forEach((ref, i) => {
+        ref.current?.setNativeProps({
+          style: { opacity: i === 0 ? 1 : 0 },
+          pointerEvents: i === 0 ? 'auto' : 'none',
+        });
+      });
+      activeTabRef.current = 0;
       setActiveTab(0);
       if (!visitedRef.current.has(0)) {
         visitedRef.current = new Set([...visitedRef.current, 0]);
@@ -36,12 +50,25 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
   const handlePropertyOpened = useCallback(() => setPropertyToOpen(null), []);
 
   const handleTabSelect = useCallback((newIndex) => {
-    setActiveTab(prev => {
-      if (newIndex === prev) return prev;
-      if (prev === 3) setScreenWithinAccount('account');
-      return newIndex;
+    const prevTab = activeTabRef.current;
+    if (prevTab === newIndex) return;
+
+    // ─── Мгновенное визуальное обновление через нативный слой ──────────────
+    // Это идёт напрямую в UI без ожидания React — пользователь видит
+    // смену вкладки в следующем нативном кадре (~16ms), а не через ~1 сек
+    const refs = [tab0Ref, tab1Ref, tab2Ref, tab3Ref];
+    refs.forEach((ref, i) => {
+      ref.current?.setNativeProps({
+        style: { opacity: i === newIndex ? 1 : 0 },
+        pointerEvents: i === newIndex ? 'auto' : 'none',
+      });
     });
-    // Помечаем вкладку как посещённую — контент монтируется
+    activeTabRef.current = newIndex;
+
+    // ─── Асинхронное обновление React-состояния ─────────────────────────────
+    // Происходит в фоне — UI уже показал нужную вкладку
+    if (prevTab === 3) setScreenWithinAccount('account');
+    setActiveTab(newIndex);
     if (!visitedRef.current.has(newIndex)) {
       visitedRef.current = new Set([...visitedRef.current, newIndex]);
       setVisited(new Set(visitedRef.current));
@@ -50,7 +77,7 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.tabPanel, activeTab !== 0 && styles.tabPanelHidden]}>
+      <View ref={tab0Ref} style={[styles.tabPanel, styles.tabPanelHidden]}>
         {visited.has(0) && (
           <MemoRealEstate
             propertyToOpen={propertyToOpen}
@@ -59,17 +86,17 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
           />
         )}
       </View>
-      <View style={[styles.tabPanel, activeTab !== 1 && styles.tabPanelHidden]}>
+      <View ref={tab1Ref} style={[styles.tabPanel, styles.tabPanelHidden]}>
         {visited.has(1) && (
           <MemoBookingCalendar isVisible={activeTab === 1} />
         )}
       </View>
-      <View style={[styles.tabPanel, activeTab !== 2 && styles.tabPanelHidden]}>
+      <View ref={tab2Ref} style={[styles.tabPanel, styles.tabPanelHidden]}>
         {visited.has(2) && (
           <MemoAgentCalendar isVisible={activeTab === 2} onOpenProperty={handleOpenProperty} />
         )}
       </View>
-      <View style={[styles.tabPanel, activeTab !== 3 && styles.tabPanelHidden]}>
+      <View ref={tab3Ref} style={styles.tabPanel}>
         {screenWithinAccount === 'contacts' ? (
           <ContactsScreen onBack={() => setScreenWithinAccount('account')} />
         ) : screenWithinAccount === 'statistics' ? (

@@ -191,7 +191,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return true;
   }, [filterValues]);
 
-  const { listToShow, uniqueCities, uniqueDistricts } = React.useMemo(() => {
+  const { listToShow, uniqueCities, uniqueDistricts, hasActiveFilter } = React.useMemo(() => {
     const units = [];
     topLevel.filter(p => p.type === 'house').forEach(p => {
       if (filterFn(p, null)) {
@@ -225,12 +225,24 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       ...topLevel.map(p => p.district),
       ...children.map(p => (getParent(p.resort_id)?.district ?? p.district)),
     ].filter(Boolean);
+    const hasActive = Boolean(filterValues && (
+      filterValues.city ||
+      (filterValues.districts?.length ?? 0) > 0 ||
+      (filterValues.types?.length ?? 0) > 0 ||
+      (filterValues.bedrooms?.length ?? 0) > 0 ||
+      filterValues.priceMin != null ||
+      filterValues.priceMax != null ||
+      filterValues.pets === true ||
+      filterValues.longTerm === true ||
+      (filterValues.amenities?.length ?? 0) > 0
+    ));
     return {
       listToShow: list,
       uniqueCities: [...new Set(allCities)].sort(),
       uniqueDistricts: [...new Set(allDistricts)].sort(),
+      hasActiveFilter: hasActive,
     };
-  }, [topLevel, children, getParent, filterFn, propertyIdsFilter]);
+  }, [topLevel, children, getParent, filterFn, filterValues, propertyIdsFilter]);
 
   const loadData = useCallback(async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
