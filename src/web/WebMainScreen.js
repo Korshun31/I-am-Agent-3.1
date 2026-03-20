@@ -1,22 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import WebLayout from './components/WebLayout';
 import WebDashboardScreen from './screens/WebDashboardScreen';
 import WebPropertiesScreen from './screens/WebPropertiesScreen';
 import WebContactsScreen from './screens/WebContactsScreen';
 import WebBookingsScreen from './screens/WebBookingsScreen';
+import WebFlightTracker from './components/WebFlightTracker';
+
+const FULL_HEIGHT_TABS = new Set(['properties', 'contacts', 'bookings']);
 
 /**
  * Точка входа в веб-интерфейс.
  * Управляет переключением вкладок.
+ * Вкладки сохраняются в памяти после первого открытия (display:none вместо unmount)
+ * — переключение становится мгновенным со второго посещения.
  */
 export default function WebMainScreen({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [propertiesInitialId, setPropertiesInitialId] = useState(null);
+  // Набор вкладок, которые уже были открыты (смонтированы)
+  const [visited, setVisited] = useState(() => new Set(['dashboard']));
 
   const navigateToProperty = (propertyId) => {
     setPropertiesInitialId(propertyId);
+    setVisited(prev => new Set([...prev, 'properties']));
     setActiveTab('properties');
+  };
+
+  const handleTabChange = (tab) => {
+    setVisited(prev => new Set([...prev, tab]));
+    setActiveTab(tab);
+    if (tab !== 'properties') setPropertiesInitialId(null);
   };
 
   useEffect(() => {
@@ -59,53 +73,54 @@ export default function WebMainScreen({ user, onLogout }) {
     };
   }, []);
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <WebDashboardScreen user={user} />;
-      case 'properties':
-        return <WebPropertiesScreen initialPropertyId={propertiesInitialId} />;
-      case 'contacts':
-        return <WebContactsScreen onNavigateToProperty={navigateToProperty} />;
-      case 'bookings':
-        return <WebBookingsScreen />;
-      default:
-        return (
-          <View style={styles.card}>
-            <Text style={styles.title}>Раздел: {activeTab}</Text>
-            <Text style={styles.text}>Этот раздел находится в разработке.</Text>
-          </View>
-        );
-    }
-  };
+  const isActive = (tab) => tab === activeTab;
+  const tabStyle = (tab) => isActive(tab) ? styles.tabVisible : styles.tabHidden;
 
   return (
     <WebLayout
       activeTab={activeTab}
-      onTabChange={(tab) => { setActiveTab(tab); if (tab !== 'properties') setPropertiesInitialId(null); }}
-      fullHeight={activeTab === 'properties' || activeTab === 'contacts' || activeTab === 'bookings'}
+      onTabChange={handleTabChange}
+      fullHeight={FULL_HEIGHT_TABS.has(activeTab)}
     >
-      {renderContent()}
+      {/* Dashboard — монтируется сразу */}
+      <View style={[styles.tabWrap, tabStyle('dashboard')]}>
+        <WebDashboardScreen user={user} />
+      </View>
+
+      {/* Properties — монтируется при первом посещении */}
+      {visited.has('properties') && (
+        <View style={[styles.tabWrap, tabStyle('properties')]}>
+          <WebPropertiesScreen initialPropertyId={propertiesInitialId} />
+        </View>
+      )}
+
+      {/* Contacts — монтируется при первом посещении */}
+      {visited.has('contacts') && (
+        <View style={[styles.tabWrap, tabStyle('contacts')]}>
+          <WebContactsScreen onNavigateToProperty={navigateToProperty} />
+        </View>
+      )}
+
+      {/* Bookings — монтируется при первом посещении */}
+      {visited.has('bookings') && (
+        <View style={[styles.tabWrap, tabStyle('bookings')]}>
+          <WebBookingsScreen />
+        </View>
+      )}
+
     </WebLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#FFFFFF',
-    padding: 30,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#E9ECEF',
+  tabWrap: {
+    flex: 1,
+    minHeight: 0,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 15,
-    color: '#212529',
+  tabVisible: {
+    display: 'flex',
   },
-  text: {
-    fontSize: 16,
-    color: '#6C757D',
+  tabHidden: {
+    display: 'none',
   },
 });

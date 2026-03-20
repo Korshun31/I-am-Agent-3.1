@@ -523,14 +523,14 @@ export default function WebContactsScreen({ onNavigateToProperty }) {
       setAllContacts(all);
       setAllProperties(props);
 
-      // Count bookings per client
+      // Count bookings per client — один запрос вместо N
       const counts = {};
-      for (const c of clients) {
-        try {
-          const bk = await getBookings(null, c.id);
-          counts[c.id] = bk.length;
-        } catch {}
-      }
+      try {
+        const allBookings = await getBookings();
+        allBookings.forEach(bk => {
+          if (bk.contactId) counts[bk.contactId] = (counts[bk.contactId] || 0) + 1;
+        });
+      } catch {}
       setBookingCounts(counts);
     } finally {
       setLoading(false);

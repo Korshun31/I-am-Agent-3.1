@@ -19,6 +19,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
+import { useAppData } from '../context/AppDataContext';
 import { getProperties, updateProperty, createPropertyFull, updateResortChildrenDistrict } from '../services/propertiesService';
 import { deletePhotoFromStorage } from '../services/storageService';
 import { getContacts } from '../services/contactsService';
@@ -1040,6 +1041,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const [showOwner, setShowOwner] = useState(false);
   const [showOwner2, setShowOwner2] = useState(false);
   const [resort, setResort] = useState(null);
+  const { refreshBookings } = useAppData();
   const [refreshBookingsTrigger, setRefreshBookingsTrigger] = useState(0);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [selectedBookingTitle, setSelectedBookingTitle] = useState('');
@@ -1305,6 +1307,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             setEditBookingToEdit(null);
             if (updated) setSelectedBooking(updated);
             setRefreshBookingsTrigger((prev) => prev + 1);
+            refreshBookings();
           }}
         />
       </View>
@@ -1452,6 +1455,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           onSaved={() => {
             setAddBookingVisible(false);
             setRefreshBookingsTrigger(prev => prev + 1);
+            refreshBookings();
           }}
         />
       )}

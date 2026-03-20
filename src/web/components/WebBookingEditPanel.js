@@ -701,71 +701,76 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
               )}
             </SectionCard>
 
-            {/* Стоимость */}
-            <SectionCard title="Стоимость" icon="💰">
-              <View style={s.row2}>
-                <Field label="Аренда в месяц (฿)" half>
-                  <FInput value={form.priceMonthly} onChangeText={v => set('priceMonthly', v)} placeholder="30 000" numeric />
-                </Field>
-                <Field label="Итого (฿)" half>
-                  <FInput value={form.totalPrice} onChangeText={v => set('totalPrice', v)} placeholder="авто" numeric />
-                </Field>
-              </View>
-              <View style={s.row2}>
-                <Field label="Депозит брони (฿)" half>
-                  <FInput value={form.bookingDeposit} onChangeText={v => set('bookingDeposit', v)} placeholder="5 000" numeric />
-                </Field>
-                <Field label="Сохранный депозит (฿)" half>
-                  <FInput value={form.saveDeposit} onChangeText={v => set('saveDeposit', v)} placeholder="10 000" numeric />
-                </Field>
-              </View>
-              <Field label="Комиссия агента (฿)">
-                <FInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="15 000" numeric />
-              </Field>
-              <View style={s.row2}>
-                <Field label="Комиссия влад. разово (฿)" half>
-                  <FInput value={form.ownerCommissionOneTime} onChangeText={v => set('ownerCommissionOneTime', v)} placeholder="—" numeric />
-                </Field>
-                <Field label="Комиссия влад. в мес. (฿)" half>
-                  <FInput value={form.ownerCommissionMonthly} onChangeText={v => set('ownerCommissionMonthly', v)} placeholder="—" numeric />
-                </Field>
-              </View>
-            </SectionCard>
+            {/* Стоимость, Гости, Фото — только для обычного бронирования */}
+            {!form.notMyCustomer && (
+              <>
+                {/* Стоимость */}
+                <SectionCard title="Стоимость" icon="💰">
+                  <View style={s.row2}>
+                    <Field label="Аренда в месяц (฿)" half>
+                      <FInput value={form.priceMonthly} onChangeText={v => set('priceMonthly', v)} placeholder="30 000" numeric />
+                    </Field>
+                    <Field label="Итого (฿)" half>
+                      <FInput value={form.totalPrice} onChangeText={v => set('totalPrice', v)} placeholder="авто" numeric />
+                    </Field>
+                  </View>
+                  <View style={s.row2}>
+                    <Field label="Депозит брони (฿)" half>
+                      <FInput value={form.bookingDeposit} onChangeText={v => set('bookingDeposit', v)} placeholder="5 000" numeric />
+                    </Field>
+                    <Field label="Сохранный депозит (฿)" half>
+                      <FInput value={form.saveDeposit} onChangeText={v => set('saveDeposit', v)} placeholder="10 000" numeric />
+                    </Field>
+                  </View>
+                  <Field label="Комиссия агента (฿)">
+                    <FInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="15 000" numeric />
+                  </Field>
+                  <View style={s.row2}>
+                    <Field label="Комиссия влад. разово (฿)" half>
+                      <FInput value={form.ownerCommissionOneTime} onChangeText={v => set('ownerCommissionOneTime', v)} placeholder="—" numeric />
+                    </Field>
+                    <Field label="Комиссия влад. в мес. (฿)" half>
+                      <FInput value={form.ownerCommissionMonthly} onChangeText={v => set('ownerCommissionMonthly', v)} placeholder="—" numeric />
+                    </Field>
+                  </View>
+                </SectionCard>
 
-            {/* Гости */}
-            <SectionCard title="Гости" icon="👥">
-              <View style={s.row2}>
-                <Field label="Взрослых" half>
-                  <CounterInput value={form.adults} onChange={v => set('adults', v)} />
-                </Field>
-                <Field label="Детей" half>
-                  <CounterInput value={form.children} onChange={v => set('children', v)} />
-                </Field>
-              </View>
-              <View style={s.toggleRow}>
-                <View>
-                  <Text style={s.toggleLabel}>Животные</Text>
-                  <Text style={s.toggleSub}>Питомцы разрешены</Text>
-                </View>
-                <Switch
-                  value={form.pets}
-                  onValueChange={v => set('pets', v)}
-                  trackColor={{ false: C.border, true: ACCENT }}
-                  thumbColor="#FFF"
-                />
-              </View>
-            </SectionCard>
+                {/* Гости */}
+                <SectionCard title="Гости" icon="👥">
+                  <View style={s.row2}>
+                    <Field label="Взрослых" half>
+                      <CounterInput value={form.adults} onChange={v => set('adults', v)} />
+                    </Field>
+                    <Field label="Детей" half>
+                      <CounterInput value={form.children} onChange={v => set('children', v)} />
+                    </Field>
+                  </View>
+                  <View style={s.toggleRow}>
+                    <View>
+                      <Text style={s.toggleLabel}>Животные</Text>
+                      <Text style={s.toggleSub}>Питомцы разрешены</Text>
+                    </View>
+                    <Switch
+                      value={form.pets}
+                      onValueChange={v => set('pets', v)}
+                      trackColor={{ false: C.border, true: ACCENT }}
+                      thumbColor="#FFF"
+                    />
+                  </View>
+                </SectionCard>
 
-            {/* Фотографии */}
-            <SectionCard title="Фотографии" icon="📷">
-              <Text style={s.photoHint}>Прикрепите фото договора, паспорта или объекта</Text>
-              <PhotoGrid
-                photos={form.photos || []}
-                onAdd={handlePhotoAdd}
-                onRemove={handlePhotoRemove}
-                uploading={uploadingPhoto}
-              />
-            </SectionCard>
+                {/* Фотографии */}
+                <SectionCard title="Фотографии" icon="📷">
+                  <Text style={s.photoHint}>Прикрепите фото договора, паспорта или объекта</Text>
+                  <PhotoGrid
+                    photos={form.photos || []}
+                    onAdd={handlePhotoAdd}
+                    onRemove={handlePhotoRemove}
+                    uploading={uploadingPhoto}
+                  />
+                </SectionCard>
+              </>
+            )}
 
             {/* Примечания */}
             <SectionCard title="Примечания" icon="📝">

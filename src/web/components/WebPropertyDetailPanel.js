@@ -1,9 +1,16 @@
 import React, { useRef, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, Image, Platform,
+  Animated, Image, Platform, Linking,
 } from 'react-native';
 import dayjs from 'dayjs';
+import { getContactById } from '../../services/contactsService';
+
+const ICON_PHONE    = require('../../../assets/icon-contact-phone.png');
+const ICON_WHATSAPP = require('../../../assets/icon-contact-whatsapp.png');
+const ICON_TELEGRAM = require('../../../assets/icon-contact-telegram.png');
+const ICON_EMAIL    = require('../../../assets/icon-contact-email.png');
+const ICON_LOCATION = require('../../../assets/icon-property-location.png');
 
 const ACCENT = '#D81B60';
 const C = {
@@ -39,9 +46,16 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const mountedRef   = useRef(false);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [owner, setOwner] = useState(null);
 
-  // Reset photo index when property changes
-  useEffect(() => { setPhotoIndex(0); }, [property?.id]);
+  // Reset photo index and load owner when property changes
+  useEffect(() => {
+    setPhotoIndex(0);
+    setOwner(null);
+    if (property?.owner_id) {
+      getContactById(property.owner_id).then(c => setOwner(c)).catch(() => {});
+    }
+  }, [property?.id]);
 
   useEffect(() => {
     if (visible) {
@@ -184,6 +198,66 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
               )}
             </View>
           )}
+
+          {/* Owner */}
+          {owner && (
+            <View style={st.card}>
+              <Text style={st.cardTitle}>СОБСТВЕННИК</Text>
+              <View style={st.cardBody}>
+                <View style={st.ownerRow}>
+                  <View style={st.ownerAvatar}>
+                    <Text style={st.ownerAvatarText}>
+                      {(owner.name || owner.lastName || '?')[0].toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={st.ownerName}>
+                      {[owner.name, owner.lastName].filter(Boolean).join(' ') || '—'}
+                    </Text>
+                    {owner.phone ? (
+                      <Text style={st.ownerContact}>{owner.phone}</Text>
+                    ) : null}
+                  </View>
+                  {/* Contact icons on the right */}
+                  <View style={st.ownerIcons}>
+                    {owner.phone ? (
+                      <TouchableOpacity onPress={() => Linking.openURL(`https://wa.me/${owner.phone.replace(/\D/g, '')}`)} activeOpacity={0.7}>
+                        <Image source={ICON_WHATSAPP} style={st.ownerIcon} resizeMode="contain" />
+                      </TouchableOpacity>
+                    ) : null}
+                    {owner.telegram ? (
+                      <TouchableOpacity onPress={() => Linking.openURL(`https://t.me/${owner.telegram.replace('@', '')}`)} activeOpacity={0.7}>
+                        <Image source={ICON_TELEGRAM} style={st.ownerIcon} resizeMode="contain" />
+                      </TouchableOpacity>
+                    ) : null}
+                    {owner.phone ? (
+                      <TouchableOpacity onPress={() => Linking.openURL(`tel:${owner.phone}`)} activeOpacity={0.7}>
+                        <Image source={ICON_PHONE} style={st.ownerIcon} resizeMode="contain" />
+                      </TouchableOpacity>
+                    ) : null}
+                    {owner.email ? (
+                      <TouchableOpacity onPress={() => Linking.openURL(`mailto:${owner.email}`)} activeOpacity={0.7}>
+                        <Image source={ICON_EMAIL} style={st.ownerIcon} resizeMode="contain" />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Location link */}
+          {property?.google_maps_link ? (
+            <TouchableOpacity
+              style={st.locationBtn}
+              onPress={() => Linking.openURL(property.google_maps_link)}
+              activeOpacity={0.8}
+            >
+              <Image source={ICON_LOCATION} style={st.locationIcon} resizeMode="contain" />
+              <Text style={st.locationBtnText}>Открыть на карте</Text>
+              <Text style={st.locationBtnArrow}>→</Text>
+            </TouchableOpacity>
+          ) : null}
 
           {/* Deposits & commission */}
           {(property?.booking_deposit != null || property?.save_deposit != null || property?.commission != null) && (
@@ -357,4 +431,24 @@ const st = StyleSheet.create({
 
   // Description
   descText: { fontSize: 13, color: C.text, lineHeight: 20 },
+
+  // Owner
+  ownerRow:        { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  ownerAvatar:     { width: 42, height: 42, borderRadius: 21, backgroundColor: '#FCE4EC', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  ownerAvatarText: { fontSize: 18, fontWeight: '700', color: ACCENT },
+  ownerName:       { fontSize: 14, fontWeight: '700', color: C.text },
+  ownerContact:    { fontSize: 12, color: C.muted, marginTop: 2 },
+  ownerIcons:      { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  ownerIcon:       { width: 21, height: 21 },
+
+  // Location
+  locationBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: C.surface, borderRadius: 12,
+    borderWidth: 1, borderColor: C.border,
+    paddingHorizontal: 14, paddingVertical: 12,
+  },
+  locationIcon:     { width: 18, height: 18, opacity: 0.7 },
+  locationBtnText:  { flex: 1, fontSize: 13, fontWeight: '600', color: '#1D4ED8' },
+  locationBtnArrow: { fontSize: 14, color: C.muted },
 });

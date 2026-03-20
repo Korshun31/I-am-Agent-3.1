@@ -209,16 +209,14 @@ export default function WebDashboardScreen({ user }) {
   };
 
   const handleEventSaved = async () => {
-    // setEventModalVisible(false); // Убираем закрытие окна
     await loadDashboardData();
-    
-    // Если у нас открыто модальное окно редактирования, обновляем объект в нем
+    // loadDashboardData уже обновляет allCalendarEvents — берём обновлённое событие из стейта
     if (editingEvent) {
-      const calendarEvents = await getCalendarEvents();
-      const updated = calendarEvents.find(e => e.id === editingEvent.id);
-      if (updated) {
-        setEditingEvent(updated);
-      }
+      setAllCalendarEvents(prev => {
+        const updated = prev.find(e => e.id === editingEvent.id);
+        if (updated) setEditingEvent(updated);
+        return prev;
+      });
     }
   };
 
@@ -337,7 +335,6 @@ export default function WebDashboardScreen({ user }) {
       </View>
 
       <WebCalendarStrip 
-        key={`calendar-${allCalendarEvents.length}-${allBookings.length}`}
         selectedDate={selectedDate} 
         onDateSelect={handleDateSelect} 
       />
@@ -391,11 +388,58 @@ export default function WebDashboardScreen({ user }) {
               </View>
             </View>
           </View>
+
+          {/* Следующие заселения — под первой колонкой */}
+          {(() => {
+            const today = dayjs().format('YYYY-MM-DD');
+            const next5 = allBookings
+              .filter(b => b.checkIn > today && !b.notMyCustomer)
+              .sort((a, b) => a.checkIn.localeCompare(b.checkIn))
+              .slice(0, 5);
+            return (
+              <View style={styles.upcomingRow}>
+                <View style={styles.agendaColumn}>
+                  <View style={styles.sectionCard}>
+                    <View style={styles.sectionHeader}>
+                      <Text style={styles.sectionTitle}>Следующие заселения</Text>
+                    </View>
+                    {next5.length === 0 ? (
+                      <Text style={[styles.emptyText, { marginVertical: 16 }]}>Нет предстоящих</Text>
+                    ) : next5.map((b, i) => {
+                      const prop = allProperties.find(p => p.id === b.propertyId);
+                      const contact = allContacts.find(c => c.id === b.contactId);
+                      const propColor = prop?.resort_id ? '#2563EB' : '#C2920E';
+                      const code = prop ? (prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '')) : '—';
+                      const daysUntil = dayjs(b.checkIn).diff(dayjs(), 'day');
+                      return (
+                        <View key={b.id} style={[styles.agendaItem, i < next5.length - 1 && { borderBottomWidth: 1, borderBottomColor: '#F8F9FA' }]}>
+                          <View style={styles.upcomingDateBadge}>
+                            <Text style={styles.upcomingDateDay}>{dayjs(b.checkIn).format('DD')}</Text>
+                            <Text style={styles.upcomingDateMon}>{dayjs(b.checkIn).format('MMM')}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <View style={[styles.upcomingCodePill, { backgroundColor: propColor + '22', borderColor: propColor + '66', alignSelf: 'flex-start', marginBottom: 2 }]}>
+                              <Text style={[styles.upcomingCodeText, { color: propColor }]}>{code}</Text>
+                            </View>
+                            <Text style={styles.upcomingGuest} numberOfLines={1}>
+                              {contact ? [contact.name, contact.lastName].filter(Boolean).join(' ') : '—'}
+                            </Text>
+                          </View>
+                          <Text style={[styles.upcomingDays, daysUntil <= 3 && { color: '#D81B60' }]}>
+                            {daysUntil === 1 ? 'завтра' : `через ${daysUntil} д.`}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+                {/* Пустое место справа (FlightTracker теперь плавающий) */}
+                <View style={{ flex: 2 }} />
+              </View>
+            );
+          })()}
         </View>
 
-        <View style={styles.sidebarContainer}>
-          <WebFlightTracker />
-        </View>
       </View>
 
       <WebAddCalendarEventModal
@@ -405,6 +449,9 @@ export default function WebDashboardScreen({ user }) {
         editEvent={editingEvent}
         initialDate={selectedDate.toDate()}
       />
+
+      {/* Плавающий Flight Tracker — только на Рабочей панели */}
+      <WebFlightTracker />
     </ScrollView>
   );
 }
@@ -432,9 +479,9 @@ const styles = StyleSheet.create({
   
   mainContentRow: { flexDirection: 'column', gap: 20 },
   agendaContainer: { width: '100%' },
-  sidebarContainer: { alignSelf: 'flex-end', width: '32.2%', minWidth: 320, marginTop: 0 },
 
   agendaRow: { flexDirection: 'row', gap: 20, alignItems: 'stretch' },
+  upcomingRow: { flexDirection: 'row', gap: 20, marginTop: 16 },
   agendaColumn: { flex: 1 },
   sectionCard: {
     flex: 1,
@@ -443,7 +490,7 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 24,
     paddingLeft: 24,
-    paddingRight: 4,
+    paddingRight: 24,
     maxHeight: 320,
     minHeight: 120,
     ...Platform.select({ web: { boxShadow: '0 4px 12px rgba(0,0,0,0.05)' } }),
@@ -523,4 +570,12 @@ const styles = StyleSheet.create({
   tgBtn: { backgroundColor: '#E3F2FD' },
   btnIcon: { width: 22, height: 22 },
   emptyText: { color: '#ADB5BD', fontSize: 14, fontStyle: 'italic', textAlign: 'center', marginTop: 40 },
+
+  upcomingDateBadge: { width: 40, alignItems: 'center', marginRight: 12, flexShrink: 0 },
+  upcomingDateDay:   { fontSize: 18, fontWeight: '800', color: '#212529', lineHeight: 20 },
+  upcomingDateMon:   { fontSize: 11, fontWeight: '600', color: '#6C757D', textTransform: 'uppercase' },
+  upcomingCodePill:  { borderRadius: 6, borderWidth: 1, paddingHorizontal: 6, paddingVertical: 2 },
+  upcomingCodeText:  { fontSize: 11, fontWeight: '700' },
+  upcomingGuest:     { fontSize: 13, color: '#212529', fontWeight: '500' },
+  upcomingDays:      { fontSize: 12, fontWeight: '600', color: '#6C757D', flexShrink: 0 },
 });

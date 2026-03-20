@@ -845,7 +845,7 @@ export default function WebPropertiesScreen({ initialPropertyId }) {
             placeholderTextColor={C.light}
           />
           {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')} style={s.searchClear}>
+            <TouchableOpacity onPress={() => setSearch('')} style={s.searchClear} activeOpacity={0.7}>
               <Text style={s.searchClearText}>✕</Text>
             </TouchableOpacity>
           )}
@@ -1004,17 +1004,36 @@ const s = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: 16,
     marginVertical: 12,
-    backgroundColor: C.bg,
-    borderRadius: 10,
-    borderWidth: 1,
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    borderWidth: 1.5,
     borderColor: C.border,
-    paddingHorizontal: 12,
-    height: 40,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  searchIcon: { fontSize: 14, marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 14, color: C.text, outlineWidth: 0 },
-  searchClear: { padding: 4 },
-  searchClearText: { color: C.light, fontSize: 14 },
+  searchIcon: { fontSize: 15, opacity: 0.5 },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: C.text,
+    outlineStyle: 'none',
+    padding: 0,
+  },
+  searchClear: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: C.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchClearText: { color: '#FFF', fontSize: 11, fontWeight: '700', lineHeight: 13 },
 
   filterTabs: {
     flexDirection: 'row',

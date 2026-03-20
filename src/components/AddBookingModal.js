@@ -398,6 +398,11 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
       Alert.alert(t('error'), t('bookingDatesOccupied'));
       return;
     }
+    // Бронь владельца — пропускаем шаги 3 и 4, сразу сохраняем
+    if (notMyCustomer) {
+      handleSave();
+      return;
+    }
     setStep(3);
   };
 
@@ -562,7 +567,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
                 </TouchableOpacity>
               </View>
               <View style={s.dotsRow}>
-                {[1, 2, 3, 4].map((i) => (
+                {(notMyCustomer ? [1, 2] : [1, 2, 3, 4]).map((i) => (
                   <View key={i} style={[s.dot, i <= step && s.dotActive]} />
                 ))}
               </View>
@@ -921,8 +926,8 @@ isMonthFirst
                       <Text style={s.backBtnText}>{t('wizBack')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={s.nextBtn} onPress={handleNextFromDates} activeOpacity={0.7}>
-                      <Text style={s.nextBtnText}>{t('next')}</Text>
-                      <Text style={s.nextBtnArrow}>→</Text>
+                      <Text style={s.nextBtnText}>{notMyCustomer ? t('save') : t('next')}</Text>
+                      {!notMyCustomer && <Text style={s.nextBtnArrow}>→</Text>}
                     </TouchableOpacity>
                   </View>
                 ) : step === 4 ? (

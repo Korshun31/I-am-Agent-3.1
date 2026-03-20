@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Image, TextInput,
@@ -119,19 +119,14 @@ function assignColors(bookings) {
 
 // Filter properties based on selected filter
 function filterProperties(properties, bookings, filter) {
-  const today = dayjs().format('YYYY-MM-DD');
   if (filter === 'all') return properties;
-  const withFuture = new Set();
-  const withoutFuture = new Set();
-  properties.forEach(p => {
-    const hasActive = bookings.some(b =>
-      b.propertyId === p.id && b.checkOut >= today
+  // 'mine' — объекты у которых есть хоть одно "моё" бронирование
+  if (filter === 'mine') {
+    const myProps = new Set(
+      bookings.filter(b => !b.notMyCustomer).map(b => b.propertyId)
     );
-    if (hasActive) withFuture.add(p.id);
-    else withoutFuture.add(p.id);
-  });
-  if (filter === 'booked')    return properties.filter(p => withFuture.has(p.id));
-  if (filter === 'free')      return properties.filter(p => withoutFuture.has(p.id));
+    return properties.filter(p => myProps.has(p.id));
+  }
   return properties;
 }
 
@@ -620,35 +615,46 @@ export default function WebBookingsScreen() {
   const [bookings, setBookings]     = useState([]);
   const [properties, setProperties] = useState([]);
   const [contacts, setContacts]     = useState([]);
+  const [owners, setOwners]         = useState([]);
   const [loading, setLoading]       = useState(true);
   const [viewMode, setViewMode]     = useState('gantt'); // 'gantt' | 'list'
-  const [propFilter, setPropFilter] = useState('all');   // 'all' | 'booked' | 'free'
+  const [propFilter, setPropFilter] = useState('all');   // 'all' | 'mine'
+  const [districtFilters, setDistrictFilters] = useState([]); // multi-select
+  const [bedroomsFilters, setBedroomsFilters] = useState([]); // multi-select
+  const [petsFilter, setPetsFilter]           = useState(false);
+  const [longTermFilter, setLongTermFilter]   = useState(false);
+  const [districtOpen, setDistrictOpen] = useState(false);
+  const [bedroomsOpen, setBedroomsOpen] = useState(false);
+  const districtLeaveTimer = useRef(null);
+  const bedroomsLeaveTimer = useRef(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [editPanelMode, setEditPanelMode]     = useState(null); // null | 'create' | 'edit'
   const [propDetailProperty, setPropDetailProperty] = useState(null);
   const [search, setSearch]         = useState('');
 
-  const months  = buildMonths();
-  const totalW  = timelineWidth(months);
-  const colorMap = assignColors(bookings);
+  const months   = useMemo(() => buildMonths(), []);
+  const totalW   = useMemo(() => timelineWidth(months), [months]);
+  const colorMap = useMemo(() => assignColors(bookings), [bookings]);
 
   const ganttScrollRef = useRef(null); // single scroll container for gantt
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [bk, pr, co] = await Promise.all([
+      const [bk, pr, co, ow] = await Promise.all([
         getBookings(),
         getProperties(),
         getContacts('clients'),
+        getContacts('owners'),
       ]);
       setBookings(bk);
       // Build parent map for effective type resolution
       const parentMap = {};
       pr.forEach(p => { parentMap[p.id] = p; });
-      // Only bookable units: all houses (standalone, in resort, in condo)
+      // Only bookable units: standalone houses + all child units (houses in resorts, apartments in condos)
+      // Child units can have type 'house', 'resort', or 'condo' in DB depending on parent type
       const bookable = pr
-        .filter(p => p.type === 'house')
+        .filter(p => p.resort_id || p.type === 'house')
         .map(p => {
           if (p.resort_id) {
             const parent = parentMap[p.resort_id];
@@ -658,6 +664,7 @@ export default function WebBookingsScreen() {
         });
       setProperties(bookable);
       setContacts(co);
+      setOwners(ow);
     } catch (e) {
       console.error(e);
     } finally {
@@ -686,35 +693,46 @@ export default function WebBookingsScreen() {
     ? contacts.find(c => c.id === selectedBooking.contactId)
     : null;
 
-  // Filter + search properties
-  let visibleProps = filterProperties(properties, bookings, propFilter);
-  if (search.trim()) {
-    const q = search.trim().toLowerCase();
-    visibleProps = visibleProps.filter(p =>
-      (p.name || '').toLowerCase().includes(q) ||
-      (p.code || '').toLowerCase().includes(q)
-    );
-  }
+  // Уникальные районы из загруженных объектов
+  const uniqueDistricts = useMemo(() =>
+    [...new Set(properties.map(p => p.district).filter(Boolean))].sort(),
+  [properties]);
 
-  const visibleBookings = viewMode === 'list'
-    ? (search.trim()
-        ? bookings.filter(b => {
-            const prop = properties.find(p => p.id === b.propertyId);
-            const contact = contacts.find(c => c.id === b.contactId);
-            const q = search.trim().toLowerCase();
-            return (prop?.name || '').toLowerCase().includes(q) ||
-              (prop?.code || '').toLowerCase().includes(q) ||
-              (contact?.name || '').toLowerCase().includes(q) ||
-              (contact?.lastName || '').toLowerCase().includes(q);
-          })
-        : bookings.filter(b => {
-            if (propFilter === 'all') return true;
-            const today = dayjs().format('YYYY-MM-DD');
-            const hasActive = b.checkOut >= today;
-            return propFilter === 'booked' ? hasActive : !hasActive;
-          })
-      )
-    : bookings;
+  // Filter + search properties
+  const visibleProps = useMemo(() => {
+    let result = filterProperties(properties, bookings, propFilter);
+    if (districtFilters.length > 0) result = result.filter(p => districtFilters.includes(p.district));
+    if (bedroomsFilters.length > 0) result = result.filter(p => bedroomsFilters.includes(p.bedrooms));
+    if (petsFilter)     result = result.filter(p => p.pets_allowed);
+    if (longTermFilter) result = result.filter(p => p.long_term_booking);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.filter(p =>
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.code || '').toLowerCase().includes(q) ||
+        (p.district || '').toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [properties, bookings, propFilter, districtFilters, bedroomsFilters, petsFilter, longTermFilter, search]);
+
+  const visibleBookings = useMemo(() => {
+    if (viewMode !== 'list') return bookings;
+    let result = bookings;
+    if (propFilter === 'mine') result = result.filter(b => !b.notMyCustomer);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.filter(b => {
+        const prop = properties.find(p => p.id === b.propertyId);
+        const contact = contacts.find(c => c.id === b.contactId);
+        return (prop?.name || '').toLowerCase().includes(q) ||
+          (prop?.code || '').toLowerCase().includes(q) ||
+          (contact?.name || '').toLowerCase().includes(q) ||
+          (contact?.lastName || '').toLowerCase().includes(q);
+      });
+    }
+    return result;
+  }, [bookings, properties, contacts, viewMode, search, propFilter]);
 
   const showDetail = !!selectedBooking;
 
@@ -731,63 +749,169 @@ export default function WebBookingsScreen() {
     <View style={s.root}>
       {/* ── Toolbar ── */}
       <View style={s.toolbar}>
-        <Text style={s.toolbarTitle}>Бронирования</Text>
-
-        {/* Search */}
-        <View style={s.searchWrap}>
-          <Text style={s.searchIcon}>🔍</Text>
-          <TextInput
-            style={s.searchInput}
-            placeholder="Поиск объекта или клиента…"
-            placeholderTextColor={C.light}
-            value={search}
-            onChangeText={setSearch}
-          />
+        {/* Row 1: Title + Search + Add */}
+        <View style={s.toolbarRow1}>
+          <Text style={s.toolbarTitle}>Бронирования</Text>
+          <View style={s.searchWrap}>
+            <Text style={s.searchIcon}>🔍</Text>
+            <TextInput
+              style={s.searchInput}
+              placeholder="Поиск объекта или клиента…"
+              placeholderTextColor={C.light}
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')} style={s.searchClear} activeOpacity={0.7}>
+                <Text style={s.searchClearText}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <TouchableOpacity style={s.addBtn} onPress={() => { setSelectedBooking(null); setEditPanelMode('create'); }}>
+            <Text style={s.addBtnText}>+ Добавить</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Property filter */}
-        <View style={s.filterGroup}>
-          {[
-            { key: 'all',    label: 'Все' },
-            { key: 'booked', label: 'С бронированием' },
-            { key: 'free',   label: 'Свободные' },
-          ].map(f => (
-            <TouchableOpacity
-              key={f.key}
-              style={[s.filterBtn, propFilter === f.key && s.filterBtnActive]}
-              onPress={() => setPropFilter(f.key)}
+        {/* Row 2: Filters + View toggle */}
+        <View style={s.toolbarRow2}>
+          {/* Left: content filters */}
+          <View style={s.filterGroup}>
+            {/* Segment: Все / Только мои */}
+            <View style={s.segmentWrap}>
+              {[
+                { key: 'all',  label: 'Все' },
+                { key: 'mine', label: 'Только мои' },
+              ].map(f => (
+                <TouchableOpacity
+                  key={f.key}
+                  style={[s.segmentBtn, propFilter === f.key && s.segmentBtnActive]}
+                  onPress={() => setPropFilter(f.key)}
+                >
+                  <Text style={[s.segmentBtnText, propFilter === f.key && s.segmentBtnTextActive]}>
+                    {f.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Dropdown: Район (мультивыбор) */}
+            <View
+              style={s.dropdownWrap}
+              onMouseEnter={() => { if (districtLeaveTimer.current) clearTimeout(districtLeaveTimer.current); }}
+              onMouseLeave={() => { districtLeaveTimer.current = setTimeout(() => setDistrictOpen(false), 300); }}
             >
-              <Text style={[s.filterBtnText, propFilter === f.key && s.filterBtnTextActive]}>
-                {f.label}
-              </Text>
+              <TouchableOpacity
+                style={[s.dropdownBtn, districtFilters.length > 0 && s.dropdownBtnActive]}
+                onPress={() => { setDistrictOpen(o => !o); setBedroomsOpen(false); }}
+              >
+                <Text style={[s.dropdownBtnText, districtFilters.length > 0 && s.dropdownBtnTextActive]}>
+                  {districtFilters.length > 0 ? `Район (${districtFilters.length})` : 'Район'} ▾
+                </Text>
+              </TouchableOpacity>
+              {districtOpen && (
+                <View style={s.dropdownList}>
+                  {uniqueDistricts.map(d => {
+                    const selected = districtFilters.includes(d);
+                    return (
+                      <TouchableOpacity
+                        key={d} style={s.dropdownItem}
+                        onPress={() => setDistrictFilters(prev =>
+                          selected ? prev.filter(x => x !== d) : [...prev, d]
+                        )}
+                      >
+                        <View style={s.dropdownItemRow}>
+                          <View style={[s.dropdownCheckbox, selected && s.dropdownCheckboxChecked]}>
+                            {selected && <Text style={s.dropdownCheckmark}>✓</Text>}
+                          </View>
+                          <Text style={[s.dropdownItemText, selected && s.dropdownItemTextActive]}>{d}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {uniqueDistricts.length === 0 && (
+                    <Text style={s.dropdownEmpty}>Нет районов</Text>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* Dropdown: Спальни (мультивыбор) */}
+            <View
+              style={s.dropdownWrap}
+              onMouseEnter={() => { if (bedroomsLeaveTimer.current) clearTimeout(bedroomsLeaveTimer.current); }}
+              onMouseLeave={() => { bedroomsLeaveTimer.current = setTimeout(() => setBedroomsOpen(false), 300); }}
+            >
+              <TouchableOpacity
+                style={[s.dropdownBtn, bedroomsFilters.length > 0 && s.dropdownBtnActive]}
+                onPress={() => { setBedroomsOpen(o => !o); setDistrictOpen(false); }}
+              >
+                <Text style={[s.dropdownBtnText, bedroomsFilters.length > 0 && s.dropdownBtnTextActive]}>
+                  {bedroomsFilters.length > 0 ? `Спальни (${bedroomsFilters.length})` : 'Спальни'} ▾
+                </Text>
+              </TouchableOpacity>
+              {bedroomsOpen && (
+                <View style={s.dropdownList}>
+                  {[1,2,3,4,5,6].map(n => {
+                    const selected = bedroomsFilters.includes(n);
+                    const label = n === 1 ? '1 спальня' : n < 5 ? `${n} спальни` : `${n} спален`;
+                    return (
+                      <TouchableOpacity
+                        key={n} style={s.dropdownItem}
+                        onPress={() => setBedroomsFilters(prev =>
+                          selected ? prev.filter(x => x !== n) : [...prev, n]
+                        )}
+                      >
+                        <View style={s.dropdownItemRow}>
+                          <View style={[s.dropdownCheckbox, selected && s.dropdownCheckboxChecked]}>
+                            {selected && <Text style={s.dropdownCheckmark}>✓</Text>}
+                          </View>
+                          <Text style={[s.dropdownItemText, selected && s.dropdownItemTextActive]}>{label}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+
+            {/* Разделитель */}
+            <View style={s.filterDivider} />
+
+            {/* Чекбокс: С питомцами */}
+            <TouchableOpacity style={s.checkRow} onPress={() => setPetsFilter(v => !v)} activeOpacity={0.7}>
+              <View style={[s.checkbox, petsFilter && s.checkboxChecked]}>
+                {petsFilter && <Text style={s.checkmark}>✓</Text>}
+              </View>
+              <Text style={[s.checkLabel, petsFilter && s.checkLabelActive]}>🐾 Питомцы</Text>
             </TouchableOpacity>
-          ))}
-        </View>
 
-        {/* View toggle */}
-        <View style={s.viewToggle}>
-          <TouchableOpacity
-            style={[s.viewBtn, viewMode === 'gantt' && s.viewBtnActive]}
-            onPress={() => setViewMode('gantt')}
-          >
-            <Text style={[s.viewBtnText, viewMode === 'gantt' && s.viewBtnTextActive]}>
-              Календарь
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.viewBtn, viewMode === 'list' && s.viewBtnActive]}
-            onPress={() => setViewMode('list')}
-          >
-            <Text style={[s.viewBtnText, viewMode === 'list' && s.viewBtnTextActive]}>
-              Список
-            </Text>
-          </TouchableOpacity>
-        </View>
+            {/* Чекбокс: Дальние даты */}
+            <TouchableOpacity style={s.checkRow} onPress={() => setLongTermFilter(v => !v)} activeOpacity={0.7}>
+              <View style={[s.checkbox, longTermFilter && s.checkboxChecked]}>
+                {longTermFilter && <Text style={s.checkmark}>✓</Text>}
+              </View>
+              <Text style={[s.checkLabel, longTermFilter && s.checkLabelActive]}>📅 Дальние даты</Text>
+            </TouchableOpacity>
 
-        {/* Add booking */}
-        <TouchableOpacity style={s.addBtn} onPress={() => { setSelectedBooking(null); setEditPanelMode('create'); }}>
-          <Text style={s.addBtnText}>+ Добавить</Text>
-        </TouchableOpacity>
+            {/* Кнопка сброса всех фильтров */}
+            {(districtFilters.length > 0 || bedroomsFilters.length > 0 || petsFilter || longTermFilter || propFilter !== 'all') && (
+              <TouchableOpacity
+                style={s.resetBtn}
+                onPress={() => {
+                  setDistrictFilters([]);
+                  setBedroomsFilters([]);
+                  setPetsFilter(false);
+                  setLongTermFilter(false);
+                  setPropFilter('all');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={s.resetBtnText}>✕ Сбросить</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+        </View>
       </View>
 
       {/* ── Body ── */}
@@ -852,7 +976,11 @@ export default function WebBookingsScreen() {
                                     isMPast && s.monthBandPast,
                                     isMCurrent && s.monthBandCurrent,
                                   ]}
-                                />
+                                >
+                                  {[0.25, 0.5, 0.75].map(frac => (
+                                    <View key={frac} style={[s.weekDivider, { left: MONTH_W * frac }]} />
+                                  ))}
+                                </View>
                               );
                             })}
                             <View style={[s.todayLine, { left: todayX }]} />
@@ -919,6 +1047,7 @@ export default function WebBookingsScreen() {
         visible={propDetailProperty !== null}
         property={propDetailProperty}
         bookings={bookings}
+        owners={owners}
         onClose={() => setPropDetailProperty(null)}
       />
 
@@ -949,27 +1078,118 @@ const s = StyleSheet.create({
 
   // Toolbar
   toolbar: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 20, paddingVertical: 12,
+    flexDirection: 'column',
+    paddingHorizontal: 20, paddingTop: 14, paddingBottom: 10,
     backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border,
-    flexWrap: 'wrap',
+    gap: 10, zIndex: 100,
   },
-  toolbarTitle: { fontSize: 18, fontWeight: '800', color: C.text },
-  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, minWidth: 220, borderWidth: 1, borderColor: C.border },
-  searchIcon: { fontSize: 13, marginRight: 6 },
-  searchInput: { flex: 1, fontSize: 13, color: C.text, outlineStyle: 'none' },
-  filterGroup: { flexDirection: 'row', gap: 4 },
-  filterBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
-  filterBtnActive: { backgroundColor: C.accentBg, borderColor: ACCENT },
-  filterBtnText: { fontSize: 12, color: C.muted, fontWeight: '500' },
-  filterBtnTextActive: { color: ACCENT, fontWeight: '700' },
-  viewToggle: { flexDirection: 'row', backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
-  viewBtn: { paddingHorizontal: 14, paddingVertical: 7 },
+  toolbarRow1: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+  },
+  toolbarRow2: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  toolbarTitle: { fontSize: 20, fontWeight: '800', color: C.text, marginRight: 4 },
+
+  // Search
+  searchWrap: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: C.bg, borderRadius: 10, borderWidth: 1.5, borderColor: C.border,
+    paddingHorizontal: 12, paddingVertical: 8,
+  },
+  searchIcon: { fontSize: 14, opacity: 0.5 },
+  searchInput: { flex: 1, fontSize: 14, color: C.text, outlineStyle: 'none', padding: 0 },
+  searchClear: {
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: C.light, alignItems: 'center', justifyContent: 'center',
+  },
+  searchClearText: { color: '#FFF', fontSize: 10, fontWeight: '700', lineHeight: 12 },
+
+  // Add button
+  addBtn: { backgroundColor: ACCENT, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9, flexShrink: 0 },
+  addBtnText: { fontSize: 13, color: '#FFF', fontWeight: '700' },
+
+  // Filter group (row 2 left)
+  filterGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+
+  // Segment control (Все / Только мои)
+  segmentWrap: {
+    flexDirection: 'row',
+    backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.border,
+    overflow: 'hidden',
+  },
+  segmentBtn: { paddingHorizontal: 14, paddingVertical: 6 },
+  segmentBtnActive: { backgroundColor: ACCENT },
+  segmentBtnText: { fontSize: 12, color: C.muted, fontWeight: '600' },
+  segmentBtnTextActive: { color: '#FFF', fontWeight: '700' },
+
+  // Dropdown filters
+  dropdownWrap: { position: 'relative', zIndex: 50 },
+  dropdownBtn: {
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 8, borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.bg,
+  },
+  dropdownBtnActive: { borderColor: ACCENT, backgroundColor: C.accentBg },
+  dropdownBtnText: { fontSize: 12, color: C.muted, fontWeight: '600' },
+  dropdownBtnTextActive: { color: ACCENT, fontWeight: '700' },
+  dropdownList: {
+    position: 'absolute', top: 36, left: 0, zIndex: 999,
+    backgroundColor: C.surface, borderRadius: 10, borderWidth: 1, borderColor: C.border,
+    minWidth: 180, maxHeight: 320, overflow: 'scroll',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15, shadowRadius: 16, elevation: 12,
+  },
+  dropdownItem: {
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  dropdownItemRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dropdownCheckbox: {
+    width: 18, height: 18, borderRadius: 4,
+    borderWidth: 1.5, borderColor: C.border,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.surface,
+  },
+  dropdownCheckboxChecked: { backgroundColor: ACCENT, borderColor: ACCENT },
+  dropdownCheckmark: { color: '#FFF', fontSize: 11, fontWeight: '700', lineHeight: 13 },
+  dropdownItemText: { fontSize: 13, color: C.text },
+  dropdownItemTextActive: { color: ACCENT, fontWeight: '600' },
+  dropdownEmpty: { padding: 14, fontSize: 13, color: C.muted, textAlign: 'center' },
+
+  // Filter divider
+  filterDivider: { width: 1, height: 20, backgroundColor: C.border, marginHorizontal: 4 },
+
+  // Checkboxes
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, cursor: 'pointer' },
+  checkbox: {
+    width: 18, height: 18, borderRadius: 4,
+    borderWidth: 1.5, borderColor: C.border,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.surface,
+  },
+  checkboxChecked: { backgroundColor: ACCENT, borderColor: ACCENT },
+  checkmark: { color: '#FFF', fontSize: 11, fontWeight: '700', lineHeight: 13 },
+  checkLabel: { fontSize: 12, color: C.muted, fontWeight: '500' },
+  checkLabelActive: { color: ACCENT, fontWeight: '700' },
+  resetBtn: {
+    marginLeft: 4,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 8, borderWidth: 1, borderColor: ACCENT,
+    backgroundColor: C.accentBg,
+  },
+  resetBtnText: { fontSize: 12, color: ACCENT, fontWeight: '700' },
+
+  // View toggle (row 2 right)
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.border,
+    overflow: 'hidden',
+  },
+  viewBtn: { paddingHorizontal: 14, paddingVertical: 6 },
   viewBtnActive: { backgroundColor: ACCENT },
   viewBtnText: { fontSize: 12, color: C.muted, fontWeight: '600' },
-  viewBtnTextActive: { color: '#FFF' },
-  addBtn: { marginLeft: 'auto', backgroundColor: ACCENT, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 },
-  addBtnText: { fontSize: 13, color: '#FFF', fontWeight: '700' },
+  viewBtnTextActive: { color: '#FFF', fontWeight: '700' },
 
   // Body
   body: { flex: 1, flexDirection: 'row' },
@@ -996,7 +1216,7 @@ const s = StyleSheet.create({
   monthNameCurrent: { color: C.green, fontWeight: '800' },
   yearName: { fontSize: 10, color: C.muted, marginTop: 1 },
   // Row wrapper (left cell + timeline side by side)
-  ganttRowWrap: { flexDirection: 'row', height: ROW_H, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.surface },
+  ganttRowWrap: { flexDirection: 'row', height: ROW_H, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.18)', backgroundColor: C.surface },
   ganttLeftCell: {
     width: LEFT_W, flexShrink: 0, height: ROW_H,
     justifyContent: 'center', paddingHorizontal: 10,
@@ -1010,11 +1230,15 @@ const s = StyleSheet.create({
   ganttPropName: { fontSize: 10, color: C.muted, marginTop: 1 },
   ganttRow: { height: ROW_H, position: 'relative' },
   monthBand: {
-    position: 'absolute', top: 0, bottom: 0, width: MONTH_W,
+    position: 'absolute', top: 0, bottom: 1, width: MONTH_W,
     borderRightWidth: 1, borderRightColor: 'rgba(0,0,0,0.1)',
   },
   monthBandPast:    { backgroundColor: '#EDE9E3' },
   monthBandCurrent: { backgroundColor: 'rgba(212,237,218,0.55)' },
+  weekDivider: {
+    position: 'absolute', top: 0, bottom: 0,
+    width: 1, backgroundColor: 'rgba(0,0,0,0.045)',
+  },
   todayLine: { position: 'absolute', top: 0, bottom: 0, width: 1.5, backgroundColor: '#E53935', zIndex: 1, opacity: 0.55 },
   bar: {
     position: 'absolute', top: 6, height: ROW_H - 12,

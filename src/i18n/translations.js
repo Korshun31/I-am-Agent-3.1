@@ -1089,7 +1089,7 @@ export const translations = {
     addBookingTitle: 'Добавить бронирование',
     editBookingTitle: 'Редактировать бронирование',
     bookingHouseCode: 'Код дома',
-    bookingNotMyCustomer: 'Не мой клиент',
+    bookingNotMyCustomer: 'Бронь владельца',
     bookingChooseClient: 'Клиент',
     bookingChooseClientPlaceholder: 'Выбрать клиента',
     bookingPassportId: 'Паспорт / ID',
