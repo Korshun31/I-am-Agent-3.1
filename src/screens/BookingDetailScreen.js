@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
+import { getCurrencySymbol } from '../utils/currency';
 import { getContactById, getContacts } from '../services/contactsService';
 import { getProperties } from '../services/propertiesService';
 import { getBookings } from '../services/bookingsService';
@@ -42,9 +43,9 @@ function formatBookingDate(dateStr) {
   return `${day}.${m}.${y}`;
 }
 
-function formatPrice(val) {
+function formatPrice(val, sym) {
   if (val == null) return '—';
-  return Number(val).toLocaleString('en-US').replace(/,/g, ' ') + ' Thb';
+  return Number(val).toLocaleString('en-US').replace(/,/g, ' ') + ' ' + sym;
 }
 
 function DetailRow({ label, value }) {
@@ -239,6 +240,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
   };
 
   const b = booking || {};
+  const bookingSym = getCurrencySymbol(property?.currency || 'THB');
   const photos = Array.isArray(b.photos) ? b.photos : [];
   const contactName = contact ? [contact.name, contact.lastName].filter(Boolean).join(' ').trim() : null;
 
@@ -387,13 +389,13 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
         {[b.priceMonthly, b.totalPrice, b.bookingDeposit, b.saveDeposit, b.commission, b.ownerCommissionOneTime, b.ownerCommissionMonthly].some(v => v != null) ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t('bdPrices')}</Text>
-            <DetailRow label={t('pdPriceMonthly')} value={b.priceMonthly != null ? formatPrice(b.priceMonthly) : null} />
-            <DetailRow label={t('bookingTotalPrice')} value={b.totalPrice != null ? formatPrice(b.totalPrice) : null} />
-            <DetailRow label={t('pdBookingDeposit')} value={b.bookingDeposit != null ? formatPrice(b.bookingDeposit) : null} />
-            <DetailRow label={t('pdSaveDeposit')} value={b.saveDeposit != null ? formatPrice(b.saveDeposit) : null} />
-            <DetailRow label={t('ownerCommissionOneTime')} value={b.ownerCommissionOneTime != null ? formatPrice(b.ownerCommissionOneTime) : null} />
-            <DetailRow label={t('ownerCommissionMonthly')} value={b.ownerCommissionMonthly != null ? formatPrice(b.ownerCommissionMonthly) : null} />
-            <DetailRow label={t('pdCommission')} value={b.commission != null ? formatPrice(b.commission) : null} />
+            <DetailRow label={t('pdPriceMonthly')} value={b.priceMonthly != null ? formatPrice(b.priceMonthly, bookingSym) : null} />
+            <DetailRow label={t('bookingTotalPrice')} value={b.totalPrice != null ? formatPrice(b.totalPrice, bookingSym) : null} />
+            <DetailRow label={t('pdBookingDeposit')} value={b.bookingDeposit != null ? formatPrice(b.bookingDeposit, bookingSym) : null} />
+            <DetailRow label={t('pdSaveDeposit')} value={b.saveDeposit != null ? formatPrice(b.saveDeposit, bookingSym) : null} />
+            <DetailRow label={t('ownerCommissionOneTime')} value={b.ownerCommissionOneTime != null ? formatPrice(b.ownerCommissionOneTime, bookingSym) : null} />
+            <DetailRow label={t('ownerCommissionMonthly')} value={b.ownerCommissionMonthly != null ? formatPrice(b.ownerCommissionMonthly, bookingSym) : null} />
+            <DetailRow label={t('pdCommission')} value={b.commission != null ? formatPrice(b.commission, bookingSym) : null} />
           </View>
         ) : null}
 

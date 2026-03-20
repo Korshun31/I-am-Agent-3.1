@@ -19,6 +19,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
+import { getCurrencySymbol } from '../utils/currency';
 import { useAppData } from '../context/AppDataContext';
 import { getProperties, updateProperty, createPropertyFull, updateResortChildrenDistrict } from '../services/propertiesService';
 import { deletePhotoFromStorage } from '../services/storageService';
@@ -599,15 +600,29 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         </View>
       </SectionBlock>
 
-      {[p.price_monthly, p.booking_deposit, p.save_deposit, p.commission, p.electricity_price, p.water_price, p.gas_price, p.internet_price, p.cleaning_price, p.exit_cleaning_price].some(v => v != null) && (
+      {[p.price_monthly, p.booking_deposit, p.save_deposit, p.commission, p.owner_commission_one_time, p.owner_commission_monthly, p.electricity_price, p.water_price, p.gas_price, p.internet_price, p.cleaning_price, p.exit_cleaning_price].some(v => v != null) && (
       <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
         {p.price_monthly != null && <PriceRow iconSource={require('../../assets/icon-price-booking-deposit.png')} label={t('pdPriceMonthly')} value={formatPrice(p.price_monthly)} prefix={p.price_monthly_is_from ? t('priceFrom') : null} />}
         {p.booking_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-monthly.png')} label={t('pdBookingDeposit')} value={formatPrice(p.booking_deposit)} prefix={p.booking_deposit_is_from ? t('priceFrom') : null} />}
         {p.save_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-commission.png')} label={t('pdSaveDeposit')} value={formatPrice(p.save_deposit)} prefix={p.save_deposit_is_from ? t('priceFrom') : null} />}
         {p.commission != null && <PriceRow iconSource={require('../../assets/icon-price-save-deposit.png')} label={t('pdCommission')} value={formatPrice(p.commission)} prefix={p.commission_is_from ? t('priceFrom') : null} />}
-        {p.electricity_price != null && <PriceRow iconSource={require('../../assets/icon-price-electricity.png')} label={t('pdElectricity')} value={`${p.electricity_price} Thb`} />}
-        {p.water_price != null && <PriceRow iconSource={require('../../assets/icon-price-water.png')} label={waterPriceLabel()} value={`${p.water_price} Thb`} />}
-        {p.gas_price != null && <PriceRow iconSource={require('../../assets/icon-price-gas.png')} label={t('pdGas')} value={`${p.gas_price} Thb`} />}
+        {p.owner_commission_one_time != null && (
+          <PriceRow
+            iconSource={require('../../assets/icon-price-commission.png')}
+            label={t('pdOwnerCommOnce')}
+            value={p.owner_commission_one_time_is_percent ? `${p.owner_commission_one_time}%` : formatPrice(p.owner_commission_one_time)}
+          />
+        )}
+        {p.owner_commission_monthly != null && (
+          <PriceRow
+            iconSource={require('../../assets/icon-price-commission.png')}
+            label={t('pdOwnerCommMonthly')}
+            value={p.owner_commission_monthly_is_percent ? `${p.owner_commission_monthly}%` : formatPrice(p.owner_commission_monthly)}
+          />
+        )}
+        {p.electricity_price != null && <PriceRow iconSource={require('../../assets/icon-price-electricity.png')} label={t('pdElectricity')} value={formatPrice(p.electricity_price)} />}
+        {p.water_price != null && <PriceRow iconSource={require('../../assets/icon-price-water.png')} label={waterPriceLabel()} value={formatPrice(p.water_price)} />}
+        {p.gas_price != null && <PriceRow iconSource={require('../../assets/icon-price-gas.png')} label={t('pdGas')} value={formatPrice(p.gas_price)} />}
         {p.internet_price != null && <PriceRow iconSource={require('../../assets/icon-price-exit-cleaning.png')} label={t('pdInternetMonth')} value={formatPrice(p.internet_price)} />}
         {p.cleaning_price != null && <PriceRow iconSource={require('../../assets/icon-price-internet.png')} label={t('pdCleaning')} value={formatPrice(p.cleaning_price)} />}
         {p.exit_cleaning_price != null && <PriceRow iconSource={require('../../assets/icon-price-cleaning.png')} label={t('pdExitCleaning')} value={formatPrice(p.exit_cleaning_price)} />}
@@ -1119,9 +1134,11 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
   const typeColors = BLOCK_COLORS[p.type] || BLOCK_COLORS.house;
 
+  const propertySym = getCurrencySymbol(p.currency);
+
   const formatPrice = (val) => {
     if (val == null) return '—';
-    return Number(val).toLocaleString('en-US').replace(/,/g, ' ') + ' Thb';
+    return Number(val).toLocaleString('en-US').replace(/,/g, ' ') + ' ' + propertySym;
   };
 
   const waterPriceLabel = () => {

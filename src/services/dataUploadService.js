@@ -76,6 +76,8 @@ export async function syncIfEnabled() {
     await syncToTarget(config.url, config.serviceRoleKey);
   } catch (e) {
     console.error('[DataUpload] Sync failed:', e?.message || e);
+    // Re-throw so callers (e.g. DataUploadModal) can show the error to the user
+    throw e;
   }
 }
 

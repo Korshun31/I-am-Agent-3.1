@@ -584,7 +584,8 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
         pets:                   form.pets,
         comments:               form.comments || null,
         photos:                 form.photos || [],
-        reminderDays:           [],
+        reminderDays:           booking?.reminderDays ?? [],
+        currency:               activeCurrency,
       };
 
       let saved;

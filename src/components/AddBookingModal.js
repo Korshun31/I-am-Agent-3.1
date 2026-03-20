@@ -23,6 +23,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import dayjs from 'dayjs';
 import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
+import { getCurrencySymbol } from '../utils/currency';
 import { getContacts, createContact, getContactById } from '../services/contactsService';
 import { getBookings, createBooking, updateBooking } from '../services/bookingsService';
 import { scheduleBookingReminders, cancelBookingReminders } from '../services/bookingRemindersService';
@@ -134,7 +135,6 @@ function formatDateDisplay(d) {
   return `${day}.${m}.${y}`;
 }
 
-/** Compute total price: full months * price_monthly + proportional for partial days */
 function computeTotalPrice(checkIn, checkOut, priceMonthly) {
   if (!checkIn || !checkOut || !priceMonthly || priceMonthly <= 0) return null;
   const p = Number(priceMonthly);
@@ -142,27 +142,9 @@ function computeTotalPrice(checkIn, checkOut, priceMonthly) {
   const end = checkOut instanceof Date ? checkOut : new Date(checkOut);
   if (start >= end) return null;
   const msPerDay = 86400000;
-  const totalDays = Math.round((end - start) / msPerDay);
-  if (totalDays <= 0) return null;
-  let total = 0;
-  let d = new Date(start);
-  let remaining = totalDays;
-  while (remaining > 0 && d < end) {
-    const year = d.getFullYear();
-    const month = d.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const dayOfMonth = d.getDate();
-    const daysLeftInMonth = daysInMonth - dayOfMonth + 1;
-    const daysToUse = Math.min(remaining, daysLeftInMonth);
-    if (daysToUse >= daysInMonth) {
-      total += p;
-    } else {
-      total += (p / daysInMonth) * daysToUse;
-    }
-    remaining -= daysToUse;
-    d.setDate(d.getDate() + daysToUse);
-  }
-  return Math.round(total * 100) / 100;
+  const nights = Math.round((end - start) / msPerDay);
+  if (nights <= 0) return null;
+  return Math.round(p * nights / 30);
 }
 
 const COLORS = {
@@ -193,7 +175,9 @@ const CALENDAR_LOCALES = {
 };
 
 export default function AddBookingModal({ visible, onClose, onSaved, property, editBooking, initialMonth }) {
-  const { t, language } = useLanguage();
+  const { t, language, currency, currencySymbol: globalSym } = useLanguage();
+  const activeCurrency = property?.currency || currency || 'THB';
+  const sym = getCurrencySymbol(activeCurrency);
   const [step, setStep] = useState(1);
   const [notMyCustomer, setNotMyCustomer] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
@@ -220,7 +204,9 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
   const [saveDeposit, setSaveDeposit] = useState('');
   const [commission, setCommission] = useState('');
   const [ownerCommissionOneTime, setOwnerCommissionOneTime] = useState('');
+  const [ownerCommissionOneTimeIsPercent, setOwnerCommissionOneTimeIsPercent] = useState(false);
   const [ownerCommissionMonthly, setOwnerCommissionMonthly] = useState('');
+  const [ownerCommissionMonthlyIsPercent, setOwnerCommissionMonthlyIsPercent] = useState(false);
   const [adults, setAdults] = useState('');
   const [children, setChildren] = useState('');
   const [pets, setPets] = useState(false);
@@ -279,7 +265,9 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         setSaveDeposit(editBooking.saveDeposit != null ? formatMoneyDisplay(String(Math.round(editBooking.saveDeposit))) : '');
         setCommission(editBooking.commission != null ? formatMoneyDisplay(String(Math.round(editBooking.commission))) : '');
         setOwnerCommissionOneTime(editBooking.ownerCommissionOneTime != null ? formatMoneyDisplay(String(Math.round(editBooking.ownerCommissionOneTime))) : '');
+        setOwnerCommissionOneTimeIsPercent(!!editBooking.ownerCommissionOneTimeIsPercent);
         setOwnerCommissionMonthly(editBooking.ownerCommissionMonthly != null ? formatMoneyDisplay(String(Math.round(editBooking.ownerCommissionMonthly))) : '');
+        setOwnerCommissionMonthlyIsPercent(!!editBooking.ownerCommissionMonthlyIsPercent);
         setAdults(editBooking.adults != null ? String(editBooking.adults) : '');
         setChildren(editBooking.children != null ? String(editBooking.children) : '');
         setPets(!!editBooking.pets);
@@ -310,8 +298,11 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
       setPriceMonthly(property.price_monthly != null ? formatMoneyDisplay(String(Math.round(property.price_monthly))) : '');
       setBookingDeposit(property.booking_deposit != null ? formatMoneyDisplay(String(Math.round(property.booking_deposit))) : '');
       setSaveDeposit(property.save_deposit != null ? formatMoneyDisplay(String(Math.round(property.save_deposit))) : '');
-      setOwnerCommissionOneTime('');
-      setOwnerCommissionMonthly('');
+      setCommission(property.commission != null ? formatMoneyDisplay(String(Math.round(property.commission))) : '');
+      setOwnerCommissionOneTime(property.owner_commission_one_time != null ? formatMoneyDisplay(String(Math.round(property.owner_commission_one_time))) : '');
+      setOwnerCommissionOneTimeIsPercent(!!property.owner_commission_one_time_is_percent);
+      setOwnerCommissionMonthly(property.owner_commission_monthly != null ? formatMoneyDisplay(String(Math.round(property.owner_commission_monthly))) : '');
+      setOwnerCommissionMonthlyIsPercent(!!property.owner_commission_monthly_is_percent);
     }
   }, [step, property, editBooking]);
 
@@ -486,13 +477,16 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         saveDeposit: parseMoneyValue(saveDeposit),
         commission: parseMoneyValue(commission),
         ownerCommissionOneTime: parseMoneyValue(ownerCommissionOneTime),
+        ownerCommissionOneTimeIsPercent: ownerCommissionOneTimeIsPercent,
         ownerCommissionMonthly: parseMoneyValue(ownerCommissionMonthly),
+        ownerCommissionMonthlyIsPercent: ownerCommissionMonthlyIsPercent,
         adults: adults.trim() ? parseInt(adults, 10) : null,
         children: children.trim() ? parseInt(children, 10) : null,
         pets,
         comments: comments.trim() || null,
         photos: photoUrls.length > 0 ? photoUrls : null,
         reminderDays: reminderDays.length > 0 ? reminderDays : [],
+        currency: activeCurrency,
       };
       if (editBooking?.id) {
         await cancelBookingReminders(editBooking.id);
@@ -803,7 +797,7 @@ isMonthFirst
                   </>
                 ) : (
                   <>
-                    <Text style={s.fieldLabel}>{t('pdPriceMonthly')}</Text>
+                    <Text style={s.fieldLabel}>{t('pdPriceMonthly')} {sym}</Text>
                     <TextInput
                       style={s.input}
                       value={priceMonthly}
@@ -813,7 +807,7 @@ isMonthFirst
                       keyboardType="numeric"
                     />
 
-                    <Text style={s.fieldLabel}>{t('bookingTotalPrice')}</Text>
+                    <Text style={s.fieldLabel}>{t('bookingTotalPrice')} {sym}</Text>
                     <TextInput
                       style={s.input}
                       value={totalPrice}
@@ -823,7 +817,7 @@ isMonthFirst
                       keyboardType="numeric"
                     />
 
-                    <Text style={s.fieldLabel}>{t('pdBookingDeposit')}</Text>
+                    <Text style={s.fieldLabel}>{t('pdBookingDeposit')} {sym}</Text>
                     <TextInput
                       style={s.input}
                       value={bookingDeposit}
@@ -833,7 +827,7 @@ isMonthFirst
                       keyboardType="numeric"
                     />
 
-                    <Text style={s.fieldLabel}>{t('pdSaveDeposit')}</Text>
+                    <Text style={s.fieldLabel}>{t('pdSaveDeposit')} {sym}</Text>
                     <TextInput
                       style={s.input}
                       value={saveDeposit}
@@ -843,7 +837,7 @@ isMonthFirst
                       keyboardType="numeric"
                     />
 
-                    <Text style={s.fieldLabel}>{t('ownerCommissionOneTime')}</Text>
+                    <Text style={s.fieldLabel}>{t('ownerCommissionOneTime')} {sym}</Text>
                     <TextInput
                       style={s.input}
                       value={ownerCommissionOneTime}
@@ -853,7 +847,7 @@ isMonthFirst
                       keyboardType="numeric"
                     />
 
-                    <Text style={s.fieldLabel}>{t('ownerCommissionMonthly')}</Text>
+                    <Text style={s.fieldLabel}>{t('ownerCommissionMonthly')} {sym}</Text>
                     <TextInput
                       style={s.input}
                       value={ownerCommissionMonthly}
@@ -863,7 +857,7 @@ isMonthFirst
                       keyboardType="numeric"
                     />
 
-                    <Text style={s.fieldLabel}>{t('pdCommission')}</Text>
+                    <Text style={s.fieldLabel}>{t('pdCommission')} {sym}</Text>
                     <TextInput
                       style={s.input}
                       value={commission}

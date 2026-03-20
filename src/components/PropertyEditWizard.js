@@ -698,21 +698,22 @@ function PriceFieldWithFrom({ label, value, onChangeText, isFrom, dataKey, setDa
   );
 }
 
-function StepPricing({ data, setData, t }) {
+function StepPricing({ data, setData, t, sym }) {
   const WATER_TYPES = [
     { key: 'cubic', label: t('pdPerCubic') },
     { key: 'person', label: t('pdPerPerson') },
     { key: 'fixed', label: t('pdFixed') },
   ];
+  const lbl = (key) => `${t(key)} ${sym}`;
   return (
     <>
-      <PriceFieldWithFrom label={t('pdPriceMonthly')} value={data.price_monthly} onChangeText={v => setData(d => ({ ...d, price_monthly: v }))} isFrom={!!data.price_monthly_is_from} dataKey="price_monthly_is_from" setData={setData} t={t} />
-      <PriceFieldWithFrom label={t('pdBookingDeposit')} value={data.booking_deposit} onChangeText={v => setData(d => ({ ...d, booking_deposit: v }))} isFrom={!!data.booking_deposit_is_from} dataKey="booking_deposit_is_from" setData={setData} t={t} />
-      <PriceFieldWithFrom label={t('pdSaveDeposit')} value={data.save_deposit} onChangeText={v => setData(d => ({ ...d, save_deposit: v }))} isFrom={!!data.save_deposit_is_from} dataKey="save_deposit_is_from" setData={setData} t={t} />
-      <PriceFieldWithFrom label={t('pdCommission')} value={data.commission} onChangeText={v => setData(d => ({ ...d, commission: v }))} isFrom={!!data.commission_is_from} dataKey="commission_is_from" setData={setData} t={t} />
-      <Field label={t('pdElectricity')} value={data.electricity_price} onChangeText={v => setData(d => ({ ...d, electricity_price: v }))} keyboardType="numeric" />
+      <PriceFieldWithFrom label={lbl('pdPriceMonthly')} value={data.price_monthly} onChangeText={v => setData(d => ({ ...d, price_monthly: v }))} isFrom={!!data.price_monthly_is_from} dataKey="price_monthly_is_from" setData={setData} t={t} />
+      <PriceFieldWithFrom label={lbl('pdBookingDeposit')} value={data.booking_deposit} onChangeText={v => setData(d => ({ ...d, booking_deposit: v }))} isFrom={!!data.booking_deposit_is_from} dataKey="booking_deposit_is_from" setData={setData} t={t} />
+      <PriceFieldWithFrom label={lbl('pdSaveDeposit')} value={data.save_deposit} onChangeText={v => setData(d => ({ ...d, save_deposit: v }))} isFrom={!!data.save_deposit_is_from} dataKey="save_deposit_is_from" setData={setData} t={t} />
+      <PriceFieldWithFrom label={lbl('pdCommission')} value={data.commission} onChangeText={v => setData(d => ({ ...d, commission: v }))} isFrom={!!data.commission_is_from} dataKey="commission_is_from" setData={setData} t={t} />
+      <Field label={lbl('pdElectricity')} value={data.electricity_price} onChangeText={v => setData(d => ({ ...d, electricity_price: v }))} keyboardType="numeric" />
       <View style={s.fieldWrap}>
-        <Text style={s.fieldLabel}>{t('pdWater')}</Text>
+        <Text style={s.fieldLabel}>{lbl('pdWater')}</Text>
         <TextInput style={s.input} value={data.water_price} onChangeText={v => setData(d => ({ ...d, water_price: v }))} keyboardType="numeric" placeholderTextColor="#999" returnKeyType="done" />
         <View style={s.waterTypeRow}>
           {WATER_TYPES.map(wt => (
@@ -727,10 +728,10 @@ function StepPricing({ data, setData, t }) {
           ))}
         </View>
       </View>
-      <Field label={t('pdGas')} value={data.gas_price} onChangeText={v => setData(d => ({ ...d, gas_price: v }))} keyboardType="numeric" />
-      <Field label={t('pdInternetMonth')} value={data.internet_price} onChangeText={v => setData(d => ({ ...d, internet_price: v }))} keyboardType="numeric" />
-      <Field label={t('pdCleaning')} value={data.cleaning_price} onChangeText={v => setData(d => ({ ...d, cleaning_price: v }))} keyboardType="numeric" />
-      <Field label={t('pdExitCleaning')} value={data.exit_cleaning_price} onChangeText={v => setData(d => ({ ...d, exit_cleaning_price: v }))} keyboardType="numeric" />
+      <Field label={lbl('pdGas')} value={data.gas_price} onChangeText={v => setData(d => ({ ...d, gas_price: v }))} keyboardType="numeric" />
+      <Field label={lbl('pdInternetMonth')} value={data.internet_price} onChangeText={v => setData(d => ({ ...d, internet_price: v }))} keyboardType="numeric" />
+      <Field label={lbl('pdCleaning')} value={data.cleaning_price} onChangeText={v => setData(d => ({ ...d, cleaning_price: v }))} keyboardType="numeric" />
+      <Field label={lbl('pdExitCleaning')} value={data.exit_cleaning_price} onChangeText={v => setData(d => ({ ...d, exit_cleaning_price: v }))} keyboardType="numeric" />
     </>
   );
 }
@@ -816,7 +817,7 @@ function toNum(val) {
   return isNaN(n) ? null : n;
 }
 
-function buildUpdates(data, property, parentResort, maxPhotos = 10) {
+function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = 'THB') {
   const isHouseInResort = Boolean(property?.resort_id);
   const district = isHouseInResort && parentResort ? (parentResort.district || '').trim() : (data.district || '').trim();
   return {
@@ -862,11 +863,12 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10) {
     internet_price: toNum(data.internet_price),
     cleaning_price: toNum(data.cleaning_price),
     exit_cleaning_price: toNum(data.exit_cleaning_price),
+    currency,
   };
 }
 
 export default function PropertyEditWizard({ visible, property, onClose, onSave, parentResort }) {
-  const { t } = useLanguage();
+  const { t, currency, currencySymbol: sym } = useLanguage();
   const [step, setStep] = useState(0);
   const [data, setData] = useState({});
   const [saving, setSaving] = useState(false);
@@ -966,7 +968,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       }
       setUploadProgress('');
 
-      const updates = buildUpdates(data, property, parentResort, maxPhotos);
+      const updates = buildUpdates(data, property, parentResort, maxPhotos, currency);
       await onSave(updates);
     } catch (e) {
       Alert.alert(t('error'), e.message || 'Error');
@@ -1004,7 +1006,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       case 'media': return <StepMedia data={data} setData={setData} t={t} maxPhotos={maxPhotos} />;
       case 'amenities': return <StepAmenities data={data} setData={setData} t={t} />;
       case 'additional': return <StepAdditional data={data} setData={setData} t={t} propertyType={property.type} />;
-      case 'pricing': return <StepPricing data={data} setData={setData} t={t} />;
+      case 'pricing': return <StepPricing data={data} setData={setData} t={t} sym={sym} />;
       case 'comments': return <StepComments data={data} setData={setData} t={t} property={property} />;
       default: return null;
     }

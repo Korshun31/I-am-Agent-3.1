@@ -50,13 +50,16 @@ export async function createBooking(booking) {
     save_deposit: booking.saveDeposit != null ? Number(booking.saveDeposit) : null,
     commission: booking.commission != null ? Number(booking.commission) : null,
     owner_commission_one_time: booking.ownerCommissionOneTime != null ? Number(booking.ownerCommissionOneTime) : null,
+    owner_commission_one_time_is_percent: booking.ownerCommissionOneTimeIsPercent ?? false,
     owner_commission_monthly: booking.ownerCommissionMonthly != null ? Number(booking.ownerCommissionMonthly) : null,
+    owner_commission_monthly_is_percent: booking.ownerCommissionMonthlyIsPercent ?? false,
     adults: booking.adults != null ? parseInt(booking.adults, 10) : null,
     children: booking.children != null ? parseInt(booking.children, 10) : null,
     pets: !!booking.pets,
     comments: booking.comments || null,
     photos: Array.isArray(booking.photos) && booking.photos.length > 0 ? booking.photos : null,
     reminder_days: Array.isArray(booking.reminderDays) && booking.reminderDays.length > 0 ? booking.reminderDays : null,
+    currency: booking.currency || 'THB',
   };
 
   const { data, error } = await supabase
@@ -88,13 +91,16 @@ export async function updateBooking(id, booking) {
     save_deposit: booking.saveDeposit != null ? Number(booking.saveDeposit) : null,
     commission: booking.commission != null ? Number(booking.commission) : null,
     owner_commission_one_time: booking.ownerCommissionOneTime != null ? Number(booking.ownerCommissionOneTime) : null,
+    owner_commission_one_time_is_percent: booking.ownerCommissionOneTimeIsPercent ?? false,
     owner_commission_monthly: booking.ownerCommissionMonthly != null ? Number(booking.ownerCommissionMonthly) : null,
+    owner_commission_monthly_is_percent: booking.ownerCommissionMonthlyIsPercent ?? false,
     adults: booking.adults != null ? parseInt(booking.adults, 10) : null,
     children: booking.children != null ? parseInt(booking.children, 10) : null,
     pets: !!booking.pets,
     comments: booking.comments || null,
     photos: Array.isArray(booking.photos) && booking.photos.length > 0 ? booking.photos : null,
     reminder_days: Array.isArray(booking.reminderDays) && booking.reminderDays.length > 0 ? booking.reminderDays : [],
+    currency: booking.currency || 'THB',
   };
   updates.updated_at = new Date().toISOString();
 
@@ -144,12 +150,15 @@ function mapBooking(row) {
     saveDeposit: row.save_deposit,
     commission: row.commission,
     ownerCommissionOneTime: row.owner_commission_one_time,
+    ownerCommissionOneTimeIsPercent: row.owner_commission_one_time_is_percent ?? false,
     ownerCommissionMonthly: row.owner_commission_monthly,
+    ownerCommissionMonthlyIsPercent: row.owner_commission_monthly_is_percent ?? false,
     adults: row.adults,
     children: row.children,
     pets: row.pets,
     comments: row.comments,
     photos: Array.isArray(row.photos) ? row.photos : [],
     reminderDays: Array.isArray(row.reminder_days) ? row.reminder_days : [],
+    currency: row.currency || 'THB',
   };
 }

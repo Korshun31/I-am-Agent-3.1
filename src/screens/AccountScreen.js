@@ -65,7 +65,7 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
   const [companyClosing, setCompanyClosing] = useState(false);
   const [companyContentHeight, setCompanyContentHeight] = useState(0);
   const [settingsContentHeight, setSettingsContentHeight] = useState(0);
-  const { language, setLanguage, t } = useLanguage();
+  const { language, setLanguage, setCurrency, t } = useLanguage();
   const settingsHeight = useRef(new Animated.Value(0)).current;
   const settingsWasOpen = useRef(false);
   const locationsHeight = useRef(new Animated.Value(0)).current;
@@ -563,6 +563,7 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
       selectedCurrency={selectedCurrency}
       onSave={(c) => {
         setSelectedCurrency(c);
+        setCurrency(c);
         setCurrencyModalVisible(false);
         saveAgentSettings({ selectedCurrency: c });
       }}
