@@ -1,6 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Image } from 'react-native';
 import { useLanguage } from '../../context/LanguageContext';
+
+const LOGO_SVG = require('../../../assets/logo.svg');
 
 const ACCENT  = '#3D7D82';
 const ACCENT_BG = '#EAF4F5';
@@ -24,9 +26,18 @@ export default function WebLayout({ children, activeTab, onTabChange, fullHeight
     <View style={styles.container}>
       {/* Sidebar */}
       <View style={styles.sidebar}>
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>I AM AGENT</Text>
-        </View>
+        <TouchableOpacity 
+          style={styles.logoContainer} 
+          onPress={() => onTabChange('dashboard')}
+          activeOpacity={0.7}
+        >
+          <Image 
+            source={LOGO_SVG} 
+            style={styles.logoImage} 
+            resizeMode="contain"
+          />
+          <Text style={styles.logoText}>I am Agent</Text>
+        </TouchableOpacity>
         
         <View style={styles.menu}>
           {menuItems.map((item) => (
@@ -63,16 +74,23 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: '#E9ECEF',
     padding: 20,
+    paddingTop: 20,
   },
   logoContainer: {
-    marginBottom: 40,
+    marginBottom: 20,
     paddingHorizontal: 10,
+    alignItems: 'center',
+  },
+  logoImage: {
+    width: 60,
+    height: 40,
+    marginBottom: 4,
   },
   logoText: {
-    fontSize: 20,
+    fontSize: 14,
     fontWeight: '800',
     color: ACCENT,
-    letterSpacing: 1,
+    letterSpacing: 1.2,
   },
   menu: {
     flex: 1,

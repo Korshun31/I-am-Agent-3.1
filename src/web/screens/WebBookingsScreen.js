@@ -70,19 +70,19 @@ function nightsCount(checkIn, checkOut) {
   return dayjs(checkOut).diff(dayjs(checkIn), 'day');
 }
 
-// Build timeline: Jan(prev year) → Dec(next year) = 36 months
-function buildMonths() {
-  const year = dayjs().year();
-  const start = dayjs(`${year - 1}-01-01`).startOf('month');
-  const end   = dayjs(`${year + 1}-12-01`).startOf('month');
-  const months = [];
-  let m = start;
-  while (m.isBefore(end) || m.isSame(end, 'month')) {
-    months.push(m);
-    m = m.add(1, 'month');
+  // Build timeline: Jan(prev year) → Dec(next year) = 36 months
+  function buildMonths() {
+    const today = dayjs();
+    const start = today.subtract(1, 'month').startOf('month');
+    const end   = start.add(35, 'month').endOf('month');
+    const months = [];
+    let m = start;
+    while (m.isBefore(end) || m.isSame(end, 'month')) {
+      months.push(m);
+      m = m.add(1, 'month');
+    }
+    return months;
   }
-  return months;
-}
 
 // Convert a date to X pixel offset within the timeline
 function dateToPx(dateStr, months) {
