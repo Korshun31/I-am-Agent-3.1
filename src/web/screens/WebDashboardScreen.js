@@ -11,7 +11,6 @@ import { getCommissionDateAmounts } from '../../services/commissionRemindersServ
 import { supabase } from '../../services/supabase';
 import WebCalendarStrip from '../components/WebCalendarStrip';
 import WebAddCalendarEventModal from '../components/WebAddCalendarEventModal';
-import WebFlightTracker from '../components/WebFlightTracker';
 
 const ICON_PHONE    = require('../../../assets/icon-contact-phone.png');
 const ICON_TELEGRAM = require('../../../assets/icon-contact-telegram.png');
@@ -478,9 +477,6 @@ export default function WebDashboardScreen({ user }) {
         editEvent={editingEvent}
         initialDate={selectedDate.toDate()}
       />
-
-      {/* Плавающий Flight Tracker — только на Рабочей панели */}
-      <WebFlightTracker />
     </ScrollView>
   );
 }

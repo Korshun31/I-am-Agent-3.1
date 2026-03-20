@@ -91,6 +91,12 @@ export async function getUserProfile(userId) {
     locations: Array.isArray(settings.locations) ? settings.locations : [],
     workAs: settings.workAs === 'company' ? 'company' : 'private',
     companyInfo,
+    web_notifications: data.web_notifications || {
+      new_booking: false,
+      booking_changed: false,
+      new_event: false,
+      new_property: false
+    },
   };
 }
 
@@ -106,6 +112,7 @@ export async function updateUserProfile(updates) {
   if (updates.whatsapp !== undefined) dbUpdates.whatsapp = updates.whatsapp;
   if (updates.documentNumber !== undefined) dbUpdates.document_number = updates.documentNumber;
   if (updates.photoUri !== undefined) dbUpdates.photo_url = updates.photoUri;
+  if (updates.web_notifications !== undefined) dbUpdates.web_notifications = updates.web_notifications;
 
   const settingsKeys = ['language', 'notificationSettings', 'selectedCurrency', 'locations', 'workAs', 'companyInfo'];
   const hasSettingsUpdate = settingsKeys.some(k => updates[k] !== undefined);

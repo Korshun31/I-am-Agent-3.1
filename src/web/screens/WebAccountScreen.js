@@ -53,9 +53,50 @@ function InfoRow({ label, value, isLink, onPress }) {
   );
 }
 
-export default function WebAccountScreen({ user: initialUser, onLogout }) {
+export default function WebAccountScreen({ user: initialUser, onLogout, onUserUpdate }) {
   const { t, setLanguage } = useLanguage();
   const [user, setUser] = useState(initialUser);
+
+  // Sync internal state if prop changes
+  useEffect(() => {
+    setUser(initialUser);
+  }, [initialUser]);
+
+  const updateAndSync = (updated) => {
+    if (!updated) return;
+    setUser(updated);
+    onUserUpdate?.(updated);
+  };
+
+  const toggleWebNotif = async (key, val) => {
+    // 1. Оптимистично обновляем локальное состояние (мгновенно для пользователя)
+    const currentNotifs = user?.web_notifications || {
+      new_booking: false,
+      booking_changed: false,
+      new_event: false,
+      new_property: false
+    };
+    const newNotifs = { ...currentNotifs, [key]: val };
+    
+    const optimisticUser = { ...user, web_notifications: newNotifs };
+    setUser(optimisticUser);
+    onUserUpdate?.(optimisticUser);
+
+    try {
+      // 2. Отправляем запрос в базу в фоне
+      const updated = await updateUserProfile({
+        web_notifications: newNotifs
+      });
+      // 3. Если пришел ответ, синхронизируем (на случай если база что-то изменила)
+      if (updated) updateAndSync(updated);
+    } catch (e) {
+      console.error('Toggle web notif error:', e);
+      // Если ошибка — возвращаем как было
+      setUser(user);
+      onUserUpdate?.(user);
+      alert('Ошибка сохранения настроек');
+    }
+  };
   const [loading, setLoading] = useState(false);
   const [locations, setLocations] = useState([]);
   const [allowChangePassword, setAllowChangePassword] = useState(false);
@@ -196,13 +237,13 @@ export default function WebAccountScreen({ user: initialUser, onLogout }) {
               <View style={s.workAsToggle}>
                 <TouchableOpacity 
                   style={[s.workAsBtn, user?.workAs !== 'company' && s.workAsBtnActive]}
-                  onPress={() => updateUserProfile({ workAs: 'private' }).then(setUser)}
+                  onPress={() => updateUserProfile({ workAs: 'private' }).then(updateAndSync)}
                 >
                   <Text style={[s.workAsBtnText, user?.workAs !== 'company' && s.workAsBtnTextActive]}>{t('workAsPrivate')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[s.workAsBtn, user?.workAs === 'company' && s.workAsBtnActive]}
-                  onPress={() => updateUserProfile({ workAs: 'company' }).then(setUser)}
+                  onPress={() => updateUserProfile({ workAs: 'company' }).then(updateAndSync)}
                 >
                   <Text style={[s.workAsBtnText, user?.workAs === 'company' && s.workAsBtnTextActive]}>{t('workAsCompany')}</Text>
                 </TouchableOpacity>
@@ -296,11 +337,38 @@ export default function WebAccountScreen({ user: initialUser, onLogout }) {
                 {user?.selectedCurrency || 'THB'}
               </Text>
             </TouchableOpacity>
+          </SectionCard>
+
+          <SectionCard title={t('notifWebTitle')}>
             <View style={s.settingRow}>
-              <Text style={s.settingLabel}>{t('notifications')}</Text>
+              <Text style={s.settingLabel}>{t('notifNewBooking')}</Text>
               <Switch 
-                value={!!user?.notificationSettings?.enabled} 
-                onValueChange={(v) => updateUserProfile({ notificationSettings: { ...(user?.notificationSettings || {}), enabled: v } }).then(setUser)}
+                value={!!user?.web_notifications?.new_booking} 
+                onValueChange={(v) => toggleWebNotif('new_booking', v)}
+                trackColor={{ false: C.border, true: ACCENT }}
+              />
+            </View>
+            <View style={s.settingRow}>
+              <Text style={s.settingLabel}>{t('notifBookingChanged')}</Text>
+              <Switch 
+                value={!!user?.web_notifications?.booking_changed} 
+                onValueChange={(v) => toggleWebNotif('booking_changed', v)}
+                trackColor={{ false: C.border, true: ACCENT }}
+              />
+            </View>
+            <View style={s.settingRow}>
+              <Text style={s.settingLabel}>{t('notifNewEvent')}</Text>
+              <Switch 
+                value={!!user?.web_notifications?.new_event} 
+                onValueChange={(v) => toggleWebNotif('new_event', v)}
+                trackColor={{ false: C.border, true: ACCENT }}
+              />
+            </View>
+            <View style={s.settingRow}>
+              <Text style={s.settingLabel}>{t('notifNewProperty')}</Text>
+              <Switch 
+                value={!!user?.web_notifications?.new_property} 
+                onValueChange={(v) => toggleWebNotif('new_property', v)}
                 trackColor={{ false: C.border, true: ACCENT }}
               />
             </View>
