@@ -624,7 +624,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
         <FieldInput value={form.cleaning_price} onChangeText={v => set('cleaning_price', v)} placeholder="500" numeric />
       </FieldRow>
 
-      <FieldRow label="Уборка при выезде (฿)">
+      <FieldRow label="Уборка перед выездом (฿)">
         <FieldInput value={form.exit_cleaning_price} onChangeText={v => set('exit_cleaning_price', v)} placeholder="1 000" numeric />
       </FieldRow>
 

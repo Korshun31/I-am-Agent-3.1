@@ -643,7 +643,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
             </SectionCard>
 
             {/* Клиент */}
-            <SectionCard title="Клиент" icon="👤">
+            <SectionCard title="Данные клиента" icon="👤">
               <View style={s.toggleRow}>
                 <View>
                   <Text style={s.toggleLabel}>Бронь владельца</Text>
@@ -710,7 +710,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                     <Field label="Аренда в месяц (฿)" half>
                       <FInput value={form.priceMonthly} onChangeText={v => set('priceMonthly', v)} placeholder="30 000" numeric />
                     </Field>
-                    <Field label="Итого (฿)" half>
+                    <Field label="Общая стоимость (฿)" half>
                       <FInput value={form.totalPrice} onChangeText={v => set('totalPrice', v)} placeholder="авто" numeric />
                     </Field>
                   </View>
@@ -729,7 +729,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                     <Field label="Комиссия влад. разово (฿)" half>
                       <FInput value={form.ownerCommissionOneTime} onChangeText={v => set('ownerCommissionOneTime', v)} placeholder="—" numeric />
                     </Field>
-                    <Field label="Комиссия влад. в мес. (฿)" half>
+                    <Field label="Комиссия влад. ежемесячно (฿)" half>
                       <FInput value={form.ownerCommissionMonthly} onChangeText={v => set('ownerCommissionMonthly', v)} placeholder="—" numeric />
                     </Field>
                   </View>
@@ -747,8 +747,8 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                   </View>
                   <View style={s.toggleRow}>
                     <View>
-                      <Text style={s.toggleLabel}>Животные</Text>
-                      <Text style={s.toggleSub}>Питомцы разрешены</Text>
+                  <Text style={s.toggleLabel}>Питомцы</Text>
+                  <Text style={s.toggleSub}>Питомцы разрешены</Text>
                     </View>
                     <Switch
                       value={form.pets}
@@ -773,7 +773,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
             )}
 
             {/* Примечания */}
-            <SectionCard title="Примечания" icon="📝">
+            <SectionCard title="Комментарии" icon="📝">
               <Field label="Комментарий">
                 <FInput
                   value={form.comments}

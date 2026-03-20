@@ -277,7 +277,7 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose }
           <Section title="ГОСТИ">
             <InfoRow label="Взрослых" value={booking.adults} />
             <InfoRow label="Детей" value={booking.children} />
-            {booking.pets ? <InfoRow label="Животные" value="Есть" /> : null}
+            {booking.pets ? <InfoRow label="Питомцы" value="Есть" /> : null}
           </Section>
         ) : null}
 

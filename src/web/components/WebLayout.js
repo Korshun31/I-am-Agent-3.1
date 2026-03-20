@@ -8,10 +8,10 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 export default function WebLayout({ children, activeTab, onTabChange, fullHeight }) {
   const menuItems = [
     { id: 'dashboard',  label: 'Рабочая панель' },
-    { id: 'properties', label: 'Объекты' },
+    { id: 'properties', label: 'База' },
     { id: 'bookings',   label: 'Бронирования' },
     { id: 'contacts',   label: 'Контакты' },
-    { id: 'profile',    label: 'Профиль' },
+    { id: 'profile',    label: 'Мой аккаунт' },
   ];
 
   return (

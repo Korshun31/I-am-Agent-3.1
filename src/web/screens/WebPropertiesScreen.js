@@ -310,7 +310,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
             {property.bathrooms != null && (
               <View style={s.statCard}>
                 <Text style={s.statValue}>{property.bathrooms}</Text>
-                <Text style={s.statLabel}>Ванных</Text>
+                <Text style={s.statLabel}>Санузлов</Text>
               </View>
             )}
             {property.air_conditioners != null && (
@@ -392,7 +392,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
             <InfoRow label="Газ" value={property.gas_price != null ? `${property.gas_price} ฿` : null} />
             <InfoRow label="Интернет/мес" value={fmt(property.internet_price)} />
             <InfoRow label="Уборка" value={fmt(property.cleaning_price)} />
-            <InfoRow label="Уборка при выезде" value={fmt(property.exit_cleaning_price)} />
+            <InfoRow label="Уборка перед выездом" value={fmt(property.exit_cleaning_price)} />
           </SectionBlock>
         )}
 
@@ -400,7 +400,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         {(property.internet_speed != null || property.pets_allowed != null || property.long_term_booking != null) && (
           <SectionBlock title="✨ Особенности">
             <InfoRow label="Скорость интернета" value={property.internet_speed ? `${property.internet_speed} Мбит/с` : null} />
-            <InfoRow label="Животные" value={property.pets_allowed != null ? (property.pets_allowed ? '✅ Разрешены' : '❌ Запрещены') : null} />
+            <InfoRow label="Питомцы" value={property.pets_allowed != null ? (property.pets_allowed ? '✅ Разрешены' : '❌ Запрещены') : null} />
             <InfoRow label="Бронирование на дальние даты" value={property.long_term_booking != null ? (property.long_term_booking ? '✅ Да' : '❌ Нет') : null} />
           </SectionBlock>
         )}

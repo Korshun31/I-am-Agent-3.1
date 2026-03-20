@@ -179,7 +179,7 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
               {property.bathrooms != null && (
                 <View style={st.statCard}>
                   <Text style={st.statValue}>{property.bathrooms}</Text>
-                  <Text style={st.statLabel}>Ванных</Text>
+                  <Text style={st.statLabel}>Санузлов</Text>
                 </View>
               )}
               {property.area != null && (
