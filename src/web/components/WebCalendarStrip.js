@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import dayjs from 'dayjs';
+import { useLanguage } from '../../context/LanguageContext';
 import { getBookings } from '../../services/bookingsService';
 import { getCalendarEvents, eventOccursOnDate } from '../../services/calendarEventsService';
 import { getCommissionDateAmounts } from '../../services/commissionRemindersService';
@@ -9,6 +10,7 @@ import { supabase } from '../../services/supabase';
 const CARD_WIDTH = 70; // 60 (width) + 10 (margins 5+5)
 
 export default function WebCalendarStrip({ selectedDate, onDateSelect }) {
+  const { language } = useLanguage(); // triggers re-render on language change
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState([]);
   const [calendarEvents, setCalendarEvents] = useState([]);
@@ -149,7 +151,7 @@ export default function WebCalendarStrip({ selectedDate, onDateSelect }) {
     );
   };
 
-  if (loading) return <ActivityIndicator size="small" color="#D81B60" />;
+  if (loading) return <ActivityIndicator size="small" color="#3D7D82" />;
 
   return (
     <View style={styles.container} onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}>
@@ -203,11 +205,11 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   daySelected: {
-    backgroundColor: '#D81B60',
-    borderColor: '#D81B60',
+    backgroundColor: '#3D7D82',
+    borderColor: '#3D7D82',
   },
   dayToday: {
-    borderColor: '#D81B60',
+    borderColor: '#3D7D82',
     borderWidth: 2,
   },
   monthText: {
@@ -239,7 +241,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
   },
   dotOut: {
-    backgroundColor: '#D81B60',
+    backgroundColor: '#E09A94',
   },
   dotPersonal: {
     backgroundColor: '#0088CC',

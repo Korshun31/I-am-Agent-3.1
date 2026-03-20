@@ -5,9 +5,10 @@ import WebDashboardScreen from './screens/WebDashboardScreen';
 import WebPropertiesScreen from './screens/WebPropertiesScreen';
 import WebContactsScreen from './screens/WebContactsScreen';
 import WebBookingsScreen from './screens/WebBookingsScreen';
+import WebAccountScreen from './screens/WebAccountScreen';
 import WebFlightTracker from './components/WebFlightTracker';
 
-const FULL_HEIGHT_TABS = new Set(['properties', 'contacts', 'bookings']);
+const FULL_HEIGHT_TABS = new Set(['properties', 'contacts', 'bookings', 'profile']);
 
 /**
  * Точка входа в веб-интерфейс.
@@ -105,6 +106,13 @@ export default function WebMainScreen({ user, onLogout }) {
       {visited.has('bookings') && (
         <View style={[styles.tabWrap, tabStyle('bookings')]}>
           <WebBookingsScreen />
+        </View>
+      )}
+
+      {/* Account — монтируется при первом посещении */}
+      {visited.has('profile') && (
+        <View style={[styles.tabWrap, tabStyle('profile')]}>
+          <WebAccountScreen user={user} onLogout={onLogout} />
         </View>
       )}
 

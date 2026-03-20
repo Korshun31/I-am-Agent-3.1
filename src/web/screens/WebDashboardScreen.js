@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Linking, Image } from 'react-native';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
+import { useLanguage } from '../../context/LanguageContext';
 import { getBookings } from '../../services/bookingsService';
 import { getProperties } from '../../services/propertiesService';
 import { getContacts } from '../../services/contactsService';
@@ -18,7 +19,34 @@ const ICON_WHATSAPP = require('../../../assets/icon-contact-whatsapp.png');
 
 dayjs.extend(isBetween);
 
+// ─── Новая палитра ──────────────────────────────────────
+const CLR = {
+  // Нижний ряд (Блоки)
+  in:       '#A8D5BA', // Мятный
+  inText:   '#4A7D62', // Темно-мятный (читаемый)
+  inBg:     '#F0FAF5', // Светлый фон для бейджей
+  out:      '#F3B0A1', // Коралловый
+  outText:  '#A65E4E', // Темно-коралловый (читаемый)
+  outBg:    '#FDF3F2', // Светлый фон для бейджей
+  ev:       '#A9C7EB', // Небесный
+  evText:   '#4E75A6', // Темно-небесный (читаемый)
+  evBg:     '#F0F5FD', // Светлый фон для бейджей
+  
+  // Верхний ряд (Статистика)
+  stat1:    '#F9E2AF', // Песочный
+  stat1Text:'#8D7A4E', // Темно-песочный
+  stat2:    '#E2C2D6', // Пыльная сирень
+  stat2Text:'#8D5E7A', // Темно-сиреневый
+  stat3:    '#B2E2E2', // Аквамарин
+  stat3Text:'#4E8D8D', // Темно-аквамариновый
+  
+  comm:     '#F9E2AF', 
+  commText: '#8D7A4E',
+  commBg:   '#FDF4E7',
+};
+
 export default function WebDashboardScreen({ user }) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     total: 0, houses: 0, resortHouses: 0, apartments: 0,
@@ -229,7 +257,7 @@ export default function WebDashboardScreen({ user }) {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#D81B60" />
+        <ActivityIndicator size="large" color="#3D7D82" />
       </View>
     );
   }
@@ -249,7 +277,7 @@ export default function WebDashboardScreen({ user }) {
       ]}>
         <Text style={[
           styles.badgeText, 
-          { color: type === 'IN' ? '#2E7D32' : type === 'OUT' ? '#D81B60' : item.type === 'COMMISSION' ? '#E65100' : '#0277BD' }
+          { color: type === 'IN' ? CLR.inText : type === 'OUT' ? CLR.outText : item.type === 'COMMISSION' ? CLR.commText : CLR.evText }
         ]}>
           {item.type === 'COMMISSION' ? '$$' : type === 'EVENT' ? 'EV' : type}
         </Text>
@@ -294,7 +322,7 @@ export default function WebDashboardScreen({ user }) {
   );
 
   const isToday = selectedDate.isSame(dayjs(), 'day');
-  const dateTitle = isToday ? 'сегодня' : selectedDate.format('DD MMMM');
+  const dateTitle = isToday ? t('today') : selectedDate.format('DD MMMM');
 
   return (
     <ScrollView
@@ -302,34 +330,34 @@ export default function WebDashboardScreen({ user }) {
       contentContainerStyle={styles.containerContent}
       showsVerticalScrollIndicator={true}
     >
-      <Text style={styles.welcome}>Рабочая панель</Text>
+      <Text style={styles.welcome}>{t('dashboardTitle')}</Text>
       
       <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>ВСЕГО ОБЪЕКТОВ</Text>
-          <Text style={styles.statValue}>{stats.total}</Text>
+        <View style={[styles.statCard, { borderLeftColor: CLR.stat1 }]}>
+          <Text style={styles.statLabel}>{t('dashboardObjects').toUpperCase()}</Text>
+          <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{stats.total}</Text>
           <View style={styles.subStats}>
-            <Text style={styles.subStatText}>Дома: <Text style={styles.subStatValue}>{stats.houses}</Text></Text>
-            <Text style={styles.subStatText}>В резорте: <Text style={styles.subStatValue}>{stats.resortHouses}</Text></Text>
-            <Text style={styles.subStatText}>Апартаменты: <Text style={styles.subStatValue}>{stats.apartments}</Text></Text>
+            <Text style={styles.subStatText}>{t('house')}: <Text style={styles.subStatValue}>{stats.houses}</Text></Text>
+            <Text style={styles.subStatText}>{t('resort')}: <Text style={styles.subStatValue}>{stats.resortHouses}</Text></Text>
+            <Text style={styles.subStatText}>{t('condo')}: <Text style={styles.subStatValue}>{stats.apartments}</Text></Text>
           </View>
         </View>
 
-        <View style={[styles.statCard, { borderLeftColor: '#D81B60' }]}>
-          <Text style={styles.statLabel}>ЗАНЯТО СЕЙЧАС</Text>
-          <Text style={[styles.statValue, { color: '#D81B60' }]}>{stats.occupied}</Text>
+        <View style={[styles.statCard, { borderLeftColor: CLR.stat2 }]}>
+          <Text style={styles.statLabel}>{t('dashboardBookings').toUpperCase()}</Text>
+          <Text style={[styles.statValue, { color: CLR.stat2Text }]}>{stats.occupied}</Text>
           <View style={styles.subStats}>
-            <Text style={styles.subStatText}>Мои: <Text style={styles.subStatValue}>{stats.myClients}</Text></Text>
-            <Text style={styles.subStatText}>Чужие: <Text style={styles.subStatValue}>{stats.otherClients}</Text></Text>
+            <Text style={styles.subStatText}>{t('dashboardMyClients')}: <Text style={styles.subStatValue}>{stats.myClients}</Text></Text>
+            <Text style={styles.subStatText}>{t('dashboardOtherClients')}: <Text style={styles.subStatValue}>{stats.otherClients}</Text></Text>
           </View>
         </View>
 
-        <View style={[styles.statCard, { borderLeftColor: '#4CAF50' }]}>
-          <Text style={styles.statLabel}>ПРЕДСТОЯЩИЕ ЗАСЕЛЕНИЯ</Text>
-          <Text style={[styles.statValue, { color: '#2E7D32' }]}>{stats.upcoming}</Text>
+        <View style={[styles.statCard, { borderLeftColor: CLR.stat3 }]}>
+          <Text style={styles.statLabel}>{t('dashboardCheckIns').toUpperCase()}</Text>
+          <Text style={[styles.statValue, { color: CLR.stat3Text }]}>{stats.upcoming}</Text>
           <View style={styles.subStats}>
-            <Text style={styles.subStatText}>В этом месяце: <Text style={styles.subStatValue}>{stats.thisMonth}</Text></Text>
-            <Text style={styles.subStatText}>Остальные: <Text style={styles.subStatValue}>{stats.later}</Text></Text>
+            <Text style={styles.subStatText}>{t('thisMonth')}: <Text style={styles.subStatValue}>{stats.thisMonth}</Text></Text>
+            <Text style={styles.subStatText}>{t('later')}: <Text style={styles.subStatValue}>{stats.later}</Text></Text>
           </View>
         </View>
       </View>
@@ -343,46 +371,47 @@ export default function WebDashboardScreen({ user }) {
         <View style={styles.agendaContainer}>
           <View style={styles.agendaRow}>
             <View style={styles.agendaColumn}>
-              <View style={styles.sectionCard}>
+              <View style={[styles.sectionCard, { borderLeftWidth: 4, borderLeftColor: CLR.in }]}>
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Заселения {dateTitle} ({filteredEvents.checkIns.length})</Text>
+                  <Text style={[styles.sectionTitle, { color: CLR.inText }]}>{t('checkIn')} {dateTitle} ({filteredEvents.checkIns.length})</Text>
                 </View>
                 <ScrollView style={styles.agendaScroll} showsVerticalScrollIndicator={true}>
                   {filteredEvents.checkIns.length > 0 ? (
                     filteredEvents.checkIns.map(b => renderAgendaItem(b, 'IN'))
                   ) : (
-                    <Text style={styles.emptyText}>Сегодня нет заселений</Text>
+                    <Text style={styles.emptyText}>{t('dashboardNoEvents')}</Text>
                   )}
                 </ScrollView>
               </View>
             </View>
             <View style={styles.agendaColumn}>
-              <View style={styles.sectionCard}>
+              <View style={[styles.sectionCard, { borderLeftWidth: 4, borderLeftColor: CLR.out }]}>
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Выезды {dateTitle} ({filteredEvents.checkOuts.length})</Text>
+                  <Text style={[styles.sectionTitle, { color: CLR.outText }]}>{t('checkOut')} {dateTitle} ({filteredEvents.checkOuts.length})</Text>
                 </View>
                 <ScrollView style={styles.agendaScroll} showsVerticalScrollIndicator={true}>
                   {filteredEvents.checkOuts.length > 0 ? (
                     filteredEvents.checkOuts.map(b => renderAgendaItem(b, 'OUT'))
                   ) : (
-                    <Text style={styles.emptyText}>Сегодня нет выездов</Text>
+                    <Text style={styles.emptyText}>{t('dashboardNoEvents')}</Text>
                   )}
                 </ScrollView>
               </View>
             </View>
             <View style={styles.agendaColumn}>
-              <View style={styles.sectionCard}>
+              <View style={[styles.sectionCard, { borderLeftWidth: 4, borderLeftColor: CLR.ev }]}>
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>События {dateTitle} ({filteredEvents.personal.length})</Text>
+                  <Text style={[styles.sectionTitle, { color: CLR.evText }]}>{t('dashboardEvents')} {dateTitle} ({filteredEvents.personal.length})</Text>
                   <TouchableOpacity style={styles.addEventBtn} onPress={handleAddEvent}>
-                    <Text style={styles.addEventBtnText}>+</Text>
+                    <View style={[styles.plusH, { backgroundColor: CLR.evText }]} />
+                    <View style={[styles.plusV, { backgroundColor: CLR.evText }]} />
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={styles.agendaScroll} showsVerticalScrollIndicator={true}>
                   {filteredEvents.personal.length > 0 ? (
                     filteredEvents.personal.map(e => renderAgendaItem(e, 'EVENT'))
                   ) : (
-                    <Text style={styles.emptyText}>Событий нет</Text>
+                    <Text style={styles.emptyText}>{t('dashboardNoEvents')}</Text>
                   )}
                 </ScrollView>
               </View>
@@ -401,10 +430,10 @@ export default function WebDashboardScreen({ user }) {
                 <View style={styles.agendaColumn}>
                   <View style={styles.sectionCard}>
                     <View style={styles.sectionHeader}>
-                      <Text style={styles.sectionTitle}>Следующие заселения</Text>
+                      <Text style={styles.sectionTitle}>{t('upcoming')}</Text>
                     </View>
                     {next5.length === 0 ? (
-                      <Text style={[styles.emptyText, { marginVertical: 16 }]}>Нет предстоящих</Text>
+                      <Text style={[styles.emptyText, { marginVertical: 16 }]}>{t('bookingsNoData')}</Text>
                     ) : next5.map((b, i) => {
                       const prop = allProperties.find(p => p.id === b.propertyId);
                       const contact = allContacts.find(c => c.id === b.contactId);
@@ -425,7 +454,7 @@ export default function WebDashboardScreen({ user }) {
                               {contact ? [contact.name, contact.lastName].filter(Boolean).join(' ') : '—'}
                             </Text>
                           </View>
-                          <Text style={[styles.upcomingDays, daysUntil <= 3 && { color: '#D81B60' }]}>
+                          <Text style={[styles.upcomingDays, daysUntil <= 3 && { color: '#C97570' }]}>
                             {daysUntil === 1 ? 'завтра' : `через ${daysUntil} д.`}
                           </Text>
                         </View>
@@ -457,7 +486,7 @@ export default function WebDashboardScreen({ user }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, ...Platform.select({ web: { marginRight: -40 } }) },
+  container: { flex: 1, ...Platform.select({ web: { marginRight: -40, overflowY: 'scroll' } }) },
   containerContent: { ...Platform.select({ web: { paddingRight: 40 } }) },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 100 },
   welcome: { fontSize: 24, fontWeight: '700', color: '#212529', marginBottom: 30 },
@@ -468,7 +497,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderLeftWidth: 5,
-    borderLeftColor: '#5DB8D4',
+    borderLeftColor: '#E8C977',
     ...Platform.select({ web: { boxShadow: '0 2px 8px rgba(0,0,0,0.04)' } }),
   },
   statLabel: { fontSize: 11, fontWeight: '800', color: '#ADB5BD', marginBottom: 6, letterSpacing: 0.5 },
@@ -482,7 +511,7 @@ const styles = StyleSheet.create({
 
   agendaRow: { flexDirection: 'row', gap: 20, alignItems: 'stretch' },
   upcomingRow: { flexDirection: 'row', gap: 20, marginTop: 16 },
-  agendaColumn: { flex: 1 },
+  agendaColumn: { flex: 1, flexDirection: 'column' },
   sectionCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -505,14 +534,29 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#212529' },
   addEventBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#D81B60',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: CLR.evText,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addEventBtnText: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', marginTop: -2 },
+  plusH: {
+    position: 'absolute',
+    width: 11,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: CLR.evText,
+  },
+  plusV: {
+    position: 'absolute',
+    width: 2,
+    height: 11,
+    borderRadius: 1,
+    backgroundColor: CLR.evText,
+  },
   agendaScroll: { flex: 1 },
   agendaItem: {
     flexDirection: 'row',
@@ -541,7 +585,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#2E7D32',
+    backgroundColor: CLR.inText,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -555,15 +599,15 @@ const styles = StyleSheet.create({
   textDimmed: {
     color: '#ADB5BD',
   },
-  badgeIn: { backgroundColor: '#E8F5E9' },
-  badgeOut: { backgroundColor: '#FCE4EC' },
-  badgePersonal: { backgroundColor: '#E3F2FD' },
-  badgeComm: { backgroundColor: '#FFF3E0' },
+  badgeIn: { backgroundColor: CLR.inBg },
+  badgeOut: { backgroundColor: CLR.outBg },
+  badgePersonal: { backgroundColor: CLR.evBg },
+  badgeComm: { backgroundColor: CLR.commBg },
   badgeText: { fontSize: 10, fontWeight: '900' },
   agendaInfo: { flex: 1 },
   agendaCode: { fontSize: 13, fontWeight: '700', color: '#212529', marginBottom: 2 },
   agendaPropName: { fontSize: 12, color: '#868E96', marginBottom: 2 },
-  agendaClient: { fontSize: 13, color: '#5DB8D4', fontWeight: '600' },
+  agendaClient: { fontSize: 13, color: '#3D7D82', fontWeight: '600' },
   agendaActions: { flexDirection: 'row', gap: 6 },
   msgBtn: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   phoneBtn: { backgroundColor: '#E8F5E9' },

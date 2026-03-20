@@ -1,17 +1,23 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { useLanguage } from '../../context/LanguageContext';
+
+const ACCENT  = '#3D7D82';
+const ACCENT_BG = '#EAF4F5';
+const ACCENT_LIGHT = '#B2D8DB';
 
 /**
  * Базовый каркас веб-версии.
  * Только структура: Сайдбар слева, контент справа.
  */
 export default function WebLayout({ children, activeTab, onTabChange, fullHeight }) {
+  const { t } = useLanguage();
   const menuItems = [
-    { id: 'dashboard',  label: 'Рабочая панель' },
-    { id: 'properties', label: 'База' },
-    { id: 'bookings',   label: 'Бронирования' },
-    { id: 'contacts',   label: 'Контакты' },
-    { id: 'profile',    label: 'Мой аккаунт' },
+    { id: 'dashboard',  label: t('dashboard') },
+    { id: 'properties', label: t('base') },
+    { id: 'bookings',   label: t('bookings') },
+    { id: 'contacts',   label: t('contacts') },
+    { id: 'profile',    label: t('myAccount') },
   ];
 
   return (
@@ -49,7 +55,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#F4F6F9',
   },
   sidebar: {
     width: 260,
@@ -65,7 +71,7 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#D81B60',
+    color: ACCENT,
     letterSpacing: 1,
   },
   menu: {
@@ -78,7 +84,9 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   menuItemActive: {
-    backgroundColor: '#FFF0F6',
+    backgroundColor: ACCENT_BG,
+    borderWidth: 1,
+    borderColor: ACCENT_LIGHT,
   },
   menuItemText: {
     fontSize: 15,
@@ -86,7 +94,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   menuItemTextActive: {
-    color: '#D81B60',
+    color: ACCENT,
     fontWeight: '700',
   },
   content: {

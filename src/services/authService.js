@@ -61,7 +61,13 @@ export async function getUserProfile(userId) {
     .eq('id', userId)
     .single();
 
-  if (error) return { email: '', name: '', lastName: '', phone: '', telegram: '', documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '', photoUri: '', role: 'standard' };
+  if (error) return {
+    email: '', name: '', lastName: '', phone: '', telegram: '',
+    documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '',
+    photoUri: '', role: 'standard', language: 'en',
+    notificationSettings: {}, selectedCurrency: 'USD',
+    locations: [], workAs: 'private', companyInfo: {}
+  };
 
   const settings = data.settings || {};
   const companyInfo = settings.companyInfo || {};

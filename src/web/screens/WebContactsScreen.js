@@ -4,8 +4,7 @@ import {
   TextInput, ActivityIndicator, Image, Linking, Platform,
 } from 'react-native';
 import dayjs from 'dayjs';
-import 'dayjs/locale/ru';
-dayjs.locale('ru');
+import { useLanguage } from '../../context/LanguageContext';
 
 import { getContacts, deleteContact } from '../../services/contactsService';
 import { getBookings } from '../../services/bookingsService';
@@ -25,7 +24,7 @@ const ICON_TRASH        = require('../../../assets/trash-icon.png');
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const ACCENT = '#D81B60';
+const ACCENT = '#3D7D82';
 const C = {
   bg: '#F4F6F9',
   surface: '#FFFFFF',
@@ -33,17 +32,17 @@ const C = {
   text: '#212529',
   muted: '#6C757D',
   light: '#ADB5BD',
-  client: '#1565C0',
-  clientBg: '#E3F2FD',
+  client: '#5B82D6',
+  clientBg: '#F0F5FD',
   owner: '#C2920E',
-  ownerBg: '#FFF8E1',
+  ownerBg: '#FFFDE7',
   accent: ACCENT,
-  accentBg: '#FCE4EC',
+  accentBg: '#EAF4F5',
 };
 
-const TYPE_META = {
-  clients: { label: 'Клиент',       color: C.client, bg: C.clientBg },
-  owners:  { label: 'Собственник',  color: C.owner,  bg: C.ownerBg  },
+const TYPE_META_COLORS = {
+  clients: { color: C.client, bg: C.clientBg },
+  owners:  { color: C.owner,  bg: C.ownerBg  },
 };
 
 const PROPERTY_TYPE = {
@@ -61,7 +60,7 @@ function getInitials(name, lastName) {
 }
 
 function getAvatarColor(name) {
-  const colors = ['#D81B60','#1565C0','#2E7D32','#6A1B9A','#E65100','#00695C','#AD1457','#283593'];
+  const colors = ['#3D7D82','#5B82D6','#4AA87D','#6A1B9A','#E65100','#00695C','#AD1457','#283593'];
   let h = 0;
   for (let i = 0; i < (name || '').length; i++) h = (name.charCodeAt(i) + ((h << 5) - h));
   return colors[Math.abs(h) % colors.length];
@@ -120,11 +119,13 @@ function Avatar({ contact, size = 44 }) {
 // ─── TypeBadge ───────────────────────────────────────────────────────────────
 
 function TypeBadge({ type }) {
-  const m = TYPE_META[type];
-  if (!m) return null;
+  const { t } = useLanguage();
+  const colors = TYPE_META_COLORS[type];
+  if (!colors) return null;
+  const label = type === 'clients' ? t('client') : t('owner');
   return (
-    <View style={[s.typeBadge, { backgroundColor: m.bg }]}>
-      <Text style={[s.typeBadgeText, { color: m.color }]}>{m.label}</Text>
+    <View style={[s.typeBadge, { backgroundColor: colors.bg }]}>
+      <Text style={[s.typeBadgeText, { color: colors.color }]}>{label}</Text>
     </View>
   );
 }
@@ -132,6 +133,7 @@ function TypeBadge({ type }) {
 // ─── Contact Card (left list) ─────────────────────────────────────────────────
 
 function ContactCard({ item, isSelected, onPress, bookingCount, propertyCount }) {
+  const { t } = useLanguage();
   const displayName = [item.name, item.lastName].filter(Boolean).join(' ') || '—';
   const isOwner = item.type === 'owners';
   return (
@@ -155,8 +157,8 @@ function ContactCard({ item, isSelected, onPress, bookingCount, propertyCount })
         ) : null}
         <Text style={s.cardCount}>
           {isOwner
-            ? `${propertyCount || 0} ${propertyCount === 1 ? 'объект' : 'объектов'}`
-            : `${bookingCount || 0} ${bookingCount === 1 ? 'бронирование' : 'бронирований'}`}
+            ? `${propertyCount || 0} ${t('contactsProperties').toLowerCase()}`
+            : `${bookingCount || 0} ${t('contactsBookings').toLowerCase()}`}
         </Text>
       </View>
     </TouchableOpacity>
@@ -184,37 +186,40 @@ function getBookingStatus(booking) {
   return 'active';
 }
 
-const BOOKING_STATUS = {
-  future: {
-    label: '● Предстоит',
-    labelColor: '#1565C0',
-    bg: '#EFF6FF',
-    border: '#1565C0',
-    propColor: '#1A237E',
-    dateColor: '#1565C0',
-    amountColor: '#1565C0',
-  },
-  active: {
-    label: '● Живёт сейчас',
-    labelColor: '#2E7D32',
-    bg: '#F0FFF4',
-    border: '#2E7D32',
-    propColor: '#1B5E20',
-    dateColor: '#2E7D32',
-    amountColor: '#2E7D32',
-  },
-  past: {
-    label: null,
-    labelColor: C.light,
-    bg: C.surface,
-    border: 'transparent',
-    propColor: C.muted,
-    dateColor: C.light,
-    amountColor: C.light,
-  },
-};
+function getBookingStatusMeta(t) {
+  return {
+    future: {
+      label: `● ${t('bkStatusFuture')}`,
+      labelColor: '#1565C0',
+      bg: '#EFF6FF',
+      border: '#1565C0',
+      propColor: '#1A237E',
+      dateColor: '#1565C0',
+      amountColor: '#1565C0',
+    },
+    active: {
+      label: `● ${t('bkStatusActive')}`,
+      labelColor: '#2E7D32',
+      bg: '#F0FFF4',
+      border: '#2E7D32',
+      propColor: '#1B5E20',
+      dateColor: '#2E7D32',
+      amountColor: '#2E7D32',
+    },
+    past: {
+      label: null,
+      labelColor: C.light,
+      bg: C.surface,
+      border: 'transparent',
+      propColor: C.muted,
+      dateColor: C.light,
+      amountColor: C.light,
+    },
+  };
+}
 
 function BookingRow({ booking, properties }) {
+  const { t } = useLanguage();
   const prop = properties.find(p => p.id === booking.propertyId);
   const propName = prop ? (prop.name || prop.code) : '—';
   const checkIn  = booking.checkIn  ? dayjs(booking.checkIn).format('DD.MM.YYYY')  : '—';
@@ -223,7 +228,7 @@ function BookingRow({ booking, properties }) {
     ? dayjs(booking.checkOut).diff(dayjs(booking.checkIn), 'day')
     : null;
   const status = getBookingStatus(booking);
-  const st = BOOKING_STATUS[status];
+  const st = getBookingStatusMeta(t)[status];
 
   return (
     <View style={[s.bookingRow, { backgroundColor: st.bg, borderLeftColor: st.border }]}>
@@ -235,7 +240,7 @@ function BookingRow({ booking, properties }) {
           )}
         </View>
         <Text style={[s.bookingDates, { color: st.dateColor }]}>
-          {checkIn} → {checkOut}{nights ? `  (${nights} н.)` : ''}
+          {checkIn} → {checkOut}{nights ? `  (${nights} ${t('nightsShort')})` : ''}
         </Text>
       </View>
       {booking.totalAmount ? (
@@ -275,6 +280,7 @@ function PropertyRow({ property, onPress }) {
 // ─── Contact Detail ───────────────────────────────────────────────────────────
 
 function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline }) {
+  const { t } = useLanguage();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -339,7 +345,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline 
         <View style={s.detailHeaderActions}>
           <TouchableOpacity style={s.editBtn} onPress={onEdit} activeOpacity={0.7}>
             <Image source={require('../../../assets/icon-type-pencil.png')} style={s.editBtnIcon} resizeMode="contain" />
-            <Text style={s.editBtnText}>Редактировать</Text>
+            <Text style={s.editBtnText}>{t('edit')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.deleteBtn} onPress={() => setConfirmDelete(true)} activeOpacity={0.7}>
             <Image source={ICON_TRASH} style={s.deleteBtnIcon} resizeMode="contain" />
@@ -350,17 +356,17 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline 
       {/* ── Delete confirmation ── */}
       {confirmDelete && (
         <View style={s.confirmDeleteBar}>
-          <Text style={s.confirmDeleteText}>Удалить контакт безвозвратно?</Text>
+          <Text style={s.confirmDeleteText}>{t('pdDeleteConfirm')}</Text>
           <TouchableOpacity
             style={s.confirmDeleteYes}
             onPress={handleDelete}
             disabled={deleting}
             activeOpacity={0.8}
           >
-            <Text style={s.confirmDeleteYesText}>{deleting ? 'Удаление...' : 'Удалить'}</Text>
+            <Text style={s.confirmDeleteYesText}>{deleting ? '...' : t('delete')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.confirmDeleteNo} onPress={() => setConfirmDelete(false)} activeOpacity={0.8}>
-            <Text style={s.confirmDeleteNoText}>Отмена</Text>
+            <Text style={s.confirmDeleteNoText}>{t('cancel')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -374,8 +380,8 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline 
           {allWhatsapps.map((w, i) => (
             <ActionBtn key={`wa${i}`} icon={ICON_WHATSAPP} label={i === 0 ? 'WhatsApp' : `WhatsApp ${i+1}`} color="#25D366" onPress={() => openWhatsApp(w)} />
           ))}
-          {allTelegrams.map((t, i) => (
-            <ActionBtn key={`tg${i}`} icon={ICON_TELEGRAM} label={i === 0 ? 'Telegram' : `Telegram ${i+1}`} color="#229ED9" onPress={() => openTelegram(t)} />
+          {allTelegrams.map((tg, i) => (
+            <ActionBtn key={`tg${i}`} icon={ICON_TELEGRAM} label={i === 0 ? 'Telegram' : `Telegram ${i+1}`} color="#229ED9" onPress={() => openTelegram(tg)} />
           ))}
           {allEmails.map((e, i) => (
             <ActionBtn key={`em${i}`} icon={ICON_EMAIL} label={e} color="#6A1B9A" onPress={() => openEmail(e)} />
@@ -385,12 +391,12 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline 
 
       {/* ── Info ── */}
       <View style={s.infoCard}>
-        <Text style={s.sectionTitle}>ЛИЧНЫЕ ДАННЫЕ</Text>
+        <Text style={s.sectionTitle}>{t('myDetails').toUpperCase()}</Text>
         {contact.birthday ? (
           <View style={s.infoRow}>
             <View style={s.infoLabelRow}>
               <Image source={ICON_BIRTHDAY} style={s.infoLabelIcon} resizeMode="contain" />
-              <Text style={s.infoLabel}>Дата рождения</Text>
+              <Text style={s.infoLabel}>{t('birthdayDate')}</Text>
             </View>
             <Text style={s.infoValue}>{dayjs(contact.birthday).format('DD.MM.YYYY')}</Text>
           </View>
@@ -399,7 +405,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline 
           <View style={s.infoRow}>
             <View style={s.infoLabelRow}>
               <Image source={ICON_DOCUMENT} style={s.infoLabelIcon} resizeMode="contain" />
-              <Text style={s.infoLabel}>Документ</Text>
+              <Text style={s.infoLabel}>{t('documentNumber')}</Text>
             </View>
             <Text style={s.infoValue}>{contact.documentNumber}</Text>
           </View>
@@ -408,7 +414,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline 
           <View key={i} style={s.infoRow}>
             <View style={s.infoLabelRow}>
               <Image source={ICON_PHONE} style={s.infoLabelIcon} resizeMode="contain" />
-              <Text style={s.infoLabel}>{i === 0 ? 'Телефон' : 'Доп. телефон'}</Text>
+              <Text style={s.infoLabel}>{i === 0 ? t('contactPhoneLabel') : t('contactExtraPhone')}</Text>
             </View>
             <Text style={[s.infoValue, s.infoLink]} onPress={() => openPhone(p)}>{p}</Text>
           </View>
@@ -417,25 +423,25 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline 
           <View key={i} style={s.infoRow}>
             <View style={s.infoLabelRow}>
               <Image source={ICON_EMAIL} style={s.infoLabelIcon} resizeMode="contain" />
-              <Text style={s.infoLabel}>{i === 0 ? 'Email' : 'Доп. email'}</Text>
+              <Text style={s.infoLabel}>{i === 0 ? t('contactEmailLabel') : t('contactExtraEmail')}</Text>
             </View>
             <Text style={[s.infoValue, s.infoLink]} onPress={() => openEmail(e)}>{e}</Text>
           </View>
         ))}
-        {allTelegrams.length > 0 && allTelegrams.map((t, i) => (
+          {allTelegrams.length > 0 && allTelegrams.map((tg, i) => (
           <View key={i} style={s.infoRow}>
             <View style={s.infoLabelRow}>
               <Image source={ICON_TELEGRAM} style={s.infoLabelIcon} resizeMode="contain" />
-              <Text style={s.infoLabel}>{i === 0 ? 'Telegram' : 'Доп. Telegram'}</Text>
+              <Text style={s.infoLabel}>{i === 0 ? t('contactTelegramLabel') : t('contactExtraTelegram')}</Text>
             </View>
-            <Text style={[s.infoValue, s.infoLink]} onPress={() => openTelegram(t)}>{t}</Text>
+            <Text style={[s.infoValue, s.infoLink]} onPress={() => openTelegram(tg)}>{tg}</Text>
           </View>
         ))}
         {allWhatsapps.length > 0 && allWhatsapps.map((w, i) => (
           <View key={i} style={s.infoRow}>
             <View style={s.infoLabelRow}>
               <Image source={ICON_WHATSAPP} style={s.infoLabelIcon} resizeMode="contain" />
-              <Text style={s.infoLabel}>{i === 0 ? 'WhatsApp' : 'Доп. WhatsApp'}</Text>
+              <Text style={s.infoLabel}>{i === 0 ? t('contactWhatsappLabel') : t('contactExtraWhatsapp')}</Text>
             </View>
             <Text style={[s.infoValue, s.infoLink]} onPress={() => openWhatsApp(w)}>{w}</Text>
           </View>
@@ -445,11 +451,11 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline 
       {/* ── Bookings (clients) ── */}
       {!isOwner && (
         <View style={s.infoCard}>
-          <Text style={s.sectionTitle}>БРОНИРОВАНИЯ ({bookings.length})</Text>
+          <Text style={s.sectionTitle}>{t('bookings').toUpperCase()} ({bookings.length})</Text>
           {loading ? (
             <ActivityIndicator color={ACCENT} style={{ padding: 20 }} />
           ) : bookings.length === 0 ? (
-            <Text style={s.emptyText}>Нет бронирований</Text>
+            <Text style={s.emptyText}>{t('bookingsNoData')}</Text>
           ) : (
             [...bookings]
               .sort((a, b) => {
@@ -470,9 +476,9 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline 
       {/* ── Properties (owners) ── */}
       {isOwner && (
         <View style={s.infoCard}>
-          <Text style={s.sectionTitle}>ОБЪЕКТЫ В СОБСТВЕННОСТИ ({ownedProperties.length})</Text>
+          <Text style={s.sectionTitle}>{t('ctOwnedProperties').toUpperCase()} ({ownedProperties.length})</Text>
           {ownedProperties.length === 0 ? (
-            <Text style={s.emptyText}>Нет объектов</Text>
+            <Text style={s.emptyText}>{t('ctNoProperties')}</Text>
           ) : (
             ownedProperties.map(p => (
               <PropertyRow
@@ -492,6 +498,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function WebContactsScreen({ onNavigateToProperty }) {
+  const { t } = useLanguage();
   const [allContacts, setAllContacts] = useState([]);
   const [allProperties, setAllProperties] = useState([]);
   const [bookingCounts, setBookingCounts] = useState({});
@@ -635,11 +642,11 @@ export default function WebContactsScreen({ onNavigateToProperty }) {
         {/* Header */}
         <View style={s.leftHeader}>
           <View>
-            <Text style={s.leftTitle}>Контакты</Text>
-            <Text style={s.leftSubtitle}>{counts.all} контактов в базе</Text>
+            <Text style={s.leftTitle}>{t('contactsTitle')}</Text>
+            <Text style={s.leftSubtitle}>{counts.all} {t('contactsTitle').toLowerCase()}</Text>
           </View>
           <TouchableOpacity style={s.addBtn} onPress={openCreate} activeOpacity={0.8}>
-            <Text style={s.addBtnText}>+ Добавить</Text>
+            <Text style={s.addBtnText}>+ {t('contactsAddBtn')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -648,7 +655,7 @@ export default function WebContactsScreen({ onNavigateToProperty }) {
           <Text style={s.searchIcon}>🔍</Text>
           <TextInput
             style={s.searchInput}
-            placeholder="Поиск по имени, телефону..."
+            placeholder={t('search') + '…'}
             placeholderTextColor={C.light}
             value={search}
             onChangeText={setSearch}
@@ -663,9 +670,9 @@ export default function WebContactsScreen({ onNavigateToProperty }) {
         {/* Filter tabs */}
         <View style={s.filterTabs}>
           {[
-            { key: 'all',     label: `Все (${counts.all})` },
-            { key: 'clients', label: `Клиенты (${counts.clients})` },
-            { key: 'owners',  label: `Собственники (${counts.owners})` },
+            { key: 'all',     label: `${t('all')} (${counts.all})` },
+            { key: 'clients', label: `${t('clients')} (${counts.clients})` },
+            { key: 'owners',  label: `${t('owners')} (${counts.owners})` },
           ].map(tab => (
             <TouchableOpacity
               key={tab.key}
@@ -685,7 +692,7 @@ export default function WebContactsScreen({ onNavigateToProperty }) {
         ) : filtered.length === 0 ? (
           <View style={s.listEmpty}>
             <Text style={s.listEmptyIcon}>👤</Text>
-            <Text style={s.listEmptyText}>{search ? 'Ничего не найдено' : 'Нет контактов'}</Text>
+            <Text style={s.listEmptyText}>{search ? t('noData') : t('contactsNoClients')}</Text>
           </View>
         ) : (
           <ScrollView
@@ -716,7 +723,7 @@ export default function WebContactsScreen({ onNavigateToProperty }) {
               <Text style={s.backToContactArrow}>←</Text>
               {selected && <Avatar contact={selected} size={22} />}
               <Text style={s.backToContactText} numberOfLines={1}>
-                {[selected?.name, selected?.lastName].filter(Boolean).join(' ') || 'Контакт'}
+                {[selected?.name, selected?.lastName].filter(Boolean).join(' ') || t('emptySelectContact')}
               </Text>
             </TouchableOpacity>
             <PropertyDetail
@@ -755,8 +762,8 @@ export default function WebContactsScreen({ onNavigateToProperty }) {
         ) : (
           <View style={s.rightEmpty}>
             <Text style={s.rightEmptyIcon}>👤</Text>
-            <Text style={s.rightEmptyTitle}>Выберите контакт</Text>
-            <Text style={s.rightEmptySub}>Нажмите на контакт в списке слева чтобы увидеть детали</Text>
+            <Text style={s.rightEmptyTitle}>{t('emptySelectContact')}</Text>
+            <Text style={s.rightEmptySub}>{t('emptySelectContactHint')}</Text>
           </View>
         )}
       </View>
@@ -798,12 +805,14 @@ const s = StyleSheet.create({
   leftTitle:    { fontSize: 20, fontWeight: '800', color: C.text },
   leftSubtitle: { fontSize: 12, color: C.muted, marginTop: 2 },
   addBtn: {
-    backgroundColor: ACCENT,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: '#EAF4F5',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#B2D8DB',
   },
-  addBtnText: { color: '#FFF', fontSize: 13, fontWeight: '700' },
+  addBtnText: { color: '#3D7D82', fontSize: 14, fontWeight: '700' },
 
   searchBox: {
     flexDirection: 'row',
@@ -888,13 +897,18 @@ const s = StyleSheet.create({
   detailHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
   editBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 8, borderWidth: 1, borderColor: C.border,
-    backgroundColor: C.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#B2D8DB',
+    backgroundColor: '#EAF4F5',
   },
-  editBtnIcon: { width: 14, height: 14 },
-  editBtnText: { fontSize: 13, fontWeight: '600', color: C.muted },
+  editBtnIcon: { width: 14, height: 14, tintColor: '#3D7D82' },
+  editBtnText: { fontSize: 14, fontWeight: '700', color: '#3D7D82' },
 
   deleteBtn: {
     width: 34, height: 34, borderRadius: 8,

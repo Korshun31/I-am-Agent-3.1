@@ -4,8 +4,8 @@ import {
   ActivityIndicator, Image, TextInput,
 } from 'react-native';
 import dayjs from 'dayjs';
-import 'dayjs/locale/ru';
-dayjs.locale('ru');
+import { useLanguage } from '../../context/LanguageContext';
+import { getCurrencySymbol } from '../../utils/currency';
 
 import { getBookings, deleteBooking } from '../../services/bookingsService';
 import { getProperties } from '../../services/propertiesService';
@@ -15,14 +15,14 @@ import WebPropertyDetailPanel from '../components/WebPropertyDetailPanel';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ACCENT   = '#D81B60';
+const ACCENT   = '#3D7D82';
 const C = {
   bg: '#F4F6F9', surface: '#FFFFFF', border: '#E9ECEF',
   text: '#212529', muted: '#6C757D', light: '#ADB5BD',
-  accent: ACCENT, accentBg: '#FCE4EC',
-  green: '#2E7D32', greenBg: '#E8F5E9',
-  blue: '#1565C0', blueBg: '#E3F2FD',
-  amber: '#C2920E', amberBg: '#FFF8E1',
+  accent: ACCENT, accentBg: '#EAF4F5',
+  green: '#4AA87D', greenBg: '#F0FAF5',
+  blue: '#5B82D6', blueBg: '#F0F5FD',
+  amber: '#C2920E', amberBg: '#FFFDE7',
 };
 
 const MONTH_W = 130;   // px per month column
@@ -50,9 +50,9 @@ function getEffectiveType(prop) {
   return prop.effectiveType || prop.type || 'house';
 }
 
-function fmt(n) {
+function fmt(n, sym) {
   if (n == null) return '—';
-  return Number(n).toLocaleString('ru-RU') + ' ฿';
+  return Number(n).toLocaleString('ru-RU') + ' ' + (sym || '฿');
 }
 
 function fmtDate(d) {
@@ -132,24 +132,26 @@ function filterProperties(properties, bookings, filter) {
 
 // ─── Booking Status Badge ─────────────────────────────────────────────────────
 
-function statusInfo(checkIn, checkOut) {
+function statusInfo(checkIn, checkOut, t) {
   const today = dayjs();
   const ci = dayjs(checkIn);
   const co = dayjs(checkOut);
-  if (co.isBefore(today, 'day'))  return { label: 'Завершено',  color: C.muted,  bg: '#F0F0F0' };
-  if (ci.isAfter(today, 'day'))   return { label: 'Предстоящее',color: C.blue,   bg: C.blueBg };
-  return                                  { label: 'Текущее',   color: C.green,  bg: C.greenBg };
+  if (co.isBefore(today, 'day'))  return { label: t ? t('bookingStatusDone')     : 'Завершено',  color: C.muted,  bg: '#F0F0F0' };
+  if (ci.isAfter(today, 'day'))   return { label: t ? t('bookingStatusUpcoming') : 'Предстоящее',color: C.blue,   bg: C.blueBg };
+  return                                  { label: t ? t('bookingStatusActive')   : 'Текущее',   color: C.green,  bg: C.greenBg };
 }
 
 // ─── Booking Detail Panel ─────────────────────────────────────────────────────
 
 function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose }) {
+  const { t } = useLanguage();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   if (!booking) return null;
 
-  const st = statusInfo(booking.checkIn, booking.checkOut);
+  const psym = getCurrencySymbol(property?.currency || 'THB');
+  const st = statusInfo(booking.checkIn, booking.checkOut, t);
   const nights = nightsCount(booking.checkIn, booking.checkOut);
   const tc = TYPE_COLOR[getEffectiveType(property)] || TYPE_COLOR.house;
 
@@ -206,7 +208,7 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose }
         </View>
         <View style={d.headerActions}>
           <TouchableOpacity style={d.editBtn} onPress={onEdit}>
-            <Text style={d.editBtnText}>Изменить</Text>
+            <Text style={d.editBtnText}>{t('edit')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={d.closeBtn} onPress={onClose}>
             <Text style={d.closeBtnText}>✕</Text>
@@ -216,31 +218,31 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose }
 
       {confirmDelete && (
         <View style={d.confirmBar}>
-          <Text style={d.confirmText}>Удалить бронирование безвозвратно?</Text>
+          <Text style={d.confirmText}>{t('bookingDeleteConfirm')}</Text>
           <TouchableOpacity style={d.confirmYes} onPress={handleDelete} disabled={deleting}>
-            <Text style={d.confirmYesText}>{deleting ? '...' : 'Удалить'}</Text>
+            <Text style={d.confirmYesText}>{deleting ? '...' : t('delete')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={d.confirmNo} onPress={() => setConfirmDelete(false)}>
-            <Text style={d.confirmNoText}>Отмена</Text>
+            <Text style={d.confirmNoText}>{t('cancel')}</Text>
           </TouchableOpacity>
         </View>
       )}
 
       <ScrollView style={d.scroll} showsVerticalScrollIndicator={false}>
         {/* Dates */}
-        <Section title="ДАТЫ">
+        <Section title={t('bookingSectionDates')}>
           <View style={d.datesRow}>
             <View style={d.dateBlock}>
-              <Text style={d.dateLabel}>Заезд</Text>
+              <Text style={d.dateLabel}>{t('checkIn')}</Text>
               <Text style={d.dateValue}>{fmtDateLong(booking.checkIn)}</Text>
               {booking.checkInTime ? <Text style={d.dateTime}>{booking.checkInTime}</Text> : null}
             </View>
             <View style={d.dateSep}>
               <Text style={d.dateSepLine}>→</Text>
-              <Text style={d.dateSepNights}>{nights} н.</Text>
+              <Text style={d.dateSepNights}>{nights} {t('nightsShort')}</Text>
             </View>
             <View style={d.dateBlock}>
-              <Text style={d.dateLabel}>Выезд</Text>
+              <Text style={d.dateLabel}>{t('checkOut')}</Text>
               <Text style={d.dateValue}>{fmtDateLong(booking.checkOut)}</Text>
               {booking.checkOutTime ? <Text style={d.dateTime}>{booking.checkOutTime}</Text> : null}
             </View>
@@ -248,49 +250,63 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose }
         </Section>
 
         {/* Client */}
-        <Section title="КЛИЕНТ">
+        <Section title={t('bookingSectionClient')}>
           {booking.notMyCustomer ? (
-            <Text style={d.ownerLabel}>Бронь владельца</Text>
+            <Text style={d.ownerLabel}>{t('bookingNotMyClient')}</Text>
           ) : (
             <>
-              <InfoRow label="Имя" value={contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : '—'} />
-              <InfoRow label="Документ" value={booking.passportId} />
-              {contact?.phone ? <InfoRow label="Телефон" value={contact.phone} /> : null}
+              <InfoRow label={t('name')} value={contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : '—'} />
+              <InfoRow label={t('bookingPassportId')} value={booking.passportId} />
+              {contact?.phone ? <InfoRow label={t('contactPhoneLabel')} value={contact.phone} /> : null}
               {contact?.telegram ? <InfoRow label="Telegram" value={contact.telegram} /> : null}
             </>
           )}
         </Section>
 
         {/* Prices */}
-        <Section title="СТОИМОСТЬ">
-          <InfoRow label="Аренда/мес" value={fmt(booking.priceMonthly)} accent />
-          <InfoRow label="Итого" value={fmt(booking.totalPrice)} accent />
-          <InfoRow label="Депозит брони" value={fmt(booking.bookingDeposit)} />
-          <InfoRow label="Сохранный депозит" value={fmt(booking.saveDeposit)} />
-          <InfoRow label="Комиссия агента" value={fmt(booking.commission)} />
-          <InfoRow label="Комиссия влад. (разово)" value={fmt(booking.ownerCommissionOneTime)} />
-          <InfoRow label="Комиссия влад. (мес.)" value={fmt(booking.ownerCommissionMonthly)} />
+        <Section title={t('bookingSectionCost')}>
+          <InfoRow label={t('bookingRentMonthly')} value={fmt(booking.priceMonthly, psym)} accent />
+          <InfoRow label={t('bookingTotalLabel')} value={fmt(booking.totalPrice, psym)} accent />
+          <InfoRow label={t('bookingDepositLabel')} value={fmt(booking.bookingDeposit, psym)} />
+          <InfoRow label={t('bookingSaveDeposit')} value={fmt(booking.saveDeposit, psym)} />
+          <InfoRow label={t('bookingAgentComm')} value={fmt(booking.commission, psym)} />
+          <InfoRow
+            label={t('bookingOwnerCommOnce')}
+            value={booking.ownerCommissionOneTime != null
+              ? (property?.owner_commission_one_time_is_percent
+                  ? `${Number(booking.ownerCommissionOneTime).toLocaleString()}%`
+                  : fmt(booking.ownerCommissionOneTime, psym))
+              : null}
+          />
+          <InfoRow
+            label={t('bookingOwnerCommMonthly')}
+            value={booking.ownerCommissionMonthly != null
+              ? (property?.owner_commission_monthly_is_percent
+                  ? `${Number(booking.ownerCommissionMonthly).toLocaleString()}%`
+                  : fmt(booking.ownerCommissionMonthly, psym))
+              : null}
+          />
         </Section>
 
         {/* Guests */}
         {(booking.adults || booking.children || booking.pets) ? (
-          <Section title="ГОСТИ">
-            <InfoRow label="Взрослых" value={booking.adults} />
-            <InfoRow label="Детей" value={booking.children} />
-            {booking.pets ? <InfoRow label="Питомцы" value="Есть" /> : null}
+          <Section title={t('bookingSectionGuests')}>
+            <InfoRow label={t('bookingAdultsLabel')} value={booking.adults} />
+            <InfoRow label={t('bookingChildrenLabel')} value={booking.children} />
+            {booking.pets ? <InfoRow label={t('bookingHasPets')} value="✓" /> : null}
           </Section>
         ) : null}
 
         {/* Comments */}
         {booking.comments ? (
-          <Section title="КОММЕНТАРИЙ">
+          <Section title={t('bookingSectionComment')}>
             <Text style={d.commentText}>{booking.comments}</Text>
           </Section>
         ) : null}
 
         {/* Photos */}
         {booking.photos?.length > 0 ? (
-          <Section title="ФОТО">
+          <Section title={t('bookingSectionPhotos')}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
               {booking.photos.map((url, i) => (
                 <Image key={i} source={{ uri: url }} style={d.photo} resizeMode="cover" />
@@ -305,7 +321,7 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose }
             style={d.deleteBtn}
             onPress={() => setConfirmDelete(true)}
           >
-            <Text style={d.deleteBtnText}>Удалить бронирование</Text>
+            <Text style={d.deleteBtnText}>{t('delete')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -326,8 +342,15 @@ const d = StyleSheet.create({
   propCode: { fontSize: 13, fontWeight: '700' },
   propCity: { fontSize: 13, color: C.muted },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 12 },
-  editBtn: { backgroundColor: C.accentBg, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
-  editBtnText: { fontSize: 13, color: ACCENT, fontWeight: '700' },
+  editBtn: {
+    backgroundColor: '#EAF4F5',
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderWidth: 1.5,
+    borderColor: '#B2D8DB',
+  },
+  editBtnText: { fontSize: 14, color: '#3D7D82', fontWeight: '700' },
   closeBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   closeBtnText: { fontSize: 18, color: C.muted },
   confirmBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3F3', padding: 12, borderBottomWidth: 1, borderBottomColor: '#FFCDD2', gap: 8 },
@@ -361,6 +384,7 @@ const d = StyleSheet.create({
 // ─── Gantt Chart ──────────────────────────────────────────────────────────────
 
 function GanttChart({ properties, bookings, contacts, months, colorMap, onSelectBooking, selectedBookingId }) {
+  const { t } = useLanguage();
   const totalW = timelineWidth(months);
   const today = dayjs();
   const todayX = dateToPx(today.format('YYYY-MM-DD'), months);
@@ -397,7 +421,7 @@ function GanttChart({ properties, bookings, contacts, months, colorMap, onSelect
                     const isSelected = bk.id === selectedBookingId;
                     const contact = contacts.find(c => c.id === bk.contactId);
                     const label = bk.notMyCustomer
-                      ? 'Владелец'
+                      ? t('bookingOwnerLabel')
                       : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : '');
 
                     return (
@@ -468,6 +492,7 @@ const g = StyleSheet.create({
 // ─── List View ────────────────────────────────────────────────────────────────
 
 function ListView({ bookings, properties, contacts, colorMap, onSelectBooking, selectedBookingId }) {
+  const { t } = useLanguage();
   const today = dayjs().format('YYYY-MM-DD');
 
   const upcoming = bookings.filter(b => b.checkIn > today).sort((a, b) => a.checkIn.localeCompare(b.checkIn));
@@ -491,7 +516,7 @@ function ListView({ bookings, properties, contacts, colorMap, onSelectBooking, s
           const nights = nightsCount(bk.checkIn, bk.checkOut);
           const fullCode = prop ? (prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '')) : '—';
           const clientName = bk.notMyCustomer
-            ? 'Бронь владельца'
+            ? t('bookingNotMyClient')
             : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() || '—' : '—');
 
           return (
@@ -513,11 +538,11 @@ function ListView({ bookings, properties, contacts, colorMap, onSelectBooking, s
                 <Text style={lv.dateIn}>{fmtDate(bk.checkIn)}</Text>
                 <Text style={lv.dateArrow}>→</Text>
                 <Text style={lv.dateOut}>{fmtDate(bk.checkOut)}</Text>
-                <Text style={lv.nights}>{nights}н</Text>
+                <Text style={lv.nights}>{nights}{t('bookingNights')[0]}</Text>
               </View>
               <View style={lv.price}>
                 {bk.totalPrice ? (
-                  <Text style={lv.priceText}>{Number(bk.totalPrice).toLocaleString('ru-RU')} ฿</Text>
+                  <Text style={lv.priceText}>{Number(bk.totalPrice).toLocaleString('ru-RU')} {getCurrencySymbol(prop?.currency || 'THB')}</Text>
                 ) : (
                   <Text style={lv.priceEmpty}>—</Text>
                 )}
@@ -531,9 +556,9 @@ function ListView({ bookings, properties, contacts, colorMap, onSelectBooking, s
 
   return (
     <ScrollView style={lv.scroll} showsVerticalScrollIndicator={false}>
-      <Group title="Текущие"     color={C.green} items={current}  />
-      <Group title="Предстоящие" color={C.blue}  items={upcoming} />
-      <Group title="Прошедшие"   color={C.muted} items={past}     />
+      <Group title={t('bookingStatusActive')}   color={C.green} items={current}  />
+      <Group title={t('bookingStatusUpcoming')} color={C.blue}  items={upcoming} />
+      <Group title={t('bookingStatusDone')}     color={C.muted} items={past}     />
       <View style={{ height: 40 }} />
     </ScrollView>
   );
@@ -546,7 +571,7 @@ const lv = StyleSheet.create({
   groupTitle: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
   groupCount: { marginLeft: 8, fontSize: 12, color: C.muted, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.surface, gap: 10 },
-  rowSelected: { backgroundColor: '#FFF0F6' },
+  rowSelected: { backgroundColor: '#EAF4F5' },
   colorDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
   codeChip: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, flexShrink: 0 },
   codeText: { fontSize: 11, fontWeight: '700' },
@@ -612,6 +637,7 @@ const mh = StyleSheet.create({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function WebBookingsScreen() {
+  const { t } = useLanguage();
   const [bookings, setBookings]     = useState([]);
   const [properties, setProperties] = useState([]);
   const [contacts, setContacts]     = useState([]);
@@ -740,7 +766,7 @@ export default function WebBookingsScreen() {
     return (
       <View style={s.loadingWrap}>
         <ActivityIndicator size="large" color={ACCENT} />
-        <Text style={s.loadingText}>Загрузка бронирований…</Text>
+        <Text style={s.loadingText}>{t('loading')}</Text>
       </View>
     );
   }
@@ -751,12 +777,12 @@ export default function WebBookingsScreen() {
       <View style={s.toolbar}>
         {/* Row 1: Title + Search + Add */}
         <View style={s.toolbarRow1}>
-          <Text style={s.toolbarTitle}>Бронирования</Text>
+          <Text style={s.toolbarTitle}>{t('bookingsTitle')}</Text>
           <View style={s.searchWrap}>
             <Text style={s.searchIcon}>🔍</Text>
             <TextInput
               style={s.searchInput}
-              placeholder="Поиск объекта или клиента…"
+              placeholder={t('search') + '…'}
               placeholderTextColor={C.light}
               value={search}
               onChangeText={setSearch}
@@ -768,7 +794,7 @@ export default function WebBookingsScreen() {
             )}
           </View>
           <TouchableOpacity style={s.addBtn} onPress={() => { setSelectedBooking(null); setEditPanelMode('create'); }}>
-            <Text style={s.addBtnText}>+ Добавить</Text>
+            <Text style={s.addBtnText}>+ {t('bookingsAddBtn')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -779,8 +805,8 @@ export default function WebBookingsScreen() {
             {/* Segment: Все / Только мои */}
             <View style={s.segmentWrap}>
               {[
-                { key: 'all',  label: 'Все' },
-                { key: 'mine', label: 'Только мои' },
+                { key: 'all',  label: t('all') },
+                { key: 'mine', label: t('dashboardMyClients') },
               ].map(f => (
                 <TouchableOpacity
                   key={f.key}
@@ -805,7 +831,7 @@ export default function WebBookingsScreen() {
                 onPress={() => { setDistrictOpen(o => !o); setBedroomsOpen(false); }}
               >
                 <Text style={[s.dropdownBtnText, districtFilters.length > 0 && s.dropdownBtnTextActive]}>
-                  {districtFilters.length > 0 ? `Район (${districtFilters.length})` : 'Район'} ▾
+                  {districtFilters.length > 0 ? `${t('filterDistrict')} (${districtFilters.length})` : t('filterDistrict')} ▾
                 </Text>
               </TouchableOpacity>
               {districtOpen && (
@@ -829,7 +855,7 @@ export default function WebBookingsScreen() {
                     );
                   })}
                   {uniqueDistricts.length === 0 && (
-                    <Text style={s.dropdownEmpty}>Нет районов</Text>
+                    <Text style={s.dropdownEmpty}>{t('noData')}</Text>
                   )}
                 </View>
               )}
@@ -846,14 +872,14 @@ export default function WebBookingsScreen() {
                 onPress={() => { setBedroomsOpen(o => !o); setDistrictOpen(false); }}
               >
                 <Text style={[s.dropdownBtnText, bedroomsFilters.length > 0 && s.dropdownBtnTextActive]}>
-                  {bedroomsFilters.length > 0 ? `Спальни (${bedroomsFilters.length})` : 'Спальни'} ▾
+                  {bedroomsFilters.length > 0 ? `${t('filterBedrooms')} (${bedroomsFilters.length})` : t('filterBedrooms')} ▾
                 </Text>
               </TouchableOpacity>
               {bedroomsOpen && (
                 <View style={s.dropdownList}>
                   {[1,2,3,4,5,6].map(n => {
                     const selected = bedroomsFilters.includes(n);
-                    const label = n === 1 ? '1 спальня' : n < 5 ? `${n} спальни` : `${n} спален`;
+                    const label = `${n} ${t('filterBedrooms').toLowerCase()}`;
                     return (
                       <TouchableOpacity
                         key={n} style={s.dropdownItem}
@@ -882,7 +908,7 @@ export default function WebBookingsScreen() {
               <View style={[s.checkbox, petsFilter && s.checkboxChecked]}>
                 {petsFilter && <Text style={s.checkmark}>✓</Text>}
               </View>
-              <Text style={[s.checkLabel, petsFilter && s.checkLabelActive]}>🐾 Питомцы</Text>
+              <Text style={[s.checkLabel, petsFilter && s.checkLabelActive]}>🐾 {t('filterPets')}</Text>
             </TouchableOpacity>
 
             {/* Чекбокс: Дальние даты */}
@@ -890,7 +916,7 @@ export default function WebBookingsScreen() {
               <View style={[s.checkbox, longTermFilter && s.checkboxChecked]}>
                 {longTermFilter && <Text style={s.checkmark}>✓</Text>}
               </View>
-              <Text style={[s.checkLabel, longTermFilter && s.checkLabelActive]}>📅 Дальние даты</Text>
+              <Text style={[s.checkLabel, longTermFilter && s.checkLabelActive]}>📅 {t('filterLongTerm')}</Text>
             </TouchableOpacity>
 
             {/* Кнопка сброса всех фильтров */}
@@ -906,7 +932,7 @@ export default function WebBookingsScreen() {
                 }}
                 activeOpacity={0.7}
               >
-                <Text style={s.resetBtnText}>✕ Сбросить</Text>
+                <Text style={s.resetBtnText}>✕ {t('filter')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -992,7 +1018,7 @@ export default function WebBookingsScreen() {
                               const isSelected = bk.id === selectedBooking?.id;
                               const contact = contacts.find(c => c.id === bk.contactId);
                               const label = bk.notMyCustomer
-                                ? 'Владелец'
+                                ? t('bookingOwnerLabel')
                                 : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : '');
                               return (
                                 <TouchableOpacity
@@ -1106,8 +1132,16 @@ const s = StyleSheet.create({
   searchClearText: { color: '#FFF', fontSize: 10, fontWeight: '700', lineHeight: 12 },
 
   // Add button
-  addBtn: { backgroundColor: ACCENT, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9, flexShrink: 0 },
-  addBtnText: { fontSize: 13, color: '#FFF', fontWeight: '700' },
+  addBtn: {
+    backgroundColor: '#EAF4F5',
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    flexShrink: 0,
+    borderWidth: 1.5,
+    borderColor: '#B2D8DB',
+  },
+  addBtnText: { fontSize: 14, color: '#3D7D82', fontWeight: '700' },
 
   // Filter group (row 2 left)
   filterGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },

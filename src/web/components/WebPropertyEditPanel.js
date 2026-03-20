@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import { updateProperty, createPropertyFull, createProperty } from '../../services/propertiesService';
 import { supabase } from '../../services/supabase';
+import { useLanguage } from '../../context/LanguageContext';
+import { getCurrencySymbol } from '../../utils/currency';
 
 const ICON_TAB_MAIN      = require('../../../assets/icon-tab-main.png');
 const ICON_TAB_PRICES    = require('../../../assets/icon-tab-prices.png');
@@ -15,40 +17,44 @@ const ICON_TOGGLE_PETS    = require('../../../assets/icon-toggle-pets.png');
 const ICON_TOGGLE_BOOKING = require('../../../assets/icon-toggle-booking.png');
 const PHOTOS_BUCKET      = 'property-photos';
 
-const ACCENT = '#D81B60';
+const ACCENT = '#3D7D82';
 const C = {
   bg: '#F4F6F9', surface: '#FFFFFF', border: '#E9ECEF',
   text: '#212529', muted: '#6C757D', light: '#ADB5BD',
-  accent: ACCENT, accentBg: '#FCE4EC',
+  accent: ACCENT, accentBg: '#EAF4F5',
 };
 
-const TABS = [
-  { key: 'main',      label: 'Основное',     icon: ICON_TAB_MAIN      },
-  { key: 'prices',    label: 'Цены',          icon: ICON_TAB_PRICES    },
-  { key: 'utilities', label: 'Коммунальные',  icon: ICON_TAB_UTILITIES },
-  { key: 'amenities', label: 'Удобства',      icon: ICON_TAB_AMENITIES },
-  { key: 'photos',    label: 'Фото',          icon: ICON_TAB_PHOTOS    },
-];
+function getTabs(t) {
+  return [
+    { key: 'main',      label: t('tabMain'),      icon: ICON_TAB_MAIN      },
+    { key: 'prices',    label: t('tabPrices'),     icon: ICON_TAB_PRICES    },
+    { key: 'utilities', label: t('tabUtilities'),  icon: ICON_TAB_UTILITIES },
+    { key: 'amenities', label: t('tabAmenities'),  icon: ICON_TAB_AMENITIES },
+    { key: 'photos',    label: t('tabPhotos'),     icon: ICON_TAB_PHOTOS    },
+  ];
+}
 
-const AMENITY_KEYS = [
-  { key: 'swimming_pool',   label: 'Бассейн',      icon: require('../../../assets/icon-amenity-swimming_pool.png') },
-  { key: 'gym',             label: 'Спортзал',     icon: require('../../../assets/icon-amenity-gym.png') },
-  { key: 'parking',         label: 'Парковка',     icon: require('../../../assets/icon-amenity-parking.png') },
-  { key: 'internet',        label: 'Интернет',     icon: require('../../../assets/icon-amenity-internet.png') },
-  { key: 'tv',              label: 'ТВ',           icon: require('../../../assets/icon-amenity-tv.png') },
-  { key: 'washing_machine', label: 'Стир. машина', icon: require('../../../assets/icon-amenity-washing_machine.png') },
-  { key: 'dishwasher',      label: 'Посудомойка',  icon: require('../../../assets/icon-amenity-dishwasher.png') },
-  { key: 'fridge',          label: 'Холодильник',  icon: require('../../../assets/icon-amenity-fridge.png') },
-  { key: 'stove',           label: 'Плита',        icon: require('../../../assets/icon-amenity-stove.png') },
-  { key: 'oven',            label: 'Духовка',      icon: require('../../../assets/icon-amenity-oven.png') },
-  { key: 'hood',            label: 'Вытяжка',      icon: require('../../../assets/icon-amenity-hood.png') },
-  { key: 'microwave',       label: 'Микроволновка',icon: require('../../../assets/icon-amenity-microwave.png') },
-  { key: 'kettle',          label: 'Чайник',       icon: require('../../../assets/icon-amenity-kettle.png') },
-  { key: 'toaster',         label: 'Тостер',       icon: require('../../../assets/icon-amenity-toaster.png') },
-  { key: 'coffee_machine',  label: 'Кофемашина',   icon: require('../../../assets/icon-amenity-coffee_machine.png') },
-  { key: 'multi_cooker',    label: 'Мультиварка',  icon: require('../../../assets/icon-amenity-multi_cooker.png') },
-  { key: 'blender',         label: 'Блендер',      icon: require('../../../assets/icon-amenity-blender.png') },
-];
+function getAmenityKeys(t) {
+  return [
+    { key: 'swimming_pool',   label: t('amenity_swimming_pool'),   icon: require('../../../assets/icon-amenity-swimming_pool.png') },
+    { key: 'gym',             label: t('amenity_gym'),             icon: require('../../../assets/icon-amenity-gym.png') },
+    { key: 'parking',         label: t('amenity_parking'),         icon: require('../../../assets/icon-amenity-parking.png') },
+    { key: 'internet',        label: t('amenity_internet'),        icon: require('../../../assets/icon-amenity-internet.png') },
+    { key: 'tv',              label: t('amenity_tv'),              icon: require('../../../assets/icon-amenity-tv.png') },
+    { key: 'washing_machine', label: t('amenity_washing_machine'), icon: require('../../../assets/icon-amenity-washing_machine.png') },
+    { key: 'dishwasher',      label: t('amenity_dishwasher'),      icon: require('../../../assets/icon-amenity-dishwasher.png') },
+    { key: 'fridge',          label: t('amenity_fridge'),          icon: require('../../../assets/icon-amenity-fridge.png') },
+    { key: 'stove',           label: t('amenity_stove'),           icon: require('../../../assets/icon-amenity-stove.png') },
+    { key: 'oven',            label: t('amenity_oven'),            icon: require('../../../assets/icon-amenity-oven.png') },
+    { key: 'hood',            label: t('amenity_hood'),            icon: require('../../../assets/icon-amenity-hood.png') },
+    { key: 'microwave',       label: t('amenity_microwave'),       icon: require('../../../assets/icon-amenity-microwave.png') },
+    { key: 'kettle',          label: t('amenity_kettle'),          icon: require('../../../assets/icon-amenity-kettle.png') },
+    { key: 'toaster',         label: t('amenity_toaster'),         icon: require('../../../assets/icon-amenity-toaster.png') },
+    { key: 'coffee_machine',  label: t('amenity_coffee_machine'),  icon: require('../../../assets/icon-amenity-coffee_machine.png') },
+    { key: 'multi_cooker',    label: t('amenity_multi_cooker'),    icon: require('../../../assets/icon-amenity-multi_cooker.png') },
+    { key: 'blender',         label: t('amenity_blender'),         icon: require('../../../assets/icon-amenity-blender.png') },
+  ];
+}
 
 // ─── Small form components ────────────────────────────────────────────────────
 
@@ -106,6 +112,60 @@ function FieldToggle({ label, icon, value, onChange, compact }) {
   );
 }
 
+function OwnerCommField({ label, value, isPercent, onChangeValue, onTogglePercent, sym, priceMonthly }) {
+  const calcAmount = isPercent && value && priceMonthly
+    ? Math.round((parseFloat(value) / 100) * parseFloat(priceMonthly))
+    : null;
+
+  return (
+    <View style={{ marginBottom: 18 }}>
+      <Text style={s.fieldLabel}>{label}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {isPercent ? (
+          <>
+            <TextInput
+              style={[s.fieldInput, { flex: 1 }]}
+              value={value != null ? String(value) : ''}
+              onChangeText={text => onChangeValue(text.replace(/[^0-9.]/g, '') || null)}
+              placeholder="10"
+              placeholderTextColor={C.light}
+              keyboardType="numeric"
+            />
+            <View style={[s.fieldInput, { flex: 2, justifyContent: 'center', backgroundColor: '#F8F9FA' }]}>
+              <Text style={{ fontSize: 14, color: calcAmount != null ? C.text : C.light }}>
+                {calcAmount != null ? `= ${calcAmount.toLocaleString()} ${sym}` : `— ${sym}`}
+              </Text>
+            </View>
+          </>
+        ) : (
+          <TextInput
+            style={[s.fieldInput, { flex: 1 }]}
+            value={value != null ? String(value) : ''}
+            onChangeText={text => onChangeValue(text.replace(/[^0-9.]/g, '') || null)}
+            placeholder="15 000"
+            placeholderTextColor={C.light}
+            keyboardType="numeric"
+          />
+        )}
+        <View style={{ flexDirection: 'row', borderRadius: 7, borderWidth: 1, borderColor: C.border, overflow: 'hidden' }}>
+          <TouchableOpacity
+            onPress={() => onTogglePercent(false)}
+            style={{ paddingHorizontal: 11, paddingVertical: 8, backgroundColor: !isPercent ? ACCENT : C.bg }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '700', color: !isPercent ? '#FFF' : C.muted }}>{sym}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => onTogglePercent(true)}
+            style={{ paddingHorizontal: 11, paddingVertical: 8, backgroundColor: isPercent ? ACCENT : C.bg }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '700', color: isPercent ? '#FFF' : C.muted }}>%</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function FieldSelect({ value, options, onChange }) {
   return (
     <View style={s.selectRow}>
@@ -115,6 +175,7 @@ function FieldSelect({ value, options, onChange }) {
           style={[s.selectOption, value === opt.value && s.selectOptionActive]}
           onPress={() => onChange(opt.value)}
         >
+          {opt.icon && <Image source={opt.icon} style={s.selectOptionIcon} resizeMode="contain" />}
           <Text style={[s.selectOptionText, value === opt.value && s.selectOptionTextActive]}>
             {opt.label}
           </Text>
@@ -158,6 +219,12 @@ function buildForm(property, parentProperty) {
       save_deposit_is_from: property.save_deposit_is_from ?? false,
       commission: property.commission ?? '',
       commission_is_from: property.commission_is_from ?? false,
+      owner_commission_one_time: property.owner_commission_one_time ?? '',
+      owner_commission_one_time_is_from: property.owner_commission_one_time_is_from ?? false,
+      owner_commission_one_time_is_percent: property.owner_commission_one_time_is_percent ?? false,
+      owner_commission_monthly: property.owner_commission_monthly ?? '',
+      owner_commission_monthly_is_from: property.owner_commission_monthly_is_from ?? false,
+      owner_commission_monthly_is_percent: property.owner_commission_monthly_is_percent ?? false,
       electricity_price: property.electricity_price ?? '',
       water_price: property.water_price ?? '',
       water_price_type: property.water_price_type || 'fixed',
@@ -172,6 +239,7 @@ function buildForm(property, parentProperty) {
       amenities: property.amenities || {},
       photos: property.photos || [],
       video_url: property.video_url || '',
+      currency: property.currency || 'THB',
     };
   }
   // create mode
@@ -190,6 +258,8 @@ function buildForm(property, parentProperty) {
     booking_deposit: '', booking_deposit_is_from: false,
     save_deposit: '', save_deposit_is_from: false,
     commission: '', commission_is_from: false,
+    owner_commission_one_time: '', owner_commission_one_time_is_from: false, owner_commission_one_time_is_percent: false,
+    owner_commission_monthly: '', owner_commission_monthly_is_from: false, owner_commission_monthly_is_percent: false,
     electricity_price: parentProperty?.electricity_price ?? '',
     water_price: parentProperty?.water_price ?? '',
     water_price_type: parentProperty?.water_price_type || 'fixed',
@@ -203,6 +273,7 @@ function buildForm(property, parentProperty) {
     amenities: parentProperty?.amenities ? { ...parentProperty.amenities } : {},
     photos: [],
     video_url: '',
+    currency: 'THB',
   };
 }
 
@@ -213,7 +284,15 @@ function buildForm(property, parentProperty) {
  * property: existing property (edit mode)
  * parentProperty: resort/condo (create-unit mode)
  */
-export default function WebPropertyEditPanel({ visible, mode, property, parentProperty, onClose, onSaved }) {
+export default function WebPropertyEditPanel({ visible, mode, property, parentProperty, onClose, onSaved, userCurrency }) {
+  const { t } = useLanguage();
+  // In edit mode use the currency stored on the property; in create mode use the user's selected currency
+  const activeCurrency = (mode === 'edit' && property?.currency) ? property.currency : (userCurrency || 'THB');
+  const sym = getCurrencySymbol(activeCurrency);
+  // Replace ฿ placeholder in translated strings with the active currency symbol
+  const L = (key) => t(key).replace('฿', sym);
+  const TABS = getTabs(t);
+  const AMENITY_KEYS = getAmenityKeys(t);
   const [tab, setTab] = useState('main');
   const [form, setForm] = useState(() => buildForm(property, parentProperty));
 
@@ -279,8 +358,8 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) { setError('Введите название'); setTab('main'); return; }
-    if (!form.code.trim()) { setError('Введите код'); setTab('main'); return; }
+    if (!form.name.trim()) { setError(t('fieldRequired') + ': ' + t('propName')); setTab('main'); return; }
+    if (!form.code.trim()) { setError(t('fieldRequired') + ': ' + t('propCode')); setTab('main'); return; }
     setSaving(true);
     setError('');
 
@@ -310,6 +389,12 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       save_deposit_is_from: form.save_deposit_is_from,
       commission: numOrNull(form.commission),
       commission_is_from: form.commission_is_from,
+      owner_commission_one_time: numOrNull(form.owner_commission_one_time),
+      owner_commission_one_time_is_from: form.owner_commission_one_time_is_from,
+      owner_commission_one_time_is_percent: form.owner_commission_one_time_is_percent,
+      owner_commission_monthly: numOrNull(form.owner_commission_monthly),
+      owner_commission_monthly_is_from: form.owner_commission_monthly_is_from,
+      owner_commission_monthly_is_percent: form.owner_commission_monthly_is_percent,
       electricity_price: numOrNull(form.electricity_price),
       water_price: numOrNull(form.water_price),
       water_price_type: form.water_price_type,
@@ -324,6 +409,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       amenities: form.amenities,
       photos: form.photos || [],
       video_url: form.video_url.trim() || null,
+      currency: activeCurrency,
     };
 
     try {
@@ -348,7 +434,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       }
       onSaved(saved);
     } catch (e) {
-      setError(e.message || 'Ошибка сохранения');
+      setError(e.message || t('errorSave'));
     } finally {
       setSaving(false);
     }
@@ -381,7 +467,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
           setForm(f => ({ ...f, photos: [...(f.photos || []), ...newUrls] }));
         }
       } catch (e) {
-        setError(`Ошибка загрузки: ${e.message}`);
+        setError(`${t('errorUpload')}: ${e.message}`);
       } finally {
         setUploadingPhoto(false);
       }
@@ -394,22 +480,22 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
   };
 
   const title = mode === 'edit'
-    ? `Редактировать: ${property?.name || ''}`
+    ? `${t('editProperty')}: ${property?.name || ''}`
     : mode === 'create-unit'
-    ? `Добавить юнит в ${parentProperty?.name || ''}`
-    : 'Добавить объект';
+    ? `${t('addPropertyUnit')} ${parentProperty?.name || ''}`
+    : t('addProperty');
 
   // ── Tab content ──────────────────────────────────────────────────────────────
 
   const renderMain = () => (
     <>
-      <FieldRow label="Название" required>
-        <FieldInput value={form.name} onChangeText={v => set('name', v)} placeholder="Вилла Sunset" />
+      <FieldRow label={t('propName')} required>
+        <FieldInput value={form.name} onChangeText={v => set('name', v)} placeholder="Villa Sunset" />
       </FieldRow>
 
       <View style={s.row2}>
         <View style={{ flex: 1 }}>
-          <FieldRow label="Код" required={!(mode === 'edit' && property?.resort_id)}>
+          <FieldRow label={t('propCode')} required={!(mode === 'edit' && property?.resort_id)}>
             {mode === 'edit' && property?.resort_id ? (
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{form.code}</Text>
@@ -421,21 +507,21 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
           </FieldRow>
         </View>
         <View style={{ flex: 1 }}>
-          <FieldRow label="Суффикс кода">
+          <FieldRow label={t('codeSuffix')}>
             <FieldInput value={form.code_suffix} onChangeText={v => set('code_suffix', v)} placeholder="A, B, 32…" />
           </FieldRow>
         </View>
       </View>
 
       {mode !== 'create-unit' && !(mode === 'edit' && property?.resort_id) && (
-        <FieldRow label="Тип объекта">
+        <FieldRow label={t('propType')}>
           <FieldSelect
             value={form.type}
             onChange={v => set('type', v)}
             options={[
-              { value: 'house',  label: '🏠 Дом' },
-              { value: 'resort', label: '🏨 Резорт' },
-              { value: 'condo',  label: '🏢 Кондо' },
+              { value: 'house',  label: `🏠 ${t('house')}` },
+              { value: 'resort', label: `🏨 ${t('resort')}` },
+              { value: 'condo',  label: `🏢 ${t('condo')}` },
             ]}
           />
         </FieldRow>
@@ -443,7 +529,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
 
       <View style={s.row2}>
         <View style={{ flex: 1 }}>
-          <FieldRow label="Город">
+          <FieldRow label={t('city')}>
             {mode === 'edit' && property?.resort_id ? (
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{form.city || '—'}</Text>
@@ -455,7 +541,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
           </FieldRow>
         </View>
         <View style={{ flex: 1 }}>
-          <FieldRow label="Район">
+          <FieldRow label={t('filterDistrict')}>
             {mode === 'edit' && property?.resort_id ? (
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{form.district || '—'}</Text>
@@ -468,50 +554,47 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
         </View>
       </View>
 
-      <SectionDivider title="Параметры" />
+      <SectionDivider title={t('propParams')} />
 
-      {/* Resort: houses count */}
       {isParent && effectiveType === 'resort' && (
-        <FieldRow label="Кол-во домов">
+        <FieldRow label={t('propHousesCount')}>
           <FieldInput value={form.houses_count} onChangeText={v => set('houses_count', v)} placeholder="10" numeric />
         </FieldRow>
       )}
 
-      {/* Condo: floors */}
       {isParent && effectiveType === 'condo' && (
-        <FieldRow label="Этажей">
+        <FieldRow label={t('propFloors')}>
           <FieldInput value={form.floors} onChangeText={v => set('floors', v)} placeholder="7" numeric />
         </FieldRow>
       )}
 
-      {/* House / child unit: bedrooms, bathrooms, area + air conditioners + internet speed */}
       {!isParent && (
         <>
           <View style={s.row3}>
             <View style={{ flex: 1 }}>
-              <FieldRow label="Спальни">
+              <FieldRow label={t('propBedrooms3')}>
                 <FieldInput value={form.bedrooms} onChangeText={v => set('bedrooms', v)} placeholder="2" numeric />
               </FieldRow>
             </View>
             <View style={{ flex: 1 }}>
-              <FieldRow label="Ванные">
+              <FieldRow label={t('propBathrooms3')}>
                 <FieldInput value={form.bathrooms} onChangeText={v => set('bathrooms', v)} placeholder="1" numeric />
               </FieldRow>
             </View>
             <View style={{ flex: 1 }}>
-              <FieldRow label="Площадь м²">
+              <FieldRow label={t('propAreaSqm')}>
                 <FieldInput value={form.area} onChangeText={v => set('area', v)} placeholder="55" numeric />
               </FieldRow>
             </View>
           </View>
           <View style={s.row2}>
             <View style={{ flex: 1 }}>
-              <FieldRow label="Кондиционеры">
+              <FieldRow label={t('propAirConditioners')}>
                 <FieldInput value={form.air_conditioners} onChangeText={v => set('air_conditioners', v)} placeholder="2" numeric />
               </FieldRow>
             </View>
             <View style={{ flex: 1 }}>
-              <FieldRow label="Интернет (Мбит/с)">
+              <FieldRow label={t('propInternetSpeed')}>
                 <FieldInput value={form.internet_speed} onChangeText={v => set('internet_speed', v)} placeholder="300" numeric />
               </FieldRow>
             </View>
@@ -519,112 +602,132 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
         </>
       )}
 
-      <SectionDivider title="Расположение" />
+      <SectionDivider title={t('propLocationSection')} />
 
       <View style={s.row2}>
         <View style={{ flex: 1 }}>
-          <FieldRow label="До пляжа (м)">
+          <FieldRow label={t('propBeachDist')}>
             <FieldInput value={form.beach_distance} onChangeText={v => set('beach_distance', v)} placeholder="500" numeric />
           </FieldRow>
         </View>
         <View style={{ flex: 1 }}>
-          <FieldRow label="До магазина (м)">
+          <FieldRow label={t('propMarketDist')}>
             <FieldInput value={form.market_distance} onChangeText={v => set('market_distance', v)} placeholder="200" numeric />
           </FieldRow>
         </View>
       </View>
 
-      <FieldRow label="Google Maps ссылка">
+      <FieldRow label={t('propGoogleMapsLink')}>
         <FieldInput value={form.google_maps_link} onChangeText={v => set('google_maps_link', v)} placeholder="https://maps.google.com/..." />
       </FieldRow>
 
       {!isParent && (
-        <FieldRow label="Сайт объекта">
+        <FieldRow label={t('propWebsite')}>
           <FieldInput value={form.website_url} onChangeText={v => set('website_url', v)} placeholder="https://..." />
         </FieldRow>
       )}
 
-      <SectionDivider title="Описание" />
+      <SectionDivider title={t('propDescriptionSection')} />
 
-      <FieldRow label="Описание">
-        <FieldInput value={form.description} onChangeText={v => set('description', v)} placeholder="Описание объекта для клиентов…" multiline />
+      <FieldRow label={t('pdDescription')}>
+        <FieldInput value={form.description} onChangeText={v => set('description', v)} placeholder={t('propDescriptionPlaceholder')} multiline />
       </FieldRow>
 
-      <FieldRow label="Комментарии агента">
-        <FieldInput value={form.comments} onChangeText={v => set('comments', v)} placeholder="Внутренние заметки…" multiline />
+      <FieldRow label={t('propCommentsAgent')}>
+        <FieldInput value={form.comments} onChangeText={v => set('comments', v)} placeholder={t('propCommentsPlaceholder')} multiline />
       </FieldRow>
     </>
   );
 
   const renderPrices = () => (
     <>
-      <SectionDivider title="Аренда" />
+      <SectionDivider title={t('propRentalSection')} />
 
-      <FieldRow label="Цена в месяц (฿)">
+      <FieldRow label={L('propPriceMonthly')}>
         <FieldInput value={form.price_monthly} onChangeText={v => set('price_monthly', v)} placeholder="15 000" numeric />
       </FieldRow>
-      <FieldToggle label="от" compact value={form.price_monthly_is_from} onChange={v => set('price_monthly_is_from', v)} />
+      <FieldToggle label={t('propFromToggle')} compact value={form.price_monthly_is_from} onChange={v => set('price_monthly_is_from', v)} />
 
-      <SectionDivider title="Депозиты" />
+      <SectionDivider title={t('propDeposits')} />
 
-      <FieldRow label="Депозит бронирования (฿)">
+      <FieldRow label={L('propBookingDeposit2')}>
         <FieldInput value={form.booking_deposit} onChangeText={v => set('booking_deposit', v)} placeholder="5 000" numeric />
       </FieldRow>
-      <FieldToggle label="от" compact value={form.booking_deposit_is_from} onChange={v => set('booking_deposit_is_from', v)} />
+      <FieldToggle label={t('propFromToggle')} compact value={form.booking_deposit_is_from} onChange={v => set('booking_deposit_is_from', v)} />
 
-      <FieldRow label="Сохранный депозит (฿)">
+      <FieldRow label={L('propSaveDeposit2')}>
         <FieldInput value={form.save_deposit} onChangeText={v => set('save_deposit', v)} placeholder="10 000" numeric />
       </FieldRow>
-      <FieldToggle label="от" compact value={form.save_deposit_is_from} onChange={v => set('save_deposit_is_from', v)} />
+      <FieldToggle label={t('propFromToggle')} compact value={form.save_deposit_is_from} onChange={v => set('save_deposit_is_from', v)} />
 
-      <SectionDivider title="Комиссия" />
+      <SectionDivider title={t('propCommissionSection')} />
 
-      <FieldRow label="Комиссия (฿)">
+      <FieldRow label={L('propCommissionField')}>
         <FieldInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="15 000" numeric />
       </FieldRow>
-      <FieldToggle label="от" compact value={form.commission_is_from} onChange={v => set('commission_is_from', v)} />
+      <FieldToggle label={t('propFromToggle')} compact value={form.commission_is_from} onChange={v => set('commission_is_from', v)} />
+
+      <OwnerCommField
+        label={t('propOwnerCommOnce').replace(' (฿)', '')}
+        value={form.owner_commission_one_time}
+        isPercent={form.owner_commission_one_time_is_percent}
+        onChangeValue={v => set('owner_commission_one_time', v)}
+        onTogglePercent={v => set('owner_commission_one_time_is_percent', v)}
+        sym={sym}
+        priceMonthly={form.price_monthly}
+      />
+
+      <OwnerCommField
+        label={t('propOwnerCommMonthly').replace(' (฿)', '')}
+        value={form.owner_commission_monthly}
+        isPercent={form.owner_commission_monthly_is_percent}
+        onChangeValue={v => set('owner_commission_monthly', v)}
+        onTogglePercent={v => set('owner_commission_monthly_is_percent', v)}
+        sym={sym}
+        priceMonthly={form.price_monthly}
+      />
     </>
   );
 
   const renderUtilities = () => (
     <>
-      <SectionDivider title="Электричество и вода" />
+      <SectionDivider title={t('propElectricityWater')} />
 
-      <FieldRow label="Электричество (฿/ед.)">
+      <FieldRow label={L('propElectricityField')}>
         <FieldInput value={form.electricity_price} onChangeText={v => set('electricity_price', v)} placeholder="7" numeric />
       </FieldRow>
 
-      <FieldRow label="Вода (฿)">
+      <FieldRow label={L('propWaterField')}>
         <FieldInput value={form.water_price} onChangeText={v => set('water_price', v)} placeholder="100" numeric />
       </FieldRow>
 
-      <FieldRow label="Тип оплаты воды">
+      <FieldRow label={t('propWaterType')}>
         <FieldSelect
           value={form.water_price_type}
           onChange={v => set('water_price_type', v)}
           options={[
-            { value: 'cubic',  label: '📦 куб.м' },
-            { value: 'person', label: '👤 с чел.' },
-            { value: 'fixed',  label: '📌 фикс.' },
+            { value: 'cubic',  label: t('propWaterCubic'),  icon: require('../../../assets/icon-price-water.png') },
+            { value: 'person', label: t('propWaterPerson'), icon: require('../../../assets/icon-contact-phone.png') },
+            { value: 'fixed',  label: t('propWaterFixed'),  icon: require('../../../assets/icon-price-monthly.png') },
           ]}
         />
       </FieldRow>
 
-      <SectionDivider title="Прочие услуги" />
+      <SectionDivider title={t('propOtherServices')} />
 
-      <FieldRow label="Газ (฿)">
+      <FieldRow label={L('propGasField')}>
         <FieldInput value={form.gas_price} onChangeText={v => set('gas_price', v)} placeholder="500" numeric />
       </FieldRow>
 
-      <FieldRow label="Интернет в месяц (฿)">
+      <FieldRow label={L('propInternetMonth')}>
         <FieldInput value={form.internet_price} onChangeText={v => set('internet_price', v)} placeholder="600" numeric />
       </FieldRow>
 
-      <FieldRow label="Уборка (฿)">
+      <FieldRow label={L('propCleaningField')}>
         <FieldInput value={form.cleaning_price} onChangeText={v => set('cleaning_price', v)} placeholder="500" numeric />
       </FieldRow>
 
-      <FieldRow label="Уборка перед выездом (฿)">
+      <FieldRow label={L('propExitCleaningField')}>
         <FieldInput value={form.exit_cleaning_price} onChangeText={v => set('exit_cleaning_price', v)} placeholder="1 000" numeric />
       </FieldRow>
 
@@ -633,7 +736,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
 
   const renderPhotosTab = () => (
     <>
-      <SectionDivider title="Фотографии" />
+      <SectionDivider title={t('pdPhotos')} />
       <View style={s.photosGrid}>
         {(form.photos || []).map((uri, idx) => (
           <View key={idx} style={s.photoThumb}>
@@ -646,18 +749,18 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
         <TouchableOpacity style={s.photoAddBtn} onPress={handlePickPhotos} disabled={uploadingPhoto}>
           {uploadingPhoto
             ? <ActivityIndicator size="small" color={ACCENT} />
-            : <Text style={s.photoAddText}>＋ Добавить фото</Text>
+            : <Text style={s.photoAddText}>{t('propAddPhoto')}</Text>
           }
         </TouchableOpacity>
       </View>
 
-      <SectionDivider title="Видео" />
+      <SectionDivider title={t('pdVideo')} />
       <View style={s.fieldRow}>
         <TextInput
           style={s.input}
           value={form.video_url}
           onChangeText={v => set('video_url', v)}
-          placeholder="Ссылка на видео (YouTube, Vimeo...)"
+          placeholder={t('propVideoLink')}
           placeholderTextColor={C.light}
           autoCapitalize="none"
           keyboardType="url"
@@ -668,22 +771,22 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
 
   const renderAmenities = () => (
     <>
-      <SectionDivider title="Особенности" />
+      <SectionDivider title={t('propFeatures')} />
 
       <FieldToggle
         icon={ICON_TOGGLE_PETS}
-        label="Домашние животные разрешены"
+        label={t('propPetsLabel')}
         value={form.pets_allowed}
         onChange={v => set('pets_allowed', v)}
       />
       <FieldToggle
         icon={ICON_TOGGLE_BOOKING}
-        label="Бронирование на дальние даты"
+        label={t('propLongTermLabel')}
         value={form.long_term_booking}
         onChange={v => set('long_term_booking', v)}
       />
 
-      <SectionDivider title="Удобства" />
+      <SectionDivider title={t('tabAmenities')} />
 
       <View style={s.amenitiesGrid}>
         {AMENITY_KEYS.map(({ key, label, icon }) => (
@@ -742,14 +845,14 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
 
           {/* Tabs */}
           <View style={s.tabs}>
-            {visibleTabs.map(t => (
+            {visibleTabs.map(tab_ => (
               <TouchableOpacity
-                key={t.key}
-                style={[s.tabBtn, tab === t.key && s.tabBtnActive]}
-                onPress={() => setTab(t.key)}
+                key={tab_.key}
+                style={[s.tabBtn, tab === tab_.key && s.tabBtnActive]}
+                onPress={() => setTab(tab_.key)}
               >
-                <Image source={t.icon} style={[s.tabBtnIcon, tab === t.key && s.tabBtnIconActive]} resizeMode="contain" />
-                <Text style={[s.tabBtnText, tab === t.key && s.tabBtnTextActive]} numberOfLines={1}>{t.label}</Text>
+                <Image source={tab_.icon} style={[s.tabBtnIcon, tab === tab_.key && s.tabBtnIconActive]} resizeMode="contain" />
+                <Text style={[s.tabBtnText, tab === tab_.key && s.tabBtnTextActive]} numberOfLines={1}>{tab_.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -769,13 +872,13 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
             {error ? <Text style={s.footerError}>{error}</Text> : null}
             <View style={s.footerBtns}>
               <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
-                <Text style={s.cancelBtnText}>Отмена</Text>
+                <Text style={s.cancelBtnText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
                 {saving
                   ? <ActivityIndicator size="small" color="#FFF" />
                   : <Text style={s.saveBtnText}>
-                      {mode === 'edit' ? '💾 Сохранить' : '＋ Добавить'}
+                      {mode === 'edit' ? `💾 ${t('save')}` : `＋ ${t('add')}`}
                     </Text>
                 }
               </TouchableOpacity>
@@ -915,14 +1018,18 @@ const s = StyleSheet.create({
   },
   toggleIcon: { width: 22, height: 22, marginRight: 8 },
   toggleLabel: { flex: 1, fontSize: 14, color: C.text },
-  toggleLabelCompact: { fontSize: 12, color: C.muted, fontWeight: '600' },
+  toggleLabelCompact: { fontSize: 12, color: C.muted, fontWeight: '600', flex: 0 },
 
   selectRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   selectOption: {
     paddingHorizontal: 14, paddingVertical: 8,
     borderRadius: 8, borderWidth: 1, borderColor: C.border,
     backgroundColor: C.bg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
+  selectOptionIcon: { width: 16, height: 16 },
   selectOptionActive: { borderColor: ACCENT, backgroundColor: C.accentBg },
   selectOptionText: { fontSize: 13, color: C.muted, fontWeight: '500' },
   selectOptionTextActive: { color: ACCENT, fontWeight: '700' },
@@ -941,8 +1048,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   amenityChipActive: { backgroundColor: C.accentBg, borderColor: ACCENT },
-  amenityChipIcon: { width: 20, height: 20, marginBottom: 3, opacity: 0.5 },
-  amenityChipIconActive: { opacity: 1 },
+  amenityChipIcon: { width: 22, height: 22, marginBottom: 4, opacity: 0.6 },
+  amenityChipIconActive: { opacity: 1, tintColor: ACCENT },
   amenityChipText: { fontSize: 11, color: C.muted, textAlign: 'center' },
   amenityChipTextActive: { color: ACCENT, fontWeight: '700' },
 
@@ -955,15 +1062,17 @@ const s = StyleSheet.create({
   footerError: { fontSize: 13, color: ACCENT },
   footerBtns: { flexDirection: 'row', gap: 10 },
   cancelBtn: {
-    flex: 1, height: 44, borderRadius: 10,
-    borderWidth: 1, borderColor: C.border,
+    flex: 1, height: 44, borderRadius: 14,
+    borderWidth: 1.5, borderColor: C.border,
     alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
   },
   cancelBtnText: { fontSize: 14, fontWeight: '600', color: C.muted },
   saveBtn: {
-    flex: 2, height: 44, borderRadius: 10,
-    backgroundColor: ACCENT,
+    flex: 2, height: 44, borderRadius: 14,
+    backgroundColor: '#EAF4F5',
+    borderWidth: 1.5, borderColor: '#B2D8DB',
     alignItems: 'center', justifyContent: 'center',
   },
-  saveBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  saveBtnText: { fontSize: 14, fontWeight: '700', color: ACCENT },
 });

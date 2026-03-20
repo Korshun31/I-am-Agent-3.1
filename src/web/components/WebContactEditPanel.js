@@ -5,30 +5,33 @@ import {
 } from 'react-native';
 import { createContact, updateContact } from '../../services/contactsService';
 import { supabase } from '../../services/supabase';
+import { useLanguage } from '../../context/LanguageContext';
 
-const ACCENT = '#D81B60';
+const ACCENT = '#3D7D82';
 const C = {
-  bg:          '#F8F9FA',
+  bg:          '#F4F6F9',
   surface:     '#FFFFFF',
   border:      '#E9ECEF',
   borderFocus: ACCENT,
-  text:        '#1A1D23',
-  muted:       '#6B7280',
-  light:       '#B0B7C3',
-  accentBg:    '#FDF0F5',
+  text:        '#212529',
+  muted:       '#6C757D',
+  light:       '#ADB5BD',
+  accentBg:    '#EAF4F5',
 };
 
 // ─── Contact method types ────────────────────────────────────────────────────
 
-const METHOD_TYPES = [
-  { type: 'phone',    label: 'Телефон',  icon: '📞', placeholder: '+66 99 999 9999', keyboardType: 'phone-pad' },
-  { type: 'telegram', label: 'Telegram', icon: '✈️', placeholder: '@username или +79991234567' },
-  { type: 'whatsapp', label: 'WhatsApp', icon: '💬', placeholder: '+66 99 999 9999',  keyboardType: 'phone-pad' },
-  { type: 'email',    label: 'Email',    icon: '📧', placeholder: 'mail@example.com', keyboardType: 'email-address' },
-];
+function getMethodTypes(t) {
+  return [
+    { type: 'phone',    label: t('phoneLabel'), icon: '📞', placeholder: '+66 99 999 9999', keyboardType: 'phone-pad' },
+    { type: 'telegram', label: 'Telegram',    icon: '✈️', placeholder: '@username' },
+    { type: 'whatsapp', label: 'WhatsApp',    icon: '💬', placeholder: '+66 99 999 9999', keyboardType: 'phone-pad' },
+    { type: 'email',    label: 'Email',       icon: '📧', placeholder: 'mail@example.com', keyboardType: 'email-address' },
+  ];
+}
 
-function methodConfig(type) {
-  return METHOD_TYPES.find(m => m.type === type) || METHOD_TYPES[0];
+function methodConfig(type, methodTypes) {
+  return methodTypes.find(m => m.type === type) || methodTypes[0];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -114,8 +117,9 @@ function FField({ label, value, onChange, placeholder, keyboardType, dateType })
 }
 
 function ContactMethodRow({ method, onUpdate, onRemove }) {
+  const { t } = useLanguage();
   const [focused, setFocused] = useState(false);
-  const cfg = methodConfig(method.type);
+  const cfg = methodConfig(method.type, getMethodTypes(t));
   return (
     <View style={[s.methodRow, focused && s.methodRowFocused]}>
       <Text style={s.methodIcon}>{cfg.icon}</Text>
@@ -136,10 +140,10 @@ function ContactMethodRow({ method, onUpdate, onRemove }) {
   );
 }
 
-function TypeSelect({ value, onChange }) {
+function TypeSelect({ value, onChange, t }) {
   const opts = [
-    { key: 'clients', label: 'Клиент',      color: '#1D4ED8', bg: '#DBEAFE' },
-    { key: 'owners',  label: 'Собственник', color: '#92680A', bg: '#FEF3C7' },
+    { key: 'clients', label: t('client'),      color: '#5B82D6', bg: '#F0F5FD' },
+    { key: 'owners',  label: t('owner'),        color: '#C2920E', bg: '#FFFDE7' },
   ];
   return (
     <View style={s.typeRow}>
@@ -162,6 +166,8 @@ function TypeSelect({ value, onChange }) {
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
 export default function WebContactEditPanel({ visible, mode, contact, onClose, onSaved, lockType }) {
+  const { t } = useLanguage();
+  const METHOD_TYPES = getMethodTypes(t);
   const slideAnim = useRef(new Animated.Value(440)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(false);
@@ -257,7 +263,7 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
         }));
         setDocuments(prev => [...prev, ...urls]);
       } catch (e) {
-        setError('Ошибка загрузки фото');
+        setError(t('errorUpload'));
       } finally {
         setUploadingDoc(false);
         input.value = '';
@@ -269,7 +275,7 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
   }, []);
 
   const handleSave = async () => {
-    if (!form.name.trim()) { setError('Введите имя'); return; }
+    if (!form.name.trim()) { setError(`${t('fieldRequired')}: ${t('ctName')}`); return; }
     setError('');
     setSaving(true);
     try {
@@ -291,7 +297,7 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
       }
       onSaved(saved);
     } catch (e) {
-      setError(e.message || 'Ошибка сохранения');
+      setError(e.message || t('errorSave'));
     } finally {
       setSaving(false);
     }
@@ -299,7 +305,7 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
 
   if (!mounted) return null;
 
-  const title = mode === 'edit' ? 'Редактировать контакт' : 'Новый контакт';
+  const title = mode === 'edit' ? t('ctEditTitle') : t('ctNewTitle');
 
   return (
     <>
@@ -317,7 +323,7 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
           <View style={s.headerContent}>
             <Text style={s.headerTitle}>{title}</Text>
             <Text style={s.headerSub}>
-              {mode === 'edit' ? 'Изменение данных контакта' : 'Заполните данные нового контакта'}
+              {mode === 'edit' ? t('ctEditSub') : t('ctNewSub')}
             </Text>
           </View>
           <TouchableOpacity style={s.closeBtn} onPress={onClose}>
@@ -330,35 +336,34 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
 
           {/* Тип — скрываем если тип зафиксирован */}
           {!lockType && (
-            <SectionCard title="Тип контакта">
-              <TypeSelect value={form.type} onChange={setF('type')} />
+            <SectionCard title={t('ctTypeSection')}>
+              <TypeSelect value={form.type} onChange={setF('type')} t={t} />
             </SectionCard>
           )}
 
           {/* Основное */}
-          <SectionCard title="Основное">
+          <SectionCard title={t('tabMain')}>
             <View style={s.row2}>
               <View style={{ flex: 1 }}>
-                <FField label="Имя *"    value={form.name}     onChange={setF('name')}     placeholder="Иван" />
+                <FField label={`${t('ctName')} *`} value={form.name}     onChange={setF('name')}     placeholder="Ivan" />
               </View>
               <View style={{ flex: 1 }}>
-                <FField label="Фамилия"  value={form.lastName} onChange={setF('lastName')} placeholder="Петров" />
+                <FField label={t('ctLastName')}     value={form.lastName} onChange={setF('lastName')} placeholder="Petrov" />
               </View>
             </View>
             <View style={s.row2}>
               <View style={{ flex: 1 }}>
-                <FField label="Гражданство" value={form.nationality}    onChange={setF('nationality')}    placeholder="Россия" />
+                <FField label={t('ctNationality')}  value={form.nationality}    onChange={setF('nationality')}    placeholder="Russia" />
               </View>
               <View style={{ flex: 1 }}>
-                <FField label="Дата рождения" value={form.birthday}     onChange={setF('birthday')}       placeholder="YYYY-MM-DD" dateType />
+                <FField label={t('ctBirthday')}     value={form.birthday}       onChange={setF('birthday')}       placeholder="YYYY-MM-DD" dateType />
               </View>
             </View>
-            <FField label="Номер документа" value={form.documentNumber} onChange={setF('documentNumber')} placeholder="AB1234567" />
+            <FField label={t('ctDocumentNumber')} value={form.documentNumber} onChange={setF('documentNumber')} placeholder="AB1234567" />
           </SectionCard>
 
           {/* Контакты */}
-          <SectionCard title="Контакты">
-            {/* Existing methods */}
+          <SectionCard title={t('ctContactsSection')}>
             {contactMethods.length > 0 && (
               <View style={s.methodsList}>
                 {contactMethods.map(m => (
@@ -375,7 +380,7 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
             {/* Add pills */}
             <View style={s.addMethodWrap}>
               <Text style={s.addMethodHint}>
-                {contactMethods.length === 0 ? 'Добавьте способ связи:' : 'Добавить ещё:'}
+                {contactMethods.length === 0 ? t('ctAddContact') : t('ctAddMore')}
               </Text>
               <View style={s.addMethodPills}>
                 {METHOD_TYPES.map(mt => (
@@ -393,8 +398,8 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
           </SectionCard>
 
           {/* Документы / Фото */}
-          <SectionCard title="Документы и фото">
-            <Text style={s.docHint}>Паспорт, виза, договор и другие документы</Text>
+          <SectionCard title={t('ctDocsSection')}>
+            <Text style={s.docHint}>{t('ctDocsHint')}</Text>
             <View style={s.docGrid}>
               {documents.map((uri, i) => (
                 <View key={i} style={s.docThumb}>
@@ -416,7 +421,7 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
                   ? <ActivityIndicator size="small" color={ACCENT} />
                   : <>
                       <Text style={s.docAddIcon}>+</Text>
-                      <Text style={s.docAddText}>Фото</Text>
+                      <Text style={s.docAddText}>{t('tabPhotos')}</Text>
                     </>
                 }
               </TouchableOpacity>
@@ -435,12 +440,12 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
         {/* Footer */}
         <View style={s.footer}>
           <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
-            <Text style={s.cancelBtnText}>Отмена</Text>
+            <Text style={s.cancelBtnText}>{t('cancel')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
             {saving
               ? <ActivityIndicator color="#FFF" size="small" />
-              : <Text style={s.saveBtnText}>Сохранить</Text>
+              : <Text style={s.saveBtnText}>{t('save')}</Text>
             }
           </TouchableOpacity>
         </View>
@@ -473,7 +478,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: C.border,
     paddingRight: 16,
   },
-  headerAccent:  { width: 4, alignSelf: 'stretch', backgroundColor: ACCENT },
+  headerAccent:  { width: 4, alignSelf: 'stretch', backgroundColor: '#3D7D82' },
   headerContent: { flex: 1, paddingVertical: 16, paddingHorizontal: 16 },
   headerTitle:   { fontSize: 18, fontWeight: '700', color: C.text, marginBottom: 2 },
   headerSub:     { fontSize: 12, color: C.muted },
@@ -562,8 +567,24 @@ const s = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: C.border,
     backgroundColor: C.surface,
   },
-  cancelBtn:     { flex: 1, paddingVertical: 13, borderRadius: 10, borderWidth: 1.5, borderColor: C.border, alignItems: 'center' },
-  cancelBtnText: { fontSize: 14, fontWeight: '600', color: C.muted },
-  saveBtn:       { flex: 2, paddingVertical: 13, borderRadius: 10, backgroundColor: ACCENT, alignItems: 'center', ...Platform.select({ web: { boxShadow: '0 4px 12px rgba(216,27,96,0.3)' } }) },
-  saveBtnText:   { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#E9ECEF',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  cancelBtnText: { fontSize: 14, fontWeight: '600', color: '#6C757D' },
+  saveBtn: {
+    flex: 2,
+    paddingVertical: 13,
+    borderRadius: 14,
+    backgroundColor: '#EAF4F5',
+    borderWidth: 1.5,
+    borderColor: '#B2D8DB',
+    alignItems: 'center',
+  },
+  saveBtnText: { fontSize: 14, fontWeight: '700', color: '#3D7D82' },
 });

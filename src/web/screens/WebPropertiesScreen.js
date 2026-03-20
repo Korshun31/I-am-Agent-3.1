@@ -4,8 +4,8 @@ import {
   TextInput, ActivityIndicator, FlatList, Image, Linking, Modal,
 } from 'react-native';
 import dayjs from 'dayjs';
-import 'dayjs/locale/ru';
-dayjs.locale('ru');
+import { useLanguage } from '../../context/LanguageContext';
+import { getCurrencySymbol } from '../../utils/currency';
 
 const ICON_BEDROOM  = require('../../../assets/icon-stat-bedroom.png');
 const ICON_BATHROOM = require('../../../assets/icon-stat-bathroom.png');
@@ -17,6 +17,27 @@ const ICON_PENCIL      = require('../../../assets/icon-type-pencil.png');
 const ICON_LOCATION      = require('../../../assets/icon-property-location.png');
 const ICON_CODE          = require('../../../assets/icon-property-code.png');
 const ICON_SEC_LOCATION  = require('../../../assets/icon-section-location.png');
+
+const AMENITY_ICONS = {
+  swimming_pool:   require('../../../assets/icon-amenity-swimming_pool.png'),
+  gym:             require('../../../assets/icon-amenity-gym.png'),
+  parking:         require('../../../assets/icon-amenity-parking.png'),
+  internet:        require('../../../assets/icon-amenity-internet.png'),
+  tv:              require('../../../assets/icon-amenity-tv.png'),
+  washing_machine: require('../../../assets/icon-amenity-washing_machine.png'),
+  dishwasher:      require('../../../assets/icon-amenity-dishwasher.png'),
+  fridge:          require('../../../assets/icon-amenity-fridge.png'),
+  stove:           require('../../../assets/icon-amenity-stove.png'),
+  oven:            require('../../../assets/icon-amenity-oven.png'),
+  hood:            require('../../../assets/icon-amenity-hood.png'),
+  microwave:       require('../../../assets/icon-amenity-microwave.png'),
+  kettle:          require('../../../assets/icon-amenity-kettle.png'),
+  toaster:         require('../../../assets/icon-amenity-toaster.png'),
+  coffee_machine:  require('../../../assets/icon-amenity-coffee_machine.png'),
+  multi_cooker:    require('../../../assets/icon-amenity-multi_cooker.png'),
+  blender:         require('../../../assets/icon-amenity-blender.png'),
+};
+
 import { getProperties, createProperty, deleteProperty } from '../../services/propertiesService';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
 import { getContacts } from '../../services/contactsService';
@@ -24,7 +45,9 @@ import { getBookings } from '../../services/bookingsService';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const ACCENT = '#D81B60';
+const ACCENT  = '#3D7D82';
+const TEAL_BG   = '#EAF4F5';
+const TEAL_LIGHT = '#B2D8DB';
 const C = {
   bg: '#F4F6F9',
   surface: '#FFFFFF',
@@ -32,30 +55,55 @@ const C = {
   text: '#212529',
   muted: '#6C757D',
   light: '#ADB5BD',
-  house: '#C2920E',
-  houseBg: '#FFFDE7',
-  resort: '#2E7D32',
-  resortBg: '#E8F5E9',
-  condo: '#1565C0',
-  condoBg: '#E3F2FD',
+  // Нижний ряд (Блоки)
+  in:       '#A8D5BA', // Мятный
+  inText:   '#4A7D62', // Темно-мятный
+  out:      '#F3B0A1', // Коралловый
+  outText:  '#A65E4E', // Темно-коралловый
+  ev:       '#A9C7EB', // Небесный
+  evText:   '#4E75A6', // Темно-небесный
+  
+  // Верхний ряд (Статистика)
+  stat1:    '#F9E2AF', // Песочный
+  stat1Text:'#8D7A4E', // Темно-песочный
+  stat2:    '#E2C2D6', // Пыльная сирень
+  stat2Text:'#8D5E7A', // Темно-сиреневый
+  stat3:    '#B2E2E2', // Аквамарин
+  stat3Text:'#4E8D8D', // Темно-аквамариновый
+
+  house:      '#C2920E',
+  houseBg:    '#FFFDE7',
+  houseStripe:'#F5D06A',
+  resort:     '#4AA87D',
+  resortBg:   '#F0FAF5',
+  resortStripe:'#82C9A5',
+  condo:      '#5B82D6',
+  condoBg:    '#F0F5FD',
+  condoStripe:'#93B4F0',
   accent: ACCENT,
-  accentBg: '#FCE4EC',
+  accentBg: TEAL_BG,
 };
 
-const TYPE_META = {
-  house:  { label: 'Дом',    color: C.house,  bg: C.houseBg,  icon: '🏠', img: ICON_TYPE_HOUSE  },
-  resort: { label: 'Резорт', color: C.resort,  bg: C.resortBg, icon: '🏨', img: ICON_TYPE_RESORT },
-  condo:  { label: 'Кондо',  color: C.condo,   bg: C.condoBg,  icon: '🏢', img: ICON_TYPE_CONDO  },
-};
+// TYPE_META and AMENITY_LABELS are built via getTypeMeta(t) / getAmenityLabels(t) functions
+// to support i18n. Static fallback kept for non-translated contexts.
+function getTypeMeta(t) {
+  return {
+    house:  { label: t('house'),  color: C.house,  bg: C.houseBg,  stripe: C.houseStripe,  icon: '🏠', img: ICON_TYPE_HOUSE  },
+    resort: { label: t('resort'), color: C.resort, bg: C.resortBg, stripe: C.resortStripe, icon: '🏨', img: ICON_TYPE_RESORT },
+    condo:  { label: t('condo'),  color: C.condo,  bg: C.condoBg,  stripe: C.condoStripe,  icon: '🏢', img: ICON_TYPE_CONDO  },
+  };
+}
 
-const AMENITY_LABELS = {
-  swimming_pool: '🏊 Бассейн', gym: '🏋️ Спортзал', parking: '🅿️ Парковка',
-  internet: '🌐 Интернет', tv: '📺 ТВ', washing_machine: '🫧 Стир. машина',
-  dishwasher: '🍽️ Посудомойка', fridge: '🧊 Холодильник', stove: '🍳 Плита',
-  oven: '♨️ Духовка', hood: '💨 Вытяжка', microwave: '📡 Микроволновка',
-  kettle: '🫖 Чайник', toaster: '🍞 Тостер', coffee_machine: '☕ Кофемашина',
-  multi_cooker: '🥘 Мультиварка', blender: '🥤 Блендер',
-};
+function getAmenityLabels(t) {
+  return {
+    swimming_pool: t('amenity_swimming_pool'), gym: t('amenity_gym'), parking: t('amenity_parking'),
+    internet: t('amenity_internet'), tv: t('amenity_tv'), washing_machine: t('amenity_washing_machine'),
+    dishwasher: t('amenity_dishwasher'), fridge: t('amenity_fridge'), stove: t('amenity_stove'),
+    oven: t('amenity_oven'), hood: t('amenity_hood'), microwave: t('amenity_microwave'),
+    kettle: t('amenity_kettle'), toaster: t('amenity_toaster'), coffee_machine: t('amenity_coffee_machine'),
+    multi_cooker: t('amenity_multi_cooker'), blender: t('amenity_blender'),
+  };
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -85,10 +133,12 @@ function getActiveBooking(bookings, propertyId) {
 // ─── Small shared components ─────────────────────────────────────────────────
 
 function TypeBadge({ type, small }) {
+  const { t } = useLanguage();
+  const TYPE_META = getTypeMeta(t);
   const m = TYPE_META[type];
   if (!m) return null;
   return (
-    <View style={[s.typeBadge, { backgroundColor: m.bg }, small && s.typeBadgeSmall]}>
+    <View style={[s.typeBadge, { backgroundColor: m.bg, borderColor: m.stripe }, small && s.typeBadgeSmall]}>
       {m.img && (
         <Image
           source={m.img}
@@ -134,6 +184,8 @@ function InfoRow({ label, value, highlight }) {
 // ─── Property List Card ───────────────────────────────────────────────────────
 
 function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
+  const { t } = useLanguage();
+  const TYPE_META = getTypeMeta(t);
   const meta = TYPE_META[item.type] || TYPE_META.house;
   const hasPhoto = item.photos?.length > 0;
   const code = item.code + (item.code_suffix ? `-${item.code_suffix}` : '');
@@ -144,6 +196,9 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
       onPress={onPress}
       activeOpacity={0.75}
     >
+      {/* Цветная полоска по типу */}
+      <View style={[s.cardStripe, { backgroundColor: isSelected ? ACCENT : meta.stripe }]} />
+
       {/* Thumbnail */}
       <View style={s.cardThumbWrap}>
         {hasPhoto ? (
@@ -182,7 +237,7 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
 
         {item.price_monthly ? (
           <Text style={[s.cardPrice, isSelected && s.cardPriceSelected]}>
-            {item.price_monthly_is_from ? 'от ' : ''}{fmt(item.price_monthly)}/мес
+            {item.price_monthly_is_from ? `${t('propFrom')} ` : ''}{fmt(item.price_monthly)} {getCurrencySymbol(item.currency || 'THB')}/{t('perMonth')}
           </Text>
         ) : null}
       </View>
@@ -193,13 +248,16 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
 // ─── Property Detail ──────────────────────────────────────────────────────────
 
 export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit }) {
+  const { t } = useLanguage();
+  const TYPE_META = getTypeMeta(t);
+  const AMENITY_LABELS = getAmenityLabels(t);
+  const psym = getCurrencySymbol(property.currency || 'THB');
   const owner1 = contacts.find(c => c.id === property.owner_id);
   const owner2 = contacts.find(c => c.id === property.owner_id_2);
   const parent = allProperties.find(p => p.id === property.resort_id);
   const children = allProperties.filter(p => p.resort_id === property.id);
   const occupied = isOccupiedNow(bookings, property.id);
   const code = property.code + (property.code_suffix ? `-${property.code_suffix}` : '');
-  // Юниты наследуют тип родителя для отображения (в БД мог быть сохранён 'house' по умолчанию)
   const effectiveType = property.resort_id && parent ? parent.type : property.type;
   const meta = TYPE_META[effectiveType] || TYPE_META.house;
   const hasAmenities = property.amenities && Object.values(property.amenities).some(Boolean);
@@ -226,7 +284,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
               : <Text style={{ fontSize: 14 }}>{TYPE_META[previousProperty.type]?.icon}</Text>}
           </View>
           <Text style={s.backText}>
-            <Text style={s.backLabel}>Назад к: </Text>
+            <Text style={s.backLabel}>{t('back')}: </Text>
             {previousProperty.name}
           </Text>
         </TouchableOpacity>
@@ -273,7 +331,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
               <Text style={s.detailTitle}>{property.name}</Text>
               {occupied && (
                 <View style={s.occupiedBadge}>
-                  <Text style={s.occupiedBadgeText}>● Занято</Text>
+                  <Text style={s.occupiedBadgeText}>● {t('propOccupied')}</Text>
                 </View>
               )}
             </View>
@@ -293,7 +351,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
           <View style={s.detailActions}>
             <TouchableOpacity style={s.detailEditBtn} onPress={onEdit}>
               <Image source={ICON_PENCIL} style={s.detailEditBtnIcon} resizeMode="contain" />
-              <Text style={s.detailEditBtnText}>Редактировать</Text>
+              <Text style={s.detailEditBtnText}>{t('edit')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -302,35 +360,35 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         {(property.bedrooms != null || property.bathrooms != null || property.area != null || property.price_monthly != null || property.air_conditioners != null) && (
           <View style={s.statsRow}>
             {property.bedrooms != null && (
-              <View style={s.statCard}>
+              <View style={[s.statCard, { borderLeftColor: C.in }]}>
                 <Text style={s.statValue}>{property.bedrooms}</Text>
-                <Text style={s.statLabel}>Спален</Text>
+                <Text style={s.statLabel}>{t('propBedrooms2')}</Text>
               </View>
             )}
             {property.bathrooms != null && (
-              <View style={s.statCard}>
+              <View style={[s.statCard, { borderLeftColor: C.ev }]}>
                 <Text style={s.statValue}>{property.bathrooms}</Text>
-                <Text style={s.statLabel}>Санузлов</Text>
+                <Text style={s.statLabel}>{t('propBathrooms')}</Text>
               </View>
             )}
             {property.air_conditioners != null && (
-              <View style={s.statCard}>
+              <View style={[s.statCard, { borderLeftColor: C.stat1 }]}>
                 <Text style={s.statValue}>{property.air_conditioners}</Text>
-                <Text style={s.statLabel}>Кондиц.</Text>
+                <Text style={s.statLabel}>{t('propAirCon')}</Text>
               </View>
             )}
             {property.area != null && (
-              <View style={s.statCard}>
+              <View style={[s.statCard, { borderLeftColor: C.muted }]}>
                 <Text style={s.statValue}>{property.area}</Text>
-                <Text style={s.statLabel}>м²</Text>
+                <Text style={s.statLabel}>{t('propSqm')}</Text>
               </View>
             )}
             {property.price_monthly != null && (
               <View style={[s.statCard, s.statCardAccent]}>
                 <Text style={[s.statValue, { color: ACCENT }]}>
-                  {property.price_monthly_is_from ? 'от ' : ''}{Number(property.price_monthly).toLocaleString('ru-RU')}
+                  {property.price_monthly_is_from ? `${t('propFrom')} ` : ''}{Number(property.price_monthly).toLocaleString()} {getCurrencySymbol(property.currency || 'THB')}
                 </Text>
-                <Text style={[s.statLabel, { color: ACCENT }]}>฿/мес</Text>
+                <Text style={[s.statLabel, { color: ACCENT }]}>{t('perMonth')}</Text>
               </View>
             )}
           </View>
@@ -338,81 +396,112 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
 
         {/* ── Location ── */}
         {(property.city || property.beach_distance || property.market_distance || property.google_maps_link || property.website_url) && (
-          <SectionBlock title="РАСПОЛОЖЕНИЕ" icon={ICON_SEC_LOCATION}>
-            <InfoRow label="Город" value={property.city} />
-            <InfoRow label="Район" value={property.district} />
-            <InfoRow label="До пляжа" value={property.beach_distance ? `${property.beach_distance} м` : null} />
-            <InfoRow label="До магазина" value={property.market_distance ? `${property.market_distance} м` : null} />
+          <SectionBlock title={t('pdLocation').toUpperCase()} icon={ICON_SEC_LOCATION}>
+            <InfoRow label={t('pdCity')} value={property.city} />
+            <InfoRow label={t('propDistrict')} value={property.district} />
+            <InfoRow label={t('propBeach')} value={property.beach_distance ? `${property.beach_distance} м` : null} />
+            <InfoRow label={t('propMarket')} value={property.market_distance ? `${property.market_distance} м` : null} />
             {property.google_maps_link ? (
               <TouchableOpacity onPress={() => Linking.openURL(property.google_maps_link)} style={s.linkBtn}>
-                <Text style={s.linkBtnText}>🗺️ Открыть Google Maps</Text>
+                <Text style={s.linkBtnText}>🗺️ {t('openGoogleMaps')}</Text>
               </TouchableOpacity>
             ) : null}
             {property.website_url ? (
               <TouchableOpacity onPress={() => Linking.openURL(property.website_url)} style={s.linkBtn}>
-                <Text style={s.linkBtnText}>🌐 Открыть сайт</Text>
+                <Text style={s.linkBtnText}>🌐 {t('openWebsite')}</Text>
               </TouchableOpacity>
             ) : null}
           </SectionBlock>
         )}
 
         {/* ── Pricing ── */}
-        {(property.price_monthly != null || property.booking_deposit != null || property.save_deposit != null || property.commission != null) && (
-          <SectionBlock title="💰 Аренда и депозиты">
+        {(property.price_monthly != null || property.booking_deposit != null || property.save_deposit != null) && (
+          <SectionBlock title={t('propRentalDeposits')}>
             <InfoRow
-              label="Стоимость аренды в месяц"
-              value={property.price_monthly != null ? `${property.price_monthly_is_from ? 'от ' : ''}${Number(property.price_monthly).toLocaleString('ru-RU')} ฿` : null}
+              label={t('pdPriceMonthly')}
+              value={property.price_monthly != null ? `${property.price_monthly_is_from ? `${t('propFrom')} ` : ''}${Number(property.price_monthly).toLocaleString()} ${psym}` : null}
               highlight
             />
             <InfoRow
-              label="Депозит бронирования"
-              value={property.booking_deposit != null ? `${property.booking_deposit_is_from ? 'от ' : ''}${Number(property.booking_deposit).toLocaleString('ru-RU')} ฿` : null}
+              label={t('pdBookingDeposit')}
+              value={property.booking_deposit != null ? `${property.booking_deposit_is_from ? `${t('propFrom')} ` : ''}${Number(property.booking_deposit).toLocaleString()} ${psym}` : null}
             />
             <InfoRow
-              label="Сохранный депозит"
-              value={property.save_deposit != null ? `${property.save_deposit_is_from ? 'от ' : ''}${Number(property.save_deposit).toLocaleString('ru-RU')} ฿` : null}
+              label={t('pdSaveDeposit')}
+              value={property.save_deposit != null ? `${property.save_deposit_is_from ? `${t('propFrom')} ` : ''}${Number(property.save_deposit).toLocaleString()} ${psym}` : null}
             />
-            <InfoRow
-              label="Комиссия"
-              value={property.commission != null ? `${property.commission_is_from ? 'от ' : ''}${Number(property.commission).toLocaleString('ru-RU')} ฿` : null}
-            />
+          </SectionBlock>
+        )}
+
+        {/* ── Commissions ── */}
+        {(property.commission != null || property.owner_commission_one_time != null || property.owner_commission_monthly != null) && (
+          <SectionBlock title={t('propCommissionSection')}>
+            {property.commission != null && (
+              <InfoRow
+                label={t('pdCommission')}
+                value={`${property.commission_is_from ? `${t('propFrom')} ` : ''}${Number(property.commission).toLocaleString()} ${psym}`}
+              />
+            )}
+            {property.owner_commission_one_time != null && (
+              <InfoRow
+                label={t('pdOwnerCommOnce')}
+                value={
+                  property.owner_commission_one_time_is_percent
+                    ? `${Number(property.owner_commission_one_time).toLocaleString()}%`
+                    : `${Number(property.owner_commission_one_time).toLocaleString()} ${psym}`
+                }
+              />
+            )}
+            {property.owner_commission_monthly != null && (
+              <InfoRow
+                label={t('pdOwnerCommMonthly')}
+                value={
+                  property.owner_commission_monthly_is_percent
+                    ? `${Number(property.owner_commission_monthly).toLocaleString()}%`
+                    : `${Number(property.owner_commission_monthly).toLocaleString()} ${psym}`
+                }
+              />
+            )}
           </SectionBlock>
         )}
 
         {/* ── Utilities ── */}
         {(property.electricity_price != null || property.water_price != null || property.gas_price != null || property.internet_price != null || property.cleaning_price != null || property.exit_cleaning_price != null) && (
-          <SectionBlock title="🔌 Коммунальные услуги">
-            <InfoRow label="Электричество" value={property.electricity_price != null ? `${property.electricity_price} ฿/ед.` : null} />
+          <SectionBlock title={t('propUtilities')}>
+            <InfoRow label={t('pdElectricity')} value={property.electricity_price != null ? `${property.electricity_price} ${psym}/${t('propWaterCubic')}` : null} />
             <InfoRow
-              label="Вода"
+              label={t('pdWater')}
               value={property.water_price != null
-                ? `${property.water_price} ฿ / ${property.water_price_type === 'cubic' ? 'куб.м' : property.water_price_type === 'person' ? 'чел.' : 'фикс.'}`
+                ? `${property.water_price} ${psym} / ${property.water_price_type === 'cubic' ? t('pdPerCubic') : property.water_price_type === 'person' ? t('pdPerPerson') : t('pdFixed')}`
                 : null}
             />
-            <InfoRow label="Газ" value={property.gas_price != null ? `${property.gas_price} ฿` : null} />
-            <InfoRow label="Интернет/мес" value={fmt(property.internet_price)} />
-            <InfoRow label="Уборка" value={fmt(property.cleaning_price)} />
-            <InfoRow label="Уборка перед выездом" value={fmt(property.exit_cleaning_price)} />
+            <InfoRow label={t('pdGas')} value={property.gas_price != null ? `${property.gas_price} ${psym}` : null} />
+            <InfoRow label={t('pdInternetMonth')} value={fmt(property.internet_price)} />
+            <InfoRow label={t('pdCleaning')} value={fmt(property.cleaning_price)} />
+            <InfoRow label={t('pdExitCleaning')} value={fmt(property.exit_cleaning_price)} />
           </SectionBlock>
         )}
 
         {/* ── Features ── */}
         {(property.internet_speed != null || property.pets_allowed != null || property.long_term_booking != null) && (
-          <SectionBlock title="✨ Особенности">
-            <InfoRow label="Скорость интернета" value={property.internet_speed ? `${property.internet_speed} Мбит/с` : null} />
-            <InfoRow label="Питомцы" value={property.pets_allowed != null ? (property.pets_allowed ? '✅ Разрешены' : '❌ Запрещены') : null} />
-            <InfoRow label="Бронирование на дальние даты" value={property.long_term_booking != null ? (property.long_term_booking ? '✅ Да' : '❌ Нет') : null} />
+          <SectionBlock title={t('propFeatures')}>
+            <InfoRow label={t('pdInternetSpeed')} value={property.internet_speed ? `${property.internet_speed} ${t('pdInternetSpeedUnit')}` : null} />
+            <InfoRow label={t('pdPets')} value={property.pets_allowed != null ? (property.pets_allowed ? `✅ ${t('yes')}` : `❌ ${t('no')}`) : null} />
+            <InfoRow label={t('pdLongTerm')} value={property.long_term_booking != null ? (property.long_term_booking ? `✅ ${t('yes')}` : `❌ ${t('no')}`) : null} />
           </SectionBlock>
         )}
 
         {/* ── Amenities ── */}
         {hasAmenities && (
-          <SectionBlock title="🏠 Удобства">
+          <SectionBlock title={t('propAmenities')}>
             <View style={s.amenitiesGrid}>
               {Object.entries(property.amenities)
                 .filter(([, v]) => v)
                 .map(([k]) => (
                   <View key={k} style={s.amenityChip}>
+                    {AMENITY_ICONS[k] && (
+                      <Image source={AMENITY_ICONS[k]} style={s.amenityChipIcon} resizeMode="contain" />
+                    )}
                     <Text style={s.amenityChipText}>{AMENITY_LABELS[k] || k}</Text>
                   </View>
                 ))}
@@ -422,11 +511,11 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
 
         {/* ── Description ── */}
         {(property.description || property.comments) && (
-          <SectionBlock title="📝 Описание">
+          <SectionBlock title={`📝 ${t('pdDescription')}`}>
             {property.description ? <Text style={s.descText}>{property.description}</Text> : null}
             {property.comments ? (
               <View style={s.commentsBox}>
-                <Text style={s.commentsLabel}>Комментарии агента:</Text>
+                <Text style={s.commentsLabel}>{t('pdComments')}:</Text>
                 <Text style={s.commentsText}>{property.comments}</Text>
               </View>
             ) : null}
@@ -435,7 +524,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
 
         {/* ── Owners ── */}
         {(owner1 || owner2) && (
-          <SectionBlock title="👤 Владельцы">
+          <SectionBlock title={`👤 ${t('propOwners')}`}>
             {[owner1, owner2].filter(Boolean).map((owner, i) => (
               <View key={i} style={s.ownerRow}>
                 <View style={s.ownerAvatar}>
@@ -452,7 +541,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
 
         {/* ── Parent Resort ── */}
         {parent && (
-          <SectionBlock title="🏨 Входит в состав">
+          <SectionBlock title={`🏨 ${t('pdLocation')}`}>
             <View style={s.ownerRow}>
               {TYPE_META[parent.type]?.img
                 ? <Image source={TYPE_META[parent.type].img} style={s.parentImg} resizeMode="contain" />
@@ -468,10 +557,10 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         {/* ── Children (for resorts/condos) ── */}
         {(children.length > 0 || ['resort', 'condo'].includes(property.type)) && (
           <SectionBlock
-            title={`🏠 Юниты (${children.length})`}
+            title={`🏠 ${t('propUnitsSection')} (${children.length})`}
             action={onAddUnit ? (
               <TouchableOpacity style={s.addUnitBtn} onPress={onAddUnit}>
-                <Text style={s.addUnitBtnText}>＋ Добавить юнит</Text>
+                <Text style={s.addUnitBtnText}>{t('addUnit')}</Text>
               </TouchableOpacity>
             ) : null}
           >
@@ -492,6 +581,9 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                     onPress={() => onChildPress && onChildPress(child)}
                     activeOpacity={0.8}
                   >
+                    {/* Полоска по типу */}
+                    <View style={[s.childCardStripe, { backgroundColor: childMeta.stripe }]} />
+
                     {/* Photo */}
                     <View style={s.childCardPhoto}>
                       {hasPhoto ? (
@@ -516,7 +608,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                         <View style={[s.childStatusPill, { backgroundColor: childOccupied ? C.accentBg : C.houseBg }]}>
                           <View style={[s.childStatusDot, { backgroundColor: childOccupied ? ACCENT : C.house }]} />
                           <Text style={[s.childStatusLabel, { color: childOccupied ? ACCENT : C.house }]}>
-                            {childOccupied ? `Занят ${checkOutLabel}` : 'Свободно'}
+                            {childOccupied ? `${t('propOccupied')} ${checkOutLabel}` : t('propFree')}
                           </Text>
                         </View>
                       </View>
@@ -527,21 +619,21 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                           <View style={s.childStat}>
                             <Image source={ICON_BEDROOM} style={s.childStatImg} />
                             <Text style={s.childStatNum}>{child.bedrooms}</Text>
-                            <Text style={s.childStatLabel}>спал.</Text>
+                            <Text style={s.childStatLabel}>{t('propBedrooms2')}</Text>
                           </View>
                         )}
                         {child.bathrooms != null && (
                           <View style={s.childStat}>
                             <Image source={ICON_BATHROOM} style={s.childStatImg} />
                             <Text style={s.childStatNum}>{child.bathrooms}</Text>
-                            <Text style={s.childStatLabel}>ванн.</Text>
+                            <Text style={s.childStatLabel}>{t('propBathrooms')}</Text>
                           </View>
                         )}
                         {child.area != null && (
                           <View style={s.childStat}>
                             <Image source={ICON_AREA} style={s.childStatImg} />
                             <Text style={s.childStatNum}>{child.area}</Text>
-                            <Text style={s.childStatLabel}>м²</Text>
+                            <Text style={s.childStatLabel}>{t('propSqm')}</Text>
                           </View>
                         )}
                       </View>
@@ -551,8 +643,8 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                     <View style={s.childCardRight}>
                       {child.price_monthly != null ? (
                         <>
-                          <Text style={s.childPriceValue}>{child.price_monthly_is_from ? 'от ' : ''}{fmt(child.price_monthly)}</Text>
-                          <Text style={s.childPricePer}>в месяц</Text>
+                          <Text style={s.childPriceValue}>{child.price_monthly_is_from ? `${t('propFrom')} ` : ''}{fmt(child.price_monthly)} {getCurrencySymbol(child.currency || 'THB')}</Text>
+                          <Text style={s.childPricePer}>{t('perMonth')}</Text>
                         </>
                       ) : (
                         <Text style={s.childNoPrice}>—</Text>
@@ -576,6 +668,8 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
 // ─── Add Property Modal ───────────────────────────────────────────────────────
 
 function AddPropertyModal({ visible, onClose, onSaved }) {
+  const { t } = useLanguage();
+  const TYPE_META = getTypeMeta(t);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [type, setType] = useState('house');
@@ -606,14 +700,14 @@ function AddPropertyModal({ visible, onClose, onSaved }) {
       <View style={s.modalOverlay}>
         <View style={s.modalBox}>
           <View style={s.modalHeader}>
-            <Text style={s.modalTitle}>Добавить объект</Text>
+            <Text style={s.modalTitle}>{t('propertiesAddBtn')}</Text>
             <TouchableOpacity onPress={() => { reset(); onClose(); }} style={s.modalClose}>
               <Text style={s.modalCloseText}>✕</Text>
             </TouchableOpacity>
           </View>
 
           {/* Type selector */}
-          <Text style={s.fieldLabel}>Тип объекта</Text>
+          <Text style={s.fieldLabel}>{t('propertyType')}</Text>
           <View style={s.typeRow}>
             {Object.entries(TYPE_META).map(([key, m]) => (
               <TouchableOpacity
@@ -628,7 +722,7 @@ function AddPropertyModal({ visible, onClose, onSaved }) {
             ))}
           </View>
 
-          <Text style={s.fieldLabel}>Название *</Text>
+          <Text style={s.fieldLabel}>{t('name')} *</Text>
           <TextInput
             style={s.fieldInput}
             value={name}
@@ -637,7 +731,7 @@ function AddPropertyModal({ visible, onClose, onSaved }) {
             placeholderTextColor={C.light}
           />
 
-          <Text style={s.fieldLabel}>Код *</Text>
+          <Text style={s.fieldLabel}>{t('bookingHouseCode')} *</Text>
           <TextInput
             style={s.fieldInput}
             value={code}
@@ -647,7 +741,7 @@ function AddPropertyModal({ visible, onClose, onSaved }) {
             autoCapitalize="characters"
           />
 
-          <Text style={s.fieldLabel}>Город</Text>
+          <Text style={s.fieldLabel}>{t('pdCity')}</Text>
           <TextInput
             style={s.fieldInput}
             value={city}
@@ -660,13 +754,13 @@ function AddPropertyModal({ visible, onClose, onSaved }) {
 
           <View style={s.modalActions}>
             <TouchableOpacity style={s.cancelBtn} onPress={() => { reset(); onClose(); }}>
-              <Text style={s.cancelBtnText}>Отмена</Text>
+              <Text style={s.cancelBtnText}>{t('cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
               {saving ? (
                 <ActivityIndicator size="small" color="#FFF" />
               ) : (
-                <Text style={s.saveBtnText}>Добавить объект</Text>
+                <Text style={s.saveBtnText}>{t('propertiesAddBtn')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -679,11 +773,12 @@ function AddPropertyModal({ visible, onClose, onSaved }) {
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
 function EmptyState() {
+  const { t } = useLanguage();
   return (
     <View style={s.emptyState}>
       <Text style={s.emptyIcon}>🏠</Text>
-      <Text style={s.emptyTitle}>Выберите объект</Text>
-      <Text style={s.emptyText}>Нажмите на объект в списке слева, чтобы увидеть подробную информацию</Text>
+      <Text style={s.emptyTitle}>{t('emptySelectProperty')}</Text>
+      <Text style={s.emptyText}>{t('emptySelectPropertyHint')}</Text>
     </View>
   );
 }
@@ -691,6 +786,7 @@ function EmptyState() {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function WebPropertiesScreen({ initialPropertyId }) {
+  const { t, currency: userCurrency } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -782,8 +878,8 @@ export default function WebPropertiesScreen({ initialPropertyId }) {
     : filtered.filter(p => !p.resort_id);
 
   const counts = { all: properties.length };
-  ['house', 'resort', 'condo'].forEach(t => {
-    counts[t] = properties.filter(p => p.type === t).length;
+  ['house', 'resort', 'condo'].forEach(typ => {
+    counts[typ] = properties.filter(p => p.type === typ).length;
   });
 
   const handleSaved = () => {
@@ -812,7 +908,7 @@ export default function WebPropertiesScreen({ initialPropertyId }) {
     return (
       <View style={s.centered}>
         <ActivityIndicator size="large" color={ACCENT} />
-        <Text style={s.loadingText}>Загрузка объектов…</Text>
+        <Text style={s.loadingText}>{t('loading')}</Text>
       </View>
     );
   }
@@ -826,11 +922,11 @@ export default function WebPropertiesScreen({ initialPropertyId }) {
         {/* Header */}
         <View style={s.panelHeader}>
           <View>
-            <Text style={s.panelTitle}>Объекты</Text>
-            <Text style={s.panelSubtitle}>{properties.length} объектов в базе</Text>
+            <Text style={s.panelTitle}>{t('propertiesTitle')}</Text>
+            <Text style={s.panelSubtitle}>{properties.length} {t('propertiesTitle').toLowerCase()}</Text>
           </View>
           <TouchableOpacity style={s.addBtn} onPress={openCreate}>
-            <Text style={s.addBtnText}>＋ Добавить</Text>
+            <Text style={s.addBtnText}>＋ {t('propertiesAddBtn')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -841,7 +937,7 @@ export default function WebPropertiesScreen({ initialPropertyId }) {
             style={s.searchInput}
             value={search}
             onChangeText={setSearch}
-            placeholder="Поиск по названию, коду, городу…"
+            placeholder={t('search') + '…'}
             placeholderTextColor={C.light}
           />
           {search.length > 0 && (
@@ -854,10 +950,10 @@ export default function WebPropertiesScreen({ initialPropertyId }) {
         {/* Type filter tabs */}
         <View style={s.filterTabs}>
           {[
-            { key: 'all',    label: `Все (${counts.all})`,             img: null },
-            { key: 'house',  label: `Дома (${counts.house || 0})`,     img: ICON_TYPE_HOUSE  },
-            { key: 'resort', label: `Резорты (${counts.resort || 0})`, img: ICON_TYPE_RESORT },
-            { key: 'condo',  label: `Кондо (${counts.condo || 0})`,    img: ICON_TYPE_CONDO  },
+            { key: 'all',    label: `${t('all')} (${counts.all})`,                img: null },
+            { key: 'house',  label: `${t('house')} (${counts.house || 0})`,       img: ICON_TYPE_HOUSE  },
+            { key: 'resort', label: `${t('resort')} (${counts.resort || 0})`,     img: ICON_TYPE_RESORT },
+            { key: 'condo',  label: `${t('condo')} (${counts.condo || 0})`,       img: ICON_TYPE_CONDO  },
           ].map(tab => (
             <TouchableOpacity
               key={tab.key}
@@ -880,7 +976,7 @@ export default function WebPropertiesScreen({ initialPropertyId }) {
         {sorted.length === 0 ? (
           <View style={s.listEmpty}>
             <Text style={s.listEmptyText}>
-              {search ? 'Ничего не найдено' : 'Нет объектов'}
+              {search ? t('noData') : t('propertiesNoData')}
             </Text>
           </View>
         ) : (
@@ -949,6 +1045,7 @@ export default function WebPropertiesScreen({ initialPropertyId }) {
         parentProperty={editPanel.parentProperty}
         onClose={closePanel}
         onSaved={handlePanelSaved}
+        userCurrency={userCurrency}
       />
     </View>
   );
@@ -992,12 +1089,14 @@ const s = StyleSheet.create({
   panelTitle: { fontSize: 20, fontWeight: '700', color: C.text },
   panelSubtitle: { fontSize: 12, color: C.muted, marginTop: 2 },
   addBtn: {
-    backgroundColor: ACCENT,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: '#EAF4F5',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#B2D8DB',
   },
-  addBtnText: { color: '#FFF', fontWeight: '700', fontSize: 13 },
+  addBtnText: { color: '#3D7D82', fontWeight: '700', fontSize: 14 },
 
   searchWrap: {
     flexDirection: 'row',
@@ -1052,7 +1151,7 @@ const s = StyleSheet.create({
   },
   filterTabActive: { backgroundColor: ACCENT, borderColor: ACCENT },
   filterTabText: { fontSize: 12, color: C.muted, fontWeight: '500' },
-  filterTabTextActive: { color: '#FFF', fontWeight: '700' },
+  filterTabTextActive: { color: '#FFF', fontWeight: '600' },
   filterTabInner: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   filterTabIcon: { width: 16, height: 16 },
 
@@ -1068,16 +1167,25 @@ const s = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: C.border,
-    padding: 12,
-    gap: 12,
+    overflow: 'hidden',
+    gap: 0,
     cursor: 'pointer',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
   cardSelected: {
-    backgroundColor: '#FFF0F5',
+    backgroundColor: TEAL_BG,
     borderColor: ACCENT,
     borderWidth: 1.5,
   },
-  cardThumbWrap: { position: 'relative' },
+  cardStripe: {
+    width: 4,
+    alignSelf: 'stretch',
+  },
+  cardThumbWrap: { position: 'relative', margin: 10, marginLeft: 10 },
   cardThumb: { width: 64, height: 64, borderRadius: 10 },
   cardThumbPlaceholder: {
     width: 64, height: 64, borderRadius: 10,
@@ -1091,7 +1199,7 @@ const s = StyleSheet.create({
     backgroundColor: ACCENT,
     borderWidth: 2, borderColor: C.surface,
   },
-  cardBody: { flex: 1, justifyContent: 'space-between' },
+  cardBody: { flex: 1, justifyContent: 'center', paddingVertical: 10, paddingRight: 12 },
   cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cardName: { flex: 1, fontSize: 14, fontWeight: '700', color: C.text },
   cardNameSelected: { color: ACCENT },
@@ -1100,7 +1208,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2,
     borderWidth: 1, borderColor: C.border,
   },
-  codePillSelected: { backgroundColor: C.accentBg, borderColor: ACCENT },
+  codePillSelected: { backgroundColor: TEAL_BG, borderColor: TEAL_LIGHT },
   codePillText: { fontSize: 11, fontWeight: '600', color: C.muted },
   codePillTextSelected: { color: ACCENT },
   cardMidRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' },
@@ -1114,6 +1222,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: 6,
     flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderWidth: 1,
   },
   typeBadgeSmall: { paddingHorizontal: 6, paddingVertical: 2 },
   typeBadgeImg: { width: 14, height: 14 },
@@ -1179,8 +1288,9 @@ const s = StyleSheet.create({
   detailCityIcon: { width: 16, height: 16 },
   detailCity: { fontSize: 13, color: C.muted },
   occupiedBadge: {
-    backgroundColor: '#FCE4EC', borderRadius: 6,
+    backgroundColor: TEAL_BG, borderRadius: 6,
     paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: TEAL_LIGHT,
   },
   occupiedBadgeText: { fontSize: 12, fontWeight: '700', color: ACCENT },
 
@@ -1200,8 +1310,9 @@ const s = StyleSheet.create({
     minWidth: 72,
     borderWidth: 1,
     borderColor: C.border,
+    borderLeftWidth: 4,
   },
-  statCardAccent: { backgroundColor: C.accentBg, borderColor: ACCENT },
+  statCardAccent: { backgroundColor: C.accentBg, borderColor: ACCENT, borderLeftColor: ACCENT },
   statValue: { fontSize: 22, fontWeight: '800', color: C.text },
   statLabel: { fontSize: 11, color: C.muted, marginTop: 2 },
 
@@ -1235,19 +1346,27 @@ const s = StyleSheet.create({
   },
   detailActions: { paddingTop: 4 },
   detailEditBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 8, borderWidth: 1, borderColor: C.border,
-    backgroundColor: C.bg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#B2D8DB',
+    backgroundColor: '#EAF4F5',
   },
-  detailEditBtnIcon: { width: 16, height: 16 },
-  detailEditBtnText: { fontSize: 13, fontWeight: '600', color: C.muted },
+  detailEditBtnIcon: { width: 18, height: 18, tintColor: '#3D7D82' },
+  detailEditBtnText: { fontSize: 15, fontWeight: '700', color: '#3D7D82' },
   addUnitBtn: {
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 7, backgroundColor: C.accentBg,
-    borderWidth: 1, borderColor: ACCENT,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#EAF4F5',
+    borderWidth: 1.5,
+    borderColor: '#B2D8DB',
   },
-  addUnitBtnText: { fontSize: 12, fontWeight: '700', color: ACCENT },
+  addUnitBtnText: { fontSize: 13, fontWeight: '700', color: '#3D7D82' },
   sectionContent: { padding: 16 },
 
   infoRow: {
@@ -1269,23 +1388,27 @@ const s = StyleSheet.create({
     marginTop: 10,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: C.bg,
+    backgroundColor: TEAL_BG,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: TEAL_LIGHT,
     alignSelf: 'flex-start',
   },
-  linkBtnText: { fontSize: 13, color: C.resort, fontWeight: '600' },
+  linkBtnText: { fontSize: 13, color: ACCENT, fontWeight: '600' },
 
   amenitiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   amenityChip: {
     backgroundColor: C.bg,
     borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderWidth: 1,
     borderColor: C.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
+  amenityChipIcon: { width: 18, height: 18 },
   amenityChipText: { fontSize: 13, color: C.text },
 
   descText: { fontSize: 14, color: C.text, lineHeight: 22 },
@@ -1300,10 +1423,11 @@ const s = StyleSheet.create({
   ownerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
   ownerAvatar: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: ACCENT,
+    backgroundColor: TEAL_BG,
+    borderWidth: 1.5, borderColor: TEAL_LIGHT,
     alignItems: 'center', justifyContent: 'center',
   },
-  ownerAvatarText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  ownerAvatarText: { fontSize: 16, fontWeight: '700', color: ACCENT },
   ownerName: { fontSize: 14, fontWeight: '600', color: C.text },
   ownerPhone: { fontSize: 12, color: C.muted },
   parentIcon: { fontSize: 24 },
@@ -1331,6 +1455,7 @@ const s = StyleSheet.create({
 
   // ── Child list cards ──
   childGrid: { gap: 8 },
+  childCardStripe: { width: 4, alignSelf: 'stretch' },
 
   childCard: {
     flexDirection: 'row',
@@ -1423,7 +1548,7 @@ const s = StyleSheet.create({
   childPriceValue: {
     fontSize: 15,
     fontWeight: '800',
-    color: C.house,
+    color: ACCENT,
   },
   childPricePer: {
     fontSize: 11,
@@ -1532,8 +1657,9 @@ const s = StyleSheet.create({
   cancelBtnText: { fontSize: 14, fontWeight: '600', color: C.muted },
   saveBtn: {
     flex: 2, paddingVertical: 12,
-    borderRadius: 10, backgroundColor: ACCENT,
+    borderRadius: 10, backgroundColor: TEAL_BG,
+    borderWidth: 1, borderColor: TEAL_LIGHT,
     alignItems: 'center',
   },
-  saveBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  saveBtnText: { fontSize: 14, fontWeight: '700', color: ACCENT },
 });

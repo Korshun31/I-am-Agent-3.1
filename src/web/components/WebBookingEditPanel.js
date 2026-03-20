@@ -7,21 +7,23 @@ import dayjs from 'dayjs';
 import { createBooking, updateBooking } from '../../services/bookingsService';
 import WebContactEditPanel from './WebContactEditPanel';
 import { supabase } from '../../services/supabase';
+import { useLanguage } from '../../context/LanguageContext';
+import { getCurrencySymbol } from '../../utils/currency';
 
-const ACCENT = '#D81B60';
+const ACCENT = '#3D7D82';
 const C = {
-  bg:       '#F8F9FA',
+  bg:       '#F4F6F9',
   surface:  '#FFFFFF',
   card:     '#FFFFFF',
   border:   '#E9ECEF',
-  borderFocus: '#D81B60',
-  text:     '#1A1D23',
-  muted:    '#6B7280',
-  light:    '#B0B7C3',
+  borderFocus: '#3D7D82',
+  text:     '#212529',
+  muted:    '#6C757D',
+  light:    '#ADB5BD',
   accent:   ACCENT,
-  accentBg: '#FDF0F5',
-  green:    '#16A34A',
-  greenBg:  '#F0FDF4',
+  accentBg: '#EAF4F5',
+  green:    '#4AA87D',
+  greenBg:  '#F0FAF5',
 };
 
 const TYPE_COLOR = {
@@ -50,8 +52,10 @@ function buildForm(booking, property) {
       bookingDeposit:         toStr(booking.bookingDeposit),
       saveDeposit:            toStr(booking.saveDeposit),
       commission:             toStr(booking.commission),
-      ownerCommissionOneTime: toStr(booking.ownerCommissionOneTime),
-      ownerCommissionMonthly: toStr(booking.ownerCommissionMonthly),
+      ownerCommissionOneTime:          toStr(booking.ownerCommissionOneTime),
+      ownerCommissionOneTimeIsPercent: booking.ownerCommissionOneTimeIsPercent ?? false,
+      ownerCommissionMonthly:          toStr(booking.ownerCommissionMonthly),
+      ownerCommissionMonthlyIsPercent: booking.ownerCommissionMonthlyIsPercent ?? false,
       adults:                 toStr(booking.adults),
       children:               toStr(booking.children),
       pets:                   !!booking.pets,
@@ -73,8 +77,10 @@ function buildForm(booking, property) {
     bookingDeposit:         toStr(property?.booking_deposit),
     saveDeposit:            toStr(property?.save_deposit),
     commission:             toStr(property?.commission),
-    ownerCommissionOneTime: '',
-    ownerCommissionMonthly: '',
+    ownerCommissionOneTime:          '',
+    ownerCommissionOneTimeIsPercent: false,
+    ownerCommissionMonthly:          '',
+    ownerCommissionMonthlyIsPercent: false,
     adults:                 '',
     children:               '',
     pets:                   false,
@@ -89,11 +95,11 @@ function numOrNull(v) {
   return isNaN(n) ? null : n;
 }
 
-function nightsLabel(checkIn, checkOut) {
+function nightsLabel(checkIn, checkOut, t) {
   if (!checkIn || !checkOut || checkOut <= checkIn) return null;
   const n = dayjs(checkOut).diff(dayjs(checkIn), 'day');
   if (n <= 0) return null;
-  return `${n} ${n === 1 ? 'ночь' : n < 5 ? 'ночи' : 'ночей'}`;
+  return `${n} ${t('nights')}`;
 }
 
 // ─── Section Card ─────────────────────────────────────────────────────────────
@@ -172,13 +178,13 @@ function DateInput({ value, onChange, placeholder }) {
     );
   }
   return (
-    <FInput value={value} onChangeText={onChange} placeholder={placeholder || 'ГГГГ-ММ-ДД'} />
+    <FInput value={value} onChangeText={onChange} placeholder={placeholder || 'YYYY-MM-DD'} />
   );
 }
 
 // ─── Property Picker ──────────────────────────────────────────────────────────
 
-function PropertyPicker({ value, properties, onChange }) {
+function PropertyPicker({ value, properties, onChange, t }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const searchRef = useRef(null);
@@ -216,7 +222,7 @@ function PropertyPicker({ value, properties, onChange }) {
             {prop.city ? <Text style={s.pickerSubText}>{prop.city}</Text> : null}
           </View>
         ) : (
-          <Text style={s.pickerPlaceholder}>Выберите объект…</Text>
+          <Text style={s.pickerPlaceholder}>{t('bkPickProperty')}</Text>
         )}
         <Text style={s.pickerChevron}>{open ? '▲' : '▼'}</Text>
       </TouchableOpacity>
@@ -230,7 +236,7 @@ function PropertyPicker({ value, properties, onChange }) {
               style={s.searchInput}
               value={search}
               onChangeText={setSearch}
-              placeholder="Поиск по коду, названию, городу…"
+              placeholder={t('bkSearchProperty')}
               placeholderTextColor={C.light}
             />
             {search ? (
@@ -241,7 +247,7 @@ function PropertyPicker({ value, properties, onChange }) {
           </View>
           <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled>
             {filtered.length === 0 && (
-              <Text style={s.dropdownEmpty}>Ничего не найдено</Text>
+              <Text style={s.dropdownEmpty}>{t('noResults')}</Text>
             )}
             {filtered.map(pr => {
               const tc2 = TYPE_COLOR[pr.type] || TYPE_COLOR.house;
@@ -277,7 +283,7 @@ function PropertyPicker({ value, properties, onChange }) {
 
 // ─── Contact Picker ───────────────────────────────────────────────────────────
 
-function ContactPicker({ value, contacts, onChange, onRequestNewContact }) {
+function ContactPicker({ value, contacts, onChange, onRequestNewContact, t }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const searchRef = useRef(null);
@@ -311,7 +317,7 @@ function ContactPicker({ value, contacts, onChange, onRequestNewContact }) {
             </View>
           </View>
         ) : (
-          <Text style={s.pickerPlaceholder}>Выберите клиента…</Text>
+          <Text style={s.pickerPlaceholder}>{t('bkPickClient')}</Text>
         )}
         <Text style={s.pickerChevron}>{open ? '▲' : '▼'}</Text>
       </TouchableOpacity>
@@ -325,7 +331,7 @@ function ContactPicker({ value, contacts, onChange, onRequestNewContact }) {
               style={s.searchInput}
               value={search}
               onChangeText={setSearch}
-              placeholder="Поиск по имени или телефону…"
+              placeholder={t('bkSearchClient')}
               placeholderTextColor={C.light}
             />
             {search ? (
@@ -348,7 +354,7 @@ function ContactPicker({ value, contacts, onChange, onRequestNewContact }) {
                 <Text style={{ fontSize: 15, color: '#FFF', lineHeight: 18, marginTop: -1 }}>+</Text>
               </View>
               <Text style={s.addNewContactText}>
-                {search ? `Добавить "${search}" как нового клиента` : 'Добавить нового клиента'}
+                {search ? `${t('bkAddNewContact')} "${search}"` : t('bkAddNewContact')}
               </Text>
             </TouchableOpacity>
 
@@ -358,12 +364,12 @@ function ContactPicker({ value, contacts, onChange, onRequestNewContact }) {
                 style={[s.dropdownItem, { backgroundColor: '#FFF5F5' }]}
                 onPress={() => { onChange(''); setOpen(false); }}
               >
-                <Text style={{ fontSize: 13, color: '#DC2626' }}>✕  Убрать клиента</Text>
+                <Text style={{ fontSize: 13, color: '#DC2626' }}>✕  {t('bkRemoveClient')}</Text>
               </TouchableOpacity>
             ) : null}
 
             {filtered.length === 0 && (
-              <Text style={s.dropdownEmpty}>Клиентов не найдено</Text>
+              <Text style={s.dropdownEmpty}>{t('noResults')}</Text>
             )}
             {filtered.map(c => {
               const isActive = c.id === value;
@@ -416,7 +422,7 @@ function CounterInput({ value, onChange }) {
 
 // ─── Photo Grid ───────────────────────────────────────────────────────────────
 
-function PhotoGrid({ photos, onAdd, onRemove, uploading }) {
+function PhotoGrid({ photos, onAdd, onRemove, uploading, t }) {
   return (
     <View style={s.photoGrid}>
       {photos.map((uri, i) => (
@@ -432,7 +438,7 @@ function PhotoGrid({ photos, onAdd, onRemove, uploading }) {
           ? <ActivityIndicator size="small" color={ACCENT} />
           : <>
               <Text style={s.photoAddIcon}>+</Text>
-              <Text style={s.photoAddText}>Фото</Text>
+              <Text style={s.photoAddText}>{t('tabPhotos')}</Text>
             </>
         }
       </TouchableOpacity>
@@ -443,6 +449,7 @@ function PhotoGrid({ photos, onAdd, onRemove, uploading }) {
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
 export default function WebBookingEditPanel({ visible, mode, booking, properties, contacts, onClose, onSaved }) {
+  const { t, currency: userCurrency } = useLanguage();
   const [form, setForm]             = useState(() => buildForm(booking, null));
   const [saving, setSaving]         = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -516,7 +523,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
         }));
         setForm(f => ({ ...f, photos: [...(f.photos || []), ...urls] }));
       } catch (e) {
-        setError('Ошибка загрузки фото');
+        setError(t('errorUpload'));
       } finally {
         setUploadingPhoto(false);
         input.value = '';
@@ -547,9 +554,9 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
   };
 
   const handleSave = async () => {
-    if (!form.propertyId) { setError('Выберите объект'); return; }
-    if (!form.checkIn || !form.checkOut) { setError('Укажите даты заезда и выезда'); return; }
-    if (form.checkIn >= form.checkOut) { setError('Дата выезда должна быть позже заезда'); return; }
+    if (!form.propertyId) { setError(t('bkErrNoProperty')); return; }
+    if (!form.checkIn || !form.checkOut) { setError(t('bkErrNoDates')); return; }
+    if (form.checkIn >= form.checkOut) { setError(t('bkErrDateOrder')); return; }
 
     setSaving(true);
     setError('');
@@ -568,8 +575,10 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
         bookingDeposit:         numOrNull(form.bookingDeposit),
         saveDeposit:            numOrNull(form.saveDeposit),
         commission:             numOrNull(form.commission),
-        ownerCommissionOneTime: numOrNull(form.ownerCommissionOneTime),
-        ownerCommissionMonthly: numOrNull(form.ownerCommissionMonthly),
+        ownerCommissionOneTime:          numOrNull(form.ownerCommissionOneTime),
+        ownerCommissionOneTimeIsPercent: form.ownerCommissionOneTimeIsPercent,
+        ownerCommissionMonthly:          numOrNull(form.ownerCommissionMonthly),
+        ownerCommissionMonthlyIsPercent: form.ownerCommissionMonthlyIsPercent,
         adults:                 numOrNull(form.adults),
         children:               numOrNull(form.children),
         pets:                   form.pets,
@@ -586,14 +595,20 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
       }
       onSaved(saved);
     } catch (e) {
-      setError(e.message || 'Ошибка сохранения');
+      setError(e.message || t('errorSave'));
     } finally {
       setSaving(false);
     }
   };
 
-  const title = mode === 'edit' ? 'Редактировать бронирование' : 'Новое бронирование';
-  const nights = nightsLabel(form.checkIn, form.checkOut);
+  // Use currency from the selected property; fall back to user's selected currency
+  const selectedProp = properties.find(p => p.id === form.propertyId);
+  const activeCurrency = selectedProp?.currency || userCurrency || 'THB';
+  const sym = getCurrencySymbol(activeCurrency);
+  const L = (key) => t(key).replace('฿', sym);
+
+  const title = mode === 'edit' ? t('bkEditTitle') : t('bkNewTitle');
+  const nights = nightsLabel(form.checkIn, form.checkOut, t);
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose}>
@@ -610,7 +625,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
             <View style={s.headerContent}>
               <Text style={s.headerTitle}>{title}</Text>
               <Text style={s.headerSub}>
-                {mode === 'edit' ? 'Изменение данных бронирования' : 'Заполните данные для нового бронирования'}
+                {mode === 'edit' ? t('bkEditSub') : t('bkNewSub')}
               </Text>
             </View>
             <TouchableOpacity style={s.closeBtn} onPress={onClose}>
@@ -622,11 +637,12 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
           <ScrollView style={s.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={s.scrollContent}>
 
             {/* Объект */}
-            <SectionCard title="Объект" icon="🏠">
-              <Field label="Объект" required>
+            <SectionCard title={t('bkSectionProperty')} icon="🏠">
+              <Field label={t('bkSectionProperty')} required>
                 <PropertyPicker
                   value={form.propertyId}
                   properties={properties}
+                  t={t}
                   onChange={id => {
                     const pr = properties.find(x => x.id === id);
                     setForm(f => ({
@@ -635,7 +651,11 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                       priceMonthly:   pr?.price_monthly   != null ? String(pr.price_monthly)   : f.priceMonthly,
                       bookingDeposit: pr?.booking_deposit != null ? String(pr.booking_deposit) : f.bookingDeposit,
                       saveDeposit:    pr?.save_deposit    != null ? String(pr.save_deposit)    : f.saveDeposit,
-                      commission:     pr?.commission      != null ? String(pr.commission)      : f.commission,
+                      commission:             pr?.commission                  != null ? String(pr.commission)                  : f.commission,
+                      ownerCommissionOneTime:          pr?.owner_commission_one_time         != null ? String(pr.owner_commission_one_time)         : f.ownerCommissionOneTime,
+                      ownerCommissionOneTimeIsPercent: pr?.owner_commission_one_time_is_percent ?? f.ownerCommissionOneTimeIsPercent,
+                      ownerCommissionMonthly:          pr?.owner_commission_monthly           != null ? String(pr.owner_commission_monthly)           : f.ownerCommissionMonthly,
+                      ownerCommissionMonthlyIsPercent: pr?.owner_commission_monthly_is_percent ?? f.ownerCommissionMonthlyIsPercent,
                     }));
                   }}
                 />
@@ -643,11 +663,11 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
             </SectionCard>
 
             {/* Клиент */}
-            <SectionCard title="Данные клиента" icon="👤">
+            <SectionCard title={t('bkSectionClient')} icon="👤">
               <View style={s.toggleRow}>
                 <View>
-                  <Text style={s.toggleLabel}>Бронь владельца</Text>
-                  <Text style={s.toggleSub}>Объект забронирован самим владельцем</Text>
+                  <Text style={s.toggleLabel}>{t('bkOwnerBooking')}</Text>
+                  <Text style={s.toggleSub}>{t('bkOwnerBookingSub')}</Text>
                 </View>
                 <Switch
                   value={form.notMyCustomer}
@@ -659,15 +679,16 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
 
               {!form.notMyCustomer && (
               <>
-                <Field label="Клиент">
+                <Field label={t('client')}>
                   <ContactPicker
                     value={form.contactId}
                     contacts={localContacts}
                     onChange={v => set('contactId', v)}
                     onRequestNewContact={handleRequestNewContact}
+                    t={t}
                   />
                 </Field>
-                  <Field label="Документ / Паспорт">
+                  <Field label={t('bkPassport')}>
                     <FInput value={form.passportId} onChangeText={v => set('passportId', v)} placeholder="AB123456" />
                   </Field>
                 </>
@@ -675,20 +696,20 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
             </SectionCard>
 
             {/* Даты */}
-            <SectionCard title="Даты" icon="📅">
+            <SectionCard title={t('bkSectionDates')} icon="📅">
               <View style={s.row2}>
-                <Field label="Дата заезда" required half>
+                <Field label={t('checkIn')} required half>
                   <DateInput value={form.checkIn} onChange={v => set('checkIn', v)} />
                 </Field>
-                <Field label="Дата выезда" required half>
+                <Field label={t('checkOut')} required half>
                   <DateInput value={form.checkOut} onChange={v => set('checkOut', v)} />
                 </Field>
               </View>
               <View style={s.row2}>
-                <Field label="Время заезда" half>
+                <Field label={t('bkCheckInTime')} half>
                   <FInput value={form.checkInTime} onChangeText={v => set('checkInTime', v)} placeholder="14:00" />
                 </Field>
-                <Field label="Время выезда" half>
+                <Field label={t('bkCheckOutTime')} half>
                   <FInput value={form.checkOutTime} onChangeText={v => set('checkOutTime', v)} placeholder="12:00" />
                 </Field>
               </View>
@@ -705,50 +726,114 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
             {!form.notMyCustomer && (
               <>
                 {/* Стоимость */}
-                <SectionCard title="Стоимость" icon="💰">
+                <SectionCard title={t('bkSectionCost')} icon="💰">
                   <View style={s.row2}>
-                    <Field label="Аренда в месяц (฿)" half>
+                    <Field label={L('propPriceMonthly')} half>
                       <FInput value={form.priceMonthly} onChangeText={v => set('priceMonthly', v)} placeholder="30 000" numeric />
                     </Field>
-                    <Field label="Общая стоимость (฿)" half>
-                      <FInput value={form.totalPrice} onChangeText={v => set('totalPrice', v)} placeholder="авто" numeric />
+                    <Field label={L('bkTotalPrice')} half>
+                      <FInput value={form.totalPrice} onChangeText={v => set('totalPrice', v)} placeholder={t('bkAuto')} numeric />
                     </Field>
                   </View>
                   <View style={s.row2}>
-                    <Field label="Депозит брони (฿)" half>
+                    <Field label={L('propBookingDeposit2')} half>
                       <FInput value={form.bookingDeposit} onChangeText={v => set('bookingDeposit', v)} placeholder="5 000" numeric />
                     </Field>
-                    <Field label="Сохранный депозит (฿)" half>
+                    <Field label={L('propSaveDeposit2')} half>
                       <FInput value={form.saveDeposit} onChangeText={v => set('saveDeposit', v)} placeholder="10 000" numeric />
                     </Field>
                   </View>
-                  <Field label="Комиссия агента (฿)">
+                  <Field label={L('bkAgentCommission')}>
                     <FInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="15 000" numeric />
                   </Field>
-                  <View style={s.row2}>
-                    <Field label="Комиссия влад. разово (฿)" half>
-                      <FInput value={form.ownerCommissionOneTime} onChangeText={v => set('ownerCommissionOneTime', v)} placeholder="—" numeric />
-                    </Field>
-                    <Field label="Комиссия влад. ежемесячно (฿)" half>
-                      <FInput value={form.ownerCommissionMonthly} onChangeText={v => set('ownerCommissionMonthly', v)} placeholder="—" numeric />
-                    </Field>
-                  </View>
+                  {/* Owner commission one-time */}
+                  <Field label={t('bookingOwnerCommOnce')}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      {form.ownerCommissionOneTimeIsPercent ? (
+                        <>
+                          <View style={[s.inputWrap, { flex: 1 }]}>
+                            <TextInput
+                              style={s.input}
+                              value={form.ownerCommissionOneTime != null ? String(form.ownerCommissionOneTime) : ''}
+                              onChangeText={v => set('ownerCommissionOneTime', v.replace(/[^0-9.]/g, '') || null)}
+                              placeholder="10"
+                              placeholderTextColor={C.light}
+                              keyboardType="numeric"
+                            />
+                          </View>
+                          <View style={[s.inputWrap, { flex: 2, backgroundColor: '#F8F9FA' }]}>
+                            <Text style={{ fontSize: 13, color: form.ownerCommissionOneTime && form.priceMonthly ? C.text : C.light }}>
+                              {form.ownerCommissionOneTime && form.priceMonthly
+                                ? `= ${Math.round(parseFloat(form.ownerCommissionOneTime) / 100 * parseFloat(form.priceMonthly)).toLocaleString()} ${sym}`
+                                : `— ${sym}`}
+                            </Text>
+                          </View>
+                        </>
+                      ) : (
+                        <FInput value={form.ownerCommissionOneTime} onChangeText={v => set('ownerCommissionOneTime', v)} placeholder="—" numeric />
+                      )}
+                      <View style={{ flexDirection: 'row', borderRadius: 7, borderWidth: 1, borderColor: C.border, overflow: 'hidden' }}>
+                        <TouchableOpacity onPress={() => set('ownerCommissionOneTimeIsPercent', false)} style={{ paddingHorizontal: 10, paddingVertical: 8, backgroundColor: !form.ownerCommissionOneTimeIsPercent ? ACCENT : C.bg }}>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: !form.ownerCommissionOneTimeIsPercent ? '#FFF' : C.muted }}>{sym}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => set('ownerCommissionOneTimeIsPercent', true)} style={{ paddingHorizontal: 10, paddingVertical: 8, backgroundColor: form.ownerCommissionOneTimeIsPercent ? ACCENT : C.bg }}>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: form.ownerCommissionOneTimeIsPercent ? '#FFF' : C.muted }}>%</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </Field>
+                  {/* Owner commission monthly */}
+                  <Field label={t('bookingOwnerCommMonthly')}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      {form.ownerCommissionMonthlyIsPercent ? (
+                        <>
+                          <View style={[s.inputWrap, { flex: 1 }]}>
+                            <TextInput
+                              style={s.input}
+                              value={form.ownerCommissionMonthly != null ? String(form.ownerCommissionMonthly) : ''}
+                              onChangeText={v => set('ownerCommissionMonthly', v.replace(/[^0-9.]/g, '') || null)}
+                              placeholder="10"
+                              placeholderTextColor={C.light}
+                              keyboardType="numeric"
+                            />
+                          </View>
+                          <View style={[s.inputWrap, { flex: 2, backgroundColor: '#F8F9FA' }]}>
+                            <Text style={{ fontSize: 13, color: form.ownerCommissionMonthly && form.priceMonthly ? C.text : C.light }}>
+                              {form.ownerCommissionMonthly && form.priceMonthly
+                                ? `= ${Math.round(parseFloat(form.ownerCommissionMonthly) / 100 * parseFloat(form.priceMonthly)).toLocaleString()} ${sym}`
+                                : `— ${sym}`}
+                            </Text>
+                          </View>
+                        </>
+                      ) : (
+                        <FInput value={form.ownerCommissionMonthly} onChangeText={v => set('ownerCommissionMonthly', v)} placeholder="—" numeric />
+                      )}
+                      <View style={{ flexDirection: 'row', borderRadius: 7, borderWidth: 1, borderColor: C.border, overflow: 'hidden' }}>
+                        <TouchableOpacity onPress={() => set('ownerCommissionMonthlyIsPercent', false)} style={{ paddingHorizontal: 10, paddingVertical: 8, backgroundColor: !form.ownerCommissionMonthlyIsPercent ? ACCENT : C.bg }}>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: !form.ownerCommissionMonthlyIsPercent ? '#FFF' : C.muted }}>{sym}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => set('ownerCommissionMonthlyIsPercent', true)} style={{ paddingHorizontal: 10, paddingVertical: 8, backgroundColor: form.ownerCommissionMonthlyIsPercent ? ACCENT : C.bg }}>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: form.ownerCommissionMonthlyIsPercent ? '#FFF' : C.muted }}>%</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </Field>
                 </SectionCard>
 
                 {/* Гости */}
-                <SectionCard title="Гости" icon="👥">
+                <SectionCard title={t('bkSectionGuests')} icon="👥">
                   <View style={s.row2}>
-                    <Field label="Взрослых" half>
+                    <Field label={t('bkAdults')} half>
                       <CounterInput value={form.adults} onChange={v => set('adults', v)} />
                     </Field>
-                    <Field label="Детей" half>
+                    <Field label={t('bkChildren')} half>
                       <CounterInput value={form.children} onChange={v => set('children', v)} />
                     </Field>
                   </View>
                   <View style={s.toggleRow}>
                     <View>
-                  <Text style={s.toggleLabel}>Питомцы</Text>
-                  <Text style={s.toggleSub}>Питомцы разрешены</Text>
+                  <Text style={s.toggleLabel}>{t('bkPets')}</Text>
+                  <Text style={s.toggleSub}>{t('bkPetsAllowed')}</Text>
                     </View>
                     <Switch
                       value={form.pets}
@@ -760,25 +845,26 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                 </SectionCard>
 
                 {/* Фотографии */}
-                <SectionCard title="Фотографии" icon="📷">
-                  <Text style={s.photoHint}>Прикрепите фото договора, паспорта или объекта</Text>
+                <SectionCard title={t('pdPhotos')} icon="📷">
+                  <Text style={s.photoHint}>{t('bkPhotoHint')}</Text>
                   <PhotoGrid
                     photos={form.photos || []}
                     onAdd={handlePhotoAdd}
                     onRemove={handlePhotoRemove}
                     uploading={uploadingPhoto}
+                    t={t}
                   />
                 </SectionCard>
               </>
             )}
 
             {/* Примечания */}
-            <SectionCard title="Комментарии" icon="📝">
-              <Field label="Комментарий">
+            <SectionCard title={t('pdComments')} icon="📝">
+              <Field label={t('pdComments')}>
                 <FInput
                   value={form.comments}
                   onChangeText={v => set('comments', v)}
-                  placeholder="Внутренние заметки, особые пожелания…"
+                  placeholder={t('bkCommentsPlaceholder')}
                   multiline
                 />
               </Field>
@@ -797,12 +883,12 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
             ) : null}
             <View style={s.footerBtns}>
               <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
-                <Text style={s.cancelBtnText}>Отмена</Text>
+                <Text style={s.cancelBtnText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
                 {saving
                   ? <ActivityIndicator size="small" color="#FFF" />
-                  : <Text style={s.saveBtnText}>Сохранить</Text>
+                  : <Text style={s.saveBtnText}>{t('save')}</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -960,7 +1046,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 12, paddingVertical: 11,
     borderBottomWidth: 1, borderBottomColor: C.border,
-    backgroundColor: '#FDF0F5',
+    backgroundColor: '#EAF4F5',
   },
   addNewContactIcon: {
     width: 22, height: 22, borderRadius: 11,
@@ -1021,8 +1107,24 @@ const s = StyleSheet.create({
     backgroundColor: C.surface,
   },
   footerBtns:    { flexDirection: 'row', gap: 10 },
-  cancelBtn:     { flex: 1, borderWidth: 1.5, borderColor: C.border, borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
-  cancelBtnText: { fontSize: 14, color: C.muted, fontWeight: '600' },
-  saveBtn:       { flex: 2, backgroundColor: ACCENT, borderRadius: 10, paddingVertical: 13, alignItems: 'center', shadowColor: ACCENT, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
-  saveBtnText:   { fontSize: 14, color: '#FFF', fontWeight: '700', letterSpacing: 0.3 },
+  cancelBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: '#E9ECEF',
+    borderRadius: 14,
+    paddingVertical: 13,
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  cancelBtnText: { fontSize: 14, color: '#6C757D', fontWeight: '600' },
+  saveBtn: {
+    flex: 2,
+    backgroundColor: '#EAF4F5',
+    borderRadius: 14,
+    paddingVertical: 13,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#B2D8DB',
+  },
+  saveBtnText: { fontSize: 14, color: '#3D7D82', fontWeight: '700', letterSpacing: 0.3 },
 });
