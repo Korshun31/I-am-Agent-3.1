@@ -554,8 +554,8 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
               <TouchableOpacity
                 key={b.id}
                 style={styles.bookingItem}
-                onPress={() => onBookingPress?.(b, codePart, p)}
-                activeOpacity={0.7}
+                onPress={onBookingPress ? () => onBookingPress(b, codePart, p) : undefined}
+                activeOpacity={onBookingPress ? 0.7 : 1}
               >
                 <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{codePart}</Text>
@@ -750,8 +750,8 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
               <TouchableOpacity
                 key={b.id}
                 style={styles.bookingItem}
-                onPress={() => onBookingPress?.(b, b._codePart, house)}
-                activeOpacity={0.7}
+                onPress={onBookingPress ? () => onBookingPress(b, b._codePart, house) : undefined}
+                activeOpacity={onBookingPress ? 0.7 : 1}
               >
                 <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{b._codePart}</Text>
@@ -975,8 +975,8 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
               <TouchableOpacity
                 key={b.id}
                 style={styles.bookingItem}
-                onPress={() => onBookingPress?.(b, b._codePart, apt)}
-                activeOpacity={0.7}
+                onPress={onBookingPress ? () => onBookingPress(b, b._codePart, apt) : undefined}
+                activeOpacity={onBookingPress ? 0.7 : 1}
               >
                 <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{b._codePart}</Text>
@@ -1396,7 +1396,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             newHouseIdToExpand={newHouseIdToExpand}
             onExpandedNewHouse={() => setNewHouseIdToExpand(null)}
             onHousePress={onSelectProperty ? (h) => onSelectProperty(h) : undefined}
-            onBookingPress={(b, codePart, property) => {
+            onBookingPress={isTeamMember && !isOwnProperty ? undefined : (b, codePart, property) => {
               setSelectedBooking(b);
               setSelectedBookingTitle(codePart || '');
               setSelectedBookingProperty(property || null);
@@ -1415,7 +1415,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             refreshApartmentsTrigger={refreshApartmentsTrigger}
             refreshBookingsTrigger={refreshBookingsTrigger}
             onApartmentPress={onSelectProperty ? (a) => onSelectProperty(a) : undefined}
-            onBookingPress={(b, codePart, property) => {
+            onBookingPress={isTeamMember && !isOwnProperty ? undefined : (b, codePart, property) => {
               setSelectedBooking(b);
               setSelectedBookingTitle(codePart || '');
               setSelectedBookingProperty(property || null);
@@ -1436,7 +1436,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             onVideoPress={handleVideoPress}
             resort={p.resort_id ? resort : null}
             refreshBookingsTrigger={refreshBookingsTrigger}
-            onBookingPress={(b, codePart) => {
+            onBookingPress={isTeamMember && !isOwnProperty ? undefined : (b, codePart) => {
               setSelectedBooking(b);
               setSelectedBookingTitle(codePart || '');
             }}
