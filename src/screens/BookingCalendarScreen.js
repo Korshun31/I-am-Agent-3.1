@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  FlatList,
   Image,
   ActivityIndicator,
   Modal,
@@ -352,8 +353,8 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     const y = e.nativeEvent.contentOffset.y;
     if (!scrollSyncRef.current && rightVerticalRef.current) {
       scrollSyncRef.current = true;
-      rightVerticalRef.current.scrollTo({ y, animated: false });
-      requestAnimationFrame(() => { scrollSyncRef.current = false; });
+      rightVerticalRef.current.scrollToOffset({ offset: y, animated: false });
+      setTimeout(() => { scrollSyncRef.current = false; }, 50);
     }
   };
 
@@ -361,8 +362,8 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     const y = e.nativeEvent.contentOffset.y;
     if (!scrollSyncRef.current && leftScrollRef.current) {
       scrollSyncRef.current = true;
-      leftScrollRef.current.scrollTo({ y, animated: false });
-      requestAnimationFrame(() => { scrollSyncRef.current = false; });
+      leftScrollRef.current.scrollToOffset({ offset: y, animated: false });
+      setTimeout(() => { scrollSyncRef.current = false; }, 50);
     }
   };
 
@@ -584,15 +585,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         <View style={styles.calendarWrap}>
           <View style={styles.calendarRow}>
             <View style={[styles.leftColWrap, { width: leftColWidth }]}>
-            <ScrollView
-              ref={leftScrollRef}
-              style={styles.leftCol}
-              contentContainerStyle={styles.leftColContent}
-              showsVerticalScrollIndicator={false}
-              onScroll={handleLeftScroll}
-              scrollEventThrottle={16}
-              bounces={false}
-            >
               <TouchableOpacity
                 style={[styles.yearCell, styles.cornerCell]}
                 onPress={() => setYearPickerVisible(true)}
@@ -600,23 +592,36 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               >
                 <Text style={styles.yearText}>{year}</Text>
               </TouchableOpacity>
-              {listToShow.map((unit) => {
-                const parent = unit.resort_id ? getParent(unit.resort_id) : null;
-                const codeDisplay = parent
-                  ? (parent.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '')
-                  : (unit.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '');
-                return (
-                  <TouchableOpacity
-                    key={unit.id}
-                    style={[styles.row, styles.propertyRow]}
-                    onPress={() => setSelectedPropertyForDetail(unit)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.propertyLabel, styles.propertyLabelLink]} numberOfLines={1}>{codeDisplay}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+              <FlatList
+                ref={leftScrollRef}
+                style={styles.leftCol}
+                data={listToShow}
+                keyExtractor={item => item.id}
+                getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
+                renderItem={({ item: unit }) => {
+                  const parent = unit.resort_id ? getParent(unit.resort_id) : null;
+                  const codeDisplay = parent
+                    ? (parent.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '')
+                    : (unit.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '');
+                  return (
+                    <TouchableOpacity
+                      style={[styles.row, styles.propertyRow]}
+                      onPress={() => setSelectedPropertyForDetail(unit)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.propertyLabel, styles.propertyLabelLink]} numberOfLines={1}>{codeDisplay}</Text>
+                    </TouchableOpacity>
+                  );
+                }}
+                showsVerticalScrollIndicator={false}
+                onScroll={handleLeftScroll}
+                scrollEventThrottle={16}
+                bounces={false}
+                removeClippedSubviews={true}
+                initialNumToRender={20}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+              />
             </View>
 
             <ScrollView
@@ -655,59 +660,67 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                   })}
                 </View>
 
-                <ScrollView
-                  ref={rightVerticalRef}
-                  style={styles.gridScroll}
-                  contentContainerStyle={{ paddingBottom: BOTTOM_NAV_PADDING }}
-                  showsVerticalScrollIndicator={true}
-                  onScroll={handleRightVerticalScroll}
-                  scrollEventThrottle={16}
-                  bounces={false}
-                >
-                  <View style={{ position: 'relative', minHeight: listToShow.length * ROW_HEIGHT }}>
-                    {todayLineX >= 0 && (
-                      <View
-                        pointerEvents="none"
-                        style={{
-                          position: 'absolute',
-                          left: todayLineX - 1,
-                          top: 0,
-                          bottom: 0,
-                          width: 2,
-                          backgroundColor: 'rgba(255, 0, 0, 0.15)',
-                          zIndex: 20,
+                {/* Вычисляем права агента один раз — не внутри renderItem */}
+                {(() => {
+                  const isTeamMember = !!(user?.teamMembership);
+                  const canBook = user?.teamPermissions?.can_book;
+                  return (
+                    <View style={{ position: 'relative' }}>
+                      <FlatList
+                        ref={rightVerticalRef}
+                        style={styles.gridScroll}
+                        data={listToShow}
+                        keyExtractor={item => item.id}
+                        getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
+                        renderItem={({ item: unit }) => {
+                          const isOwnUnit = !isTeamMember || unit.agent_id === user?.id;
+                          const canOpenBooking = !isTeamMember || isOwnUnit;
+                          const canAddBooking = !readOnly && (!isTeamMember ? true : (isOwnUnit && canBook));
+                          return (
+                            <CalendarRow
+                              unit={unit}
+                              months={months}
+                              monthWidth={MONTH_WIDTH}
+                              rowHeight={ROW_HEIGHT}
+                              currentYear={currentYear}
+                              currentMonth={currentMonth}
+                              bookings={bookingsByProperty[unit.id] || []}
+                              getContactName={getContactName}
+                              getOwnerLabel={getOwnerLabel}
+                              globalColorMap={globalColorMap}
+                              truncateLabel={truncateLabel}
+                              onCellPress={canAddBooking ? handleAddPress : undefined}
+                              onBookingPress={canOpenBooking ? handleBookingPress : undefined}
+                              ownerLabels={{ full: t('ownerCustomer'), mid: t('ownerCustomerShort'), min: t('ownerCustomerMin') }}
+                            />
+                          );
                         }}
+                        contentContainerStyle={{ paddingBottom: BOTTOM_NAV_PADDING }}
+                        showsVerticalScrollIndicator={true}
+                        onScroll={handleRightVerticalScroll}
+                        scrollEventThrottle={16}
+                        bounces={false}
+                        removeClippedSubviews={true}
+                        initialNumToRender={20}
+                        maxToRenderPerBatch={10}
+                        windowSize={5}
                       />
-                    )}
-                    {listToShow.map((unit) => {
-                      // Агент-участник команды: разрешены действия только на своих объектах
-                      const isTeamMember = !!(user?.teamMembership);
-                      const isOwnUnit = !isTeamMember || unit.agent_id === user?.id;
-                      const canBook = user?.teamPermissions?.can_book;
-                      const canOpenBooking = !isTeamMember || isOwnUnit;
-                      const canAddBooking = !readOnly && (!isTeamMember ? true : (isOwnUnit && canBook));
-                      return (
-                        <CalendarRow
-                          key={unit.id}
-                          unit={unit}
-                          months={months}
-                          monthWidth={MONTH_WIDTH}
-                          rowHeight={ROW_HEIGHT}
-                          currentYear={currentYear}
-                          currentMonth={currentMonth}
-                          bookings={bookingsByProperty[unit.id] || []}
-                          getContactName={getContactName}
-                          getOwnerLabel={getOwnerLabel}
-                          globalColorMap={globalColorMap}
-                          truncateLabel={truncateLabel}
-                          onCellPress={canAddBooking ? handleAddPress : undefined}
-                          onBookingPress={canOpenBooking ? handleBookingPress : undefined}
-                          ownerLabels={{ full: t('ownerCustomer'), mid: t('ownerCustomerShort'), min: t('ownerCustomerMin') }}
+                      {todayLineX >= 0 && (
+                        <View
+                          pointerEvents="none"
+                          style={{
+                            position: 'absolute',
+                            left: todayLineX - 1,
+                            top: 0,
+                            height: listToShow.length * ROW_HEIGHT,
+                            width: 2,
+                            backgroundColor: 'rgba(255, 0, 0, 0.15)',
+                          }}
                         />
-                      );
-                    })}
-                  </View>
-                </ScrollView>
+                      )}
+                    </View>
+                  );
+                })()}
               </View>
             </ScrollView>
           </View>
