@@ -70,11 +70,11 @@ function nightsCount(checkIn, checkOut) {
   return dayjs(checkOut).diff(dayjs(checkIn), 'day');
 }
 
-  // Build timeline: Jan(prev year) → Dec(next year) = 36 months
+  // Build timeline: 12 months back → 24 months forward = ~37 months
   function buildMonths() {
     const today = dayjs();
-    const start = today.subtract(1, 'month').startOf('month');
-    const end   = start.add(35, 'month').endOf('month');
+    const start = today.subtract(12, 'month').startOf('month');
+    const end   = today.add(24, 'month').endOf('month');
     const months = [];
     let m = start;
     while (m.isBefore(end) || m.isSame(end, 'month')) {
