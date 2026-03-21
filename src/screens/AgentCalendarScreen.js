@@ -251,7 +251,7 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
   );
 }
 
-export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenProperty, onReady }) {
+export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenProperty, onReady, user }) {
   const { t, language } = useLanguage();
   const { properties, bookings, refreshProperties, refreshBookings } = useAppData();
 
@@ -374,18 +374,27 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
       return t.length <= maxLen ? t : t.slice(0, maxLen - 3) + '...';
     };
 
+    const isTeamMember = !!(user?.teamMembership);
+
     (bookings || []).forEach(b => {
       if (!b.checkIn) return;
+      const prop = propsMap[b.propertyId];
+      const isOwnBooking = b.agentId === user?.id;
+      const isOwnProperty = prop?.agent_id === user?.id;
+
       const objName = truncateLabel(getObjectDisplayName(b));
       const d = dayjs(b.checkIn).format('YYYY-MM-DD');
-      if (d === selectedDate) {
+
+      // Заселение: только свои бронирования
+      const showCheckIn = !isTeamMember || isOwnBooking;
+      if (showCheckIn && d === selectedDate) {
         list.push({
           key: `b-in-${b.id}`,
           type: 'booking',
           eventType: 'checkIn',
           color: b.notMyCustomer ? '#BDBDBD' : '#81C784',
           booking: b,
-          property: propsMap[b.propertyId],
+          property: prop,
           propertyLabel: getPropertyLabel(b),
           objectDisplayName: objName,
           bookingNum: getBookingNumber(b, bookings),
@@ -393,28 +402,34 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
           notMyCustomer: b.notMyCustomer,
         });
       }
-      if (b.checkOut) {
+
+      // Выселение: свои бронирования + выселения клиентов собственников из своих домов
+      const showCheckOut = !isTeamMember || isOwnBooking || (b.notMyCustomer && isOwnProperty);
+      if (showCheckOut && b.checkOut) {
         const dOut = dayjs(b.checkOut).format('YYYY-MM-DD');
         if (dOut === selectedDate) {
           list.push({
-          key: `b-out-${b.id}`,
-          type: 'booking',
-          eventType: 'checkOut',
-          color: b.notMyCustomer ? '#BDBDBD' : '#E57373',
-          booking: b,
-          property: propsMap[b.propertyId],
-          propertyLabel: getPropertyLabel(b),
-          objectDisplayName: objName,
-          bookingNum: getBookingNumber(b, bookings),
-          fullBookingCode: `${getPropertyLabel(b)} ${getBookingNumber(b, bookings)}`.trim(),
-          notMyCustomer: b.notMyCustomer,
+            key: `b-out-${b.id}`,
+            type: 'booking',
+            eventType: 'checkOut',
+            color: b.notMyCustomer ? '#BDBDBD' : '#E57373',
+            booking: b,
+            property: prop,
+            propertyLabel: getPropertyLabel(b),
+            objectDisplayName: objName,
+            bookingNum: getBookingNumber(b, bookings),
+            fullBookingCode: `${getPropertyLabel(b)} ${getBookingNumber(b, bookings)}`.trim(),
+            notMyCustomer: b.notMyCustomer,
           });
         }
       }
 
       const label = getPropertyLabel(b);
       const codeAndNum = `${label} ${getBookingNumber(b, bookings)}`.trim();
-      if (b.ownerCommissionOneTime != null && b.ownerCommissionOneTime > 0 && dayjs(b.checkIn).format('YYYY-MM-DD') === selectedDate) {
+
+      // Комиссии: только из своих объектов
+      const showCommission = !isTeamMember || isOwnProperty;
+      if (showCommission && b.ownerCommissionOneTime != null && b.ownerCommissionOneTime > 0 && dayjs(b.checkIn).format('YYYY-MM-DD') === selectedDate) {
         list.push({
           key: `comm-1-${b.id}`,
           type: 'booking',
@@ -429,7 +444,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
           notMyCustomer: false,
         });
       }
-      if (b.ownerCommissionMonthly != null && b.ownerCommissionMonthly > 0 && b.checkIn && b.checkOut) {
+      if (showCommission && b.ownerCommissionMonthly != null && b.ownerCommissionMonthly > 0 && b.checkIn && b.checkOut) {
         const dateAmounts = getCommissionDateAmounts(b.checkIn, b.checkOut, null, b.ownerCommissionMonthly);
         dateAmounts.forEach(({ date: dateStr, amount }, idx) => {
           if (dateStr === selectedDate) {
@@ -525,6 +540,7 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
         onBack={() => setSelectedOwnerContact(null)}
         onContactUpdated={() => setSelectedOwnerContact(null)}
         onContactDeleted={() => setSelectedOwnerContact(null)}
+        user={user}
       />
     );
   }
