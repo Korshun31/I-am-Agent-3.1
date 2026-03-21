@@ -53,6 +53,9 @@ export const translations = {
     dashboardStatCompany: 'Company',
     dashboardStatMine: 'Mine',
     dashboardStatOwners: 'Owners',
+    dashboardCheckInsAgent: 'Check-ins',
+    dashboardStatToday: 'Today',
+    dashboardStatWeek: 'Week',
     // Bookings screen
     bookingsTitle: 'Bookings',
     bookingsAddBtn: 'Add booking',
@@ -755,6 +758,9 @@ export const translations = {
     dashboardStatCompany: 'บริษัท',
     dashboardStatMine: 'ของฉัน',
     dashboardStatOwners: 'เจ้าของ',
+    dashboardCheckInsAgent: 'เช็คอิน',
+    dashboardStatToday: 'วันนี้',
+    dashboardStatWeek: 'สัปดาห์',
     // Bookings screen
     bookingsTitle: 'การจอง',
     bookingsAddBtn: 'เพิ่มการจอง',
@@ -1441,6 +1447,9 @@ export const translations = {
     dashboardStatCompany: 'Компания',
     dashboardStatMine: 'Мои',
     dashboardStatOwners: 'Собственников',
+    dashboardCheckInsAgent: 'Заселения',
+    dashboardStatToday: 'Сегодня',
+    dashboardStatWeek: 'Неделя',
     // Bookings screen
     bookingsTitle: 'Бронирования',
     bookingsAddBtn: 'Добавить бронирование',

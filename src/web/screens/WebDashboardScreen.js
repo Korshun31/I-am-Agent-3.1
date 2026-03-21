@@ -201,6 +201,20 @@ export default function WebDashboardScreen({ user }) {
         const myThisMonth = myFutureAgency.filter(b => dayjs(b.checkIn).isBefore(endOfMonth)).length;
         const myLater = myUpcomingCount - myThisMonth;
 
+        // Заселения агента: сегодня / эта неделя / этот месяц
+        const todayStr = now.format('YYYY-MM-DD');
+        const endOfWeek = now.endOf('week');
+        const myBookings = bookings.filter(b => b.agentId === user.id && !b.notMyCustomer);
+        const myCheckInToday = myBookings.filter(b => b.checkIn === todayStr).length;
+        const myCheckInWeek = myBookings.filter(b => {
+          const d = dayjs(b.checkIn);
+          return d.isAfter(now.startOf('day').subtract(1, 'ms')) && d.isBefore(endOfWeek.add(1, 'ms'));
+        }).length;
+        const myCheckInMonth = myBookings.filter(b => {
+          const d = dayjs(b.checkIn);
+          return d.isAfter(now.startOf('month').subtract(1, 'ms')) && d.isBefore(endOfMonth.add(1, 'ms'));
+        }).length;
+
         setAgentStats({
           companyTotal: companyHouses + companyResorts + companyCondos,
           companyHouses, companyResorts, companyCondos,
@@ -211,6 +225,7 @@ export default function WebDashboardScreen({ user }) {
           companyUpcoming: companyUpcomingCount,
           myUpcoming: myUpcomingCount,
           myThisMonth, myLater,
+          myCheckInToday, myCheckInWeek, myCheckInMonth,
         });
       } else {
         setAgentStats(null);
@@ -514,31 +529,30 @@ export default function WebDashboardScreen({ user }) {
         {/* ЗАЕЗДЫ */}
         <View style={[styles.statCard, { borderLeftColor: CLR.stat3 }]}>
           <View>
-            <Text style={styles.statLabel}>{t('dashboardCheckIns').toUpperCase()}</Text>
+            <Text style={styles.statLabel}>
+              {agentStats ? t('dashboardCheckInsAgent').toUpperCase() : t('dashboardCheckIns').toUpperCase()}
+            </Text>
             {agentStats ? (
-              <>
-                <View style={styles.agentStatRow}>
-                  <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.companyUpcoming}</Text>
-                  <Text style={styles.agentStatSep}> / </Text>
-                  <Text style={[styles.statValue, { color: CLR.stat3Text }]}>{agentStats.myUpcoming}</Text>
+              <View style={[styles.agentStatRow, { gap: 20, marginTop: 8 }]}>
+                <View style={styles.agentSubItem}>
+                  <Text style={[styles.agentSubValue, { color: CLR.stat3Text }]}>{agentStats.myCheckInToday}</Text>
+                  <Text style={[styles.agentSubLabel, { color: CLR.stat3Text }]}>{t('dashboardStatToday')}</Text>
                 </View>
-                <View style={styles.agentStatLabels}>
-                  <Text style={styles.agentStatLabelGray}>{t('dashboardStatCompany')}</Text>
-                  <Text style={styles.agentStatLabelGray}> / </Text>
-                  <Text style={[styles.agentStatLabelColored, { color: CLR.stat3Text }]}>{t('dashboardStatMine')}</Text>
+                <View style={styles.agentSubItem}>
+                  <Text style={styles.agentSubValueGray}>{agentStats.myCheckInWeek}</Text>
+                  <Text style={styles.agentSubLabelGray}>{t('dashboardStatWeek')}</Text>
                 </View>
-              </>
+                <View style={styles.agentSubItem}>
+                  <Text style={styles.agentSubValueGray}>{agentStats.myCheckInMonth}</Text>
+                  <Text style={styles.agentSubLabelGray}>{t('thisMonth')}</Text>
+                </View>
+              </View>
             ) : (
               <Text style={[styles.statValue, { color: CLR.stat3Text }]}>{stats.upcoming}</Text>
             )}
           </View>
 
-          {agentStats ? (
-            <View style={styles.subStats}>
-              <Text style={styles.subStatText}>{t('thisMonth')}: <Text style={styles.subStatValue}>{agentStats.myThisMonth}</Text></Text>
-              <Text style={styles.subStatText}>{t('later')}: <Text style={styles.subStatValue}>{agentStats.myLater}</Text></Text>
-            </View>
-          ) : (
+          {agentStats ? null : (
             <View style={styles.subStats}>
               <Text style={styles.subStatText}>{t('thisMonth')}: <Text style={styles.subStatValue}>{stats.thisMonth}</Text></Text>
               <Text style={styles.subStatText}>{t('later')}: <Text style={styles.subStatValue}>{stats.later}</Text></Text>
