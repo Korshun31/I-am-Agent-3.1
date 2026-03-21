@@ -118,6 +118,19 @@ export async function getContacts(type) {
   return (data || []).map(mapContact);
 }
 
+export async function getContactsByIds(ids) {
+  if (!ids || ids.length === 0) return [];
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return [];
+  const { data, error } = await supabase
+    .from('contacts')
+    .select('*')
+    .in('id', ids)
+    .order('name', { ascending: true });
+  if (error) return [];
+  return (data || []).map(mapContact);
+}
+
 export async function getContactById(id) {
   if (!id) return null;
   const { data: { session } } = await supabase.auth.getSession();
@@ -224,6 +237,10 @@ export async function deleteContact(id) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+}
+
+export function mapContactRow(row) {
+  return mapContact(row);
 }
 
 function mapContact(row) {

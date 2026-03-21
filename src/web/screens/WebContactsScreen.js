@@ -6,7 +6,8 @@ import {
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 
-import { getContacts, deleteContact } from '../../services/contactsService';
+import { getContacts, getContactsByIds, deleteContact } from '../../services/contactsService';
+import { getMyPropertyOwners } from '../../services/companyService';
 import { getBookings } from '../../services/bookingsService';
 import { getProperties } from '../../services/propertiesService';
 import WebContactEditPanel from '../components/WebContactEditPanel';
@@ -497,7 +498,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline 
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export default function WebContactsScreen({ onNavigateToProperty }) {
+export default function WebContactsScreen({ onNavigateToProperty, user }) {
   const { t } = useLanguage();
   const [allContacts, setAllContacts] = useState([]);
   const [allProperties, setAllProperties] = useState([]);
@@ -516,33 +517,62 @@ export default function WebContactsScreen({ onNavigateToProperty }) {
   const [inlineBookings, setInlineBookings] = useState([]);
   const [inlineEditPanel, setInlineEditPanel] = useState({ visible: false, mode: 'edit', property: null, parentProperty: null });
 
+  const isTeamMember = user?.teamMembership != null && !user?.teamMembership?.is_admin;
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [clients, owners, props] = await Promise.all([
-        getContacts('clients'),
-        getContacts('owners'),
-        getProperties(),
-      ]);
-      const all = [...owners, ...clients].sort((a, b) =>
-        (a.name || '').localeCompare(b.name || '', 'ru')
-      );
+      let allOwners = [];
+      let allClients = [];
+      let props = [];
+
+      if (isTeamMember) {
+        // Агент: объекты + собственники (через SECURITY DEFINER RPC)
+        [props, allOwners] = await Promise.all([
+          getProperties(),
+          getMyPropertyOwners(),
+        ]);
+        // Клиенты — из бронирований его объектов
+        const propIds = new Set(props.map(p => p.id));
+        try {
+          const allBookings = await getBookings();
+          const clientIds = [...new Set(
+            allBookings.filter(bk => propIds.has(bk.propertyId) && bk.contactId).map(bk => bk.contactId)
+          )];
+          allClients = clientIds.length > 0 ? await getContactsByIds(clientIds) : [];
+        } catch {}
+      } else {
+        // Админ: загружаем всё
+        [allClients, allOwners, props] = await Promise.all([
+          getContacts('clients'),
+          getContacts('owners'),
+          getProperties(),
+        ]);
+        // Count bookings per client
+        const counts = {};
+        try {
+          const allBookings = await getBookings();
+          allBookings.forEach(bk => {
+            if (bk.contactId) counts[bk.contactId] = (counts[bk.contactId] || 0) + 1;
+          });
+        } catch {}
+        setBookingCounts(counts);
+      }
+
+      // Убираем дубликаты (если один контакт — и собственник и клиент)
+      const seen = new Set();
+      const all = [...allOwners, ...allClients].filter(c => {
+        if (seen.has(c.id)) return false;
+        seen.add(c.id);
+        return true;
+      }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'));
+
       setAllContacts(all);
       setAllProperties(props);
-
-      // Count bookings per client — один запрос вместо N
-      const counts = {};
-      try {
-        const allBookings = await getBookings();
-        allBookings.forEach(bk => {
-          if (bk.contactId) counts[bk.contactId] = (counts[bk.contactId] || 0) + 1;
-        });
-      } catch {}
-      setBookingCounts(counts);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isTeamMember]);
 
   useEffect(() => { load(); }, [load]);
 

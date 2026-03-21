@@ -743,6 +743,17 @@ export default function WebBookingsScreen({ user }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Realtime: автообновление при изменениях в bookings и properties
+  useEffect(() => {
+    const loadRef = { current: load };
+    const channel = supabase
+      .channel('bookings-screen-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => loadRef.current())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'properties' }, () => loadRef.current())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
   // Auto-scroll gantt so current month is the 2nd visible column
   useEffect(() => {
     if (!loading && viewMode === 'gantt') {

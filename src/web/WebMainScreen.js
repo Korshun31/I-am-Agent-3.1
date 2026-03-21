@@ -152,7 +152,7 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
       {/* Contacts — монтируется при первом посещении */}
       {visited.has('contacts') && (
         <View style={[styles.tabWrap, tabStyle('contacts')]}>
-          <WebContactsScreen onNavigateToProperty={navigateToProperty} />
+          <WebContactsScreen onNavigateToProperty={navigateToProperty} user={user} />
         </View>
       )}
 
