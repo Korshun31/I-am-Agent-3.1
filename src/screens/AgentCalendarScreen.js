@@ -491,16 +491,45 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
 
   const eventCountsByDate = React.useMemo(() => {
     const counts = {};
+    const isTeamMemberCounts = !!(user?.teamMembership);
+    const propsMapCounts = {};
+    (properties || []).forEach(p => { propsMapCounts[p.id] = p; });
+
     (bookings || []).forEach((b) => {
-      if (b.checkIn) {
+      const prop = propsMapCounts[b.propertyId];
+      const isOwnBooking = b.agentId === user?.id;
+      const isOwnProperty = prop?.agent_id === user?.id;
+
+      // Заселение: только свои
+      const showCheckIn = !isTeamMemberCounts || isOwnBooking;
+      if (showCheckIn && b.checkIn) {
         const d = dayjs(b.checkIn).format('YYYY-MM-DD');
         counts[d] = (counts[d] || 0) + 1;
       }
-      if (b.checkOut && b.checkOut !== b.checkIn) {
+
+      // Выселение: свои + выселения клиентов собственников из своих домов
+      const showCheckOut = !isTeamMemberCounts || isOwnBooking || (b.notMyCustomer && isOwnProperty);
+      if (showCheckOut && b.checkOut && b.checkOut !== b.checkIn) {
         const d = dayjs(b.checkOut).format('YYYY-MM-DD');
         counts[d] = (counts[d] || 0) + 1;
       }
+
+      // Комиссии: только из своих объектов
+      const showCommission = !isTeamMemberCounts || isOwnProperty;
+      if (showCommission) {
+        if (b.ownerCommissionOneTime != null && b.ownerCommissionOneTime > 0 && b.checkIn) {
+          const d = dayjs(b.checkIn).format('YYYY-MM-DD');
+          counts[d] = (counts[d] || 0) + 1;
+        }
+        if (b.ownerCommissionMonthly != null && b.ownerCommissionMonthly > 0 && b.checkIn && b.checkOut) {
+          const dateAmounts = getCommissionDateAmounts(b.checkIn, b.checkOut, null, b.ownerCommissionMonthly);
+          dateAmounts.forEach(({ date: ds }) => {
+            counts[ds] = (counts[ds] || 0) + 1;
+          });
+        }
+      }
     });
+
     (customEvents || []).forEach((e) => {
       if (e.repeatType) {
         const start = e.eventDate ? dayjs(e.eventDate) : null;
@@ -518,20 +547,9 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
         counts[d] = (counts[d] || 0) + 1;
       }
     });
-    (bookings || []).forEach((b) => {
-      if (b.ownerCommissionOneTime != null && b.ownerCommissionOneTime > 0 && b.checkIn) {
-        const d = dayjs(b.checkIn).format('YYYY-MM-DD');
-        counts[d] = (counts[d] || 0) + 1;
-      }
-      if (b.ownerCommissionMonthly != null && b.ownerCommissionMonthly > 0 && b.checkIn && b.checkOut) {
-        const dateAmounts = getCommissionDateAmounts(b.checkIn, b.checkOut, null, b.ownerCommissionMonthly);
-        dateAmounts.forEach(({ date: ds }) => {
-          counts[ds] = (counts[ds] || 0) + 1;
-        });
-      }
-    });
+
     return counts;
-  }, [bookings, customEvents]);
+  }, [bookings, customEvents, properties, user]);
 
   if (selectedOwnerContact) {
     return (
