@@ -281,31 +281,24 @@ export default function WebDashboardScreen({ user }) {
       };
     };
 
-    // Заселения: только свои бронирования (не клиенты собственников)
+    // Заселения: свои клиенты (не клиенты собственника) из своих объектов
     const ins = bookings.filter(b => {
       if (b.checkIn !== dateStr || b.notMyCustomer) return false;
-      if (isTeamMember) return b.agentId === user.id;
+      if (isTeamMember) return propsMap[b.propertyId]?.agent_id === user.id;
       return true;
     }).map(enrich);
 
-    // Выселения: свои бронирования + выселения клиентов собственников из своих домов
+    // Выселения: все бронирования из своих объектов (включая клиентов собственника)
     const outs = bookings.filter(b => {
       if (b.checkOut !== dateStr) return false;
-      if (isTeamMember) {
-        const isOwnBooking = b.agentId === user.id;
-        const isOwnProperty = propsMap[b.propertyId]?.agent_id === user.id;
-        return isOwnBooking || (b.notMyCustomer && isOwnProperty);
-      }
+      if (isTeamMember) return propsMap[b.propertyId]?.agent_id === user.id;
       return true;
     }).map(enrich);
 
     // Комиссии: только из своих объектов
     const commissions = allComms.filter(c => {
       if (c.date !== dateStr) return false;
-      if (isTeamMember) {
-        const prop = propsMap[c.propertyId] || properties.find(p => p.id === c.propertyId);
-        return prop?.agent_id === user.id;
-      }
+      if (isTeamMember) return propsMap[c.propertyId]?.agent_id === user.id;
       return true;
     });
 
@@ -622,10 +615,12 @@ export default function WebDashboardScreen({ user }) {
           {(() => {
             const today = dayjs().format('YYYY-MM-DD');
             const isTeamMemberUpcoming = !!(user?.teamMembership);
+            const propsMapUpcoming = {};
+            allProperties.forEach(p => { propsMapUpcoming[p.id] = p; });
             const next5 = allBookings
               .filter(b => {
                 if (b.checkIn <= today || b.notMyCustomer) return false;
-                if (isTeamMemberUpcoming) return b.agentId === user.id;
+                if (isTeamMemberUpcoming) return propsMapUpcoming[b.propertyId]?.agent_id === user.id;
                 return true;
               })
               .sort((a, b) => a.checkIn.localeCompare(b.checkIn))

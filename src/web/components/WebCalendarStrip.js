@@ -32,10 +32,11 @@ export default function WebCalendarStrip({ selectedDate, onDateSelect, user }) {
 
     async function loadData() {
       try {
+        const agentId = user?.teamMembership ? user.id : null;
         const [bData, eData, pData] = await Promise.all([
-          getBookings(),
+          getBookings(null, null, agentId),
           getCalendarEvents(),
-          getProperties(),
+          getProperties(agentId),
         ]);
         setBookings(bData);
         setCalendarEvents(eData);
@@ -108,32 +109,12 @@ export default function WebCalendarStrip({ selectedDate, onDateSelect, user }) {
 
   const getDayEvents = (date) => {
     const dateStr = date.format('YYYY-MM-DD');
-    const isAgent = !!(user?.teamMembership);
-    const userId = user?.id;
 
-    const hasCheckIn = bookings.some(b => {
-      if (b.checkIn !== dateStr || b.notMyCustomer) return false;
-      if (isAgent) return b.agentId === userId;
-      return true;
-    });
-
-    const hasCheckOut = bookings.some(b => {
-      if (b.checkOut !== dateStr) return false;
-      if (isAgent) {
-        const isOwnBooking = b.agentId === userId;
-        const isOwnProperty = propsMap[b.propertyId]?.agent_id === userId;
-        return isOwnBooking || (b.notMyCustomer && isOwnProperty);
-      }
-      return true;
-    });
-
+    // Данные уже отфильтрованы по агенту на уровне запроса
+    const hasCheckIn = bookings.some(b => b.checkIn === dateStr && !b.notMyCustomer);
+    const hasCheckOut = bookings.some(b => b.checkOut === dateStr);
     const hasPersonalEvent = calendarEvents.some(e => eventOccursOnDate(e, dateStr));
-
-    const hasCommission = commissionEvents.some(c => {
-      if (c.date !== dateStr) return false;
-      if (isAgent) return propsMap[c.propertyId]?.agent_id === userId;
-      return true;
-    });
+    const hasCommission = commissionEvents.some(c => c.date === dateStr);
 
     return { hasCheckIn, hasCheckOut, hasPersonalEvent, hasCommission };
   };
