@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import {
   View,
@@ -88,6 +88,7 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
   const [showWorkingHoursPicker, setShowWorkingHoursPicker] = useState(false);
   const [workingHoursFrom, setWorkingHoursFrom] = useState(new Date(0, 0, 0, 9, 0));
   const [workingHoursTo, setWorkingHoursTo] = useState(new Date(0, 0, 0, 18, 0));
+  const scrollRef = useRef(null);
 
   const onScrollLayout = (e) => {
     const { height } = e.nativeEvent.layout;
@@ -354,6 +355,7 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
               </View>
 
               <ScrollView
+                ref={scrollRef}
                 style={styles.scroll}
                 contentContainerStyle={[
                   styles.scrollContent,
@@ -496,7 +498,14 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                   <Text style={styles.workAsLabel}>{t('workAs')}</Text>
                   <TouchableOpacity
                     style={styles.workAsTouch}
-                    onPress={() => { setShowWorkAsMenu(!showWorkAsMenu); setShowAddContactChoices(false); }}
+                    onPress={() => {
+                      const opening = !showWorkAsMenu;
+                      setShowWorkAsMenu(opening);
+                      setShowAddContactChoices(false);
+                      if (opening) {
+                        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+                      }
+                    }}
                     activeOpacity={0.8}
                   >
                     <Text style={styles.workAsText}>
