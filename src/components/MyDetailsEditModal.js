@@ -89,6 +89,7 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
   const [workingHoursFrom, setWorkingHoursFrom] = useState(new Date(0, 0, 0, 9, 0));
   const [workingHoursTo, setWorkingHoursTo] = useState(new Date(0, 0, 0, 18, 0));
   const scrollRef = useRef(null);
+  const workAsYRef = useRef(0);
 
   const onScrollLayout = (e) => {
     const { height } = e.nativeEvent.layout;
@@ -494,7 +495,10 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                   )}
                 </View>
 
-                <View style={styles.workAsBlockWrap}>
+                <View
+                  style={styles.workAsBlockWrap}
+                  onLayout={(e) => { workAsYRef.current = e.nativeEvent.layout.y; }}
+                >
                   <Text style={styles.workAsLabel}>{t('workAs')}</Text>
                   <TouchableOpacity
                     style={styles.workAsTouch}
@@ -503,7 +507,9 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                       setShowWorkAsMenu(opening);
                       setShowAddContactChoices(false);
                       if (opening) {
-                        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+                        setTimeout(() => {
+                          scrollRef.current?.scrollTo({ y: workAsYRef.current, animated: true });
+                        }, 100);
                       }
                     }}
                     activeOpacity={0.8}
