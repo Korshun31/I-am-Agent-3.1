@@ -10,6 +10,7 @@ import { getCurrencySymbol } from '../../utils/currency';
 import { getBookings, deleteBooking } from '../../services/bookingsService';
 import { getProperties } from '../../services/propertiesService';
 import { getContacts } from '../../services/contactsService';
+import { supabase } from '../../services/supabase';
 import WebBookingEditPanel from '../components/WebBookingEditPanel';
 import WebPropertyDetailPanel from '../components/WebPropertyDetailPanel';
 
@@ -643,6 +644,7 @@ export default function WebBookingsScreen({ user }) {
   const [contacts, setContacts]     = useState([]);
   const [owners, setOwners]         = useState([]);
   const [loading, setLoading]       = useState(true);
+  const [myCompanyName, setMyCompanyName] = useState('');
   const [viewMode, setViewMode]     = useState('gantt'); // 'gantt' | 'list'
   const [propFilter, setPropFilter] = useState('all');   // 'all' | 'mine'
   const [districtFilters, setDistrictFilters] = useState([]); // multi-select
@@ -661,6 +663,28 @@ export default function WebBookingsScreen({ user }) {
   const months   = useMemo(() => buildMonths(), []);
   const totalW   = useMemo(() => timelineWidth(months), [months]);
   const colorMap = useMemo(() => assignColors(bookings), [bookings]);
+
+  // Загружаем название компании для агента-участника напрямую из БД
+  useEffect(() => {
+    async function loadCompanyName() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      const { data: membership } = await supabase
+        .from('company_members')
+        .select('company_id')
+        .eq('agent_id', session.user.id)
+        .eq('role', 'agent')
+        .maybeSingle();
+      if (!membership?.company_id) return;
+      const { data: company } = await supabase
+        .from('companies')
+        .select('name')
+        .eq('id', membership.company_id)
+        .maybeSingle();
+      if (company?.name) setMyCompanyName(company.name);
+    }
+    loadCompanyName();
+  }, []);
 
   const ganttScrollRef = useRef(null); // single scroll container for gantt
 
@@ -1021,7 +1045,7 @@ export default function WebBookingsScreen({ user }) {
                                 : (colorMap[bk.id] || '#90A4AE');
                               const isSelected = bk.id === selectedBooking?.id;
                               const contact = contacts.find(c => c.id === bk.contactId);
-                              const companyName = user?.companyInfo?.name || user?.teamMembership?.companyName || '';
+                              const companyName = myCompanyName || user?.companyInfo?.name || user?.teamMembership?.companyName || '';
                               const label = isCompanyProperty
                                 ? (bk.notMyCustomer
                                     ? (t('bookingOwnerLabel') || 'Owner')
