@@ -50,6 +50,9 @@ export const translations = {
     dashboardCommissions: 'Commissions',
     dashboardMyClients: 'My clients',
     dashboardOtherClients: 'Other bookings',
+    dashboardStatCompany: 'Company',
+    dashboardStatMine: 'Mine',
+    dashboardStatOwners: 'Owners',
     // Bookings screen
     bookingsTitle: 'Bookings',
     bookingsAddBtn: 'Add booking',
@@ -749,6 +752,9 @@ export const translations = {
     dashboardCommissions: 'ค่าคอมมิชชั่น',
     dashboardMyClients: 'ลูกค้าของฉัน',
     dashboardOtherClients: 'การจองอื่นๆ',
+    dashboardStatCompany: 'บริษัท',
+    dashboardStatMine: 'ของฉัน',
+    dashboardStatOwners: 'เจ้าของ',
     // Bookings screen
     bookingsTitle: 'การจอง',
     bookingsAddBtn: 'เพิ่มการจอง',
@@ -1432,6 +1438,9 @@ export const translations = {
     dashboardCommissions: 'Комиссии',
     dashboardMyClients: 'Мои клиенты',
     dashboardOtherClients: 'Прочие брони',
+    dashboardStatCompany: 'Компания',
+    dashboardStatMine: 'Мои',
+    dashboardStatOwners: 'Собственников',
     // Bookings screen
     bookingsTitle: 'Бронирования',
     bookingsAddBtn: 'Добавить бронирование',

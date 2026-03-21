@@ -59,6 +59,7 @@ export default function WebDashboardScreen({ user }) {
   const [allCommissionEvents, setAllCommissionEvents] = useState([]);
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [filteredEvents, setFilteredEvents] = useState({ checkIns: [], checkOuts: [], personal: [] });
+  const [agentStats, setAgentStats] = useState(null); // только для team members
   
   // Состояние для модального окна событий
   const [eventModalVisible, setEventModalVisible] = useState(false);
@@ -158,6 +159,61 @@ export default function WebDashboardScreen({ user }) {
         thisMonth: thisMonthCount,
         later: upcomingBookings.length - thisMonthCount
       });
+
+      // Доп. статистика для участников команды (агентов)
+      if (isTeamMemberStats) {
+        // Объекты
+        let companyHouses = 0, companyResorts = 0, companyCondos = 0;
+        let myHouses = 0, myResorts = 0, myCondos = 0;
+        properties.forEach(p => {
+          if (p.type !== 'house') return;
+          const parent = p.resort_id ? propsMapStats[p.resort_id] : null;
+          const isApt = parent?.type === 'condo';
+          const isResortHouse = p.resort_id && !isApt;
+          if (isApt) companyCondos++;
+          else if (isResortHouse) companyResorts++;
+          else companyHouses++;
+          if (p.agent_id === user.id) {
+            if (isApt) myCondos++;
+            else if (isResortHouse) myResorts++;
+            else myHouses++;
+          }
+        });
+
+        // Бронирования (активные сейчас)
+        let companyAgencyActive = 0, companyOwnerActive = 0, myAgencyActive = 0;
+        bookings.forEach(b => {
+          const start = dayjs(b.checkIn);
+          const end = dayjs(b.checkOut);
+          if (!now.isAfter(start) || !now.isBefore(end)) return;
+          if (b.notMyCustomer) { companyOwnerActive++; }
+          else {
+            companyAgencyActive++;
+            if (b.agentId === user.id) myAgencyActive++;
+          }
+        });
+
+        // Предстоящие заселения
+        const allFutureAgency = bookings.filter(b => !b.notMyCustomer && dayjs(b.checkIn).isAfter(now));
+        const myFutureAgency = allFutureAgency.filter(b => b.agentId === user.id);
+        const companyUpcomingCount = allFutureAgency.length;
+        const myUpcomingCount = myFutureAgency.length;
+        const myThisMonth = myFutureAgency.filter(b => dayjs(b.checkIn).isBefore(endOfMonth)).length;
+        const myLater = myUpcomingCount - myThisMonth;
+
+        setAgentStats({
+          companyTotal: companyHouses + companyResorts + companyCondos,
+          companyHouses, companyResorts, companyCondos,
+          myTotal: myHouses + myResorts + myCondos,
+          myHouses, myResorts, myCondos,
+          companyAgencyActive, companyOwnerActive, myAgencyActive,
+          companyUpcoming: companyUpcomingCount,
+          myUpcoming: myUpcomingCount,
+          myThisMonth, myLater,
+        });
+      } else {
+        setAgentStats(null);
+      }
 
       updateEventsForDate(selectedDate, bookings, properties, contacts, calendarEvents, allComms);
     } catch (e) {
@@ -372,32 +428,100 @@ export default function WebDashboardScreen({ user }) {
       <Text style={styles.welcome}>{t('dashboardTitle')}</Text>
       
       <View style={styles.statsRow}>
+        {/* ОБЪЕКТОВ */}
         <View style={[styles.statCard, { borderLeftColor: CLR.stat1 }]}>
           <Text style={styles.statLabel}>{t('dashboardObjects').toUpperCase()}</Text>
-          <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{stats.total}</Text>
-          <View style={styles.subStats}>
-            <Text style={styles.subStatText}>{t('house')}: <Text style={styles.subStatValue}>{stats.houses}</Text></Text>
-            <Text style={styles.subStatText}>{t('resort')}: <Text style={styles.subStatValue}>{stats.resortHouses}</Text></Text>
-            <Text style={styles.subStatText}>{t('condo')}: <Text style={styles.subStatValue}>{stats.apartments}</Text></Text>
-          </View>
+          {agentStats ? (
+            <>
+              <View style={styles.agentStatRow}>
+                <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.companyTotal}</Text>
+                <Text style={styles.agentStatSep}> / </Text>
+                <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{agentStats.myTotal}</Text>
+              </View>
+              <View style={styles.agentStatLabels}>
+                <Text style={styles.agentStatLabelGray}>{t('dashboardStatCompany')}</Text>
+                <Text style={styles.agentStatLabelGray}> / </Text>
+                <Text style={[styles.agentStatLabelColored, { color: CLR.stat1Text }]}>{t('dashboardStatMine')}</Text>
+              </View>
+              <View style={styles.subStats}>
+                <Text style={styles.subStatText}>{t('house')}: <Text style={styles.subStatValue}>{agentStats.companyHouses}</Text></Text>
+                <Text style={styles.subStatText}>{t('resort')}: <Text style={styles.subStatValue}>{agentStats.companyResorts}</Text></Text>
+                <Text style={styles.subStatText}>{t('condo')}: <Text style={styles.subStatValue}>{agentStats.companyCondos}</Text></Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{stats.total}</Text>
+              <View style={styles.subStats}>
+                <Text style={styles.subStatText}>{t('house')}: <Text style={styles.subStatValue}>{stats.houses}</Text></Text>
+                <Text style={styles.subStatText}>{t('resort')}: <Text style={styles.subStatValue}>{stats.resortHouses}</Text></Text>
+                <Text style={styles.subStatText}>{t('condo')}: <Text style={styles.subStatValue}>{stats.apartments}</Text></Text>
+              </View>
+            </>
+          )}
         </View>
 
+        {/* БРОНИРОВАНИЙ */}
         <View style={[styles.statCard, { borderLeftColor: CLR.stat2 }]}>
           <Text style={styles.statLabel}>{t('dashboardBookings').toUpperCase()}</Text>
-          <Text style={[styles.statValue, { color: CLR.stat2Text }]}>{stats.occupied}</Text>
-          <View style={styles.subStats}>
-            <Text style={styles.subStatText}>{t('dashboardMyClients')}: <Text style={styles.subStatValue}>{stats.myClients}</Text></Text>
-            <Text style={styles.subStatText}>{t('dashboardOtherClients')}: <Text style={styles.subStatValue}>{stats.otherClients}</Text></Text>
-          </View>
+          {agentStats ? (
+            <>
+              <Text style={[styles.statValue, { color: CLR.stat2Text }]}>{agentStats.myAgencyActive}</Text>
+              <View style={[styles.subStats, { marginTop: 10 }]}>
+                <View style={styles.agentSubItem}>
+                  <Text style={[styles.agentSubValue, { color: CLR.stat2Text }]}>{agentStats.myAgencyActive}</Text>
+                  <Text style={[styles.agentSubLabel, { color: CLR.stat2Text }]}>{t('dashboardStatMine')}</Text>
+                </View>
+                <View style={styles.agentSubItem}>
+                  <Text style={styles.agentSubValueGray}>{agentStats.companyOwnerActive}</Text>
+                  <Text style={styles.agentSubLabelGray}>{t('dashboardStatOwners')}</Text>
+                </View>
+                <View style={styles.agentSubItem}>
+                  <Text style={styles.agentSubValueGray}>{agentStats.companyAgencyActive}</Text>
+                  <Text style={styles.agentSubLabelGray}>{t('dashboardStatCompany')}</Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.statValue, { color: CLR.stat2Text }]}>{stats.occupied}</Text>
+              <View style={styles.subStats}>
+                <Text style={styles.subStatText}>{t('dashboardMyClients')}: <Text style={styles.subStatValue}>{stats.myClients}</Text></Text>
+                <Text style={styles.subStatText}>{t('dashboardOtherClients')}: <Text style={styles.subStatValue}>{stats.otherClients}</Text></Text>
+              </View>
+            </>
+          )}
         </View>
 
+        {/* ЗАЕЗДЫ */}
         <View style={[styles.statCard, { borderLeftColor: CLR.stat3 }]}>
           <Text style={styles.statLabel}>{t('dashboardCheckIns').toUpperCase()}</Text>
-          <Text style={[styles.statValue, { color: CLR.stat3Text }]}>{stats.upcoming}</Text>
-          <View style={styles.subStats}>
-            <Text style={styles.subStatText}>{t('thisMonth')}: <Text style={styles.subStatValue}>{stats.thisMonth}</Text></Text>
-            <Text style={styles.subStatText}>{t('later')}: <Text style={styles.subStatValue}>{stats.later}</Text></Text>
-          </View>
+          {agentStats ? (
+            <>
+              <View style={styles.agentStatRow}>
+                <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.companyUpcoming}</Text>
+                <Text style={styles.agentStatSep}> / </Text>
+                <Text style={[styles.statValue, { color: CLR.stat3Text }]}>{agentStats.myUpcoming}</Text>
+              </View>
+              <View style={styles.agentStatLabels}>
+                <Text style={styles.agentStatLabelGray}>{t('dashboardStatCompany')}</Text>
+                <Text style={styles.agentStatLabelGray}> / </Text>
+                <Text style={[styles.agentStatLabelColored, { color: CLR.stat3Text }]}>{t('dashboardStatMine')}</Text>
+              </View>
+              <View style={styles.subStats}>
+                <Text style={styles.subStatText}>{t('thisMonth')}: <Text style={styles.subStatValue}>{agentStats.myThisMonth}</Text></Text>
+                <Text style={styles.subStatText}>{t('later')}: <Text style={styles.subStatValue}>{agentStats.myLater}</Text></Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.statValue, { color: CLR.stat3Text }]}>{stats.upcoming}</Text>
+              <View style={styles.subStats}>
+                <Text style={styles.subStatText}>{t('thisMonth')}: <Text style={styles.subStatValue}>{stats.thisMonth}</Text></Text>
+                <Text style={styles.subStatText}>{t('later')}: <Text style={styles.subStatValue}>{stats.later}</Text></Text>
+              </View>
+            </>
+          )}
         </View>
       </View>
 
@@ -546,6 +670,17 @@ const styles = StyleSheet.create({
   subStats: { flexDirection: 'row', marginTop: 12, gap: 12, borderTopWidth: 1, borderTopColor: '#F8F9FA', paddingTop: 8 },
   subStatText: { fontSize: 11, color: '#868E96', fontWeight: '500' },
   subStatValue: { color: '#212529', fontWeight: '700' },
+  // Agent stat card styles
+  agentStatRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 2 },
+  agentStatSep: { fontSize: 22, fontWeight: '400', color: '#CED4DA', marginHorizontal: 4 },
+  agentStatLabels: { flexDirection: 'row', marginBottom: 4 },
+  agentStatLabelGray: { fontSize: 11, color: '#ADB5BD', fontWeight: '500' },
+  agentStatLabelColored: { fontSize: 11, fontWeight: '700' },
+  agentSubItem: { alignItems: 'center', flex: 1 },
+  agentSubValue: { fontSize: 20, fontWeight: '800', marginBottom: 2 },
+  agentSubValueGray: { fontSize: 20, fontWeight: '800', color: '#ADB5BD', marginBottom: 2 },
+  agentSubLabel: { fontSize: 10, fontWeight: '600' },
+  agentSubLabelGray: { fontSize: 10, fontWeight: '500', color: '#ADB5BD' },
   
   mainContentRow: { flexDirection: 'column', gap: 20 },
   agendaContainer: { width: '100%' },
