@@ -1,15 +1,21 @@
 import { supabase } from './supabase';
 import { syncIfEnabled } from './dataUploadService';
 
-export async function getProperties() {
+export async function getProperties(agentId = null) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return [];
 
-  const { data, error } = await supabase
+  let q = supabase
     .from('properties')
     .select('*')
     .order('name', { ascending: true })
     .limit(10000);
+
+  if (agentId) {
+    q = q.eq('agent_id', agentId);
+  }
+
+  const { data, error } = await q;
 
   if (error) {
     console.error('getProperties error:', error.message);

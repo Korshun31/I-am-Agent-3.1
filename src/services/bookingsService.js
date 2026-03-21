@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { cancelCommissionReminders } from './commissionRemindersService';
 import { syncIfEnabled } from './dataUploadService';
 
-export async function getBookings(propertyId = null, contactId = null) {
+export async function getBookings(propertyId = null, contactId = null, agentId = null) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return [];
 
@@ -17,6 +17,17 @@ export async function getBookings(propertyId = null, contactId = null) {
   }
   if (contactId) {
     q = q.eq('contact_id', contactId);
+  }
+
+  // When fetching for a specific agent, limit to bookings in their properties only
+  if (agentId && !propertyId) {
+    const { data: props } = await supabase
+      .from('properties')
+      .select('id')
+      .eq('agent_id', agentId);
+    const propIds = (props || []).map(p => p.id);
+    if (propIds.length === 0) return [];
+    q = q.in('property_id', propIds);
   }
 
   const { data, error } = await q;

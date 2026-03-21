@@ -1042,9 +1042,8 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const { t } = useLanguage();
   const [p, setP] = useState(property);
 
-  // Является ли текущий пользователь участником команды, просматривающим чужой объект
+  // Агент видит только свои объекты — isOwnProperty всегда true для агентов
   const isTeamMember = !!(user?.teamMembership);
-  const isOwnProperty = user?.id && p.agent_id === user.id;
   const canBook = user?.teamPermissions?.can_book;
   const [wizardVisible, setWizardVisible] = useState(false);
   const [addHouseWizardVisible, setAddHouseWizardVisible] = useState(false);
@@ -1350,41 +1349,39 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         <View style={styles.backBtn} />
       </View>
 
-      {/* Строка действий: скрыта для агента на чужих объектах */}
-      {(!isTeamMember || isOwnProperty) && (
-        <View style={styles.actionsRow}>
-          {/* Удалить — скрыто для агентов всегда */}
-          {!isTeamMember && (
-            <TouchableOpacity style={styles.actionBtn} onPress={onDelete} activeOpacity={0.7}>
-              <Image source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
+      {/* Строка действий */}
+      <View style={styles.actionsRow}>
+        {/* Удалить — скрыто для агентов всегда */}
+        {!isTeamMember && (
+          <TouchableOpacity style={styles.actionBtn} onPress={onDelete} activeOpacity={0.7}>
+            <Image source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
+          </TouchableOpacity>
+        )}
+        <View style={[styles.actionsRight, isTeamMember && { flex: 1, justifyContent: 'flex-end' }]}>
+          {/* Редактировать */}
+          <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
+            <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
+          </TouchableOpacity>
+          {/* Добавить бронирование / добавить дом — для агента только если есть can_book */}
+          {(!isTeamMember || canBook) && (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              activeOpacity={0.7}
+              onPress={() => {
+                if (p.type === 'resort') setAddHouseWizardVisible(true);
+                else if (p.type === 'condo') setAddApartmentWizardVisible(true);
+                else if (p.type === 'house') setAddBookingVisible(true);
+              }}
+            >
+              {(p.type === 'resort' || p.type === 'condo') ? (
+                <Image source={require('../../assets/icon-add-property.png')} style={styles.actionIconLg} resizeMode="contain" />
+              ) : (
+                <Image source={require('../../assets/icon-add-booking.png')} style={styles.actionIconLg} resizeMode="contain" />
+              )}
             </TouchableOpacity>
           )}
-          <View style={[styles.actionsRight, isTeamMember && { flex: 1, justifyContent: 'flex-end' }]}>
-            {/* Редактировать — только свой объект */}
-            <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
-              <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
-            </TouchableOpacity>
-            {/* Добавить бронирование / добавить дом — для агента только если есть can_book */}
-            {(!isTeamMember || canBook) && (
-              <TouchableOpacity
-                style={styles.actionBtn}
-                activeOpacity={0.7}
-                onPress={() => {
-                  if (p.type === 'resort') setAddHouseWizardVisible(true);
-                  else if (p.type === 'condo') setAddApartmentWizardVisible(true);
-                  else if (p.type === 'house') setAddBookingVisible(true);
-                }}
-              >
-                {(p.type === 'resort' || p.type === 'condo') ? (
-                  <Image source={require('../../assets/icon-add-property.png')} style={styles.actionIconLg} resizeMode="contain" />
-                ) : (
-                  <Image source={require('../../assets/icon-add-booking.png')} style={styles.actionIconLg} resizeMode="contain" />
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
         </View>
-      )}
+      </View>
 
       <ScrollView ref={scrollViewRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {p.type === 'resort' ? (
@@ -1400,13 +1397,13 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             newHouseIdToExpand={newHouseIdToExpand}
             onExpandedNewHouse={() => setNewHouseIdToExpand(null)}
             onHousePress={onSelectProperty ? (h) => onSelectProperty(h) : undefined}
-            onBookingPress={isTeamMember && !isOwnProperty ? undefined : (b, codePart, property) => {
+            onBookingPress={(b, codePart, property) => {
               setSelectedBooking(b);
               setSelectedBookingTitle(codePart || '');
               setSelectedBookingProperty(property || null);
             }}
-            onOpenBookingCalendar={isTeamMember && !isOwnProperty ? undefined : (ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
-            hideLocation={isTeamMember && !isOwnProperty}
+            onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
+            hideLocation={false}
           />
         ) : p.type === 'condo' ? (
           <CondoDetailContent
@@ -1419,13 +1416,13 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             refreshApartmentsTrigger={refreshApartmentsTrigger}
             refreshBookingsTrigger={refreshBookingsTrigger}
             onApartmentPress={onSelectProperty ? (a) => onSelectProperty(a) : undefined}
-            onBookingPress={isTeamMember && !isOwnProperty ? undefined : (b, codePart, property) => {
+            onBookingPress={(b, codePart, property) => {
               setSelectedBooking(b);
               setSelectedBookingTitle(codePart || '');
               setSelectedBookingProperty(property || null);
             }}
-            onOpenBookingCalendar={isTeamMember && !isOwnProperty ? undefined : (ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
-            hideLocation={isTeamMember && !isOwnProperty}
+            onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
+            hideLocation={false}
           />
         ) : (
           <HouseDetailContent
@@ -1440,12 +1437,12 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             onVideoPress={handleVideoPress}
             resort={p.resort_id ? resort : null}
             refreshBookingsTrigger={refreshBookingsTrigger}
-            onBookingPress={isTeamMember && !isOwnProperty ? undefined : (b, codePart) => {
+            onBookingPress={(b, codePart) => {
               setSelectedBooking(b);
               setSelectedBookingTitle(codePart || '');
             }}
-            onOpenBookingCalendar={isTeamMember && !isOwnProperty ? undefined : (ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
-            hideLocation={isTeamMember && !isOwnProperty}
+            onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
+            hideLocation={false}
           />
         )}
 
@@ -1504,7 +1501,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         onClose={() => setCalendarModalVisible(false)}
         propertyIds={calendarPropertyIds}
         subtitle={calendarSubtitle}
-        readOnly={isTeamMember && !isOwnProperty}
+        readOnly={false}
       />
     </View>
   );

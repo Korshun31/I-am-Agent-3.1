@@ -678,12 +678,10 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                     />
                   )}
                   {(() => {
-                    const isTeamMember = !!(user?.teamMembership);
                     const canBook = user?.teamPermissions?.can_book;
+                    const isAgent = !!(user?.teamMembership);
                     return listToShow.map((unit) => {
-                      const isOwnUnit = !isTeamMember || unit.agent_id === user?.id;
-                      const canOpenBooking = !isTeamMember || isOwnUnit;
-                      const canAddBooking = !readOnly && (!isTeamMember ? true : (isOwnUnit && canBook));
+                      const canAddBooking = !readOnly && (!isAgent || canBook);
                       return (
                         <CalendarRow
                           key={unit.id}
@@ -699,7 +697,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                           globalColorMap={globalColorMap}
                           truncateLabel={truncateLabel}
                           onCellPress={canAddBooking ? handleAddPress : undefined}
-                          onBookingPress={canOpenBooking ? handleBookingPress : undefined}
+                          onBookingPress={handleBookingPress}
                           ownerLabels={{ full: t('ownerCustomer'), mid: t('ownerCustomerShort'), min: t('ownerCustomerMin') }}
                         />
                       );

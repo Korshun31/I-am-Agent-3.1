@@ -160,7 +160,7 @@ export default function App() {
             Platform.OS === 'web' ? (
               <WebMainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
             ) : (
-              <AppDataProvider>
+              <AppDataProvider user={user}>
                 <MainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
               </AppDataProvider>
             )

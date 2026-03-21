@@ -374,19 +374,15 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
       return t.length <= maxLen ? t : t.slice(0, maxLen - 3) + '...';
     };
 
-    const isTeamMember = !!(user?.teamMembership);
-
     (bookings || []).forEach(b => {
       if (!b.checkIn) return;
       const prop = propsMap[b.propertyId];
-      const isOwnBooking = b.agentId === user?.id;
-      const isOwnProperty = prop?.agent_id === user?.id;
 
       const objName = truncateLabel(getObjectDisplayName(b));
       const d = dayjs(b.checkIn).format('YYYY-MM-DD');
 
-      // Заселение: только свои бронирования
-      const showCheckIn = !isTeamMember || isOwnBooking;
+      // Заселение: только свои бронирования (не клиенты собственника)
+      const showCheckIn = !b.notMyCustomer;
       if (showCheckIn && d === selectedDate) {
         list.push({
           key: `b-in-${b.id}`,
@@ -403,8 +399,8 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
         });
       }
 
-      // Выселение: свои бронирования + выселения клиентов собственников из своих домов
-      const showCheckOut = !isTeamMember || isOwnBooking || (b.notMyCustomer && isOwnProperty);
+      // Выселение: все бронирования в своих объектах (включая клиентов собственника)
+      const showCheckOut = true;
       if (showCheckOut && b.checkOut) {
         const dOut = dayjs(b.checkOut).format('YYYY-MM-DD');
         if (dOut === selectedDate) {
@@ -427,8 +423,8 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
       const label = getPropertyLabel(b);
       const codeAndNum = `${label} ${getBookingNumber(b, bookings)}`.trim();
 
-      // Комиссии: только из своих объектов
-      const showCommission = !isTeamMember || isOwnProperty;
+      // Комиссии: все объекты в контексте уже свои
+      const showCommission = true;
       if (showCommission && b.ownerCommissionOneTime != null && b.ownerCommissionOneTime > 0 && dayjs(b.checkIn).format('YYYY-MM-DD') === selectedDate) {
         list.push({
           key: `comm-1-${b.id}`,
@@ -491,42 +487,29 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
 
   const eventCountsByDate = React.useMemo(() => {
     const counts = {};
-    const isTeamMemberCounts = !!(user?.teamMembership);
-    const propsMapCounts = {};
-    (properties || []).forEach(p => { propsMapCounts[p.id] = p; });
-
     (bookings || []).forEach((b) => {
-      const prop = propsMapCounts[b.propertyId];
-      const isOwnBooking = b.agentId === user?.id;
-      const isOwnProperty = prop?.agent_id === user?.id;
-
-      // Заселение: только свои
-      const showCheckIn = !isTeamMemberCounts || isOwnBooking;
-      if (showCheckIn && b.checkIn) {
+      // Заселение: только свои бронирования (не клиенты собственника)
+      if (!b.notMyCustomer && b.checkIn) {
         const d = dayjs(b.checkIn).format('YYYY-MM-DD');
         counts[d] = (counts[d] || 0) + 1;
       }
 
-      // Выселение: свои + выселения клиентов собственников из своих домов
-      const showCheckOut = !isTeamMemberCounts || isOwnBooking || (b.notMyCustomer && isOwnProperty);
-      if (showCheckOut && b.checkOut && b.checkOut !== b.checkIn) {
+      // Выселение: все бронирования в своих объектах
+      if (b.checkOut && b.checkOut !== b.checkIn) {
         const d = dayjs(b.checkOut).format('YYYY-MM-DD');
         counts[d] = (counts[d] || 0) + 1;
       }
 
-      // Комиссии: только из своих объектов
-      const showCommission = !isTeamMemberCounts || isOwnProperty;
-      if (showCommission) {
-        if (b.ownerCommissionOneTime != null && b.ownerCommissionOneTime > 0 && b.checkIn) {
-          const d = dayjs(b.checkIn).format('YYYY-MM-DD');
-          counts[d] = (counts[d] || 0) + 1;
-        }
-        if (b.ownerCommissionMonthly != null && b.ownerCommissionMonthly > 0 && b.checkIn && b.checkOut) {
-          const dateAmounts = getCommissionDateAmounts(b.checkIn, b.checkOut, null, b.ownerCommissionMonthly);
-          dateAmounts.forEach(({ date: ds }) => {
-            counts[ds] = (counts[ds] || 0) + 1;
-          });
-        }
+      // Комиссии: все объекты уже свои
+      if (b.ownerCommissionOneTime != null && b.ownerCommissionOneTime > 0 && b.checkIn) {
+        const d = dayjs(b.checkIn).format('YYYY-MM-DD');
+        counts[d] = (counts[d] || 0) + 1;
+      }
+      if (b.ownerCommissionMonthly != null && b.ownerCommissionMonthly > 0 && b.checkIn && b.checkOut) {
+        const dateAmounts = getCommissionDateAmounts(b.checkIn, b.checkOut, null, b.ownerCommissionMonthly);
+        dateAmounts.forEach(({ date: ds }) => {
+          counts[ds] = (counts[ds] || 0) + 1;
+        });
       }
     });
 
