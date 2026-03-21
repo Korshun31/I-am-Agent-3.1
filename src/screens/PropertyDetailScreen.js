@@ -456,7 +456,7 @@ function getBookingNumber(booking, allBookings) {
   return `${seq}/${String(yearShort).padStart(2, '0')}`;
 }
 
-function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onOwner2Press, onPhotoPress, onVideoPress, resort, refreshBookingsTrigger, onBookingPress, onOpenBookingCalendar, hideLocation }) {
+function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onOwner2Press, onPhotoPress, onVideoPress, resort, refreshBookingsTrigger, onBookingPress, onOpenBookingCalendar, hideLocation, responsibleName }) {
   const amenities = p.amenities || {};
   const [bookings, setBookings] = useState([]);
 
@@ -523,6 +523,12 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
             {p.owner2Telegram ? <InfoRow label={t('telegram')} value={p.owner2Telegram} labelBold /> : null}
           </>
         ) : null}
+        {responsibleName !== undefined && (
+          <>
+            <View style={styles.divider} />
+            <InfoRow label="Ответственный" value={responsibleName} labelBold />
+          </>
+        )}
       </SectionBlock>
 
       <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
@@ -642,7 +648,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
   );
 }
 
-function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshResortHousesTrigger, refreshBookingsTrigger, newHouseIdToExpand, onExpandedNewHouse, onHousePress, onBookingPress, onOpenBookingCalendar, hideLocation }) {
+function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshResortHousesTrigger, refreshBookingsTrigger, newHouseIdToExpand, onExpandedNewHouse, onHousePress, onBookingPress, onOpenBookingCalendar, hideLocation, responsibleName }) {
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const ownerName = p.ownerName || '';
@@ -732,6 +738,12 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
         {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} labelBold /> : null}
         {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} labelBold /> : null}
         {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} labelBold /> : null}
+        {responsibleName !== undefined && (
+          <>
+            <View style={styles.divider} />
+            <InfoRow label="Ответственный" value={responsibleName} labelBold />
+          </>
+        )}
       </SectionBlock>
 
       <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
@@ -865,7 +877,7 @@ function CondoApartmentItem({ item, expanded, onToggle, onPress }) {
   );
 }
 
-function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshApartmentsTrigger, refreshBookingsTrigger, onApartmentPress, onBookingPress, onOpenBookingCalendar, hideLocation }) {
+function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshApartmentsTrigger, refreshBookingsTrigger, onApartmentPress, onBookingPress, onOpenBookingCalendar, hideLocation, responsibleName }) {
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const [apartments, setApartments] = useState([]);
@@ -956,6 +968,12 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
         <InfoRow label={t('pdReception')} value={p.ownerName || '—'} labelBold />
         {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} labelBold /> : null}
         {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} labelBold /> : null}
+        {responsibleName !== undefined && (
+          <>
+            <View style={styles.divider} />
+            <InfoRow label="Ответственный" value={responsibleName} labelBold />
+          </>
+        )}
       </SectionBlock>
 
       <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
@@ -1215,6 +1233,15 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       const updated = await updateProperty(p.id, updates);
       const merged = { ...p, ...updated };
       setP(merged);
+      if ('responsible_agent_id' in updates) {
+        setCurrentResponsible(updates.responsible_agent_id ?? null);
+        // Автоматически каскадируем на все дома/апартаменты внутри резорта/кондо
+        if (p.type === 'resort' || p.type === 'condo') {
+          try {
+            await updatePropertyResponsible(p.id, updates.responsible_agent_id ?? null, true);
+          } catch {}
+        }
+      }
       setWizardVisible(false);
       loadOwnerData(merged);
       if ((p.type === 'resort' || p.type === 'condo') && updates.district !== undefined && String(updates.district || '') !== String(p.district || '')) {
@@ -1352,6 +1379,14 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     );
   }
 
+  const companyDisplayName = user?.companyInfo?.name || 'Компания';
+  const responsibleName = (!currentResponsible || currentResponsible === user?.id)
+    ? companyDisplayName
+    : (() => {
+        const m = teamMembers.find(tm => tm.agent_id === currentResponsible);
+        return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : companyDisplayName;
+      })();
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -1395,28 +1430,6 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           )}
         </View>
       </View>
-
-      {/* Ответственный — только для Admin компании */}
-      {isAdmin && (
-        <TouchableOpacity
-          style={styles.responsibleRow}
-          onPress={() => setResponsiblePickerVisible(true)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.responsibleLabel}>Ответственный:</Text>
-          <Text style={styles.responsibleValue}>
-            {!currentResponsible
-              ? 'Компания'
-              : currentResponsible === user?.id
-                ? ([user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email || 'Я')
-                : (() => {
-                    const m = teamMembers.find(tm => tm.agent_id === currentResponsible);
-                    return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : 'Компания';
-                  })()}
-          </Text>
-          <Text style={styles.responsibleChevron}>›</Text>
-        </TouchableOpacity>
-      )}
 
       {/* Пикер ответственного */}
       <Modal
@@ -1502,6 +1515,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             }}
             onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
             hideLocation={false}
+            responsibleName={isAdmin ? responsibleName : undefined}
           />
         ) : p.type === 'condo' ? (
           <CondoDetailContent
@@ -1521,6 +1535,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             }}
             onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
             hideLocation={false}
+            responsibleName={isAdmin ? responsibleName : undefined}
           />
         ) : (
           <HouseDetailContent
@@ -1541,6 +1556,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             }}
             onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
             hideLocation={false}
+            responsibleName={isAdmin ? responsibleName : undefined}
           />
         )}
 
@@ -1649,33 +1665,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 14,
     paddingHorizontal: 20,
-  },
-  responsibleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: '#F8F9FA',
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#E9ECEF',
-    marginBottom: 4,
-    gap: 6,
-  },
-  responsibleLabel: {
-    fontSize: 13,
-    color: '#868E96',
-    fontWeight: '500',
-  },
-  responsibleValue: {
-    flex: 1,
-    fontSize: 13,
-    color: '#212529',
-    fontWeight: '600',
-  },
-  responsibleChevron: {
-    fontSize: 18,
-    color: '#ADB5BD',
   },
   pickerOverlay: {
     flex: 1,

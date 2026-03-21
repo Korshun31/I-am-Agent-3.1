@@ -106,9 +106,9 @@ export default function WebDashboardScreen({ user }) {
       const propsMapStats = {};
       properties.forEach(p => { propsMapStats[p.id] = p; });
 
-      // Для агента: только свои объекты
+      // Для агента: только свои объекты (по responsible_agent_id)
       const countableProperties = isTeamMemberStats
-        ? properties.filter(p => p.agent_id === user.id)
+        ? properties.filter(p => p.responsible_agent_id === user.id)
         : properties;
 
       // 1. Статистика по типам (только своих объектов для агента)
@@ -173,7 +173,7 @@ export default function WebDashboardScreen({ user }) {
           if (isApt) companyCondos++;
           else if (isResortHouse) companyResorts++;
           else companyHouses++;
-          if (p.agent_id === user.id) {
+          if (p.responsible_agent_id === user.id) {
             if (isApt) myCondos++;
             else if (isResortHouse) myResorts++;
             else myHouses++;
@@ -284,21 +284,21 @@ export default function WebDashboardScreen({ user }) {
     // Заселения: свои клиенты (не клиенты собственника) из своих объектов
     const ins = bookings.filter(b => {
       if (b.checkIn !== dateStr || b.notMyCustomer) return false;
-      if (isTeamMember) return propsMap[b.propertyId]?.agent_id === user.id;
+      if (isTeamMember) return propsMap[b.propertyId]?.responsible_agent_id === user.id;
       return true;
     }).map(enrich);
 
     // Выселения: все бронирования из своих объектов (включая клиентов собственника)
     const outs = bookings.filter(b => {
       if (b.checkOut !== dateStr) return false;
-      if (isTeamMember) return propsMap[b.propertyId]?.agent_id === user.id;
+      if (isTeamMember) return propsMap[b.propertyId]?.responsible_agent_id === user.id;
       return true;
     }).map(enrich);
 
     // Комиссии: только из своих объектов
     const commissions = allComms.filter(c => {
       if (c.date !== dateStr) return false;
-      if (isTeamMember) return propsMap[c.propertyId]?.agent_id === user.id;
+      if (isTeamMember) return propsMap[c.propertyId]?.responsible_agent_id === user.id;
       return true;
     });
 
@@ -620,7 +620,7 @@ export default function WebDashboardScreen({ user }) {
             const next5 = allBookings
               .filter(b => {
                 if (b.checkIn <= today || b.notMyCustomer) return false;
-                if (isTeamMemberUpcoming) return propsMapUpcoming[b.propertyId]?.agent_id === user.id;
+                if (isTeamMemberUpcoming) return propsMapUpcoming[b.propertyId]?.responsible_agent_id === user.id;
                 return true;
               })
               .sort((a, b) => a.checkIn.localeCompare(b.checkIn))

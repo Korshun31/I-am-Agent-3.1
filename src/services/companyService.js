@@ -228,7 +228,7 @@ export async function createInvitation(companyId, email) {
 export async function getActiveTeamMembers(companyId) {
   const { data, error } = await supabase.rpc('get_company_team', { p_company_id: companyId });
   if (error) throw new Error(error.message);
-  return (data || []).filter(m => m.status === 'active');
+  return data || [];
 }
 
 export async function getTeamData(companyId) {

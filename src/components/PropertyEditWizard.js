@@ -26,6 +26,7 @@ import { getCurrentUser } from '../services/authService';
 import { getPhotoLimitForProperty } from '../constants/roleFeatures';
 import { getLocations, getLocationDistricts, setLocationDistricts } from '../services/locationsService';
 import { getContacts, createContact } from '../services/contactsService';
+import { getActiveTeamMembers } from '../services/companyService';
 import { uploadPhoto, isLocalUri } from '../services/storageService';
 import AddContactModal from './AddContactModal';
 
@@ -67,7 +68,7 @@ function Field({ label, value, onChangeText, placeholder, keyboardType, multilin
   );
 }
 
-function StepInfo({ data, setData, t, propertyType, locations, locationDistricts, onDistrictAdded, owners, onNewOwnerCreated, onOpenOwnerPicker, resortId, resortCode, parentResort }) {
+function StepInfo({ data, setData, t, propertyType, locations, locationDistricts, onDistrictAdded, owners, onNewOwnerCreated, onOpenOwnerPicker, resortId, resortCode, parentResort, teamMembers, currentUser }) {
   const [cityOpen, setCityOpen] = useState(false);
   const [districtOpen, setDistrictOpen] = useState(false);
   const [ownerPickerVisible, setOwnerPickerVisible] = useState(false);
@@ -77,6 +78,8 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
   const [addOwnerModal, setAddOwnerModal] = useState(false);
   const [addOwnerFor, setAddOwnerFor] = useState('owner');
   const [newDistrict, setNewDistrict] = useState('');
+  const [responsiblePickerVisible, setResponsiblePickerVisible] = useState(false);
+  const [tempResponsible, setTempResponsible] = useState(null);
 
   const closeAllPickers = (except) => {
     if (except !== 'city') setCityOpen(false);
@@ -173,6 +176,14 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
   const ownerDisplay = data._ownerName || (owners || []).find(o => o.id === data.owner_id)?.name || '';
   const owner2Display = data._owner2Name || (owners || []).find(o => o.id === data.owner_id_2)?.name || '';
   const isHouseInResort = Boolean(resortId);
+  const isAdmin = !!(currentUser?.companyId) && !currentUser?.teamMembership;
+  const companyDisplayName = currentUser?.companyInfo?.name || 'Компания';
+  const getResponsibleDisplay = (agentId) => {
+    if (!agentId || agentId === currentUser?.id) return companyDisplayName;
+    const m = (teamMembers || []).find(tm => tm.agent_id === agentId);
+    return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : companyDisplayName;
+  };
+  const responsibleDisplay = getResponsibleDisplay(data.responsible_agent_id);
 
   return (
     <>
@@ -319,6 +330,21 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
         </View>
       )}
 
+      {/* Ответственный — только для Admin */}
+      {isAdmin && (
+        <View style={s.fieldWrap}>
+          <Text style={s.fieldLabel}>Ответственный</Text>
+          <TouchableOpacity
+            style={s.pickerBtn}
+            onPress={() => { setTempResponsible(data.responsible_agent_id ?? null); setResponsiblePickerVisible(true); }}
+            activeOpacity={0.7}
+          >
+            <Text style={s.pickerBtnText}>{responsibleDisplay}</Text>
+            <Text style={s.pickerArrow}>▽</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <AddContactModal
         visible={addOwnerModal}
         onClose={() => setAddOwnerModal(false)}
@@ -427,6 +453,65 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
                   );
                 })}
               </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* Пикер Ответственного */}
+      {responsiblePickerVisible && (
+        <Modal transparent animationType="fade" onRequestClose={() => setResponsiblePickerVisible(false)} statusBarTranslucent>
+          <Pressable style={s.ownerPickerBackdrop} onPress={() => setResponsiblePickerVisible(false)}>
+            {Platform.OS === 'web' ? (
+              <View style={[StyleSheet.absoluteFill, s.backdropWeb]} />
+            ) : (
+              <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+            )}
+            <Pressable style={s.ownerPickerBox} onPress={(e) => e.stopPropagation()}>
+              <View style={s.ownerPickerHeader}>
+                <Text style={s.ownerPickerTitle}>Ответственный</Text>
+                <TouchableOpacity onPress={() => setResponsiblePickerVisible(false)} style={s.ownerPickerClose} activeOpacity={0.8}>
+                  <Text style={s.ownerPickerCloseIcon}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={s.ownerPickerScroll} contentContainerStyle={s.ownerPickerScrollContent} showsVerticalScrollIndicator>
+                {/* Компания (без агента) */}
+                {[{ agent_id: null, name: companyDisplayName, is_company: true },
+                  ...(teamMembers || []).filter(m => m.role !== 'owner')
+                ].map((item) => {
+                  const isSelected = item.is_company
+                    ? (!tempResponsible || tempResponsible === currentUser?.id)
+                    : tempResponsible === item.agent_id;
+                  const displayName = item.is_company
+                    ? companyDisplayName
+                    : ([item.name, item.last_name].filter(Boolean).join(' ') || item.email || '—');
+                  return (
+                    <TouchableOpacity
+                      key={item.agent_id ?? 'company'}
+                      style={[s.ownerPickerItem, isSelected && s.responsibleItemActive]}
+                      onPress={() => setTempResponsible(item.is_company ? null : item.agent_id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={s.responsibleCheckbox}>
+                        {isSelected && <View style={s.responsibleCheckboxInner} />}
+                      </View>
+                      <Text style={[s.ownerPickerItemText, isSelected && s.ownerPickerItemSelected]} numberOfLines={1}>
+                        {displayName}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <TouchableOpacity
+                style={s.responsibleSaveBtn}
+                onPress={() => {
+                  setData(d => ({ ...d, responsible_agent_id: tempResponsible }));
+                  setResponsiblePickerVisible(false);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={s.responsibleSaveBtnText}>Сохранить</Text>
+              </TouchableOpacity>
             </Pressable>
           </Pressable>
         </Modal>
@@ -773,6 +858,7 @@ function buildInitialData(p, parentResort) {
     owner_id_2: p.owner_id_2 || null,
     _ownerName: '',
     _owner2Name: '',
+    responsible_agent_id: p.responsible_agent_id ?? null,
     district,
     google_maps_link: googleMapsLink,
     address,
@@ -828,6 +914,7 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
     location_id: data.location_id || null,
     owner_id: data.owner_id || null,
     owner_id_2: data.owner_id_2 || null,
+    responsible_agent_id: data.responsible_agent_id ?? null,
     district,
     google_maps_link: data.google_maps_link.trim(),
     address: data.address.trim(),
@@ -876,6 +963,8 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
   const [locations, setLocations] = useState([]);
   const [locationDistricts, setLocationDistrictsState] = useState([]);
   const [owners, setOwners] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
   const [maxPhotos, setMaxPhotos] = useState(10);
   const scrollRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -888,9 +977,13 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       setStep(0);
       getLocations().then(setLocations).catch(() => {});
       loadOwners();
-      getCurrentUser()
-        .then(u => setMaxPhotos(getPhotoLimitForProperty(u?.role || 'standard')))
-        .catch(() => setMaxPhotos(10));
+      getCurrentUser().then(u => {
+        setCurrentUser(u);
+        setMaxPhotos(getPhotoLimitForProperty(u?.role || 'standard'));
+        if (u?.companyId) {
+          getActiveTeamMembers(u.companyId).then(setTeamMembers).catch(() => setTeamMembers([]));
+        }
+      }).catch(() => setMaxPhotos(10));
     }
   }, [visible, property, parentResort]);
 
@@ -999,6 +1092,8 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
           resortId={property?.resort_id}
           resortCode={property?.code}
           parentResort={parentResort}
+          teamMembers={teamMembers}
+          currentUser={currentUser}
         />
       );
       case 'chars': return <StepCharacteristics data={data} setData={setData} t={t} propertyType={property.type} />;
@@ -1327,6 +1422,34 @@ const s = StyleSheet.create({
   ownerPickerItemSelected: { fontWeight: '600', color: COLORS.green },
   ownerPickerItemSub: { fontSize: 11, color: '#999', marginTop: 2, maxWidth: 120 },
   ownerPickerCheck: { fontSize: 16, fontWeight: '700', color: COLORS.green, marginLeft: 8 },
+
+  responsibleItemActive: { backgroundColor: 'rgba(46,125,50,0.05)' },
+  responsibleCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: COLORS.green,
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  responsibleCheckboxInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.green,
+  },
+  responsibleSaveBtn: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 4,
+    backgroundColor: COLORS.green,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  responsibleSaveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   mediaSectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
   mediaSectionTitleIcon: { width: 22, height: 22 },
