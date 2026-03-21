@@ -1405,12 +1405,14 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         >
           <Text style={styles.responsibleLabel}>Ответственный:</Text>
           <Text style={styles.responsibleValue}>
-            {currentResponsible
-              ? (() => {
-                  const m = teamMembers.find(tm => tm.agent_id === currentResponsible);
-                  return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : '—';
-                })()
-              : 'Компания'}
+            {!currentResponsible
+              ? 'Компания'
+              : currentResponsible === user?.id
+                ? ([user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email || 'Я')
+                : (() => {
+                    const m = teamMembers.find(tm => tm.agent_id === currentResponsible);
+                    return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : 'Компания';
+                  })()}
           </Text>
           <Text style={styles.responsibleChevron}>›</Text>
         </TouchableOpacity>
