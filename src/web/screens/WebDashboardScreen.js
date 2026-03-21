@@ -162,21 +162,23 @@ export default function WebDashboardScreen({ user }) {
 
       // Доп. статистика для участников команды (агентов)
       if (isTeamMemberStats) {
-        // Объекты
+        // Объекты — подсчёт по категориям и ответственному
         let companyHouses = 0, companyResorts = 0, companyCondos = 0;
         let myHouses = 0, myResorts = 0, myCondos = 0;
         properties.forEach(p => {
-          if (p.type !== 'house') return;
-          const parent = p.resort_id ? propsMapStats[p.resort_id] : null;
-          const isApt = parent?.type === 'condo';
-          const isResortHouse = p.resort_id && !isApt;
-          if (isApt) companyCondos++;
-          else if (isResortHouse) companyResorts++;
-          else companyHouses++;
-          if (p.responsible_agent_id === user.id) {
-            if (isApt) myCondos++;
-            else if (isResortHouse) myResorts++;
-            else myHouses++;
+          const isMine = p.responsible_agent_id === user?.id;
+          if (p.type === 'resort' || p.type === 'condo') {
+            // Верхнеуровневые контейнеры (резорт/кондо)
+            if (p.type === 'resort') { companyResorts++; if (isMine) myResorts++; }
+            else { companyCondos++; if (isMine) myCondos++; }
+          } else if (p.type === 'house') {
+            if (!p.resort_id) {
+              companyHouses++; if (isMine) myHouses++;
+            } else {
+              const parent = propsMapStats[p.resort_id];
+              if (parent?.type === 'condo') { companyCondos++; if (isMine) myCondos++; }
+              else { companyResorts++; if (isMine) myResorts++; }
+            }
           }
         });
 
