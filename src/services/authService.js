@@ -66,12 +66,32 @@ export async function getUserProfile(userId) {
     documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '',
     photoUri: '', role: 'standard', language: 'en',
     notificationSettings: {}, selectedCurrency: 'USD',
-    locations: [], workAs: 'private', companyInfo: {}
+    locations: [], workAs: 'private', companyId: null, companyInfo: {}
   };
 
+  // Загружаем активную компанию из таблицы companies (источник правды)
+  const { data: companyData } = await supabase
+    .from('companies')
+    .select('*')
+    .eq('owner_id', userId)
+    .eq('status', 'active')
+    .maybeSingle();
+
   const settings = data.settings || {};
-  const companyInfo = settings.companyInfo || {};
   const role = ['standard', 'premium', 'admin'].includes(data.role) ? data.role : 'standard';
+
+  // Данные компании: из таблицы companies (если есть) или из settings как запасной вариант
+  const companyInfo = companyData ? {
+    name: companyData.name || '',
+    phone: companyData.phone || '',
+    email: companyData.email || '',
+    logoUrl: companyData.logo_url || '',
+    telegram: companyData.telegram || '',
+    whatsapp: companyData.whatsapp || '',
+    instagram: companyData.instagram || '',
+    workingHours: companyData.working_hours || '',
+  } : (settings.companyInfo || {});
+
   return {
     id: data.id,
     email: data.email || '',
@@ -89,7 +109,9 @@ export async function getUserProfile(userId) {
     notificationSettings: settings.notificationSettings || {},
     selectedCurrency: settings.selectedCurrency || 'USD',
     locations: Array.isArray(settings.locations) ? settings.locations : [],
-    workAs: settings.workAs === 'company' ? 'company' : 'private',
+    // workAs определяется наличием активной компании, не settings
+    workAs: companyData ? 'company' : 'private',
+    companyId: companyData?.id || null,
     companyInfo,
     web_notifications: data.web_notifications || {
       new_booking: false,

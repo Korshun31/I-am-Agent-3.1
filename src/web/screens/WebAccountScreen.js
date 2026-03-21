@@ -5,6 +5,7 @@ import {
   TextInput,
 } from 'react-native';
 import { getCurrentUser, updateUserProfile, signOut, canChangePassword } from '../../services/authService';
+import { activateCompany, deactivateCompany, updateCompany } from '../../services/companyService';
 import { getLocations } from '../../services/locationsService';
 import { useLanguage } from '../../context/LanguageContext';
 import WebMyDetailsEditModal from '../components/WebMyDetailsEditModal';
@@ -148,16 +149,45 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
 
   const saveCompany = async () => {
     try {
-      const updated = await updateUserProfile({
-        companyInfo: {
-          ...(user?.companyInfo || {}),
-          ...companyForm,
-        }
-      });
-      setUser(updated);
+      if (user?.companyId) {
+        await updateCompany(user.companyId, companyForm);
+      } else {
+        await activateCompany(companyForm);
+      }
+      const updated = await getCurrentUser();
+      updateAndSync(updated);
       setEditingCompany(false);
     } catch (e) {
       console.error('Save company error:', e);
+      alert('Ошибка сохранения данных компании');
+    }
+  };
+
+  const handleSwitchToCompany = async () => {
+    if (!['premium', 'admin'].includes(user?.role)) {
+      alert('Это Premium функция. Обновите тариф чтобы создать компанию и пригласить команду.');
+      return;
+    }
+    try {
+      await activateCompany(user?.companyInfo || {});
+      const updated = await getCurrentUser();
+      updateAndSync(updated);
+    } catch (e) {
+      console.error('Switch to company error:', e);
+    }
+  };
+
+  const handleSwitchToPrivate = async () => {
+    try {
+      await deactivateCompany();
+      const updated = await getCurrentUser();
+      updateAndSync(updated);
+    } catch (e) {
+      if (e?.message === 'HAS_ACTIVE_MEMBERS') {
+        alert('Нельзя перейти в режим частного агента пока в команде есть активные участники. Сначала удалите всех агентов.');
+      } else {
+        console.error('Switch to private error:', e);
+      }
     }
   };
 
@@ -237,13 +267,13 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
               <View style={s.workAsToggle}>
                 <TouchableOpacity 
                   style={[s.workAsBtn, user?.workAs !== 'company' && s.workAsBtnActive]}
-                  onPress={() => updateUserProfile({ workAs: 'private' }).then(updateAndSync)}
+                  onPress={handleSwitchToPrivate}
                 >
                   <Text style={[s.workAsBtnText, user?.workAs !== 'company' && s.workAsBtnTextActive]}>{t('workAsPrivate')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[s.workAsBtn, user?.workAs === 'company' && s.workAsBtnActive]}
-                  onPress={() => updateUserProfile({ workAs: 'company' }).then(updateAndSync)}
+                  onPress={handleSwitchToCompany}
                 >
                   <Text style={[s.workAsBtnText, user?.workAs === 'company' && s.workAsBtnTextActive]}>{t('workAsCompany')}</Text>
                 </TouchableOpacity>
@@ -296,6 +326,12 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
                     <InfoRow label={t('companyEmail')} value={user?.companyInfo?.email} />
                   </>
                 )}
+              </View>
+            )}
+            {user?.workAs === 'company' && (
+              <View style={s.teamPlaceholder}>
+                <Text style={s.teamTitle}>👥 {t('team') || 'Команда'}</Text>
+                <Text style={s.teamSubtitle}>{t('teamComingSoon') || 'Управление командой — скоро'}</Text>
               </View>
             )}
           </SectionCard>
@@ -556,6 +592,17 @@ const s = StyleSheet.create({
   workAsBtnText: { fontSize: 12, color: C.muted, fontWeight: '500' },
   workAsBtnTextActive: { color: ACCENT, fontWeight: '700' },
   companyFields: { marginTop: 8, borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8 },
+  teamPlaceholder: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: C.accentBg,
+    borderWidth: 1,
+    borderColor: '#B2D8DB',
+    borderStyle: 'dashed',
+  },
+  teamTitle: { fontSize: 14, fontWeight: '700', color: ACCENT, marginBottom: 4 },
+  teamSubtitle: { fontSize: 12, color: C.muted },
 
   locationItem: {
     paddingVertical: 12,

@@ -19,6 +19,8 @@ import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { uploadAvatar, uploadCompanyLogo } from '../services/storageService';
+import { activateCompany, deactivateCompany, updateCompany } from '../services/companyService';
+import { getCurrentUser } from '../services/authService';
 
 function parseWorkingHours(str) {
   const base = new Date(2020, 0, 1); // fixed date for time-only
@@ -122,8 +124,20 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
     }
   }, [visible, user.name, user.lastName, user.documentNumber, user.phone, user.extraPhones, user.extraEmails, user.telegram, user.whatsapp, user.photoUri, user.workAs, user.companyInfo]);
 
-  const handleSave = () => {
-    const payload = {
+  const handleSave = async () => {
+    const isPremium = ['premium', 'admin'].includes(user?.role);
+
+    // Если выбрана компания но нет Premium — блокируем
+    if (workAs === 'company' && !isPremium) {
+      Alert.alert(
+        'Premium функция',
+        'Режим компании доступен только на тарифе Premium. Обновите тариф чтобы создать компанию и пригласить команду.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    const personalPayload = {
       name: name.trim(),
       lastName: lastName.trim(),
       documentNumber: documentNumber.trim(),
@@ -133,24 +147,51 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
       telegram: telegram.trim(),
       whatsapp: whatsapp.trim(),
       photoUri: photoUri || '',
-      workAs: workAs || 'private',
     };
-    if (workAs === 'company') {
-      payload.companyInfo = {
-        logoUrl: companyLogoUrl || '',
-        name: companyName.trim(),
-        phone: companyPhone.trim(),
-        email: companyEmail.trim(),
-        telegram: companyTelegram.trim(),
-        whatsapp: companyWhatsapp.trim(),
-        instagram: companyInstagram.trim(),
-        workingHours: companyWorkingHours.trim(),
-      };
-    } else {
-      payload.companyInfo = {};
+
+    const companyPayload = {
+      logoUrl: companyLogoUrl || '',
+      name: companyName.trim(),
+      phone: companyPhone.trim(),
+      email: companyEmail.trim(),
+      telegram: companyTelegram.trim(),
+      whatsapp: companyWhatsapp.trim(),
+      instagram: companyInstagram.trim(),
+      workingHours: companyWorkingHours.trim(),
+    };
+
+    try {
+      const prevWorkAs = user?.workAs;
+
+      // Переключение режима если изменилось
+      if (workAs === 'company' && prevWorkAs !== 'company') {
+        await activateCompany(companyPayload);
+      } else if (workAs === 'private' && prevWorkAs === 'company') {
+        try {
+          await deactivateCompany();
+        } catch (e) {
+          if (e?.message === 'HAS_ACTIVE_MEMBERS') {
+            Alert.alert(
+              'Невозможно переключить режим',
+              'Нельзя перейти в режим частного агента пока в команде есть активные участники. Сначала удалите всех агентов.',
+              [{ text: 'OK' }]
+            );
+            return;
+          }
+          throw e;
+        }
+      } else if (workAs === 'company' && prevWorkAs === 'company' && user?.companyId) {
+        // Режим не менялся — просто обновляем данные компании
+        await updateCompany(user.companyId, companyPayload);
+      }
+
+      // Сохраняем личные данные
+      onSave?.({ ...personalPayload, workAs });
+      onClose?.();
+    } catch (e) {
+      console.error('Save error:', e);
+      Alert.alert('Ошибка', 'Не удалось сохранить данные. Попробуйте ещё раз.');
     }
-    onSave?.(payload);
-    onClose?.();
   };
 
   const pickImage = async () => {
@@ -572,7 +613,7 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                 )}
                 </TouchableOpacity>
               </ScrollView>
-              <TouchableOpacity style={styles.saveBtn} onPress={() => { Keyboard.dismiss(); handleSave(); }} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.saveBtn} onPress={async () => { Keyboard.dismiss(); await handleSave(); }} activeOpacity={0.7}>
                 <Text style={styles.saveBtnText}>{t('save')}</Text>
               </TouchableOpacity>
             </View>
