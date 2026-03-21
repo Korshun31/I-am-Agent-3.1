@@ -353,7 +353,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     if (!scrollSyncRef.current && rightVerticalRef.current) {
       scrollSyncRef.current = true;
       rightVerticalRef.current.scrollTo({ y, animated: false });
-      setTimeout(() => { scrollSyncRef.current = false; }, 50);
+      requestAnimationFrame(() => { scrollSyncRef.current = false; });
     }
   };
 
@@ -362,7 +362,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     if (!scrollSyncRef.current && leftScrollRef.current) {
       scrollSyncRef.current = true;
       leftScrollRef.current.scrollTo({ y, animated: false });
-      setTimeout(() => { scrollSyncRef.current = false; }, 50);
+      requestAnimationFrame(() => { scrollSyncRef.current = false; });
     }
   };
 
