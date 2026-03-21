@@ -177,6 +177,10 @@ export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpe
       setCompanySectionOpen(false);
       setSettingsOpen(false);
       setLocationsOpen(false);
+      // Обновляем данные профиля при возврате на вкладку (синхронизация с вебом)
+      getCurrentUser().then((profile) => {
+        if (profile) onUserUpdate?.(profile);
+      }).catch(() => {});
     }
     prevTabVisible.current = isVisible;
   }, [isVisible]);
