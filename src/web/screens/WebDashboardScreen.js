@@ -443,10 +443,19 @@ export default function WebDashboardScreen({ user }) {
                 <Text style={styles.agentStatLabelGray}> / </Text>
                 <Text style={[styles.agentStatLabelColored, { color: CLR.stat1Text }]}>{t('dashboardStatMine')}</Text>
               </View>
-              <View style={styles.subStats}>
-                <Text style={styles.subStatText}>{t('house')}: <Text style={styles.subStatValue}>{agentStats.companyHouses}</Text></Text>
-                <Text style={styles.subStatText}>{t('resort')}: <Text style={styles.subStatValue}>{agentStats.companyResorts}</Text></Text>
-                <Text style={styles.subStatText}>{t('condo')}: <Text style={styles.subStatValue}>{agentStats.companyCondos}</Text></Text>
+              <View style={[styles.subStats, { flexWrap: 'wrap' }]}>
+                {[
+                  { label: t('house'),  co: agentStats.companyHouses,  my: agentStats.myHouses  },
+                  { label: t('resort'), co: agentStats.companyResorts, my: agentStats.myResorts },
+                  { label: t('condo'),  co: agentStats.companyCondos,  my: agentStats.myCondos  },
+                ].map(({ label, co, my }) => (
+                  <Text key={label} style={styles.subStatText}>
+                    {label}{': '}
+                    <Text style={styles.subStatValue}>{co}</Text>
+                    <Text style={{ color: '#CED4DA' }}>{' / '}</Text>
+                    <Text style={[styles.subStatValue, { color: CLR.stat1Text }]}>{my}</Text>
+                  </Text>
+                ))}
               </View>
             </>
           ) : (
