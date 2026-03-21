@@ -563,7 +563,8 @@ export default function WebDashboardScreen({ user }) {
 
       <WebCalendarStrip 
         selectedDate={selectedDate} 
-        onDateSelect={handleDateSelect} 
+        onDateSelect={handleDateSelect}
+        user={user}
       />
 
       <View style={styles.mainContentRow}>

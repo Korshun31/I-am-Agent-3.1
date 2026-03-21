@@ -3,16 +3,18 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, 
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 import { getBookings } from '../../services/bookingsService';
+import { getProperties } from '../../services/propertiesService';
 import { getCalendarEvents, eventOccursOnDate } from '../../services/calendarEventsService';
 import { getCommissionDateAmounts } from '../../services/commissionRemindersService';
 import { supabase } from '../../services/supabase';
 
 const CARD_WIDTH = 70; // 60 (width) + 10 (margins 5+5)
 
-export default function WebCalendarStrip({ selectedDate, onDateSelect }) {
+export default function WebCalendarStrip({ selectedDate, onDateSelect, user }) {
   const { language } = useLanguage(); // triggers re-render on language change
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState([]);
+  const [propsMap, setPropsMap] = useState({});
   const [calendarEvents, setCalendarEvents] = useState([]);
   const [commissionEvents, setCommissionEvents] = useState([]);
   const [days, setDays] = useState([]);
@@ -30,12 +32,17 @@ export default function WebCalendarStrip({ selectedDate, onDateSelect }) {
 
     async function loadData() {
       try {
-        const [bData, eData] = await Promise.all([
+        const [bData, eData, pData] = await Promise.all([
           getBookings(),
-          getCalendarEvents()
+          getCalendarEvents(),
+          getProperties(),
         ]);
         setBookings(bData);
         setCalendarEvents(eData);
+
+        const pm = {};
+        pData.forEach(p => { pm[p.id] = p; });
+        setPropsMap(pm);
 
         // Расчет комиссий
         const allComms = [];
@@ -43,7 +50,7 @@ export default function WebCalendarStrip({ selectedDate, onDateSelect }) {
           if (b.ownerCommissionOneTime || b.ownerCommissionMonthly) {
             const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, b.ownerCommissionOneTime, b.ownerCommissionMonthly);
             dates.forEach(d => {
-              allComms.push(d.date);
+              allComms.push({ date: d.date, propertyId: b.propertyId });
             });
           }
         });
@@ -101,10 +108,33 @@ export default function WebCalendarStrip({ selectedDate, onDateSelect }) {
 
   const getDayEvents = (date) => {
     const dateStr = date.format('YYYY-MM-DD');
-    const hasCheckIn = bookings.some(b => b.checkIn === dateStr && !b.notMyCustomer);
-    const hasCheckOut = bookings.some(b => b.checkOut === dateStr);
+    const isAgent = !!(user?.teamMembership);
+    const userId = user?.id;
+
+    const hasCheckIn = bookings.some(b => {
+      if (b.checkIn !== dateStr || b.notMyCustomer) return false;
+      if (isAgent) return b.agentId === userId;
+      return true;
+    });
+
+    const hasCheckOut = bookings.some(b => {
+      if (b.checkOut !== dateStr) return false;
+      if (isAgent) {
+        const isOwnBooking = b.agentId === userId;
+        const isOwnProperty = propsMap[b.propertyId]?.agent_id === userId;
+        return isOwnBooking || (b.notMyCustomer && isOwnProperty);
+      }
+      return true;
+    });
+
     const hasPersonalEvent = calendarEvents.some(e => eventOccursOnDate(e, dateStr));
-    const hasCommission = commissionEvents.includes(dateStr);
+
+    const hasCommission = commissionEvents.some(c => {
+      if (c.date !== dateStr) return false;
+      if (isAgent) return propsMap[c.propertyId]?.agent_id === userId;
+      return true;
+    });
+
     return { hasCheckIn, hasCheckOut, hasPersonalEvent, hasCommission };
   };
 
