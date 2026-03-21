@@ -252,7 +252,8 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   const TYPE_META = getTypeMeta(t);
   const AMENITY_LABELS = getAmenityLabels(t);
   const psym = getCurrencySymbol(property.currency || 'THB');
-  const isTeamMember = !!user?.teamMembership;
+  // Участник команды: видит чужой объект и сам не является владельцем компании
+  const isTeamMember = !!(user?.id && property.agent_id && user.id !== property.agent_id && user.workAs !== 'company');
   const isAdmin = !isTeamMember;
   const isSubmitted = property.property_status === 'submitted';
   const isRejected = property.property_status === 'rejected';
