@@ -139,7 +139,7 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
         pointerEvents={interactiveTab === 1 ? 'auto' : 'none'}
       >
         {visited.has(1) && (
-          <MemoBookingCalendar isVisible={activeTab === 1} onReady={handleTab1Ready} />
+          <MemoBookingCalendar isVisible={activeTab === 1} onReady={handleTab1Ready} user={user} />
         )}
         <TabLoadingOverlay opacity={overlayOpacities[1]} />
       </Animated.View>

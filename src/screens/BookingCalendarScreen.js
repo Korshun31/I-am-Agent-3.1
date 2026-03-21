@@ -127,7 +127,7 @@ function getOwnerLabel(width, labels) {
   return min || '';
 }
 
-export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose, onReady, readOnly = false } = {}) {
+export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose, onReady, readOnly = false, user } = {}) {
   const { t, language } = useLanguage();
   const { properties, bookings, propertiesLoading, refreshProperties, refreshBookings } = useAppData();
 
@@ -676,25 +676,33 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                         }}
                       />
                     )}
-                    {listToShow.map((unit) => (
-                    <CalendarRow
-                      key={unit.id}
-                      unit={unit}
-                      months={months}
-                      monthWidth={MONTH_WIDTH}
-                      rowHeight={ROW_HEIGHT}
-                      currentYear={currentYear}
-                      currentMonth={currentMonth}
-                      bookings={bookingsByProperty[unit.id] || []}
-                      getContactName={getContactName}
-                      getOwnerLabel={getOwnerLabel}
-                      globalColorMap={globalColorMap}
-                      truncateLabel={truncateLabel}
-                      onCellPress={readOnly ? undefined : handleAddPress}
-                      onBookingPress={readOnly ? undefined : handleBookingPress}
-                      ownerLabels={{ full: t('ownerCustomer'), mid: t('ownerCustomerShort'), min: t('ownerCustomerMin') }}
-                    />
-                  ))}
+                    {listToShow.map((unit) => {
+                      // Агент-участник команды: разрешены действия только на своих объектах
+                      const isTeamMember = !!(user?.teamMembership);
+                      const isOwnUnit = !isTeamMember || unit.agent_id === user?.id;
+                      const canBook = user?.teamPermissions?.can_book;
+                      const canOpenBooking = !isTeamMember || isOwnUnit;
+                      const canAddBooking = !readOnly && (!isTeamMember ? true : (isOwnUnit && canBook));
+                      return (
+                        <CalendarRow
+                          key={unit.id}
+                          unit={unit}
+                          months={months}
+                          monthWidth={MONTH_WIDTH}
+                          rowHeight={ROW_HEIGHT}
+                          currentYear={currentYear}
+                          currentMonth={currentMonth}
+                          bookings={bookingsByProperty[unit.id] || []}
+                          getContactName={getContactName}
+                          getOwnerLabel={getOwnerLabel}
+                          globalColorMap={globalColorMap}
+                          truncateLabel={truncateLabel}
+                          onCellPress={canAddBooking ? handleAddPress : undefined}
+                          onBookingPress={canOpenBooking ? handleBookingPress : undefined}
+                          ownerLabels={{ full: t('ownerCustomer'), mid: t('ownerCustomerShort'), min: t('ownerCustomerMin') }}
+                        />
+                      );
+                    })}
                   </View>
                 </ScrollView>
               </View>
