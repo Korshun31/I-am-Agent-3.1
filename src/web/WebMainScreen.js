@@ -8,6 +8,7 @@ import WebBookingsScreen from './screens/WebBookingsScreen';
 import WebAccountScreen from './screens/WebAccountScreen';
 import WebFlightTracker from './components/WebFlightTracker';
 import { supabase } from '../services/supabase';
+import { getUserProfile } from '../services/authService';
 import { useLanguage } from '../context/LanguageContext';
 
 const FULL_HEIGHT_TABS = new Set(['properties', 'contacts', 'bookings', 'profile']);
@@ -22,11 +23,11 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
   const [propertiesInitialId, setPropertiesInitialId] = useState(null);
   const [visited, setVisited] = useState(() => new Set(['dashboard']));
 
-  // Fetch fresh user data on mount to get notification settings
+  // Обновляем полный профиль пользователя при монтировании (с teamMembership, teamPermissions и т.д.)
   useEffect(() => {
     const fetchUser = async () => {
-      const { data } = await supabase.from('agents').select('*').eq('id', initialUser.id).single();
-      if (data) setUser(data);
+      const freshUser = await getUserProfile(initialUser.id);
+      if (freshUser) setUser(freshUser);
     };
     fetchUser();
   }, [initialUser.id]);
