@@ -119,14 +119,28 @@ function assignColors(bookings) {
 }
 
 // Filter properties based on selected filter
-function filterProperties(properties, bookings, filter) {
+function filterProperties(properties, bookings, filter, userId) {
   if (filter === 'all') return properties;
-  // 'mine' — объекты у которых есть хоть одно "моё" бронирование
+  // 'mine' (admin) — объекты у которых есть хоть одно "моё" бронирование (не собственник)
   if (filter === 'mine') {
     const myProps = new Set(
       bookings.filter(b => !b.notMyCustomer).map(b => b.propertyId)
     );
     return properties.filter(p => myProps.has(p.id));
+  }
+  // 'company' (agent) — объекты компании с бронированиями клиентов агентства (не собственники)
+  if (filter === 'company') {
+    const companyProps = new Set(
+      bookings.filter(b => !b.notMyCustomer).map(b => b.propertyId)
+    );
+    return properties.filter(p => companyProps.has(p.id));
+  }
+  // 'myBookings' (agent) — только объекты с бронированиями самого агента
+  if (filter === 'myBookings') {
+    const agentProps = new Set(
+      bookings.filter(b => b.agentId === userId).map(b => b.propertyId)
+    );
+    return properties.filter(p => agentProps.has(p.id));
   }
   return properties;
 }
@@ -750,7 +764,7 @@ export default function WebBookingsScreen({ user }) {
 
   // Filter + search properties
   const visibleProps = useMemo(() => {
-    let result = filterProperties(properties, bookings, propFilter);
+    let result = filterProperties(properties, bookings, propFilter, user?.id);
     if (districtFilters.length > 0) result = result.filter(p => districtFilters.includes(p.district));
     if (bedroomsFilters.length > 0) result = result.filter(p => bedroomsFilters.includes(p.bedrooms));
     if (petsFilter)     result = result.filter(p => p.pets_allowed);
@@ -770,6 +784,8 @@ export default function WebBookingsScreen({ user }) {
     if (viewMode !== 'list') return bookings;
     let result = bookings;
     if (propFilter === 'mine') result = result.filter(b => !b.notMyCustomer);
+    if (propFilter === 'company') result = result.filter(b => !b.notMyCustomer);
+    if (propFilter === 'myBookings') result = result.filter(b => b.agentId === user?.id);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter(b => {
@@ -828,12 +844,16 @@ export default function WebBookingsScreen({ user }) {
         <View style={s.toolbarRow2}>
           {/* Left: content filters */}
           <View style={s.filterGroup}>
-            {/* Segment: Все / Только мои */}
+            {/* Segment: разные табы для агента и для админа */}
             <View style={s.segmentWrap}>
-              {[
+              {(user?.teamMembership ? [
+                { key: 'all',        label: t('all') },
+                { key: 'company',    label: t('bookingsFilterCompany') || 'Компания' },
+                { key: 'myBookings', label: t('bookingsFilterMine') || 'Мои' },
+              ] : [
                 { key: 'all',  label: t('all') },
                 { key: 'mine', label: t('dashboardMyClients') },
-              ].map(f => (
+              ]).map(f => (
                 <TouchableOpacity
                   key={f.key}
                   style={[s.segmentBtn, propFilter === f.key && s.segmentBtnActive]}
