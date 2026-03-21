@@ -89,6 +89,7 @@ export default function WebDashboardScreen({ user }) {
               ...d,
               id: `comm-${b.id}-${d.date}`,
               bookingId: b.id,
+              propertyId: b.propertyId,
               propertyCode: prop?.code || '—',
               propertyName: prop?.name || '—',
               type: 'COMMISSION'
@@ -100,12 +101,20 @@ export default function WebDashboardScreen({ user }) {
 
       const now = dayjs();
       const endOfMonth = now.endOf('month');
-      
-      // 1. Статистика по типам
+      const isTeamMemberStats = !!(user?.teamMembership);
+      const propsMapStats = {};
+      properties.forEach(p => { propsMapStats[p.id] = p; });
+
+      // Для агента: только свои объекты
+      const countableProperties = isTeamMemberStats
+        ? properties.filter(p => p.agent_id === user.id)
+        : properties;
+
+      // 1. Статистика по типам (только своих объектов для агента)
       let standaloneHouses = 0;
       let resortHousesCount = 0;
       let apartmentsCount = 0;
-      properties.forEach(p => {
+      countableProperties.forEach(p => {
         if (p.type === 'house') {
           if (!p.resort_id) standaloneHouses++;
           else {
@@ -116,10 +125,14 @@ export default function WebDashboardScreen({ user }) {
         }
       });
 
-      // 2. Статистика занятости
+      // 2. Статистика занятости (для агента: только свои бронирования)
       let myClientsCount = 0;
       let otherClientsCount = 0;
-      const occupiedCount = bookings.filter(b => {
+      const bookingsForStats = isTeamMemberStats
+        ? bookings.filter(b => b.agentId === user.id)
+        : bookings;
+
+      const occupiedCount = bookingsForStats.filter(b => {
         const start = dayjs(b.checkIn);
         const end = dayjs(b.checkOut);
         const isOccupied = now.isAfter(start) && now.isBefore(end);
@@ -130,7 +143,7 @@ export default function WebDashboardScreen({ user }) {
         return isOccupied;
       }).length;
 
-      const upcomingBookings = bookings.filter(b => dayjs(b.checkIn).isAfter(now));
+      const upcomingBookings = bookingsForStats.filter(b => dayjs(b.checkIn).isAfter(now));
       const thisMonthCount = upcomingBookings.filter(b => dayjs(b.checkIn).isBefore(endOfMonth)).length;
 
       setStats({
@@ -179,9 +192,12 @@ export default function WebDashboardScreen({ user }) {
 
   const updateEventsForDate = (date, bookings, properties, contacts, calendarEvents, allComms) => {
     const dateStr = date.format('YYYY-MM-DD');
-    
+    const isTeamMember = !!(user?.teamMembership);
+    const propsMap = {};
+    properties.forEach(p => { propsMap[p.id] = p; });
+
     const enrich = (b) => {
-      const prop = properties.find(p => p.id === b.propertyId);
+      const prop = propsMap[b.propertyId];
       const client = contacts.find(c => c.id === b.contactId);
       return {
         ...b,
@@ -193,10 +209,35 @@ export default function WebDashboardScreen({ user }) {
       };
     };
 
-    const ins = bookings.filter(b => b.checkIn === dateStr && !b.notMyCustomer).map(enrich);
-    const outs = bookings.filter(b => b.checkOut === dateStr).map(enrich);
-    
-    // Объединяем личные события (с учетом повторений) и комиссии
+    // Заселения: только свои бронирования (не клиенты собственников)
+    const ins = bookings.filter(b => {
+      if (b.checkIn !== dateStr || b.notMyCustomer) return false;
+      if (isTeamMember) return b.agentId === user.id;
+      return true;
+    }).map(enrich);
+
+    // Выселения: свои бронирования + выселения клиентов собственников из своих домов
+    const outs = bookings.filter(b => {
+      if (b.checkOut !== dateStr) return false;
+      if (isTeamMember) {
+        const isOwnBooking = b.agentId === user.id;
+        const isOwnProperty = propsMap[b.propertyId]?.agent_id === user.id;
+        return isOwnBooking || (b.notMyCustomer && isOwnProperty);
+      }
+      return true;
+    }).map(enrich);
+
+    // Комиссии: только из своих объектов
+    const commissions = allComms.filter(c => {
+      if (c.date !== dateStr) return false;
+      if (isTeamMember) {
+        const prop = propsMap[c.propertyId] || properties.find(p => p.id === c.propertyId);
+        return prop?.agent_id === user.id;
+      }
+      return true;
+    });
+
+    // Личные события всегда видны (они созданы самим пользователем)
     const personal = calendarEvents
       .filter(e => eventOccursOnDate(e, dateStr))
       .map(e => ({ 
@@ -204,8 +245,7 @@ export default function WebDashboardScreen({ user }) {
         type: 'PERSONAL',
         time: e.eventTime
       }));
-    const commissions = allComms.filter(c => c.date === dateStr);
-    
+
     setFilteredEvents({ 
       checkIns: ins, 
       checkOuts: outs, 
@@ -420,8 +460,13 @@ export default function WebDashboardScreen({ user }) {
           {/* Следующие заселения — под первой колонкой */}
           {(() => {
             const today = dayjs().format('YYYY-MM-DD');
+            const isTeamMemberUpcoming = !!(user?.teamMembership);
             const next5 = allBookings
-              .filter(b => b.checkIn > today && !b.notMyCustomer)
+              .filter(b => {
+                if (b.checkIn <= today || b.notMyCustomer) return false;
+                if (isTeamMemberUpcoming) return b.agentId === user.id;
+                return true;
+              })
               .sort((a, b) => a.checkIn.localeCompare(b.checkIn))
               .slice(0, 5);
             return (
