@@ -80,10 +80,21 @@ export async function getUserProfile(userId) {
   // Проверяем: является ли пользователь участником чужой команды (роль agent)
   const { data: membershipData } = await supabase
     .from('company_members')
-    .select('company_id, role, companies(name)')
+    .select('company_id, role')
     .eq('agent_id', userId)
     .eq('role', 'agent')
     .maybeSingle();
+
+  // Получаем название компании отдельным запросом если нашли членство
+  let memberCompanyName = '';
+  if (membershipData?.company_id) {
+    const { data: companyRow } = await supabase
+      .from('companies')
+      .select('name')
+      .eq('id', membershipData.company_id)
+      .maybeSingle();
+    memberCompanyName = companyRow?.name || '';
+  }
 
   const settings = data.settings || {};
   let role = ['standard', 'premium', 'admin'].includes(data.role) ? data.role : 'standard';
@@ -127,7 +138,7 @@ export async function getUserProfile(userId) {
     // Если пользователь является участником чужой команды
     teamMembership: membershipData ? {
       companyId: membershipData.company_id,
-      companyName: membershipData.companies?.name || '',
+      companyName: memberCompanyName,
       role: membershipData.role,
     } : null,
     web_notifications: data.web_notifications || {
