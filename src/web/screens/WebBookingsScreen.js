@@ -972,6 +972,8 @@ export default function WebBookingsScreen({ user }) {
                       const tc = TYPE_COLOR[getEffectiveType(prop)] || TYPE_COLOR.house;
                       const fullCode = prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '');
                       const propBookings = bookings.filter(b => b.propertyId === prop.id);
+                      // Объект принадлежит другому агенту — это объект компании
+                      const isCompanyProperty = !!(user?.id && prop.agent_id && user.id !== prop.agent_id && user.workAs !== 'company');
                       const todayX = dateToPx(dayjs().format('YYYY-MM-DD'), months);
                       return (
                         <View key={prop.id} style={s.ganttRowWrap}>
@@ -1014,24 +1016,23 @@ export default function WebBookingsScreen({ user }) {
                               const x1 = dateToPx(bk.checkIn, months);
                               const x2 = dateToPx(bk.checkOut, months);
                               const w  = Math.max(x2 - x1, 6);
-                              const isCompanyBooking = user?.id && bk.agentId && bk.agentId !== user.id;
-                              const color = isCompanyBooking
+                              const color = isCompanyProperty
                                 ? (bk.notMyCustomer ? '#B0BEC5' : colorMap[bk.id] || '#90A4AE')
                                 : (colorMap[bk.id] || '#90A4AE');
                               const isSelected = bk.id === selectedBooking?.id;
                               const contact = contacts.find(c => c.id === bk.contactId);
-                              const companyName = user?.companyInfo?.name || '';
-                              const label = isCompanyBooking
-                                ? (bk.notMyCustomer ? '' : (companyName ? `${t('client') || 'Клиент'} ${companyName}` : t('bookingOwnerLabel')))
+                              const companyName = user?.companyInfo?.name || user?.teamMembership?.companyName || '';
+                              const label = isCompanyProperty
+                                ? (bk.notMyCustomer ? '' : (companyName ? `${t('client') || 'Клиент'} ${companyName}` : ''))
                                 : (bk.notMyCustomer
                                   ? t('bookingOwnerLabel')
                                   : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : ''));
                               return (
                                 <TouchableOpacity
                                   key={bk.id}
-                                  style={[s.bar, { left: x1, width: w, backgroundColor: color }, isSelected && s.barSelected, isCompanyBooking && s.barCompany]}
-                                  onPress={() => { if (!isCompanyBooking) setSelectedBooking(bk); }}
-                                  activeOpacity={isCompanyBooking ? 1 : 0.8}
+                                  style={[s.bar, { left: x1, width: w, backgroundColor: color }, isSelected && s.barSelected, isCompanyProperty && s.barCompany]}
+                                  onPress={() => { if (!isCompanyProperty) setSelectedBooking(bk); }}
+                                  activeOpacity={isCompanyProperty ? 1 : 0.8}
                                 >
                                   {w >= 50 && <Text style={s.barDateL} numberOfLines={1}>{dayjs(bk.checkIn).format('DD.MM')}</Text>}
                                   {w >= 110 && <Text style={s.barLabel} numberOfLines={1}>{label}</Text>}
