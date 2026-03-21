@@ -1500,6 +1500,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         onClose={() => setCalendarModalVisible(false)}
         propertyIds={calendarPropertyIds}
         subtitle={calendarSubtitle}
+        readOnly={isTeamMember && !isOwnProperty}
       />
     </View>
   );

@@ -127,7 +127,7 @@ function getOwnerLabel(width, labels) {
   return min || '';
 }
 
-export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose, onReady } = {}) {
+export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose, onReady, readOnly = false } = {}) {
   const { t, language } = useLanguage();
   const { properties, bookings, propertiesLoading, refreshProperties, refreshBookings } = useAppData();
 
@@ -690,8 +690,8 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                       getOwnerLabel={getOwnerLabel}
                       globalColorMap={globalColorMap}
                       truncateLabel={truncateLabel}
-                      onCellPress={handleAddPress}
-                      onBookingPress={handleBookingPress}
+                      onCellPress={readOnly ? undefined : handleAddPress}
+                      onBookingPress={readOnly ? undefined : handleBookingPress}
                       ownerLabels={{ full: t('ownerCustomer'), mid: t('ownerCustomerShort'), min: t('ownerCustomerMin') }}
                     />
                   ))}
@@ -884,8 +884,8 @@ function CalendarRow({
           <TouchableOpacity
             key={m.key}
             style={[rowStyles.cell, { width: monthWidth, backgroundColor: cellBg }]}
-            onPress={() => onCellPress(unit, m.key)}
-            activeOpacity={0.7}
+            onPress={onCellPress ? () => onCellPress(unit, m.key) : undefined}
+            activeOpacity={onCellPress ? 0.7 : 1}
           />
         );
       })}
@@ -925,11 +925,11 @@ function CalendarRow({
                 zIndex: 10,
               },
             ]}
-            onPress={(e) => {
+            onPress={onBookingPress ? (e) => {
               e.stopPropagation();
               onBookingPress(b, unit);
-            }}
-            activeOpacity={0.8}
+            } : undefined}
+            activeOpacity={onBookingPress ? 0.8 : 1}
           >
             <View style={rowStyles.barInner}>
               {canShowDates && <Text style={[rowStyles.barDateText, rowStyles.barDateIn]}>{dayIn}</Text>}

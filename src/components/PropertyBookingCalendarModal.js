@@ -15,7 +15,7 @@ function truncateWithEllipsis(str) {
   return s.slice(0, MAX_SUBTITLE_LEN - 3) + '...';
 }
 
-export default function PropertyBookingCalendarModal({ visible, onClose, propertyIds = [], subtitle = '' }) {
+export default function PropertyBookingCalendarModal({ visible, onClose, propertyIds = [], subtitle = '', readOnly = false }) {
   const { t } = useLanguage();
 
   if (!visible) return null;
@@ -45,6 +45,7 @@ export default function PropertyBookingCalendarModal({ visible, onClose, propert
             propertyIdsFilter={propertyIds}
             embeddedInModal
             onClose={onClose}
+            readOnly={readOnly}
           />
         </View>
       </View>
