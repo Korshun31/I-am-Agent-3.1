@@ -253,6 +253,17 @@ export async function revokeInvitation(invitationId) {
 }
 
 /**
+ * Обновить разрешения участника команды.
+ */
+export async function updateMemberPermissions(memberId, permissions) {
+  const { error } = await supabase
+    .from('company_members')
+    .update({ permissions })
+    .eq('id', memberId);
+  if (error) throw new Error(error.message);
+}
+
+/**
  * Вступить в команду по токену приглашения.
  * Вызывается после успешной авторизации агента.
  */

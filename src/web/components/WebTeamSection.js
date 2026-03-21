@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { useLanguage } from '../../context/LanguageContext';
-import { getTeamData, createInvitation, revokeInvitation } from '../../services/companyService';
+import { getTeamData, createInvitation, revokeInvitation, updateMemberPermissions } from '../../services/companyService';
 import dayjs from 'dayjs';
 
 const ACCENT = '#3D7D82';
@@ -25,14 +25,72 @@ function copyToClipboard(text) {
   }
 }
 
-function MemberRow({ member, isCurrentUser }) {
+function MemberPermissionsModal({ member, visible, onClose, onSave }) {
+  const { t } = useLanguage();
+  const [permissions, setPermissions] = useState(member.permissions || {});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setPermissions(member.permissions || {});
+  }, [member.member_id]);
+
+  const toggle = (key) => setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(member.member_id, permissions);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!visible) return null;
+
+  const displayName = [member.name, member.last_name].filter(Boolean).join(' ') || member.email;
+
+  return (
+    <View style={s.modalOverlay}>
+      <View style={s.modalBox}>
+        <Text style={s.modalTitle}>⚙️ {displayName}</Text>
+        <Text style={s.modalSubtitle}>{t('memberPermissions') || 'Разрешения агента'}</Text>
+
+        <View style={s.permissionRow}>
+          <View style={s.permissionInfo}>
+            <Text style={s.permissionLabel}>{t('permCanBook') || 'Добавление бронирований'}</Text>
+            <Text style={s.permissionHint}>{t('permCanBookHint') || 'Агент может бронировать объекты компании'}</Text>
+          </View>
+          <TouchableOpacity
+            style={[s.toggle, permissions.can_book && s.toggleOn]}
+            onPress={() => toggle('can_book')}
+          >
+            <View style={[s.toggleThumb, permissions.can_book && s.toggleThumbOn]} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={s.modalActions}>
+          <TouchableOpacity style={s.modalCancelBtn} onPress={onClose}>
+            <Text style={s.modalCancelText}>{t('cancel') || 'Отмена'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.modalSaveBtn, saving && s.btnDisabled]} onPress={handleSave} disabled={saving}>
+            <Text style={s.modalSaveText}>{saving ? '...' : (t('save') || 'Сохранить')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function MemberRow({ member, isCurrentUser, onPress }) {
   const { t } = useLanguage();
   const initials = ((member.name || '')[0] || (member.email || '')[0] || '?').toUpperCase();
   const displayName = [member.name, member.last_name].filter(Boolean).join(' ') || member.email;
   const roleLabel = member.role === 'owner' ? (t('roleOwner') || 'Admin') : (t('roleAgent') || 'Агент');
+  const canBook = member.permissions?.can_book;
 
   return (
-    <View style={s.memberRow}>
+    <TouchableOpacity style={s.memberRow} onPress={member.role !== 'owner' ? onPress : undefined} activeOpacity={member.role !== 'owner' ? 0.7 : 1}>
       <View style={s.memberAvatar}>
         <Text style={s.memberAvatarText}>{initials}</Text>
       </View>
@@ -41,6 +99,11 @@ function MemberRow({ member, isCurrentUser }) {
           {displayName}{isCurrentUser ? ` (${t('you') || 'Вы'})` : ''}
         </Text>
         <Text style={s.memberEmail}>{member.email}</Text>
+        {member.role !== 'owner' && (
+          <Text style={s.memberPerms}>
+            {canBook ? `✓ ${t('permCanBook') || 'Бронирования'}` : `— ${t('permCanBook') || 'Бронирования'}`}
+          </Text>
+        )}
       </View>
       <View style={s.memberMeta}>
         <View style={[s.roleBadge, member.role === 'owner' && s.roleBadgeOwner]}>
@@ -49,8 +112,9 @@ function MemberRow({ member, isCurrentUser }) {
           </Text>
         </View>
         <Text style={s.memberDate}>{dayjs(member.joined_at).format('DD MMM YYYY')}</Text>
+        {member.role !== 'owner' && <Text style={s.memberEditHint}>⚙️</Text>}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -174,6 +238,7 @@ export default function WebTeamSection({ companyId, currentUserId }) {
   const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState([]);
   const [invitations, setInvitations] = useState([]);
+  const [selectedMember, setSelectedMember] = useState(null);
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
@@ -288,7 +353,12 @@ export default function WebTeamSection({ companyId, currentUserId }) {
         <View style={s.section}>
           <Text style={s.sectionLabel}>{t('teamMembers') || 'Участники'}</Text>
           {members.map(m => (
-            <MemberRow key={m.member_id} member={m} isCurrentUser={m.agent_id === currentUserId} />
+            <MemberRow
+              key={m.member_id}
+              member={m}
+              isCurrentUser={m.agent_id === currentUserId}
+              onPress={() => setSelectedMember(m)}
+            />
           ))}
         </View>
       )}
@@ -301,6 +371,18 @@ export default function WebTeamSection({ companyId, currentUserId }) {
             <InvitationRow key={inv.id} invitation={inv} onRevoke={handleRevoke} />
           ))}
         </View>
+      )}
+
+      {selectedMember && (
+        <MemberPermissionsModal
+          member={selectedMember}
+          visible={!!selectedMember}
+          onClose={() => setSelectedMember(null)}
+          onSave={async (memberId, permissions) => {
+            await updateMemberPermissions(memberId, permissions);
+            setMembers(prev => prev.map(m => m.member_id === memberId ? { ...m, permissions } : m));
+          }}
+        />
       )}
 
       {members.length === 0 && invitations.length === 0 && !showInviteForm && !inviteResult && (
@@ -382,4 +464,26 @@ const s = StyleSheet.create({
   closeSuccessBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
 
   emptyText: { fontSize: 13, color: C.muted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 16 },
+
+  memberPerms: { fontSize: 11, color: C.muted, marginTop: 2 },
+  memberEditHint: { fontSize: 14, color: C.muted },
+
+  modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
+  modalBox: { backgroundColor: C.surface, borderRadius: 16, padding: 24, width: '90%', maxWidth: 400, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, gap: 16 },
+  modalTitle: { fontSize: 16, fontWeight: '800', color: C.text },
+  modalSubtitle: { fontSize: 13, color: C.muted, marginTop: -8 },
+  permissionRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.border },
+  permissionInfo: { flex: 1, gap: 2 },
+  permissionLabel: { fontSize: 14, fontWeight: '600', color: C.text },
+  permissionHint: { fontSize: 12, color: C.muted },
+  toggle: { width: 44, height: 26, borderRadius: 13, backgroundColor: C.border, justifyContent: 'center', paddingHorizontal: 2 },
+  toggleOn: { backgroundColor: ACCENT },
+  toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2 },
+  toggleThumbOn: { alignSelf: 'flex-end' },
+  modalActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end' },
+  modalCancelBtn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: C.border },
+  modalCancelText: { fontSize: 14, fontWeight: '600', color: C.muted },
+  modalSaveBtn: { paddingHorizontal: 20, paddingVertical: 9, borderRadius: 10, backgroundColor: ACCENT },
+  modalSaveText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  btnDisabled: { opacity: 0.5 },
 });

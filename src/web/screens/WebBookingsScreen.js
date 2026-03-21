@@ -817,9 +817,11 @@ export default function WebBookingsScreen({ user }) {
               </TouchableOpacity>
             )}
           </View>
-          <TouchableOpacity style={s.addBtn} onPress={() => { setSelectedBooking(null); setEditPanelMode('create'); }}>
-            <Text style={s.addBtnText}>+ {t('bookingsAddBtn')}</Text>
-          </TouchableOpacity>
+          {(!user?.teamMembership || user?.teamPermissions?.can_book) && (
+            <TouchableOpacity style={s.addBtn} onPress={() => { setSelectedBooking(null); setEditPanelMode('create'); }}>
+              <Text style={s.addBtnText}>+ {t('bookingsAddBtn')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Row 2: Filters + View toggle */}
