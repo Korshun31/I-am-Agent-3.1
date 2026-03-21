@@ -11,6 +11,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import WebMyDetailsEditModal from '../components/WebMyDetailsEditModal';
 import WebLocationsModal from '../components/WebLocationsModal';
 import WebSettingsModal from '../components/WebSettingsModal';
+import WebTeamSection from '../components/WebTeamSection';
 
 const ACCENT = '#3D7D82';
 const C = {
@@ -328,10 +329,10 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
                 )}
               </View>
             )}
-            {user?.workAs === 'company' && (
-              <View style={s.teamPlaceholder}>
-                <Text style={s.teamTitle}>👥 {t('team') || 'Команда'}</Text>
-                <Text style={s.teamSubtitle}>{t('teamComingSoon') || 'Управление командой — скоро'}</Text>
+            {user?.workAs === 'company' && user?.companyId && (
+              <View style={s.teamWrap}>
+                <View style={s.teamDivider} />
+                <WebTeamSection companyId={user.companyId} currentUserId={user.id} />
               </View>
             )}
           </SectionCard>
@@ -592,17 +593,8 @@ const s = StyleSheet.create({
   workAsBtnText: { fontSize: 12, color: C.muted, fontWeight: '500' },
   workAsBtnTextActive: { color: ACCENT, fontWeight: '700' },
   companyFields: { marginTop: 8, borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8 },
-  teamPlaceholder: {
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: C.accentBg,
-    borderWidth: 1,
-    borderColor: '#B2D8DB',
-    borderStyle: 'dashed',
-  },
-  teamTitle: { fontSize: 14, fontWeight: '700', color: ACCENT, marginBottom: 4 },
-  teamSubtitle: { fontSize: 12, color: C.muted },
+  teamWrap: { marginTop: 8 },
+  teamDivider: { height: 1, backgroundColor: C.border, marginBottom: 16 },
 
   locationItem: {
     paddingVertical: 12,

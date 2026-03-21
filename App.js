@@ -25,12 +25,20 @@ import MainScreen from './src/screens/MainScreen';
 import WebMainScreen from './src/web/WebMainScreen';
 import { getCurrentUser, signOut } from './src/services/authService';
 import { supabase } from './src/services/supabase';
+import WebInviteAcceptScreen from './src/web/screens/WebInviteAcceptScreen';
 
 const initialUser = { email: '', name: '', lastName: '', phone: '', telegram: '', documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '', photoUri: '' };
 
 export default function App() {
   const [screen, setScreen] = useState('preloader');
   const [user, setUser] = useState(initialUser);
+  const [inviteToken, setInviteToken] = useState(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('token') || null;
+    }
+    return null;
+  });
 
   useEffect(() => {
     async function checkSession() {
@@ -108,31 +116,56 @@ export default function App() {
     setScreen('login');
   };
 
+  const handleInviteComplete = (userData) => {
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', '/');
+    }
+    setInviteToken(null);
+    if (userData) goToMain(userData);
+  };
+
+  const handleInviteCancel = () => {
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', '/');
+    }
+    setInviteToken(null);
+  };
+
   return (
     <ErrorBoundary>
     <LanguageProvider>
       <StatusBar style="dark" />
-      {screen === 'preloader' && Platform.OS !== 'web' && <Preloader />}
-      {(screen === 'login' || (screen === 'preloader' && Platform.OS === 'web')) && (
-        <Login
-          onSignUp={() => setScreen('registration')}
-          onLogin={(user) => goToMain(user)}
+      {Platform.OS === 'web' && inviteToken ? (
+        <WebInviteAcceptScreen
+          token={inviteToken}
+          onComplete={handleInviteComplete}
+          onCancel={handleInviteCancel}
         />
-      )}
-      {screen === 'registration' && (
-        <Registration
-          onBack={() => setScreen('login')}
-          onSuccess={(user) => goToMain(user)}
-        />
-      )}
-      {screen === 'main' && (
-        Platform.OS === 'web' ? (
-          <WebMainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
-        ) : (
-          <AppDataProvider>
-            <MainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
-          </AppDataProvider>
-        )
+      ) : (
+        <>
+          {screen === 'preloader' && Platform.OS !== 'web' && <Preloader />}
+          {(screen === 'login' || (screen === 'preloader' && Platform.OS === 'web')) && (
+            <Login
+              onSignUp={() => setScreen('registration')}
+              onLogin={(user) => goToMain(user)}
+            />
+          )}
+          {screen === 'registration' && (
+            <Registration
+              onBack={() => setScreen('login')}
+              onSuccess={(user) => goToMain(user)}
+            />
+          )}
+          {screen === 'main' && (
+            Platform.OS === 'web' ? (
+              <WebMainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
+            ) : (
+              <AppDataProvider>
+                <MainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
+              </AppDataProvider>
+            )
+          )}
+        </>
       )}
     </LanguageProvider>
     </ErrorBoundary>
