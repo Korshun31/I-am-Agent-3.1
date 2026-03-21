@@ -451,7 +451,7 @@ export default function WebDashboardScreen({ user }) {
                 ].map(({ label, co, my }) => (
                   <Text key={label} style={styles.subStatText}>
                     {label}{': '}
-                    <Text style={styles.subStatValue}>{co}</Text>
+                    <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{co}</Text>
                     <Text style={{ color: '#CED4DA' }}>{' / '}</Text>
                     <Text style={[styles.subStatValue, { color: CLR.stat1Text }]}>{my}</Text>
                   </Text>
