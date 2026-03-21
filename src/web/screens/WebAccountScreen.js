@@ -429,19 +429,14 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
                 <Text style={s.planBadgeText}>{t('active') || 'АКТИВЕН'}</Text>
               </View>
             </View>
-            <View style={s.crmFeature}>
-              <Text style={s.crmFeatureTitle}>{t('integrations') || 'Интеграции'}</Text>
-              <TouchableOpacity style={s.integrationBtn}>
-                <Image source={require('../../../assets/icon-contact-telegram.png')} style={s.integrationIcon} />
-                <Text style={s.integrationText}>{t('connectTelegram') || 'Подключить Telegram Bot'}</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={s.crmFeature}>
-              <Text style={s.crmFeatureTitle}>{t('dataExport') || 'Экспорт данных'}</Text>
-              <TouchableOpacity style={s.exportBtn}>
-                <Text style={s.exportBtnText}>{t('exportToExcel') || 'Выгрузить базу в Excel'}</Text>
-              </TouchableOpacity>
-            </View>
+            {!user?.teamMembership && (
+              <View style={s.crmFeature}>
+                <Text style={s.crmFeatureTitle}>{t('dataExport') || 'Экспорт данных'}</Text>
+                <TouchableOpacity style={s.exportBtn}>
+                  <Text style={s.exportBtnText}>{t('exportToExcel') || 'Выгрузить базу в Excel'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </SectionCard>
 
           <SectionCard title={t('security') || 'Безопасность'}>
