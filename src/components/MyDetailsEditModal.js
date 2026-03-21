@@ -500,48 +500,58 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                   onLayout={(e) => { workAsYRef.current = e.nativeEvent.layout.y; }}
                 >
                   <Text style={styles.workAsLabel}>{t('workAs')}</Text>
-                  <TouchableOpacity
-                    style={styles.workAsTouch}
-                    onPress={() => {
-                      const opening = !showWorkAsMenu;
-                      setShowWorkAsMenu(opening);
-                      setShowAddContactChoices(false);
-                      if (opening) {
-                        setTimeout(() => {
-                          scrollRef.current?.scrollTo({ y: workAsYRef.current, animated: true });
-                        }, 100);
-                      }
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.workAsText}>
-                      {workAs === 'company' ? t('workAsCompany') : t('workAsPrivate')}
-                    </Text>
-                    <Text style={styles.workAsChevron}>▽</Text>
-                  </TouchableOpacity>
-                  {showWorkAsMenu && (
-                    <View style={styles.workAsDropdown}>
-                      <TouchableOpacity
-                        style={[styles.workAsOption, workAs === 'private' && styles.workAsOptionSelected]}
-                        onPress={() => { setWorkAs('private'); setShowWorkAsMenu(false); }}
-                        activeOpacity={0.7}
-                      >
-                        <View style={[styles.workAsCheckbox, workAs === 'private' && styles.workAsCheckboxChecked]}>
-                          {workAs === 'private' ? <Text style={styles.workAsCheckmark}>✓</Text> : null}
-                        </View>
-                        <Text style={styles.workAsOptionText}>{t('workAsPrivate')}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.workAsOption, workAs === 'company' && styles.workAsOptionSelected]}
-                        onPress={() => { setWorkAs('company'); setShowWorkAsMenu(false); }}
-                        activeOpacity={0.7}
-                      >
-                        <View style={[styles.workAsCheckbox, workAs === 'company' && styles.workAsCheckboxChecked]}>
-                          {workAs === 'company' ? <Text style={styles.workAsCheckmark}>✓</Text> : null}
-                        </View>
-                        <Text style={styles.workAsOptionText}>{t('workAsCompany')}</Text>
-                      </TouchableOpacity>
+                  {user?.teamMembership ? (
+                    <View style={styles.teamMemberBadge}>
+                      <Text style={styles.teamMemberBadgeText}>
+                        👥 {t('memberOfTeam') || 'Участник команды'}: {user.teamMembership.companyName}
+                      </Text>
                     </View>
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        style={styles.workAsTouch}
+                        onPress={() => {
+                          const opening = !showWorkAsMenu;
+                          setShowWorkAsMenu(opening);
+                          setShowAddContactChoices(false);
+                          if (opening) {
+                            setTimeout(() => {
+                              scrollRef.current?.scrollTo({ y: workAsYRef.current, animated: true });
+                            }, 100);
+                          }
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.workAsText}>
+                          {workAs === 'company' ? t('workAsCompany') : t('workAsPrivate')}
+                        </Text>
+                        <Text style={styles.workAsChevron}>▽</Text>
+                      </TouchableOpacity>
+                      {showWorkAsMenu && (
+                        <View style={styles.workAsDropdown}>
+                          <TouchableOpacity
+                            style={[styles.workAsOption, workAs === 'private' && styles.workAsOptionSelected]}
+                            onPress={() => { setWorkAs('private'); setShowWorkAsMenu(false); }}
+                            activeOpacity={0.7}
+                          >
+                            <View style={[styles.workAsCheckbox, workAs === 'private' && styles.workAsCheckboxChecked]}>
+                              {workAs === 'private' ? <Text style={styles.workAsCheckmark}>✓</Text> : null}
+                            </View>
+                            <Text style={styles.workAsOptionText}>{t('workAsPrivate')}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.workAsOption, workAs === 'company' && styles.workAsOptionSelected]}
+                            onPress={() => { setWorkAs('company'); setShowWorkAsMenu(false); }}
+                            activeOpacity={0.7}
+                          >
+                            <View style={[styles.workAsCheckbox, workAs === 'company' && styles.workAsCheckboxChecked]}>
+                              {workAs === 'company' ? <Text style={styles.workAsCheckmark}>✓</Text> : null}
+                            </View>
+                            <Text style={styles.workAsOptionText}>{t('workAsCompany')}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </>
                   )}
                 </View>
 
@@ -914,6 +924,18 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 13,
     marginBottom: 13,
+  },
+  teamMemberBadge: {
+    backgroundColor: '#EAF4F5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginTop: 6,
+  },
+  teamMemberBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3D7D82',
   },
   workAsLabel: {
     fontSize: 14,

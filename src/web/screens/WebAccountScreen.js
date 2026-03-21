@@ -265,20 +265,28 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
           >
             <View style={s.workAsRow}>
               <Text style={s.workAsLabel}>{t('workAs')}</Text>
-              <View style={s.workAsToggle}>
-                <TouchableOpacity 
-                  style={[s.workAsBtn, user?.workAs !== 'company' && s.workAsBtnActive]}
-                  onPress={handleSwitchToPrivate}
-                >
-                  <Text style={[s.workAsBtnText, user?.workAs !== 'company' && s.workAsBtnTextActive]}>{t('workAsPrivate')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[s.workAsBtn, user?.workAs === 'company' && s.workAsBtnActive]}
-                  onPress={handleSwitchToCompany}
-                >
-                  <Text style={[s.workAsBtnText, user?.workAs === 'company' && s.workAsBtnTextActive]}>{t('workAsCompany')}</Text>
-                </TouchableOpacity>
-              </View>
+              {user?.teamMembership ? (
+                <View style={s.teamMemberBadge}>
+                  <Text style={s.teamMemberBadgeText}>
+                    👥 {t('memberOfTeam') || 'Участник команды'}: {user.teamMembership.companyName}
+                  </Text>
+                </View>
+              ) : (
+                <View style={s.workAsToggle}>
+                  <TouchableOpacity 
+                    style={[s.workAsBtn, user?.workAs !== 'company' && s.workAsBtnActive]}
+                    onPress={handleSwitchToPrivate}
+                  >
+                    <Text style={[s.workAsBtnText, user?.workAs !== 'company' && s.workAsBtnTextActive]}>{t('workAsPrivate')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[s.workAsBtn, user?.workAs === 'company' && s.workAsBtnActive]}
+                    onPress={handleSwitchToCompany}
+                  >
+                    <Text style={[s.workAsBtnText, user?.workAs === 'company' && s.workAsBtnTextActive]}>{t('workAsCompany')}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
             {user?.workAs === 'company' && (
               <View style={s.companyFields}>
@@ -595,6 +603,8 @@ const s = StyleSheet.create({
   companyFields: { marginTop: 8, borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8 },
   teamWrap: { marginTop: 8 },
   teamDivider: { height: 1, backgroundColor: C.border, marginBottom: 16 },
+  teamMemberBadge: { backgroundColor: ACCENT + '15', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
+  teamMemberBadgeText: { fontSize: 13, fontWeight: '600', color: ACCENT },
 
   locationItem: {
     paddingVertical: 12,

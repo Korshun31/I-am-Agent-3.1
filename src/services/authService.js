@@ -77,6 +77,14 @@ export async function getUserProfile(userId) {
     .eq('status', 'active')
     .maybeSingle();
 
+  // Проверяем: является ли пользователь участником чужой команды (роль agent)
+  const { data: membershipData } = await supabase
+    .from('company_members')
+    .select('company_id, role, companies(name)')
+    .eq('agent_id', userId)
+    .eq('role', 'agent')
+    .maybeSingle();
+
   const settings = data.settings || {};
   const role = ['standard', 'premium', 'admin'].includes(data.role) ? data.role : 'standard';
 
@@ -113,6 +121,12 @@ export async function getUserProfile(userId) {
     workAs: companyData ? 'company' : 'private',
     companyId: companyData?.id || null,
     companyInfo,
+    // Если пользователь является участником чужой команды
+    teamMembership: membershipData ? {
+      companyId: membershipData.company_id,
+      companyName: membershipData.companies?.name || '',
+      role: membershipData.role,
+    } : null,
     web_notifications: data.web_notifications || {
       new_booking: false,
       booking_changed: false,
