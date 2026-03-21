@@ -1138,7 +1138,11 @@ export default function WebBookingsScreen({ user }) {
         visible={editPanelMode !== null}
         mode={editPanelMode || 'create'}
         booking={editPanelMode === 'edit' ? selectedBooking : null}
-        properties={properties}
+        properties={
+          user?.teamMembership
+            ? properties.filter(p => p.agent_id === user.id)
+            : properties
+        }
         contacts={contacts}
         onClose={() => setEditPanelMode(null)}
         onSaved={(saved) => {
