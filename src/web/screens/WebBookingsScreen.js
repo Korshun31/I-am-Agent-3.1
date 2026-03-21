@@ -848,8 +848,8 @@ export default function WebBookingsScreen({ user }) {
             <View style={s.segmentWrap}>
               {(user?.teamMembership ? [
                 { key: 'all',        label: t('all') },
-                { key: 'company',    label: t('bookingsFilterCompany') || 'Компания' },
-                { key: 'myBookings', label: t('bookingsFilterMine') || 'Мои' },
+                { key: 'company',    label: t('bookingsFilterCompany') },
+                { key: 'myBookings', label: t('bookingsFilterMine') },
               ] : [
                 { key: 'all',  label: t('all') },
                 { key: 'mine', label: t('dashboardMyClients') },
