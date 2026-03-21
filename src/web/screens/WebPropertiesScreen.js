@@ -38,7 +38,8 @@ const AMENITY_ICONS = {
   blender:         require('../../../assets/icon-amenity-blender.png'),
 };
 
-import { getProperties, createProperty, deleteProperty, approveProperty, rejectProperty } from '../../services/propertiesService';
+import { getProperties, createProperty, deleteProperty, approveProperty, rejectProperty, updatePropertyResponsible } from '../../services/propertiesService';
+import { getActiveTeamMembers } from '../../services/companyService';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
 import { getContacts } from '../../services/contactsService';
 import { getBookings } from '../../services/bookingsService';
@@ -255,6 +256,20 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   // Участник команды: видит чужой объект и сам не является владельцем компании
   const isTeamMember = !!(user?.id && property.agent_id && user.id !== property.agent_id && user.workAs !== 'company');
   const isAdmin = !isTeamMember;
+  const isCompanyAdmin = !!(user?.workAs === 'company' && user?.companyInfo?.id);
+
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [currentResponsible, setCurrentResponsible] = useState(property.responsible_agent_id ?? null);
+  const [responsiblePickerVisible, setResponsiblePickerVisible] = useState(false);
+
+  React.useEffect(() => {
+    setCurrentResponsible(property.responsible_agent_id ?? null);
+  }, [property.id, property.responsible_agent_id]);
+
+  React.useEffect(() => {
+    if (!isCompanyAdmin || !user?.companyInfo?.id) return;
+    getActiveTeamMembers(user.companyInfo.id).then(setTeamMembers).catch(() => {});
+  }, [isCompanyAdmin, user?.companyInfo?.id]);
   const isSubmitted = property.property_status === 'submitted';
   const isRejected = property.property_status === 'rejected';
   const owner1 = isTeamMember ? null : contacts.find(c => c.id === property.owner_id);
@@ -326,6 +341,68 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
           </View>
         )}
       </View>
+
+      {/* Ответственный — только для Admin компании */}
+      {isCompanyAdmin && (
+        <>
+          <TouchableOpacity
+            style={s.responsibleRow}
+            onPress={() => setResponsiblePickerVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={s.responsibleLabel}>Ответственный:</Text>
+            <Text style={s.responsibleValue}>
+              {currentResponsible
+                ? (() => {
+                    const m = teamMembers.find(tm => tm.agent_id === currentResponsible);
+                    return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : '—';
+                  })()
+                : 'Компания'}
+            </Text>
+            <Text style={s.responsibleChevron}>✎</Text>
+          </TouchableOpacity>
+
+          <Modal
+            visible={responsiblePickerVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setResponsiblePickerVisible(false)}
+          >
+            <TouchableOpacity style={s.pickerOverlay} activeOpacity={1} onPress={() => setResponsiblePickerVisible(false)}>
+              <View style={s.pickerSheet}>
+                <Text style={s.pickerTitle}>Ответственный</Text>
+                <TouchableOpacity
+                  style={[s.pickerItem, !currentResponsible && s.pickerItemActive]}
+                  onPress={async () => {
+                    await updatePropertyResponsible(property.id, null, (property.type === 'resort' || property.type === 'condo'));
+                    setCurrentResponsible(null);
+                    setResponsiblePickerVisible(false);
+                  }}
+                >
+                  <Text style={[s.pickerItemText, !currentResponsible && s.pickerItemTextActive]}>Компания</Text>
+                </TouchableOpacity>
+                {teamMembers.filter(m => m.role !== 'owner').map(m => {
+                  const name = [m.name, m.last_name].filter(Boolean).join(' ') || m.email;
+                  const isSelected = currentResponsible === m.agent_id;
+                  return (
+                    <TouchableOpacity
+                      key={m.agent_id}
+                      style={[s.pickerItem, isSelected && s.pickerItemActive]}
+                      onPress={async () => {
+                        await updatePropertyResponsible(property.id, m.agent_id, (property.type === 'resort' || property.type === 'condo'));
+                        setCurrentResponsible(m.agent_id);
+                        setResponsiblePickerVisible(false);
+                      }}
+                    >
+                      <Text style={[s.pickerItemText, isSelected && s.pickerItemTextActive]}>{name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        </>
+      )}
 
       <View style={s.detailPadding}>
 
@@ -1398,6 +1475,47 @@ const s = StyleSheet.create({
     letterSpacing: 0.8,
   },
   detailActions: { paddingTop: 4 },
+  responsibleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#F8F9FA',
+    borderBottomWidth: 1,
+    borderColor: '#E9ECEF',
+    gap: 8,
+    cursor: 'pointer',
+  },
+  responsibleLabel: { fontSize: 13, color: '#868E96', fontWeight: '500' },
+  responsibleValue: { flex: 1, fontSize: 13, color: '#212529', fontWeight: '600' },
+  responsibleChevron: { fontSize: 14, color: '#ADB5BD' },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickerSheet: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    minWidth: 300,
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+  },
+  pickerTitle: { fontSize: 16, fontWeight: '700', color: '#212529', marginBottom: 16, textAlign: 'center' },
+  pickerItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginBottom: 6,
+    backgroundColor: '#F8F9FA',
+  },
+  pickerItemActive: { backgroundColor: '#E8F5E9' },
+  pickerItemText: { fontSize: 15, color: '#495057' },
+  pickerItemTextActive: { color: '#2E7D32', fontWeight: '700' },
   detailEditBtn: {
     flexDirection: 'row',
     alignItems: 'center',
