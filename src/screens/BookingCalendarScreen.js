@@ -522,6 +522,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
           initialProperty={preloadedProperty}
           initialContact={preloadedContact}
           onContactPress={(contact) => setSelectedOwnerContact(contact)}
+          user={user}
           onBack={() => { setSelectedBooking(null); setSelectedProperty(null); setPreloadedProperty(null); setPreloadedContact(null); setSelectedOwnerContact(null); }}
           onDelete={async (id) => {
             try {

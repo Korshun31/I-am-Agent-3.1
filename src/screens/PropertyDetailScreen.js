@@ -1303,6 +1303,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           propertyCode={selectedBookingTitle || t('pdBookingList')}
           onBack={() => { setSelectedBooking(null); setSelectedBookingTitle(''); setSelectedBookingProperty(null); }}
           onContactPress={(contact) => setSelectedClientContact(contact)}
+          user={user}
           onDelete={async (id) => {
             try {
               await cancelBookingReminders(id);

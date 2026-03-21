@@ -158,7 +158,7 @@ function statusInfo(checkIn, checkOut, t) {
 
 // ─── Booking Detail Panel ─────────────────────────────────────────────────────
 
-function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose }) {
+function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, user }) {
   const { t } = useLanguage();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -222,9 +222,11 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose }
           </View>
         </View>
         <View style={d.headerActions}>
-          <TouchableOpacity style={d.editBtn} onPress={onEdit}>
-            <Text style={d.editBtnText}>{t('edit')}</Text>
-          </TouchableOpacity>
+          {(!user?.teamMembership || booking?.agentId === user?.id) && (
+            <TouchableOpacity style={d.editBtn} onPress={onEdit}>
+              <Text style={d.editBtnText}>{t('edit')}</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={d.closeBtn} onPress={onClose}>
             <Text style={d.closeBtnText}>✕</Text>
           </TouchableOpacity>
@@ -330,15 +332,17 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose }
           </Section>
         ) : null}
 
-        {/* Delete */}
-        <View style={d.deleteRow}>
-          <TouchableOpacity
-            style={d.deleteBtn}
-            onPress={() => setConfirmDelete(true)}
-          >
-            <Text style={d.deleteBtnText}>{t('delete')}</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Delete — только своё бронирование */}
+        {(!user?.teamMembership || booking?.agentId === user?.id) && (
+          <View style={d.deleteRow}>
+            <TouchableOpacity
+              style={d.deleteBtn}
+              onPress={() => setConfirmDelete(true)}
+            >
+              <Text style={d.deleteBtnText}>{t('delete')}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={{ height: 32 }} />
       </ScrollView>
@@ -1118,6 +1122,7 @@ export default function WebBookingsScreen({ user }) {
               onEdit={() => setEditPanelMode('edit')}
               onDelete={() => { setSelectedBooking(null); load(); }}
               onClose={() => setSelectedBooking(null)}
+              user={user}
             />
           </View>
         )}

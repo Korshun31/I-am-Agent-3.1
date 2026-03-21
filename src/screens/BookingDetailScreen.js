@@ -74,7 +74,7 @@ function PropertyInfoRow({ label, value, isLink, onPress }) {
   );
 }
 
-export default function BookingDetailScreen({ booking, propertyCode, onBack, onContactPress, onDelete, onEdit, initialProperty, initialContact }) {
+export default function BookingDetailScreen({ booking, propertyCode, onBack, onContactPress, onDelete, onEdit, initialProperty, initialContact, user }) {
   const { t, language } = useLanguage();
   const [contact, setContact] = useState(initialContact ?? null);
   const [loadingContact, setLoadingContact] = useState(!initialContact && !!booking.contactId);
@@ -254,23 +254,31 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
         <View style={styles.headerRight} />
       </View>
 
-      <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.actionBtn} onPress={handleDelete} activeOpacity={0.7}>
-          <Image source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
-        </TouchableOpacity>
-        <View style={styles.actionsRight}>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleGenerateConfirmation} activeOpacity={0.7} disabled={generatingPdf}>
-            {generatingPdf ? (
-              <ActivityIndicator size="small" color="#5DB8D4" />
-            ) : (
-              <Image source={require('../../assets/icon-booking-confirmation.png')} style={styles.actionIcon} resizeMode="contain" />
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => onEdit?.(b)} activeOpacity={0.7}>
-            <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* Кнопки управления: агент видит их только для своих бронирований */}
+      {(() => {
+        const isTeamMember = !!(user?.teamMembership);
+        const isOwnBooking = !isTeamMember || booking?.agentId === user?.id;
+        if (!isOwnBooking) return null;
+        return (
+          <View style={styles.actionsRow}>
+            <TouchableOpacity style={styles.actionBtn} onPress={handleDelete} activeOpacity={0.7}>
+              <Image source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
+            </TouchableOpacity>
+            <View style={styles.actionsRight}>
+              <TouchableOpacity style={styles.actionBtn} onPress={handleGenerateConfirmation} activeOpacity={0.7} disabled={generatingPdf}>
+                {generatingPdf ? (
+                  <ActivityIndicator size="small" color="#5DB8D4" />
+                ) : (
+                  <Image source={require('../../assets/icon-booking-confirmation.png')} style={styles.actionIcon} resizeMode="contain" />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => onEdit?.(b)} activeOpacity={0.7}>
+                <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      })()}
 
       <ScrollView
         style={styles.scrollArea}
