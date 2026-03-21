@@ -80,13 +80,19 @@ export async function getUserProfile(userId) {
   // Проверяем: является ли пользователь участником чужой команды (роль agent)
   const { data: membershipData } = await supabase
     .from('company_members')
-    .select('company_id, role, companies(name)')
+    .select('company_id, role, companies(name, owner_id, agents(role))')
     .eq('agent_id', userId)
     .eq('role', 'agent')
     .maybeSingle();
 
   const settings = data.settings || {};
-  const role = ['standard', 'premium', 'admin'].includes(data.role) ? data.role : 'standard';
+  let role = ['standard', 'premium', 'admin'].includes(data.role) ? data.role : 'standard';
+
+  // Участник команды наследует роль владельца компании (но не выше чем premium)
+  if (membershipData?.companies?.agents?.role) {
+    const ownerRole = membershipData.companies.agents.role;
+    if (ownerRole === 'premium' || ownerRole === 'admin') role = 'premium';
+  }
 
   // Данные компании: из таблицы companies (если есть) или из settings как запасной вариант
   const companyInfo = companyData ? {
