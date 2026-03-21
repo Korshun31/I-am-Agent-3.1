@@ -782,9 +782,6 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
 
       {/* Houses toolbar */}
       <View style={styles.housesToolbar}>
-        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
-          <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.housesToolbarIcon} resizeMode="contain" />
-        </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={toggleAllHouses}>
           <Image
             source={allHousesExpanded ? require('../../assets/icon-folder-open.png') : require('../../assets/icon-folder-closed.png')}
@@ -1008,9 +1005,6 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
       ) : null}
 
       <View style={styles.housesToolbar}>
-        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
-          <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.housesToolbarIcon} resizeMode="contain" />
-        </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={toggleAll}>
           <Image
             source={allExpanded ? require('../../assets/icon-folder-open.png') : require('../../assets/icon-folder-closed.png')}
