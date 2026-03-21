@@ -207,6 +207,7 @@ export default function WebDashboardScreen({ user }) {
           myTotal: myHouses + myResorts + myCondos,
           myHouses, myResorts, myCondos,
           companyAgencyActive, companyOwnerActive, myAgencyActive,
+          companyTotalActive: companyAgencyActive + companyOwnerActive,
           companyUpcoming: companyUpcomingCount,
           myUpcoming: myUpcomingCount,
           myThisMonth, myLater,
@@ -476,19 +477,16 @@ export default function WebDashboardScreen({ user }) {
           {agentStats ? (
             <>
               <Text style={[styles.statValue, { color: CLR.stat2Text }]}>{agentStats.myAgencyActive}</Text>
-              <View style={[styles.subStats, { marginTop: 10 }]}>
-                <View style={styles.agentSubItem}>
-                  <Text style={[styles.agentSubValue, { color: CLR.stat2Text }]}>{agentStats.myAgencyActive}</Text>
-                  <Text style={[styles.agentSubLabel, { color: CLR.stat2Text }]}>{t('dashboardStatMine')}</Text>
-                </View>
-                <View style={styles.agentSubItem}>
-                  <Text style={styles.agentSubValueGray}>{agentStats.companyOwnerActive}</Text>
-                  <Text style={styles.agentSubLabelGray}>{t('dashboardStatOwners')}</Text>
-                </View>
-                <View style={styles.agentSubItem}>
-                  <Text style={styles.agentSubValueGray}>{agentStats.companyAgencyActive}</Text>
-                  <Text style={styles.agentSubLabelGray}>{t('dashboardStatCompany')}</Text>
-                </View>
+              <View style={styles.subStats}>
+                <Text style={styles.subStatText}>{t('all')}{': '}
+                  <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyTotalActive}</Text>
+                </Text>
+                <Text style={styles.subStatText}>{t('dashboardStatOwners')}{': '}
+                  <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyOwnerActive}</Text>
+                </Text>
+                <Text style={styles.subStatText}>{t('dashboardStatCompany')}{': '}
+                  <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyAgencyActive}</Text>
+                </Text>
               </View>
             </>
           ) : (
