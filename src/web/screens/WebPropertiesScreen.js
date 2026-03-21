@@ -864,10 +864,11 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
 
   const load = useCallback(async () => {
     try {
+      const agentId = user?.teamMembership ? user.id : null;
       const [props, conts, bkgs] = await Promise.all([
-        getProperties(),
+        getProperties(agentId),
         getContacts('owners'),
-        getBookings(),
+        getBookings(null, null, agentId),
       ]);
       setProperties(props);
       setContacts(conts);

@@ -709,9 +709,10 @@ export default function WebBookingsScreen({ user }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const agentId = user?.teamMembership ? user.id : null;
       const [bk, pr, co, ow] = await Promise.all([
-        getBookings(),
-        getProperties(),
+        getBookings(null, null, agentId),
+        getProperties(agentId),
         getContacts('clients'),
         getContacts('owners'),
       ]);
