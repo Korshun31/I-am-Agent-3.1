@@ -535,15 +535,15 @@ export default function WebDashboardScreen({ user }) {
             {agentStats ? (
               <View style={[styles.agentStatRow, { gap: 20, marginTop: 8 }]}>
                 <View style={styles.agentSubItem}>
-                  <Text style={[styles.agentSubValue, { color: CLR.stat3Text }]}>{agentStats.myCheckInToday}</Text>
+                  <Text style={[styles.statValue, { color: CLR.stat3Text }]}>{agentStats.myCheckInToday}</Text>
                   <Text style={[styles.agentSubLabel, { color: CLR.stat3Text }]}>{t('dashboardStatToday')}</Text>
                 </View>
                 <View style={styles.agentSubItem}>
-                  <Text style={styles.agentSubValueGray}>{agentStats.myCheckInWeek}</Text>
+                  <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.myCheckInWeek}</Text>
                   <Text style={styles.agentSubLabelGray}>{t('dashboardStatWeek')}</Text>
                 </View>
                 <View style={styles.agentSubItem}>
-                  <Text style={styles.agentSubValueGray}>{agentStats.myCheckInMonth}</Text>
+                  <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.myCheckInMonth}</Text>
                   <Text style={styles.agentSubLabelGray}>{t('thisMonth')}</Text>
                 </View>
               </View>
