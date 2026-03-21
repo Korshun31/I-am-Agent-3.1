@@ -9,7 +9,6 @@ export async function getBookings(propertyId = null, contactId = null) {
   let q = supabase
     .from('bookings')
     .select('*')
-    .eq('agent_id', session.user.id)
     .order('check_in', { ascending: false })
     .limit(10000);
 
@@ -135,6 +134,7 @@ export async function deleteBooking(id) {
 function mapBooking(row) {
   return {
     id: row.id,
+    agentId: row.agent_id,
     createdAt: row.created_at,
     propertyId: row.property_id,
     contactId: row.contact_id,

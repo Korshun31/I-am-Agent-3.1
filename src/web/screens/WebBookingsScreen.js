@@ -636,7 +636,7 @@ const mh = StyleSheet.create({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export default function WebBookingsScreen() {
+export default function WebBookingsScreen({ user }) {
   const { t } = useLanguage();
   const [bookings, setBookings]     = useState([]);
   const [properties, setProperties] = useState([]);
@@ -1014,18 +1014,24 @@ export default function WebBookingsScreen() {
                               const x1 = dateToPx(bk.checkIn, months);
                               const x2 = dateToPx(bk.checkOut, months);
                               const w  = Math.max(x2 - x1, 6);
-                              const color = colorMap[bk.id] || '#90A4AE';
+                              const isCompanyBooking = user?.id && bk.agentId && bk.agentId !== user.id;
+                              const color = isCompanyBooking
+                                ? (bk.notMyCustomer ? '#B0BEC5' : colorMap[bk.id] || '#90A4AE')
+                                : (colorMap[bk.id] || '#90A4AE');
                               const isSelected = bk.id === selectedBooking?.id;
                               const contact = contacts.find(c => c.id === bk.contactId);
-                              const label = bk.notMyCustomer
-                                ? t('bookingOwnerLabel')
-                                : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : '');
+                              const companyName = user?.companyInfo?.name || '';
+                              const label = isCompanyBooking
+                                ? (bk.notMyCustomer ? '' : (companyName ? `${t('client') || 'Клиент'} ${companyName}` : t('bookingOwnerLabel')))
+                                : (bk.notMyCustomer
+                                  ? t('bookingOwnerLabel')
+                                  : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : ''));
                               return (
                                 <TouchableOpacity
                                   key={bk.id}
-                                  style={[s.bar, { left: x1, width: w, backgroundColor: color }, isSelected && s.barSelected]}
-                                  onPress={() => setSelectedBooking(bk)}
-                                  activeOpacity={0.8}
+                                  style={[s.bar, { left: x1, width: w, backgroundColor: color }, isSelected && s.barSelected, isCompanyBooking && s.barCompany]}
+                                  onPress={() => { if (!isCompanyBooking) setSelectedBooking(bk); }}
+                                  activeOpacity={isCompanyBooking ? 1 : 0.8}
                                 >
                                   {w >= 50 && <Text style={s.barDateL} numberOfLines={1}>{dayjs(bk.checkIn).format('DD.MM')}</Text>}
                                   {w >= 110 && <Text style={s.barLabel} numberOfLines={1}>{label}</Text>}
@@ -1075,6 +1081,7 @@ export default function WebBookingsScreen() {
         bookings={bookings}
         owners={owners}
         onClose={() => setPropDetailProperty(null)}
+        user={user}
       />
 
       {/* Edit panel */}
@@ -1280,6 +1287,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 8, overflow: 'hidden',
   },
   barSelected: { borderWidth: 2, borderColor: 'rgba(0,0,0,0.4)' },
+  barCompany: { opacity: 0.75 },
   barDateL: { fontSize: 11, color: 'rgba(0,0,0,0.7)', fontWeight: '500' },
   barLabel: { flex: 1, fontSize: 12, color: 'rgba(0,0,0,0.8)', fontWeight: '500', textAlign: 'center', marginHorizontal: 4 },
   barDateR: { fontSize: 11, color: 'rgba(0,0,0,0.7)', fontWeight: '500' },

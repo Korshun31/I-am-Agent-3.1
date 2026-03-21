@@ -158,7 +158,7 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
       {/* Bookings — монтируется при первом посещении */}
       {visited.has('bookings') && (
         <View style={[styles.tabWrap, tabStyle('bookings')]}>
-          <WebBookingsScreen />
+          <WebBookingsScreen user={user} />
         </View>
       )}
 

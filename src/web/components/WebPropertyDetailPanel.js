@@ -41,7 +41,7 @@ function fmt(n) {
 
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
-export default function WebPropertyDetailPanel({ visible, property, bookings = [], onClose }) {
+export default function WebPropertyDetailPanel({ visible, property, bookings = [], onClose, user }) {
   const slideAnim    = useRef(new Animated.Value(500)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const mountedRef   = useRef(false);
@@ -246,8 +246,8 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
             </View>
           )}
 
-          {/* Location link */}
-          {property?.google_maps_link ? (
+          {/* Location link — hidden for team members */}
+          {property?.google_maps_link && !(user?.id && property?.agent_id && user.id !== property.agent_id && user.workAs !== 'company') ? (
             <TouchableOpacity
               style={st.locationBtn}
               onPress={() => Linking.openURL(property.google_maps_link)}
