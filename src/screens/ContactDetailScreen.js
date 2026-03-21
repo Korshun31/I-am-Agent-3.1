@@ -94,7 +94,7 @@ function compareByCodeOrName(a, b) {
   return 0;
 }
 
-export default function ContactDetailScreen({ contact, onBack, onContactUpdated, onContactDeleted }) {
+export default function ContactDetailScreen({ contact, onBack, onContactUpdated, onContactDeleted, user }) {
   const { t } = useLanguage();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [currentContact, setCurrentContact] = useState(contact);
@@ -270,6 +270,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
       <PropertyDetailScreen
         property={selectedProperty}
         onBack={() => setSelectedProperty(null)}
+        user={user}
         onDelete={() => {
           Alert.alert(t('pdDeleteTitle'), t('pdDeleteConfirm'), [
             { text: t('no'), style: 'cancel' },

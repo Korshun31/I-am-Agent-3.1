@@ -503,6 +503,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         onBack={() => setSelectedOwnerContact(null)}
         onContactUpdated={() => setSelectedOwnerContact(null)}
         onContactDeleted={() => setSelectedOwnerContact(null)}
+        user={user}
       />
     );
   }

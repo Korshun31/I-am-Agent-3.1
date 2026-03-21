@@ -1272,6 +1272,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         onBack={() => setShowOwner(false)}
         onContactUpdated={() => loadOwnerData(p)}
         onContactDeleted={() => { setShowOwner(false); setOwnerContact(null); }}
+        user={user}
       />
     );
   }
@@ -1282,6 +1283,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         onBack={() => setShowOwner2(false)}
         onContactUpdated={() => loadOwnerData(p)}
         onContactDeleted={() => { setShowOwner2(false); setOwner2Contact(null); }}
+        user={user}
       />
     );
   }
@@ -1292,6 +1294,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         onBack={() => setSelectedClientContact(null)}
         onContactUpdated={() => setSelectedClientContact(null)}
         onContactDeleted={() => setSelectedClientContact(null)}
+        user={user}
       />
     );
   }
