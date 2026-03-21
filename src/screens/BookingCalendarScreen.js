@@ -492,6 +492,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         onDelete={handleDeletePropertyDetail}
         onPropertyUpdated={() => { handleSaved(); }}
         onSelectProperty={(prop) => setSelectedPropertyForDetail(prop)}
+        user={user}
       />
     );
   }
