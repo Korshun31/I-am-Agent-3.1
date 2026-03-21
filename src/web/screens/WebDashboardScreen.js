@@ -162,23 +162,20 @@ export default function WebDashboardScreen({ user }) {
 
       // Доп. статистика для участников команды (агентов)
       if (isTeamMemberStats) {
-        // Объекты — подсчёт по категориям и ответственному
+        // Объекты — считаем только сдаваемые единицы (type='house')
+        // Резорты и Кондо как контейнеры НЕ считаем
         let companyHouses = 0, companyResorts = 0, companyCondos = 0;
         let myHouses = 0, myResorts = 0, myCondos = 0;
         properties.forEach(p => {
+          if (p.type !== 'house') return;
           const isMine = p.responsible_agent_id === user?.id;
-          if (p.type === 'resort' || p.type === 'condo') {
-            // Верхнеуровневые контейнеры (резорт/кондо)
-            if (p.type === 'resort') { companyResorts++; if (isMine) myResorts++; }
-            else { companyCondos++; if (isMine) myCondos++; }
-          } else if (p.type === 'house') {
-            if (!p.resort_id) {
-              companyHouses++; if (isMine) myHouses++;
-            } else {
-              const parent = propsMapStats[p.resort_id];
-              if (parent?.type === 'condo') { companyCondos++; if (isMine) myCondos++; }
-              else { companyResorts++; if (isMine) myResorts++; }
-            }
+          const parent = p.resort_id ? propsMapStats[p.resort_id] : null;
+          if (!p.resort_id) {
+            companyHouses++; if (isMine) myHouses++;
+          } else if (parent?.type === 'condo') {
+            companyCondos++; if (isMine) myCondos++;
+          } else {
+            companyResorts++; if (isMine) myResorts++;
           }
         });
 
