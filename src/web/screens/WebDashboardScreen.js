@@ -250,14 +250,17 @@ export default function WebDashboardScreen({ user }) {
 
   useEffect(() => {
     const channel = supabase
-      .channel('dashboard-calendar-events-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, (payload) => {
-        console.log('[Realtime] dashboard calendar_events change:', payload);
+      .channel('dashboard-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, () => {
         loadDashboardDataRef.current();
       })
-      .subscribe((status, err) => {
-        console.log('[Realtime] Dashboard subscription status:', status, err || '');
-      });
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'properties' }, () => {
+        loadDashboardDataRef.current();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        loadDashboardDataRef.current();
+      })
+      .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
 
