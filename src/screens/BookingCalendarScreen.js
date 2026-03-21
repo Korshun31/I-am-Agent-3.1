@@ -584,6 +584,13 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         <View style={styles.calendarWrap}>
           <View style={styles.calendarRow}>
             <View style={[styles.leftColWrap, { width: leftColWidth }]}>
+              <TouchableOpacity
+                style={[styles.yearCell, styles.cornerCell]}
+                onPress={() => setYearPickerVisible(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.yearText}>{year}</Text>
+              </TouchableOpacity>
             <ScrollView
               ref={leftScrollRef}
               style={styles.leftCol}
@@ -593,13 +600,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               scrollEventThrottle={16}
               bounces={false}
             >
-              <TouchableOpacity
-                style={[styles.yearCell, styles.cornerCell]}
-                onPress={() => setYearPickerVisible(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.yearText}>{year}</Text>
-              </TouchableOpacity>
               {listToShow.map((unit) => {
                 const parent = unit.resort_id ? getParent(unit.resort_id) : null;
                 const codeDisplay = parent
