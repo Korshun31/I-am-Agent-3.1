@@ -256,7 +256,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   // Участник команды: видит чужой объект и сам не является владельцем компании
   const isTeamMember = !!(user?.id && property.agent_id && user.id !== property.agent_id && user.workAs !== 'company');
   const isAdmin = !isTeamMember;
-  const isCompanyAdmin = !!(user?.workAs === 'company' && user?.companyInfo?.id);
+  const isCompanyAdmin = !!(user?.workAs === 'company' && user?.companyId);
 
   const [teamMembers, setTeamMembers] = useState([]);
   const [currentResponsible, setCurrentResponsible] = useState(property.responsible_agent_id ?? null);
@@ -267,9 +267,9 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   }, [property.id, property.responsible_agent_id]);
 
   React.useEffect(() => {
-    if (!isCompanyAdmin || !user?.companyInfo?.id) return;
-    getActiveTeamMembers(user.companyInfo.id).then(setTeamMembers).catch(() => {});
-  }, [isCompanyAdmin, user?.companyInfo?.id]);
+    if (!isCompanyAdmin || !user?.companyId) return;
+    getActiveTeamMembers(user.companyId).then(setTeamMembers).catch(() => {});
+  }, [isCompanyAdmin, user?.companyId]);
   const isSubmitted = property.property_status === 'submitted';
   const isRejected = property.property_status === 'rejected';
   const owner1 = isTeamMember ? null : contacts.find(c => c.id === property.owner_id);

@@ -1045,7 +1045,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
   // Агент видит только свои объекты — isOwnProperty всегда true для агентов
   const isTeamMember = !!(user?.teamMembership);
-  const isAdmin = !isTeamMember && !!(user?.companyInfo?.id); // владелец компании
+  const isAdmin = !isTeamMember && !!(user?.companyId); // владелец компании
   const canBook = user?.teamPermissions?.can_book;
   const [wizardVisible, setWizardVisible] = useState(false);
   const [responsiblePickerVisible, setResponsiblePickerVisible] = useState(false);
@@ -1085,12 +1085,11 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
   // Загружаем участников команды для пикера ответственного (только Admin)
   useEffect(() => {
-    const companyId = user?.companyInfo?.id;
-    if (!isAdmin || !companyId) return;
-    getActiveTeamMembers(companyId)
+    if (!isAdmin || !user?.companyId) return;
+    getActiveTeamMembers(user.companyId)
       .then(setTeamMembers)
       .catch(() => {});
-  }, [isAdmin, user?.companyInfo?.id]);
+  }, [isAdmin, user?.companyId]);
 
   const loadOwnerData = useCallback(async (prop) => {
     try {
