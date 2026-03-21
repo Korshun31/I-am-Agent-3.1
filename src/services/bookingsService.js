@@ -19,12 +19,12 @@ export async function getBookings(propertyId = null, contactId = null, agentId =
     q = q.eq('contact_id', contactId);
   }
 
-  // When fetching for a specific agent, limit to bookings in their properties only
+  // When fetching for a specific agent, limit to bookings in their responsible properties
   if (agentId && !propertyId) {
     const { data: props } = await supabase
       .from('properties')
       .select('id')
-      .eq('agent_id', agentId);
+      .eq('responsible_agent_id', agentId);
     const propIds = (props || []).map(p => p.id);
     if (propIds.length === 0) return [];
     q = q.in('property_id', propIds);

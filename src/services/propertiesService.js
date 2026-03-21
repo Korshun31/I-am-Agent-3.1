@@ -12,7 +12,7 @@ export async function getProperties(agentId = null) {
     .limit(10000);
 
   if (agentId) {
-    q = q.eq('agent_id', agentId);
+    q = q.eq('responsible_agent_id', agentId);
   }
 
   const { data, error } = await q;
@@ -33,6 +33,7 @@ export async function createProperty({ name, code, type, location_id, owner_id }
     .from('properties')
     .insert({
       agent_id: session.user.id,
+      responsible_agent_id: session.user.id,
       name: name || '',
       code: code || '',
       type: type || 'house',
@@ -54,6 +55,7 @@ export async function createPropertyFull(updates) {
 
   const row = {
     agent_id: session.user.id,
+    responsible_agent_id: updates.responsible_agent_id ?? session.user.id,
     ...updates,
   };
 
@@ -154,6 +156,29 @@ export async function updateResortChildrenDistrict(resortId, district) {
     .in('id', ids)
     .eq('agent_id', session.user.id);
   syncIfEnabled();
+}
+
+/** Admin: назначить ответственного агента (null = Компания). Каскад на детей резорта/кондо. */
+export async function updatePropertyResponsible(propertyId, responsibleAgentId, cascade = false) {
+  const value = responsibleAgentId ?? null;
+  const { data, error } = await supabase
+    .from('properties')
+    .update({ responsible_agent_id: value })
+    .eq('id', propertyId)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+
+  if (cascade) {
+    // Каскад на дома/апартаменты внутри резорта/кондо
+    await supabase
+      .from('properties')
+      .update({ responsible_agent_id: value })
+      .eq('resort_id', propertyId);
+  }
+
+  syncIfEnabled();
+  return data;
 }
 
 export async function approveProperty(propertyId) {

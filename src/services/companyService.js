@@ -224,6 +224,13 @@ export async function createInvitation(companyId, email) {
 /**
  * Загружает данные команды: участники + активные приглашения.
  */
+/** Получить активных участников команды для выпадающего списка "Ответственный". */
+export async function getActiveTeamMembers(companyId) {
+  const { data, error } = await supabase.rpc('get_company_team', { p_company_id: companyId });
+  if (error) throw new Error(error.message);
+  return (data || []).filter(m => m.status === 'active');
+}
+
 export async function getTeamData(companyId) {
   const [membersRes, invitationsRes] = await Promise.all([
     supabase.rpc('get_company_team', { p_company_id: companyId }),

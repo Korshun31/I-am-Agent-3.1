@@ -21,7 +21,8 @@ import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
 import { useAppData } from '../context/AppDataContext';
-import { getProperties, updateProperty, createPropertyFull, updateResortChildrenDistrict } from '../services/propertiesService';
+import { getProperties, updateProperty, createPropertyFull, updateResortChildrenDistrict, updatePropertyResponsible } from '../services/propertiesService';
+import { getActiveTeamMembers } from '../services/companyService';
 import { deletePhotoFromStorage } from '../services/storageService';
 import { getContacts } from '../services/contactsService';
 import { getBookings, deleteBooking, updateBooking } from '../services/bookingsService';
@@ -1044,8 +1045,12 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
   // Агент видит только свои объекты — isOwnProperty всегда true для агентов
   const isTeamMember = !!(user?.teamMembership);
+  const isAdmin = !isTeamMember && !!(user?.companyInfo?.id); // владелец компании
   const canBook = user?.teamPermissions?.can_book;
   const [wizardVisible, setWizardVisible] = useState(false);
+  const [responsiblePickerVisible, setResponsiblePickerVisible] = useState(false);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [currentResponsible, setCurrentResponsible] = useState(p?.responsible_agent_id ?? null);
   const [addHouseWizardVisible, setAddHouseWizardVisible] = useState(false);
   const [addApartmentWizardVisible, setAddApartmentWizardVisible] = useState(false);
   const [addBookingVisible, setAddBookingVisible] = useState(false);
@@ -1077,6 +1082,15 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       setResort(r || null);
     } catch { setResort(null); }
   }, []);
+
+  // Загружаем участников команды для пикера ответственного (только Admin)
+  useEffect(() => {
+    const companyId = user?.companyInfo?.id;
+    if (!isAdmin || !companyId) return;
+    getActiveTeamMembers(companyId)
+      .then(setTeamMembers)
+      .catch(() => {});
+  }, [isAdmin, user?.companyInfo?.id]);
 
   const loadOwnerData = useCallback(async (prop) => {
     try {
@@ -1383,6 +1397,89 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         </View>
       </View>
 
+      {/* Ответственный — только для Admin компании */}
+      {isAdmin && (
+        <TouchableOpacity
+          style={styles.responsibleRow}
+          onPress={() => setResponsiblePickerVisible(true)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.responsibleLabel}>Ответственный:</Text>
+          <Text style={styles.responsibleValue}>
+            {currentResponsible
+              ? (() => {
+                  const m = teamMembers.find(tm => tm.agent_id === currentResponsible);
+                  return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : '—';
+                })()
+              : 'Компания'}
+          </Text>
+          <Text style={styles.responsibleChevron}>›</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Пикер ответственного */}
+      <Modal
+        visible={responsiblePickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setResponsiblePickerVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.pickerOverlay}
+          activeOpacity={1}
+          onPress={() => setResponsiblePickerVisible(false)}
+        >
+          <View style={styles.pickerSheet}>
+            <Text style={styles.pickerTitle}>Ответственный</Text>
+            {/* Компания */}
+            <TouchableOpacity
+              style={[styles.pickerItem, !currentResponsible && styles.pickerItemActive]}
+              onPress={async () => {
+                const isResort = p.type === 'resort' || p.type === 'condo';
+                if (isResort) {
+                  Alert.alert('Каскад', 'Применить также ко всем объектам внутри?', [
+                    { text: 'Только этот', onPress: async () => { await updatePropertyResponsible(p.id, null, false); setCurrentResponsible(null); setResponsiblePickerVisible(false); } },
+                    { text: 'Все внутри', onPress: async () => { await updatePropertyResponsible(p.id, null, true); setCurrentResponsible(null); setResponsiblePickerVisible(false); } },
+                  ]);
+                } else {
+                  await updatePropertyResponsible(p.id, null, false);
+                  setCurrentResponsible(null);
+                  setResponsiblePickerVisible(false);
+                }
+              }}
+            >
+              <Text style={[styles.pickerItemText, !currentResponsible && styles.pickerItemTextActive]}>Компания</Text>
+            </TouchableOpacity>
+            {/* Участники команды */}
+            {teamMembers.filter(m => m.role !== 'owner').map(m => {
+              const name = [m.name, m.last_name].filter(Boolean).join(' ') || m.email;
+              const isSelected = currentResponsible === m.agent_id;
+              return (
+                <TouchableOpacity
+                  key={m.agent_id}
+                  style={[styles.pickerItem, isSelected && styles.pickerItemActive]}
+                  onPress={async () => {
+                    const isResort = p.type === 'resort' || p.type === 'condo';
+                    if (isResort) {
+                      Alert.alert('Каскад', 'Применить также ко всем объектам внутри?', [
+                        { text: 'Только этот', onPress: async () => { await updatePropertyResponsible(p.id, m.agent_id, false); setCurrentResponsible(m.agent_id); setResponsiblePickerVisible(false); } },
+                        { text: 'Все внутри', onPress: async () => { await updatePropertyResponsible(p.id, m.agent_id, true); setCurrentResponsible(m.agent_id); setResponsiblePickerVisible(false); } },
+                      ]);
+                    } else {
+                      await updatePropertyResponsible(p.id, m.agent_id, false);
+                      setCurrentResponsible(m.agent_id);
+                      setResponsiblePickerVisible(false);
+                    }
+                  }}
+                >
+                  <Text style={[styles.pickerItemText, isSelected && styles.pickerItemTextActive]}>{name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <ScrollView ref={scrollViewRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {p.type === 'resort' ? (
           <ResortDetailContent
@@ -1551,6 +1648,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 14,
     paddingHorizontal: 20,
+  },
+  responsibleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#F8F9FA',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#E9ECEF',
+    marginBottom: 4,
+    gap: 6,
+  },
+  responsibleLabel: {
+    fontSize: 13,
+    color: '#868E96',
+    fontWeight: '500',
+  },
+  responsibleValue: {
+    flex: 1,
+    fontSize: 13,
+    color: '#212529',
+    fontWeight: '600',
+  },
+  responsibleChevron: {
+    fontSize: 18,
+    color: '#ADB5BD',
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  pickerSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 16,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+  },
+  pickerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#212529',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  pickerItem: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginBottom: 6,
+    backgroundColor: '#F8F9FA',
+  },
+  pickerItemActive: {
+    backgroundColor: '#E8F5E9',
+  },
+  pickerItemText: {
+    fontSize: 15,
+    color: '#495057',
+  },
+  pickerItemTextActive: {
+    color: '#2E7D32',
+    fontWeight: '700',
   },
   actionsRight: {
     flexDirection: 'row',
