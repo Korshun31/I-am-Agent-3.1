@@ -59,7 +59,7 @@ const COLORS = {
   searchBorder: '#E0D8CC',
 };
 
-export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isVisible = true, onReady }) {
+export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isVisible = true, onReady, user }) {
   const { t } = useLanguage();
   const { properties, propertiesLoading: loading, refreshProperties } = useAppData();
 
@@ -284,6 +284,7 @@ export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isV
         onDelete={() => handleDeleteProperty(selectedProperty)}
         onPropertyUpdated={refreshProperties}
         onSelectProperty={navigateToProperty}
+        user={user}
       />
     );
   }

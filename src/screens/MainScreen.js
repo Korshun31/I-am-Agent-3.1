@@ -127,6 +127,7 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
             onPropertyOpened={handlePropertyOpened}
             isVisible={activeTab === 0}
             onReady={handleTab0Ready}
+            user={user}
           />
         )}
         <TabLoadingOverlay opacity={overlayOpacities[0]} />

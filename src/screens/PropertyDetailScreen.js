@@ -455,7 +455,7 @@ function getBookingNumber(booking, allBookings) {
   return `${seq}/${String(yearShort).padStart(2, '0')}`;
 }
 
-function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onOwner2Press, onPhotoPress, onVideoPress, resort, refreshBookingsTrigger, onBookingPress, onOpenBookingCalendar }) {
+function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, onOwnerPress, onOwner2Press, onPhotoPress, onVideoPress, resort, refreshBookingsTrigger, onBookingPress, onOpenBookingCalendar, hideLocation }) {
   const amenities = p.amenities || {};
   const [bookings, setBookings] = useState([]);
 
@@ -488,11 +488,11 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         <InfoRow label={t('propertyCode')} value={codeDisplay} labelBold />
         <InfoRow label={t('pdCity')} value={city} labelBold />
         <InfoRow label={t('propDistrict')} value={district} labelBold />
-        {googleMapsLink ? (
+        {!hideLocation && (googleMapsLink ? (
           <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(googleMapsLink)} labelBold />
         ) : (
           <InfoRow label={t('pdLocation')} value="—" labelBold />
-        )}
+        ))}
         {p.website_url ? (
           <InfoRow
             label={t('propertyWebPage')}
@@ -639,7 +639,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
   );
 }
 
-function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshResortHousesTrigger, refreshBookingsTrigger, newHouseIdToExpand, onExpandedNewHouse, onHousePress, onBookingPress, onOpenBookingCalendar }) {
+function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshResortHousesTrigger, refreshBookingsTrigger, newHouseIdToExpand, onExpandedNewHouse, onHousePress, onBookingPress, onOpenBookingCalendar, hideLocation }) {
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const ownerName = p.ownerName || '';
@@ -715,11 +715,11 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
         <InfoRow label={t('propertyCode')} value={p.code} labelBold />
         <InfoRow label={t('pdCity')} value={p.city} labelBold />
         <InfoRow label={t('propDistrict')} value={p.district} labelBold />
-        {p.google_maps_link ? (
+        {!hideLocation && (p.google_maps_link ? (
           <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
         ) : (
           <InfoRow label={t('pdLocation')} value="—" labelBold />
-        )}
+        ))}
         <View style={styles.divider} />
         <InfoRow label={t('propHouses')} value={p.houses_count != null ? `${p.houses_count}  pc` : '—'} labelBold />
         <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} labelBold />
@@ -863,7 +863,7 @@ function CondoApartmentItem({ item, expanded, onToggle, onPress }) {
   );
 }
 
-function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshApartmentsTrigger, refreshBookingsTrigger, onApartmentPress, onBookingPress, onOpenBookingCalendar }) {
+function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVideoPress, refreshApartmentsTrigger, refreshBookingsTrigger, onApartmentPress, onBookingPress, onOpenBookingCalendar, hideLocation }) {
   const photos = Array.isArray(p.photos) ? p.photos : [];
   const videos = Array.isArray(p.videos) ? p.videos : [];
   const [apartments, setApartments] = useState([]);
@@ -932,11 +932,11 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
         <InfoRow label={t('propertyCode')} value={p.code} labelBold />
         <InfoRow label={t('pdCity')} value={p.city} labelBold />
         <InfoRow label={t('propDistrict')} value={p.district} labelBold />
-        {p.google_maps_link ? (
+        {!hideLocation && (p.google_maps_link ? (
           <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
         ) : (
           <InfoRow label={t('pdLocation')} value="—" labelBold />
-        )}
+        ))}
         {p.website_url ? (
           <InfoRow
             label={t('propertyWebPage')}
@@ -1038,9 +1038,14 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
   );
 }
 
-export default function PropertyDetailScreen({ property, onBack, onDelete, onPropertyUpdated, onSelectProperty }) {
+export default function PropertyDetailScreen({ property, onBack, onDelete, onPropertyUpdated, onSelectProperty, user }) {
   const { t } = useLanguage();
   const [p, setP] = useState(property);
+
+  // Является ли текущий пользователь участником команды, просматривающим чужой объект
+  const isTeamMember = !!(user?.teamMembership);
+  const isOwnProperty = user?.id && p.agent_id === user.id;
+  const canBook = user?.teamPermissions?.can_book;
   const [wizardVisible, setWizardVisible] = useState(false);
   const [addHouseWizardVisible, setAddHouseWizardVisible] = useState(false);
   const [addApartmentWizardVisible, setAddApartmentWizardVisible] = useState(false);
@@ -1341,31 +1346,41 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         <View style={styles.backBtn} />
       </View>
 
-      <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.actionBtn} onPress={onDelete} activeOpacity={0.7}>
-          <Image source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
-        </TouchableOpacity>
-        <View style={styles.actionsRight}>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
-            <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            activeOpacity={0.7}
-            onPress={() => {
-              if (p.type === 'resort') setAddHouseWizardVisible(true);
-              else if (p.type === 'condo') setAddApartmentWizardVisible(true);
-              else if (p.type === 'house') setAddBookingVisible(true);
-            }}
-          >
-            {(p.type === 'resort' || p.type === 'condo') ? (
-              <Image source={require('../../assets/icon-add-property.png')} style={styles.actionIconLg} resizeMode="contain" />
-            ) : (
-              <Image source={require('../../assets/icon-add-booking.png')} style={styles.actionIconLg} resizeMode="contain" />
+      {/* Строка действий: скрыта для агента на чужих объектах */}
+      {(!isTeamMember || isOwnProperty) && (
+        <View style={styles.actionsRow}>
+          {/* Удалить — скрыто для агентов всегда */}
+          {!isTeamMember && (
+            <TouchableOpacity style={styles.actionBtn} onPress={onDelete} activeOpacity={0.7}>
+              <Image source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
+            </TouchableOpacity>
+          )}
+          <View style={[styles.actionsRight, isTeamMember && { flex: 1, justifyContent: 'flex-end' }]}>
+            {/* Редактировать — только свой объект */}
+            <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
+              <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
+            </TouchableOpacity>
+            {/* Добавить бронирование / добавить дом — для агента только если есть can_book */}
+            {(!isTeamMember || canBook) && (
+              <TouchableOpacity
+                style={styles.actionBtn}
+                activeOpacity={0.7}
+                onPress={() => {
+                  if (p.type === 'resort') setAddHouseWizardVisible(true);
+                  else if (p.type === 'condo') setAddApartmentWizardVisible(true);
+                  else if (p.type === 'house') setAddBookingVisible(true);
+                }}
+              >
+                {(p.type === 'resort' || p.type === 'condo') ? (
+                  <Image source={require('../../assets/icon-add-property.png')} style={styles.actionIconLg} resizeMode="contain" />
+                ) : (
+                  <Image source={require('../../assets/icon-add-booking.png')} style={styles.actionIconLg} resizeMode="contain" />
+                )}
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      )}
 
       <ScrollView ref={scrollViewRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {p.type === 'resort' ? (
@@ -1387,6 +1402,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
               setSelectedBookingProperty(property || null);
             }}
             onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
+            hideLocation={isTeamMember && !isOwnProperty}
           />
         ) : p.type === 'condo' ? (
           <CondoDetailContent
@@ -1405,6 +1421,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
               setSelectedBookingProperty(property || null);
             }}
             onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
+            hideLocation={isTeamMember && !isOwnProperty}
           />
         ) : (
           <HouseDetailContent
@@ -1424,6 +1441,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
               setSelectedBookingTitle(codePart || '');
             }}
             onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
+            hideLocation={isTeamMember && !isOwnProperty}
           />
         )}
 
