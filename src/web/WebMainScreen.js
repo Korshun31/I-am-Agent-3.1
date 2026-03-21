@@ -144,7 +144,7 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
       {/* Properties — монтируется при первом посещении */}
       {visited.has('properties') && (
         <View style={[styles.tabWrap, tabStyle('properties')]}>
-          <WebPropertiesScreen initialPropertyId={propertiesInitialId} />
+          <WebPropertiesScreen initialPropertyId={propertiesInitialId} user={user} />
         </View>
       )}
 

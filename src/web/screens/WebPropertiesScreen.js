@@ -38,7 +38,7 @@ const AMENITY_ICONS = {
   blender:         require('../../../assets/icon-amenity-blender.png'),
 };
 
-import { getProperties, createProperty, deleteProperty } from '../../services/propertiesService';
+import { getProperties, createProperty, deleteProperty, approveProperty, rejectProperty } from '../../services/propertiesService';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
 import { getContacts } from '../../services/contactsService';
 import { getBookings } from '../../services/bookingsService';
@@ -247,13 +247,17 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
 
 // ─── Property Detail ──────────────────────────────────────────────────────────
 
-export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit }) {
+export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit, user, onApprove, onReject }) {
   const { t } = useLanguage();
   const TYPE_META = getTypeMeta(t);
   const AMENITY_LABELS = getAmenityLabels(t);
   const psym = getCurrencySymbol(property.currency || 'THB');
-  const owner1 = contacts.find(c => c.id === property.owner_id);
-  const owner2 = contacts.find(c => c.id === property.owner_id_2);
+  const isTeamMember = !!user?.teamMembership;
+  const isAdmin = !isTeamMember;
+  const isSubmitted = property.property_status === 'submitted';
+  const isRejected = property.property_status === 'rejected';
+  const owner1 = isTeamMember ? null : contacts.find(c => c.id === property.owner_id);
+  const owner2 = isTeamMember ? null : contacts.find(c => c.id === property.owner_id_2);
   const parent = allProperties.find(p => p.id === property.resort_id);
   const children = allProperties.filter(p => p.resort_id === property.id);
   const occupied = isOccupiedNow(bookings, property.id);
@@ -349,10 +353,22 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
             </View>
           </View>
           <View style={s.detailActions}>
-            <TouchableOpacity style={s.detailEditBtn} onPress={onEdit}>
-              <Image source={ICON_PENCIL} style={s.detailEditBtnIcon} resizeMode="contain" />
-              <Text style={s.detailEditBtnText}>{t('edit')}</Text>
-            </TouchableOpacity>
+            {isSubmitted && isTeamMember && (
+              <View style={s.statusBadgePending}>
+                <Text style={s.statusBadgePendingText}>⏳ {t('propSubmitted') || 'На проверке'}</Text>
+              </View>
+            )}
+            {isRejected && (
+              <View style={s.statusBadgeRejected}>
+                <Text style={s.statusBadgeRejectedText}>❌ {t('propRejected') || 'Отклонено'}</Text>
+              </View>
+            )}
+            {isAdmin && !isSubmitted && (
+              <TouchableOpacity style={s.detailEditBtn} onPress={onEdit}>
+                <Image source={ICON_PENCIL} style={s.detailEditBtnIcon} resizeMode="contain" />
+                <Text style={s.detailEditBtnText}>{t('edit')}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -394,14 +410,37 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
           </View>
         )}
 
+        {/* ── Admin: Approve / Reject submitted property ── */}
+        {isAdmin && isSubmitted && (
+          <View style={s.approvalBlock}>
+            <Text style={s.approvalTitle}>⏳ {t('propAwaitingApproval') || 'Объект ожидает проверки'}</Text>
+            <Text style={s.approvalSubtitle}>{t('propApprovalHint') || 'Проверьте данные и примите решение'}</Text>
+            <View style={s.approvalActions}>
+              <TouchableOpacity style={s.approveBtn} onPress={onApprove}>
+                <Text style={s.approveBtnText}>✓ {t('propApprove') || 'Принять'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.rejectBtn} onPress={onReject}>
+                <Text style={s.rejectBtnText}>✗ {t('propReject') || 'Отклонить'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {isRejected && property.rejection_reason ? (
+          <View style={s.rejectedBlock}>
+            <Text style={s.rejectedLabel}>{t('propRejectionReason') || 'Причина отклонения:'}</Text>
+            <Text style={s.rejectedReason}>{property.rejection_reason}</Text>
+          </View>
+        ) : null}
+
         {/* ── Location ── */}
-        {(property.city || property.beach_distance || property.market_distance || property.google_maps_link || property.website_url) && (
+        {(property.city || property.beach_distance || property.market_distance || (!isTeamMember && property.google_maps_link) || property.website_url) && (
           <SectionBlock title={t('pdLocation').toUpperCase()} icon={ICON_SEC_LOCATION}>
             <InfoRow label={t('pdCity')} value={property.city} />
             <InfoRow label={t('propDistrict')} value={property.district} />
             <InfoRow label={t('propBeach')} value={property.beach_distance ? `${property.beach_distance} м` : null} />
             <InfoRow label={t('propMarket')} value={property.market_distance ? `${property.market_distance} м` : null} />
-            {property.google_maps_link ? (
+            {!isTeamMember && property.google_maps_link ? (
               <TouchableOpacity onPress={() => Linking.openURL(property.google_maps_link)} style={s.linkBtn}>
                 <Text style={s.linkBtnText}>🗺️ {t('openGoogleMaps')}</Text>
               </TouchableOpacity>
@@ -434,7 +473,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         )}
 
         {/* ── Commissions ── */}
-        {(property.commission != null || property.owner_commission_one_time != null || property.owner_commission_monthly != null) && (
+        {!isTeamMember && (property.commission != null || property.owner_commission_one_time != null || property.owner_commission_monthly != null) && (
           <SectionBlock title={t('propCommissionSection')}>
             {property.commission != null && (
               <InfoRow
@@ -466,7 +505,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         )}
 
         {/* ── Utilities ── */}
-        {(property.electricity_price != null || property.water_price != null || property.gas_price != null || property.internet_price != null || property.cleaning_price != null || property.exit_cleaning_price != null) && (
+        {!isTeamMember && (property.electricity_price != null || property.water_price != null || property.gas_price != null || property.internet_price != null || property.cleaning_price != null || property.exit_cleaning_price != null) && (
           <SectionBlock title={t('propUtilities')}>
             <InfoRow label={t('pdElectricity')} value={property.electricity_price != null ? `${property.electricity_price} ${psym}/${t('propWaterCubic')}` : null} />
             <InfoRow
@@ -785,7 +824,7 @@ function EmptyState() {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export default function WebPropertiesScreen({ initialPropertyId }) {
+export default function WebPropertiesScreen({ initialPropertyId, user }) {
   const { t, currency: userCurrency } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState([]);
@@ -1024,6 +1063,18 @@ export default function WebPropertiesScreen({ initialPropertyId }) {
             initialScrollY={restoreScrollY}
             onEdit={() => openEdit(selected)}
             onAddUnit={() => openCreateUnit(selected)}
+            user={user}
+            onApprove={async () => {
+              await approveProperty(selected.id);
+              await load();
+              setSelected(prev => ({ ...prev, property_status: 'approved' }));
+            }}
+            onReject={async () => {
+              const reason = window.prompt('Причина отклонения (необязательно):') ?? '';
+              await rejectProperty(selected.id, reason);
+              await load();
+              setSelected(prev => ({ ...prev, property_status: 'rejected', rejection_reason: reason }));
+            }}
           />
         ) : (
           <EmptyState />
@@ -1584,6 +1635,23 @@ const s = StyleSheet.create({
   backParentImg: { width: 20, height: 20 },
   backText: { fontSize: 14, color: C.text },
   backLabel: { color: C.muted, fontWeight: '400' },
+
+  // ── Approval block ──
+  approvalBlock: { backgroundColor: '#FFF8E1', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#FFE082', gap: 10 },
+  approvalTitle: { fontSize: 14, fontWeight: '700', color: '#795548' },
+  approvalSubtitle: { fontSize: 13, color: '#8D6E63' },
+  approvalActions: { flexDirection: 'row', gap: 10 },
+  approveBtn: { flex: 1, height: 42, backgroundColor: '#16A34A', borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  approveBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  rejectBtn: { flex: 1, height: 42, backgroundColor: '#FFF', borderRadius: 10, borderWidth: 1.5, borderColor: '#E53935', alignItems: 'center', justifyContent: 'center' },
+  rejectBtnText: { fontSize: 14, fontWeight: '700', color: '#E53935' },
+  rejectedBlock: { backgroundColor: '#FFF5F5', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#FFCDD2', gap: 4 },
+  rejectedLabel: { fontSize: 12, fontWeight: '700', color: '#E53935' },
+  rejectedReason: { fontSize: 13, color: '#C62828' },
+  statusBadgePending: { backgroundColor: '#FFF8E1', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#FFE082' },
+  statusBadgePendingText: { fontSize: 12, fontWeight: '700', color: '#795548' },
+  statusBadgeRejected: { backgroundColor: '#FFF5F5', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#FFCDD2' },
+  statusBadgeRejectedText: { fontSize: 12, fontWeight: '700', color: '#E53935' },
 
   // ── Empty state ──
   emptyState: {

@@ -8,7 +8,6 @@ export async function getProperties() {
   const { data, error } = await supabase
     .from('properties')
     .select('*')
-    .eq('agent_id', session.user.id)
     .order('name', { ascending: true })
     .limit(10000);
 
@@ -149,4 +148,20 @@ export async function updateResortChildrenDistrict(resortId, district) {
     .in('id', ids)
     .eq('agent_id', session.user.id);
   syncIfEnabled();
+}
+
+export async function approveProperty(propertyId) {
+  const { error } = await supabase
+    .from('properties')
+    .update({ property_status: 'approved' })
+    .eq('id', propertyId);
+  if (error) throw new Error(error.message);
+}
+
+export async function rejectProperty(propertyId, reason) {
+  const { error } = await supabase
+    .from('properties')
+    .update({ property_status: 'rejected', rejection_reason: reason || '' })
+    .eq('id', propertyId);
+  if (error) throw new Error(error.message);
 }
