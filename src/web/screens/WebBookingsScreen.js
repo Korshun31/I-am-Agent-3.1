@@ -1021,9 +1021,11 @@ export default function WebBookingsScreen({ user }) {
                                 : (colorMap[bk.id] || '#90A4AE');
                               const isSelected = bk.id === selectedBooking?.id;
                               const contact = contacts.find(c => c.id === bk.contactId);
-                              const companyName = user?.companyInfo?.name || user?.teamMembership?.companyName || '';
+                              const companyName = user?.companyInfo?.name || user?.teamMembership?.companyName || 'Агентство';
                               const label = isCompanyProperty
-                                ? (bk.notMyCustomer ? '' : (companyName ? `${t('client') || 'Клиент'} ${companyName}` : ''))
+                                ? (bk.notMyCustomer
+                                    ? (t('bookingOwnerLabel') || 'Owner')
+                                    : companyName)
                                 : (bk.notMyCustomer
                                   ? t('bookingOwnerLabel')
                                   : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : ''));
