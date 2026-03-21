@@ -7,7 +7,6 @@ import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 
 import { getContacts, getContactsByIds, deleteContact } from '../../services/contactsService';
-import { getMyPropertyOwners } from '../../services/companyService';
 import { getBookings } from '../../services/bookingsService';
 import { getProperties } from '../../services/propertiesService';
 import WebContactEditPanel from '../components/WebContactEditPanel';
@@ -527,11 +526,13 @@ export default function WebContactsScreen({ onNavigateToProperty, user }) {
       let props = [];
 
       if (isTeamMember) {
-        // Агент: объекты + собственники (через SECURITY DEFINER RPC)
-        [props, allOwners] = await Promise.all([
-          getProperties(),
-          getMyPropertyOwners(),
-        ]);
+        // Агент: получаем его объекты, затем собственников по owner_id
+        props = await getProperties();
+        const ownerIds = [...new Set([
+          ...props.map(p => p.owner_id).filter(Boolean),
+          ...props.map(p => p.owner_id_2).filter(Boolean),
+        ])];
+        allOwners = ownerIds.length > 0 ? await getContactsByIds(ownerIds) : [];
         // Клиенты — из бронирований его объектов
         const propIds = new Set(props.map(p => p.id));
         try {

@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { mapContactRow } from './contactsService';
 
 /**
  * Загружает компанию текущего пользователя (активную или неактивную).
@@ -225,21 +224,6 @@ export async function createInvitation(companyId, email) {
 /**
  * Загружает данные команды: участники + активные приглашения.
  */
-/**
- * Получить контакты собственников объектов, за которые отвечает текущий агент.
- * Использует SECURITY DEFINER функцию на стороне Supabase (обходит RLS).
- */
-export async function getMyPropertyOwners() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return [];
-  const { data, error } = await supabase.rpc('get_agent_property_owners');
-  if (error) {
-    console.warn('[getMyPropertyOwners] error:', error.message);
-    return [];
-  }
-  return (data || []).map(mapContactRow);
-}
-
 /** Получить активных участников команды для выпадающего списка "Ответственный". */
 export async function getActiveTeamMembers(companyId) {
   const { data, error } = await supabase.rpc('get_company_team', { p_company_id: companyId });

@@ -239,10 +239,6 @@ export async function deleteContact(id) {
   syncIfEnabled();
 }
 
-export function mapContactRow(row) {
-  return mapContact(row);
-}
-
 function mapContact(row) {
   const extraTelegrams = Array.isArray(row.extra_telegrams) ? row.extra_telegrams : (row.telegram ? [row.telegram] : []);
   const extraWhatsapps = Array.isArray(row.extra_whatsapps) ? row.extra_whatsapps : (row.whatsapp ? [row.whatsapp] : []);
