@@ -477,6 +477,7 @@ export default function WebDashboardScreen({ user }) {
           {agentStats ? (
             <>
               <Text style={[styles.statValue, { color: CLR.stat2Text }]}>{agentStats.myAgencyActive}</Text>
+              <View style={styles.agentStatLabels} />
               <View style={styles.subStats}>
                 <Text style={styles.subStatText}>{t('all')}{': '}
                   <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyTotalActive}</Text>
