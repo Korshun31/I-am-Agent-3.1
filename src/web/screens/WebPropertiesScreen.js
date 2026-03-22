@@ -272,8 +272,8 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   }, [isCompanyAdmin, user?.companyId]);
   const isSubmitted = property.property_status === 'submitted';
   const isRejected = property.property_status === 'rejected';
-  const owner1 = isTeamMember ? null : contacts.find(c => c.id === property.owner_id);
-  const owner2 = isTeamMember ? null : contacts.find(c => c.id === property.owner_id_2);
+  const owner1 = contacts.find(c => c.id === property.owner_id);
+  const owner2 = contacts.find(c => c.id === property.owner_id_2);
   const parent = allProperties.find(p => p.id === property.resort_id);
   const children = allProperties.filter(p => p.resort_id === property.id);
   const occupied = isOccupiedNow(bookings, property.id);
@@ -514,13 +514,13 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         ) : null}
 
         {/* ── Location ── */}
-        {(property.city || property.beach_distance || property.market_distance || (!isTeamMember && property.google_maps_link) || property.website_url) && (
+        {(property.city || property.beach_distance || property.market_distance || property.google_maps_link || property.website_url) && (
           <SectionBlock title={t('pdLocation').toUpperCase()} icon={ICON_SEC_LOCATION}>
             <InfoRow label={t('pdCity')} value={property.city} />
             <InfoRow label={t('propDistrict')} value={property.district} />
             <InfoRow label={t('propBeach')} value={property.beach_distance ? `${property.beach_distance} м` : null} />
             <InfoRow label={t('propMarket')} value={property.market_distance ? `${property.market_distance} м` : null} />
-            {!isTeamMember && property.google_maps_link ? (
+            {property.google_maps_link ? (
               <TouchableOpacity onPress={() => Linking.openURL(property.google_maps_link)} style={s.linkBtn}>
                 <Text style={s.linkBtnText}>🗺️ {t('openGoogleMaps')}</Text>
               </TouchableOpacity>
