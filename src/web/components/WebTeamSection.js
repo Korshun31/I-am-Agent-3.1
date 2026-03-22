@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { useLanguage } from '../../context/LanguageContext';
 import { getTeamData, createInvitation, revokeInvitation, updateMemberPermissions } from '../../services/companyService';
 import dayjs from 'dayjs';
@@ -25,14 +25,28 @@ function copyToClipboard(text) {
   }
 }
 
+function PermissionToggleRow({ label, hint, value, onToggle }) {
+  return (
+    <View style={s.permissionRow}>
+      <View style={s.permissionInfo}>
+        <Text style={s.permissionLabel}>{label}</Text>
+        {!!hint && <Text style={s.permissionHint}>{hint}</Text>}
+      </View>
+      <TouchableOpacity style={[s.toggle, value && s.toggleOn]} onPress={onToggle} activeOpacity={0.8}>
+        <View style={[s.toggleThumb, value && s.toggleThumbOn]} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function MemberPermissionsModal({ member, visible, onClose, onSave }) {
   const { t } = useLanguage();
-  const [permissions, setPermissions] = useState(member.permissions || {});
+  const [permissions, setPermissions] = useState(member?.permissions || {});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setPermissions(member.permissions || {});
-  }, [member.member_id]);
+    if (member) setPermissions(member.permissions || {});
+  }, [member?.member_id]);
 
   const toggle = (key) => setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -46,39 +60,62 @@ function MemberPermissionsModal({ member, visible, onClose, onSave }) {
     }
   };
 
-  if (!visible) return null;
+  if (!member) return null;
 
   const displayName = [member.name, member.last_name].filter(Boolean).join(' ') || member.email;
+  const initials = ((member.name || '')[0] || (member.email || '')[0] || '?').toUpperCase();
 
   return (
-    <View style={s.modalOverlay}>
-      <View style={s.modalBox}>
-        <Text style={s.modalTitle}>⚙️ {displayName}</Text>
-        <Text style={s.modalSubtitle}>{t('memberPermissions') || 'Разрешения агента'}</Text>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+          <View style={s.modalBox}>
 
-        <View style={s.permissionRow}>
-          <View style={s.permissionInfo}>
-            <Text style={s.permissionLabel}>{t('permCanBook') || 'Добавление бронирований'}</Text>
-            <Text style={s.permissionHint}>{t('permCanBookHint') || 'Агент может бронировать объекты компании'}</Text>
+            {/* Шапка */}
+            <View style={s.modalHeader}>
+              <View style={s.modalAvatar}>
+                <Text style={s.modalAvatarText}>{initials}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.modalTitle}>{displayName}</Text>
+                <Text style={s.modalSubtitle}>{member.email}</Text>
+              </View>
+              <TouchableOpacity style={s.modalCloseBtn} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={s.modalCloseBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Раздел разрешений */}
+            <View style={s.modalSection}>
+              <Text style={s.modalSectionTitle}>РАЗРЕШЕНИЯ</Text>
+              <PermissionToggleRow
+                label={t('permCanBook') || 'Добавление бронирований'}
+                hint={t('permCanBookHint') || 'Агент может создавать бронирования для объектов компании'}
+                value={!!permissions.can_book}
+                onToggle={() => toggle('can_book')}
+              />
+            </View>
+
+            {/* Кнопки */}
+            <View style={s.modalActions}>
+              <TouchableOpacity style={s.modalCancelBtn} onPress={onClose}>
+                <Text style={s.modalCancelText}>{t('cancel') || 'Отмена'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.modalSaveBtn, saving && s.btnDisabled]} onPress={handleSave} disabled={saving}>
+                <Text style={s.modalSaveText}>{saving ? '...' : (t('save') || 'Сохранить')}</Text>
+              </TouchableOpacity>
+            </View>
+
           </View>
-          <TouchableOpacity
-            style={[s.toggle, permissions.can_book && s.toggleOn]}
-            onPress={() => toggle('can_book')}
-          >
-            <View style={[s.toggleThumb, permissions.can_book && s.toggleThumbOn]} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={s.modalActions}>
-          <TouchableOpacity style={s.modalCancelBtn} onPress={onClose}>
-            <Text style={s.modalCancelText}>{t('cancel') || 'Отмена'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[s.modalSaveBtn, saving && s.btnDisabled]} onPress={handleSave} disabled={saving}>
-            <Text style={s.modalSaveText}>{saving ? '...' : (t('save') || 'Сохранить')}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
   );
 }
 
@@ -468,22 +505,34 @@ const s = StyleSheet.create({
   memberPerms: { fontSize: 11, color: C.muted, marginTop: 2 },
   memberEditHint: { fontSize: 14, color: C.muted },
 
-  modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
-  modalBox: { backgroundColor: C.surface, borderRadius: 16, padding: 24, width: '90%', maxWidth: 400, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, gap: 16 },
-  modalTitle: { fontSize: 16, fontWeight: '800', color: C.text },
-  modalSubtitle: { fontSize: 13, color: C.muted, marginTop: -8 },
-  permissionRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.border },
-  permissionInfo: { flex: 1, gap: 2 },
+  // ── Agent modal ──
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+  modalBox: { backgroundColor: C.surface, borderRadius: 20, width: 480, maxWidth: '95%', shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.2, shadowRadius: 32, overflow: 'hidden' },
+
+  modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 24, borderBottomWidth: 1, borderBottomColor: C.border },
+  modalAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: ACCENT + '20', alignItems: 'center', justifyContent: 'center' },
+  modalAvatarText: { fontSize: 20, fontWeight: '800', color: ACCENT },
+  modalTitle: { fontSize: 17, fontWeight: '800', color: C.text },
+  modalSubtitle: { fontSize: 13, color: C.muted, marginTop: 2 },
+  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
+  modalCloseBtnText: { fontSize: 14, color: C.muted, fontWeight: '700' },
+
+  modalSection: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 8 },
+  modalSectionTitle: { fontSize: 11, fontWeight: '700', color: C.muted, letterSpacing: 0.8, marginBottom: 12 },
+
+  permissionRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: C.border },
+  permissionInfo: { flex: 1, gap: 3 },
   permissionLabel: { fontSize: 14, fontWeight: '600', color: C.text },
-  permissionHint: { fontSize: 12, color: C.muted },
-  toggle: { width: 44, height: 26, borderRadius: 13, backgroundColor: C.border, justifyContent: 'center', paddingHorizontal: 2 },
+  permissionHint: { fontSize: 12, color: C.muted, lineHeight: 17 },
+  toggle: { width: 48, height: 28, borderRadius: 14, backgroundColor: C.border, justifyContent: 'center', paddingHorizontal: 2 },
   toggleOn: { backgroundColor: ACCENT },
-  toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2 },
+  toggleThumb: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2 },
   toggleThumbOn: { alignSelf: 'flex-end' },
-  modalActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end' },
-  modalCancelBtn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: C.border },
+
+  modalActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end', padding: 20, borderTopWidth: 1, borderTopColor: C.border, marginTop: 8 },
+  modalCancelBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border },
   modalCancelText: { fontSize: 14, fontWeight: '600', color: C.muted },
-  modalSaveBtn: { paddingHorizontal: 20, paddingVertical: 9, borderRadius: 10, backgroundColor: ACCENT },
+  modalSaveBtn: { paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10, backgroundColor: ACCENT },
   modalSaveText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
   btnDisabled: { opacity: 0.5 },
 });
