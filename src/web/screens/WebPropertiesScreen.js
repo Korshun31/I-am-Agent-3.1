@@ -275,10 +275,11 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   const isRejected = property.property_status === 'rejected';
 
   // Разрешения агента
-  const canEditInfo = !user?.teamMembership || user?.teamPermissions?.can_edit_info;
-  const canEditPrices = !user?.teamMembership || user?.teamPermissions?.can_edit_prices;
-  const canSeeFinancials = !user?.teamMembership || user?.teamPermissions?.can_see_financials;
-  const canAddUnit = !user?.teamMembership || user?.teamPermissions?.can_add_property;
+  const isAgent = !!user?.teamMembership;
+  const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
+  const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
+  const canSeeFinancials = !isAgent || user?.teamPermissions?.can_see_financials;
+  const canAddUnit = !isAgent || user?.teamPermissions?.can_add_property;
 
   const owner1 = contacts.find(c => c.id === property.owner_id);
   const owner2 = contacts.find(c => c.id === property.owner_id_2);
@@ -451,7 +452,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                 <Text style={s.statusBadgeRejectedText}>❌ {t('propRejected') || 'Отклонено'}</Text>
               </View>
             )}
-            {isAdmin && !isSubmitted && (canEditInfo || canEditPrices) && (
+            {!isSubmitted && (
               <TouchableOpacity style={s.detailEditBtn} onPress={onEdit}>
                 <Image source={ICON_PENCIL} style={s.detailEditBtnIcon} resizeMode="contain" />
                 <Text style={s.detailEditBtnText}>{t('edit')}</Text>

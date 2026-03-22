@@ -309,12 +309,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
   const isParent = !isChildUnit && (effectiveType === 'resort' || effectiveType === 'condo');
   const visibleTabs = isParent
     ? TABS.filter(t => t.key === 'main' || t.key === 'photos')
-    : TABS.filter(t => {
-        if (mode !== 'edit') return true;
-        if (t.key === 'main' || t.key === 'amenities' || t.key === 'photos') return canEditInfo;
-        if (t.key === 'prices' || t.key === 'utilities') return canEditPrices;
-        return true;
-      });
+    : TABS;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
