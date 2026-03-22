@@ -76,6 +76,7 @@ function MemberPermissionsModal({ member, visible, onClose, onSave }) {
       <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
           <View style={s.modalBox}>
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
 
             {/* Шапка */}
             <View style={s.modalHeader}>
@@ -91,14 +92,54 @@ function MemberPermissionsModal({ member, visible, onClose, onSave }) {
               </TouchableOpacity>
             </View>
 
-            {/* Раздел разрешений */}
+            {/* Раздел: Объекты */}
             <View style={s.modalSection}>
-              <Text style={s.modalSectionTitle}>РАЗРЕШЕНИЯ</Text>
+              <Text style={s.modalSectionTitle}>ОБЪЕКТЫ</Text>
               <PermissionToggleRow
-                label={t('permCanBook') || 'Добавление бронирований'}
-                hint={t('permCanBookHint') || 'Агент может создавать бронирования для объектов компании'}
+                label="Добавление объектов"
+                hint="Агент может добавлять новые объекты — Админ проверяет перед публикацией"
+                value={!!permissions.can_add_property}
+                onToggle={() => toggle('can_add_property')}
+              />
+              <PermissionToggleRow
+                label="Редактирование основных данных"
+                hint="Фото, описание, спальни, удобства, расстояния — без проверки Админа"
+                value={!!permissions.can_edit_info}
+                onToggle={() => toggle('can_edit_info')}
+              />
+              <PermissionToggleRow
+                label="Редактирование цен"
+                hint="Стоимость аренды и депозиты — без проверки Админа"
+                value={!!permissions.can_edit_prices}
+                onToggle={() => toggle('can_edit_prices')}
+              />
+            </View>
+
+            {/* Раздел: Бронирования */}
+            <View style={s.modalSection}>
+              <Text style={s.modalSectionTitle}>БРОНИРОВАНИЯ</Text>
+              <PermissionToggleRow
+                label={t('permCanBook') || 'Создание бронирований'}
+                hint="Агент может создавать и редактировать бронирования своих объектов"
                 value={!!permissions.can_book}
                 onToggle={() => toggle('can_book')}
+              />
+              <PermissionToggleRow
+                label="Удаление бронирований"
+                hint="Агент может удалять бронирования своих объектов"
+                value={!!permissions.can_delete_booking}
+                onToggle={() => toggle('can_delete_booking')}
+              />
+            </View>
+
+            {/* Раздел: Финансы */}
+            <View style={s.modalSection}>
+              <Text style={s.modalSectionTitle}>ФИНАНСЫ</Text>
+              <PermissionToggleRow
+                label="Просмотр финансовых данных"
+                hint="Агент видит комиссии и коммунальные расходы в карточке объекта"
+                value={!!permissions.can_see_financials}
+                onToggle={() => toggle('can_see_financials')}
               />
             </View>
 
@@ -112,6 +153,7 @@ function MemberPermissionsModal({ member, visible, onClose, onSave }) {
               </TouchableOpacity>
             </View>
 
+            </ScrollView>
           </View>
         </TouchableOpacity>
       </TouchableOpacity>

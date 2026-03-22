@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput } from 'react-native';
 import { supabase } from '../../services/supabase';
 import {
   getNotifications,
   getUnreadCount,
   markAllRead,
   deleteNotification,
+  markActionTaken,
+  sendNotification,
 } from '../../services/notificationsService';
+import { approveProperty } from '../../services/propertiesService';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/ru';
@@ -36,23 +39,69 @@ const TYPE_ICON = {
   price_rejected:     '❌',
 };
 
-function NotificationItem({ item, onDelete }) {
+// Уведомления которые требуют действия от Админа
+const ACTION_TYPES = new Set(['property_submitted', 'edit_submitted', 'price_submitted']);
+
+function NotificationItem({ item, onDelete, onApprove, onReject }) {
   const icon = TYPE_ICON[item.type] || '🔔';
   const time = dayjs(item.created_at).fromNow();
+  const needsAction = ACTION_TYPES.has(item.type) && !item.action_taken;
+  const [rejectMode, setRejectMode] = useState(false);
+  const [reason, setReason] = useState('');
 
   return (
     <View style={[s.item, !item.is_read && s.itemUnread]}>
-      <View style={s.itemIcon}>
-        <Text style={s.itemIconText}>{icon}</Text>
+      <View style={s.itemRow}>
+        <View style={s.itemIcon}>
+          <Text style={s.itemIconText}>{icon}</Text>
+        </View>
+        <View style={s.itemBody}>
+          <Text style={s.itemTitle}>{item.title}</Text>
+          {!!item.body && <Text style={s.itemBodyText}>{item.body}</Text>}
+          <Text style={s.itemTime}>{time}</Text>
+        </View>
+        <TouchableOpacity style={s.itemDelete} onPress={() => onDelete(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={s.itemDeleteText}>✕</Text>
+        </TouchableOpacity>
       </View>
-      <View style={s.itemBody}>
-        <Text style={s.itemTitle} numberOfLines={2}>{item.title}</Text>
-        {!!item.body && <Text style={s.itemBody2} numberOfLines={2}>{item.body}</Text>}
-        <Text style={s.itemTime}>{time}</Text>
-      </View>
-      <TouchableOpacity style={s.itemDelete} onPress={() => onDelete(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Text style={s.itemDeleteText}>✕</Text>
-      </TouchableOpacity>
+
+      {/* Кнопки действия — только для Админа, только если не выполнено */}
+      {needsAction && !rejectMode && (
+        <View style={s.actionRow}>
+          <TouchableOpacity style={s.approveBtn} onPress={() => onApprove(item)}>
+            <Text style={s.approveBtnText}>✓ Одобрить</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.rejectBtn} onPress={() => setRejectMode(true)}>
+            <Text style={s.rejectBtnText}>✕ Отклонить</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Форма причины отклонения */}
+      {rejectMode && (
+        <View style={s.rejectForm}>
+          <TextInput
+            style={s.rejectInput}
+            placeholder="Причина отклонения..."
+            value={reason}
+            onChangeText={setReason}
+            autoFocus
+          />
+          <View style={s.rejectFormActions}>
+            <TouchableOpacity style={s.rejectCancelBtn} onPress={() => { setRejectMode(false); setReason(''); }}>
+              <Text style={s.rejectCancelText}>Назад</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.rejectConfirmBtn} onPress={() => onReject(item, reason)}>
+              <Text style={s.rejectConfirmText}>Отклонить</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Уже выполнено */}
+      {ACTION_TYPES.has(item.type) && item.action_taken && (
+        <Text style={s.actionDone}>✓ Действие выполнено</Text>
+      )}
     </View>
   );
 }
@@ -116,6 +165,55 @@ export default function WebNotificationBell({ userId }) {
     setNotifs(prev => prev.filter(n => n.id !== id));
   };
 
+  const handleApprove = async (notif) => {
+    try {
+      if (notif.property_id) {
+        await approveProperty(notif.property_id);
+      }
+      await markActionTaken(notif.id);
+      setNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, action_taken: true } : n));
+      // Уведомляем агента
+      if (notif.sender_id) {
+        const typeMap = { property_submitted: 'property_approved', edit_submitted: 'edit_approved', price_submitted: 'price_approved' };
+        await sendNotification({
+          recipientId: notif.sender_id,
+          senderId: userId,
+          type: typeMap[notif.type] || 'property_approved',
+          title: '✅ Одобрено',
+          body: notif.title,
+          propertyId: notif.property_id,
+        });
+      }
+    } catch (e) {
+      console.warn('approve error', e);
+    }
+  };
+
+  const handleReject = async (notif, reason) => {
+    try {
+      if (notif.property_id) {
+        // Помечаем объект как отклонённый
+        await supabase.from('properties').update({ property_status: 'rejected', rejection_reason: reason || null }).eq('id', notif.property_id);
+      }
+      await markActionTaken(notif.id);
+      setNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, action_taken: true } : n));
+      // Уведомляем агента
+      if (notif.sender_id) {
+        const typeMap = { property_submitted: 'property_rejected', edit_submitted: 'edit_rejected', price_submitted: 'price_rejected' };
+        await sendNotification({
+          recipientId: notif.sender_id,
+          senderId: userId,
+          type: typeMap[notif.type] || 'property_rejected',
+          title: '❌ Отклонено',
+          body: reason ? `Причина: ${reason}` : notif.title,
+          propertyId: notif.property_id,
+        });
+      }
+    } catch (e) {
+      console.warn('reject error', e);
+    }
+  };
+
   const handleClose = () => {
     setOpen(false);
   };
@@ -157,7 +255,13 @@ export default function WebNotificationBell({ userId }) {
                   </View>
                 )}
                 {notifications.map(n => (
-                  <NotificationItem key={n.id} item={n} onDelete={handleDelete} />
+                  <NotificationItem
+                    key={n.id}
+                    item={n}
+                    onDelete={handleDelete}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                  />
                 ))}
               </ScrollView>
 
@@ -221,23 +325,36 @@ const s = StyleSheet.create({
   list: { maxHeight: 440 },
 
   item: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
   itemUnread: { backgroundColor: C.unread },
+  itemRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   itemIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   itemIconText: { fontSize: 18 },
   itemBody: { flex: 1, gap: 3 },
   itemTitle: { fontSize: 13, fontWeight: '600', color: C.text, lineHeight: 18 },
-  itemBody2: { fontSize: 12, color: C.muted, lineHeight: 17 },
+  itemBodyText: { fontSize: 12, color: C.muted, lineHeight: 17 },
   itemTime: { fontSize: 11, color: C.muted, marginTop: 2 },
   itemDelete: { padding: 4 },
   itemDeleteText: { fontSize: 13, color: C.muted },
+
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 10, marginLeft: 48 },
+  approveBtn: { flex: 1, backgroundColor: '#F0FAF5', borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 8, paddingVertical: 7, alignItems: 'center' },
+  approveBtnText: { fontSize: 13, fontWeight: '700', color: '#16A34A' },
+  rejectBtn: { flex: 1, backgroundColor: '#FFF5F5', borderWidth: 1, borderColor: '#FFCDD2', borderRadius: 8, paddingVertical: 7, alignItems: 'center' },
+  rejectBtnText: { fontSize: 13, fontWeight: '700', color: C.danger },
+
+  rejectForm: { marginTop: 10, marginLeft: 48, gap: 8 },
+  rejectInput: { borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: C.text, outlineWidth: 0 },
+  rejectFormActions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
+  rejectCancelBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.border },
+  rejectCancelText: { fontSize: 13, color: C.muted, fontWeight: '600' },
+  rejectConfirmBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: C.danger },
+  rejectConfirmText: { fontSize: 13, color: '#FFF', fontWeight: '700' },
+  actionDone: { marginTop: 8, marginLeft: 48, fontSize: 12, color: '#16A34A', fontWeight: '600' },
 
   emptyWrap: { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyIcon: { fontSize: 36 },

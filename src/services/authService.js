@@ -85,15 +85,17 @@ export async function getUserProfile(userId) {
     .eq('role', 'agent')
     .maybeSingle();
 
-  // Получаем название компании отдельным запросом если нашли членство
+  // Получаем название компании и ID владельца (Админа) если нашли членство
   let memberCompanyName = '';
+  let memberCompanyOwnerId = null;
   if (membershipData?.company_id) {
     const { data: companyRow } = await supabase
       .from('companies')
-      .select('name')
+      .select('name, owner_id')
       .eq('id', membershipData.company_id)
       .maybeSingle();
     memberCompanyName = companyRow?.name || '';
+    memberCompanyOwnerId = companyRow?.owner_id || null;
   }
 
   const settings = data.settings || {};
@@ -140,6 +142,7 @@ export async function getUserProfile(userId) {
       companyId: membershipData.company_id,
       companyName: memberCompanyName,
       role: membershipData.role,
+      adminId: memberCompanyOwnerId,
     } : null,
     // Разрешения агента в команде
     teamPermissions: membershipData?.permissions || {},

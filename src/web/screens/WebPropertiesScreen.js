@@ -43,6 +43,7 @@ import { getActiveTeamMembers } from '../../services/companyService';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
 import { getContacts } from '../../services/contactsService';
 import { getBookings } from '../../services/bookingsService';
+import { sendNotification } from '../../services/notificationsService';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -786,7 +787,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
 
 // ─── Add Property Modal ───────────────────────────────────────────────────────
 
-function AddPropertyModal({ visible, onClose, onSaved }) {
+function AddPropertyModal({ visible, onClose, onSaved, user }) {
   const { t } = useLanguage();
   const TYPE_META = getTypeMeta(t);
   const [name, setName] = useState('');
@@ -804,7 +805,20 @@ function AddPropertyModal({ visible, onClose, onSaved }) {
     setSaving(true);
     setError('');
     try {
-      await createProperty({ name: name.trim(), code: code.trim().toUpperCase(), type });
+      const created = await createProperty({ name: name.trim(), code: code.trim().toUpperCase(), type });
+      // Уведомляем Админа если создаёт агент
+      const adminId = user?.teamMembership?.adminId;
+      if (adminId && created?.id) {
+        const agentName = [user.name, user.lastName].filter(Boolean).join(' ') || user.email;
+        await sendNotification({
+          recipientId: adminId,
+          senderId: user.id,
+          type: 'property_submitted',
+          title: `🏠 ${agentName} добавил объект «${name.trim()}»`,
+          body: `Код: ${code.trim().toUpperCase()} · Тип: ${type}`,
+          propertyId: created.id,
+        });
+      }
       reset();
       onSaved();
     } catch (e) {
@@ -1167,6 +1181,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
         visible={addVisible}
         onClose={() => setAddVisible(false)}
         onSaved={handleSaved}
+        user={user}
       />
 
       {/* ── Edit / Create Panel ── */}
