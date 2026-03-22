@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Image } from 'react-native';
 import { useLanguage } from '../../context/LanguageContext';
+import WebNotificationBell from './WebNotificationBell';
 
 const LOGO_SVG = require('../../../assets/logo.svg');
 
@@ -12,7 +13,7 @@ const ACCENT_LIGHT = '#B2D8DB';
  * Базовый каркас веб-версии.
  * Только структура: Сайдбар слева, контент справа.
  */
-export default function WebLayout({ children, activeTab, onTabChange, fullHeight }) {
+export default function WebLayout({ children, activeTab, onTabChange, fullHeight, user }) {
   const { t } = useLanguage();
   const menuItems = [
     { id: 'dashboard',  label: t('dashboard') },
@@ -51,6 +52,11 @@ export default function WebLayout({ children, activeTab, onTabChange, fullHeight
               </Text>
             </TouchableOpacity>
           ))}
+        </View>
+
+        {/* Колокольчик — внизу сайдбара */}
+        <View style={styles.bellWrap}>
+          <WebNotificationBell userId={user?.id} />
         </View>
       </View>
 
@@ -94,6 +100,12 @@ const styles = StyleSheet.create({
   },
   menu: {
     flex: 1,
+  },
+  bellWrap: {
+    borderTopWidth: 1,
+    borderTopColor: '#E9ECEF',
+    paddingTop: 8,
+    marginTop: 8,
   },
   menuItem: {
     paddingVertical: 12,

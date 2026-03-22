@@ -136,6 +136,7 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
       activeTab={activeTab}
       onTabChange={handleTabChange}
       fullHeight={FULL_HEIGHT_TABS.has(activeTab)}
+      user={user}
     >
       {/* Dashboard — монтируется сразу */}
       <View style={[styles.tabWrap, tabStyle('dashboard')]}>
