@@ -284,8 +284,14 @@ function buildForm(property, parentProperty) {
  * property: existing property (edit mode)
  * parentProperty: resort/condo (create-unit mode)
  */
-export default function WebPropertyEditPanel({ visible, mode, property, parentProperty, onClose, onSaved, userCurrency }) {
+export default function WebPropertyEditPanel({ visible, mode, property, parentProperty, onClose, onSaved, userCurrency, user }) {
   const { t } = useLanguage();
+
+  // Разрешения агента
+  const isAgent = !!user?.teamMembership;
+  const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
+  const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
+
   // In edit mode use the currency stored on the property; in create mode use the user's selected currency
   const activeCurrency = (mode === 'edit' && property?.currency) ? property.currency : (userCurrency || 'THB');
   const sym = getCurrencySymbol(activeCurrency);
@@ -302,7 +308,12 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
   const isParent = !isChildUnit && (effectiveType === 'resort' || effectiveType === 'condo');
   const visibleTabs = isParent
     ? TABS.filter(t => t.key === 'main' || t.key === 'photos')
-    : TABS;
+    : TABS.filter(t => {
+        if (mode !== 'edit') return true;
+        if (t.key === 'main' || t.key === 'amenities' || t.key === 'photos') return canEditInfo;
+        if (t.key === 'prices' || t.key === 'utilities') return canEditPrices;
+        return true;
+      });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);

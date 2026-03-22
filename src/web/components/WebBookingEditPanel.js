@@ -448,8 +448,13 @@ function PhotoGrid({ photos, onAdd, onRemove, uploading, t }) {
 
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
-export default function WebBookingEditPanel({ visible, mode, booking, properties, contacts, onClose, onSaved }) {
+export default function WebBookingEditPanel({ visible, mode, booking, properties, contacts, onClose, onSaved, user }) {
   const { t, currency: userCurrency } = useLanguage();
+
+  // Разрешения агента
+  const isAgent = !!user?.teamMembership;
+  const canSeeFinancials = !isAgent || user?.teamPermissions?.can_see_financials;
+
   const [form, setForm]             = useState(() => buildForm(booking, null));
   const [saving, setSaving]         = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -744,10 +749,13 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                       <FInput value={form.saveDeposit} onChangeText={v => set('saveDeposit', v)} placeholder="10 000" numeric />
                     </Field>
                   </View>
-                  <Field label={L('bkAgentCommission')}>
-                    <FInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="15 000" numeric />
-                  </Field>
+                  {canSeeFinancials && (
+                    <Field label={L('bkAgentCommission')}>
+                      <FInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="15 000" numeric />
+                    </Field>
+                  )}
                   {/* Owner commission one-time */}
+                  {canSeeFinancials && (
                   <Field label={t('bookingOwnerCommOnce')}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       {form.ownerCommissionOneTimeIsPercent ? (
@@ -783,7 +791,9 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                       </View>
                     </View>
                   </Field>
+                  )}
                   {/* Owner commission monthly */}
+                  {canSeeFinancials && (
                   <Field label={t('bookingOwnerCommMonthly')}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       {form.ownerCommissionMonthlyIsPercent ? (
@@ -819,6 +829,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                       </View>
                     </View>
                   </Field>
+                  )}
                 </SectionCard>
 
                 {/* Гости */}

@@ -163,6 +163,9 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const canEditBooking = !user?.teamMembership || booking?.agentId === user?.id;
+  const canDeleteBooking = !user?.teamMembership || (booking?.agentId === user?.id && user?.teamPermissions?.can_delete_booking);
+
   if (!booking) return null;
 
   const psym = getCurrencySymbol(property?.currency || 'THB');
@@ -222,7 +225,7 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, 
           </View>
         </View>
         <View style={d.headerActions}>
-          {(!user?.teamMembership || booking?.agentId === user?.id) && (
+          {canEditBooking && (
             <TouchableOpacity style={d.editBtn} onPress={onEdit}>
               <Text style={d.editBtnText}>{t('edit')}</Text>
             </TouchableOpacity>
@@ -332,8 +335,8 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, 
           </Section>
         ) : null}
 
-        {/* Delete — только своё бронирование */}
-        {(!user?.teamMembership || booking?.agentId === user?.id) && (
+        {/* Delete — только своё бронирование и при наличии разрешения */}
+        {canDeleteBooking && (
           <View style={d.deleteRow}>
             <TouchableOpacity
               style={d.deleteBtn}
@@ -1167,6 +1170,7 @@ export default function WebBookingsScreen({ user }) {
           load();
           if (saved) setSelectedBooking(saved);
         }}
+        user={user}
       />
     </View>
   );

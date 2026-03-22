@@ -273,6 +273,13 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   }, [isCompanyAdmin, user?.companyId]);
   const isSubmitted = property.property_status === 'submitted';
   const isRejected = property.property_status === 'rejected';
+
+  // Разрешения агента
+  const canEditInfo = !user?.teamMembership || user?.teamPermissions?.can_edit_info;
+  const canEditPrices = !user?.teamMembership || user?.teamPermissions?.can_edit_prices;
+  const canSeeFinancials = !user?.teamMembership || user?.teamPermissions?.can_see_financials;
+  const canAddUnit = !user?.teamMembership || user?.teamPermissions?.can_add_property;
+
   const owner1 = contacts.find(c => c.id === property.owner_id);
   const owner2 = contacts.find(c => c.id === property.owner_id_2);
   const parent = allProperties.find(p => p.id === property.resort_id);
@@ -444,7 +451,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                 <Text style={s.statusBadgeRejectedText}>❌ {t('propRejected') || 'Отклонено'}</Text>
               </View>
             )}
-            {isAdmin && !isSubmitted && (
+            {isAdmin && !isSubmitted && (canEditInfo || canEditPrices) && (
               <TouchableOpacity style={s.detailEditBtn} onPress={onEdit}>
                 <Image source={ICON_PENCIL} style={s.detailEditBtnIcon} resizeMode="contain" />
                 <Text style={s.detailEditBtnText}>{t('edit')}</Text>
@@ -554,7 +561,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         )}
 
         {/* ── Commissions ── */}
-        {!isTeamMember && (property.commission != null || property.owner_commission_one_time != null || property.owner_commission_monthly != null) && (
+        {canSeeFinancials && (property.commission != null || property.owner_commission_one_time != null || property.owner_commission_monthly != null) && (
           <SectionBlock title={t('propCommissionSection')}>
             {property.commission != null && (
               <InfoRow
@@ -586,7 +593,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         )}
 
         {/* ── Utilities ── */}
-        {!isTeamMember && (property.electricity_price != null || property.water_price != null || property.gas_price != null || property.internet_price != null || property.cleaning_price != null || property.exit_cleaning_price != null) && (
+        {canSeeFinancials && (property.electricity_price != null || property.water_price != null || property.gas_price != null || property.internet_price != null || property.cleaning_price != null || property.exit_cleaning_price != null) && (
           <SectionBlock title={t('propUtilities')}>
             <InfoRow label={t('pdElectricity')} value={property.electricity_price != null ? `${property.electricity_price} ${psym}/${t('propWaterCubic')}` : null} />
             <InfoRow
@@ -678,7 +685,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         {(children.length > 0 || ['resort', 'condo'].includes(property.type)) && (
           <SectionBlock
             title={`🏠 ${t('propUnitsSection')} (${children.length})`}
-            action={onAddUnit ? (
+            action={onAddUnit && canAddUnit ? (
               <TouchableOpacity style={s.addUnitBtn} onPress={onAddUnit}>
                 <Text style={s.addUnitBtnText}>{t('addUnit')}</Text>
               </TouchableOpacity>
@@ -1047,6 +1054,9 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
     );
   }
 
+  const isAgent = !!user?.teamMembership;
+  const canAdd = !isAgent || user?.teamPermissions?.can_add_property;
+
   return (
     <View style={s.root}>
 
@@ -1059,9 +1069,11 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
             <Text style={s.panelTitle}>{t('propertiesTitle')}</Text>
             <Text style={s.panelSubtitle}>{properties.length} {t('propertiesTitle').toLowerCase()}</Text>
           </View>
-          <TouchableOpacity style={s.addBtn} onPress={openCreate}>
-            <Text style={s.addBtnText}>＋ {t('propertiesAddBtn')}</Text>
-          </TouchableOpacity>
+          {canAdd && (
+            <TouchableOpacity style={s.addBtn} onPress={openCreate}>
+              <Text style={s.addBtnText}>＋ {t('propertiesAddBtn')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Search */}
@@ -1193,6 +1205,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
         onClose={closePanel}
         onSaved={handlePanelSaved}
         userCurrency={userCurrency}
+        user={user}
       />
     </View>
   );

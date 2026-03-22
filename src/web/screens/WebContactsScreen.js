@@ -767,6 +767,7 @@ export default function WebContactsScreen({ onNavigateToProperty, user }) {
               onBack={handleInlineBack}
               onEdit={() => setInlineEditPanel({ visible: true, mode: 'edit', property: inlineProperty, parentProperty: null })}
               onAddUnit={() => setInlineEditPanel({ visible: true, mode: 'create-unit', property: null, parentProperty: inlineProperty })}
+              user={user}
             />
             <WebPropertyEditPanel
               visible={inlineEditPanel.visible}
@@ -779,6 +780,7 @@ export default function WebContactsScreen({ onNavigateToProperty, user }) {
                 if (saved?.id === inlineProperty?.id) setInlineProperty(saved);
                 load();
               }}
+              user={user}
             />
           </View>
         ) : selected ? (
