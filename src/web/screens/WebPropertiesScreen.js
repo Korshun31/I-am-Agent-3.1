@@ -812,7 +812,12 @@ function AddPropertyModal({ visible, onClose, onSaved, user }) {
     setSaving(true);
     setError('');
     try {
-      const created = await createProperty({ name: name.trim(), code: code.trim().toUpperCase(), type });
+      const created = await createProperty({
+        name: name.trim(),
+        code: code.trim().toUpperCase(),
+        type,
+        property_status: user?.teamMembership ? 'submitted' : 'approved',
+      });
       // Уведомляем Админа если создаёт агент
       const adminId = user?.teamMembership?.adminId;
       if (adminId && created?.id) {

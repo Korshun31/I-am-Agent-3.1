@@ -25,7 +25,7 @@ export async function getProperties(agentId = null) {
   return data || [];
 }
 
-export async function createProperty({ name, code, type, location_id, owner_id }) {
+export async function createProperty({ name, code, type, location_id, owner_id, property_status }) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
@@ -39,6 +39,7 @@ export async function createProperty({ name, code, type, location_id, owner_id }
       type: type || 'house',
       location_id: location_id || null,
       owner_id: owner_id || null,
+      property_status: property_status || 'approved',
     })
     .select()
     .single();
@@ -56,6 +57,7 @@ export async function createPropertyFull(updates) {
   const row = {
     agent_id: session.user.id,
     responsible_agent_id: updates.responsible_agent_id ?? session.user.id,
+    property_status: updates.property_status || 'approved',
     ...updates,
   };
 

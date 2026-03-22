@@ -283,7 +283,7 @@ function PropertyPicker({ value, properties, onChange, t }) {
 
 // ─── Contact Picker ───────────────────────────────────────────────────────────
 
-function ContactPicker({ value, contacts, onChange, onRequestNewContact, t }) {
+function ContactPicker({ value, contacts, onChange, onRequestNewContact, t, canManageClients }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const searchRef = useRef(null);
@@ -342,21 +342,23 @@ function ContactPicker({ value, contacts, onChange, onRequestNewContact, t }) {
           </View>
 
           <ScrollView style={{ maxHeight: 240 }} nestedScrollEnabled>
-            {/* ── Добавить нового клиента — всегда первая строка ── */}
-            <TouchableOpacity
-              style={s.addNewContactRow}
-              onPress={() => {
-                setOpen(false);
-                onRequestNewContact?.(search);
-              }}
-            >
-              <View style={s.addNewContactIcon}>
-                <Text style={{ fontSize: 15, color: '#FFF', lineHeight: 18, marginTop: -1 }}>+</Text>
-              </View>
-              <Text style={s.addNewContactText}>
-                {search ? `${t('bkAddNewContact')} "${search}"` : t('bkAddNewContact')}
-              </Text>
-            </TouchableOpacity>
+            {/* ── Добавить нового клиента — только если есть разрешение ── */}
+            {canManageClients && (
+              <TouchableOpacity
+                style={s.addNewContactRow}
+                onPress={() => {
+                  setOpen(false);
+                  onRequestNewContact?.(search);
+                }}
+              >
+                <View style={s.addNewContactIcon}>
+                  <Text style={{ fontSize: 15, color: '#FFF', lineHeight: 18, marginTop: -1 }}>+</Text>
+                </View>
+                <Text style={s.addNewContactText}>
+                  {search ? `${t('bkAddNewContact')} "${search}"` : t('bkAddNewContact')}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             {/* ── Убрать выбранного ── */}
             {value ? (
@@ -454,6 +456,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
   // Разрешения агента
   const isAgent = !!user?.teamMembership;
   const canSeeFinancials = !isAgent || user?.teamPermissions?.can_see_financials;
+  const canManageClients = !isAgent || user?.teamPermissions?.can_manage_clients;
 
   const [form, setForm]             = useState(() => buildForm(booking, null));
   const [saving, setSaving]         = useState(false);
@@ -692,6 +695,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                     onChange={v => set('contactId', v)}
                     onRequestNewContact={handleRequestNewContact}
                     t={t}
+                    canManageClients={canManageClients}
                   />
                 </Field>
                   <Field label={t('bkPassport')}>

@@ -4,6 +4,7 @@ import {
   TextInput, Switch, Animated, Modal, ActivityIndicator, Image, Platform,
 } from 'react-native';
 import { updateProperty, createPropertyFull, createProperty } from '../../services/propertiesService';
+import { sendNotification } from '../../services/notificationsService';
 import { supabase } from '../../services/supabase';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
@@ -425,22 +426,66 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
 
     try {
       let saved;
+      const adminId = user?.teamMembership?.adminId;
+      const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email;
+
       if (mode === 'edit') {
+        // Если агент редактирует то, на что нет прав — ставим статус 'submitted'
+        // (Упрощение: если хоть одно из измененных полей требует проверки)
+        // Но для простоты: если агент вообще что-то меняет и у него нет полных прав
+        const needsApproval = isAgent && (!canEditInfo || !canEditPrices);
+        if (needsApproval) {
+          updates.property_status = 'submitted';
+        }
         saved = await updateProperty(property.id, updates);
+
+        // Уведомление Админу об изменении
+        if (needsApproval && adminId) {
+          await sendNotification({
+            recipientId: adminId,
+            senderId: user.id,
+            type: 'edit_submitted',
+            title: `✏️ ${agentName} изменил объект «${updates.name}»`,
+            body: `Требуется утверждение изменений`,
+            propertyId: property.id,
+          });
+        }
       } else if (mode === 'create-unit') {
         saved = await createPropertyFull({
           ...updates,
           resort_id: parentProperty.id,
           type: parentProperty.type,
+          property_status: isAgent ? 'submitted' : 'approved',
         });
+        if (isAgent && adminId) {
+          await sendNotification({
+            recipientId: adminId,
+            senderId: user.id,
+            type: 'property_submitted',
+            title: `🏠 ${agentName} добавил объект в ${parentProperty.name}`,
+            body: `Объект: ${updates.name} · Код: ${updates.code}`,
+            propertyId: saved.id,
+          });
+        }
       } else {
         saved = await createProperty({
           name: updates.name,
           code: updates.code,
           type: updates.type,
+          property_status: isAgent ? 'submitted' : 'approved',
         });
         if (saved?.id) {
           saved = await updateProperty(saved.id, updates);
+          if (isAgent && adminId) {
+            await sendNotification({
+              recipientId: adminId,
+              senderId: user.id,
+              type: 'property_submitted',
+              title: `🏠 ${agentName} добавил объект «${updates.name}»`,
+              body: `Код: ${updates.code} · Тип: ${updates.type}`,
+              propertyId: saved.id,
+            });
+          }
         }
       }
       onSaved(saved);

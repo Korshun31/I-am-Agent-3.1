@@ -279,12 +279,16 @@ function PropertyRow({ property, onPress }) {
 
 // ─── Contact Detail ───────────────────────────────────────────────────────────
 
-function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline }) {
+function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline, user }) {
   const { t } = useLanguage();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Разрешения агента
+  const isAgent = !!user?.teamMembership;
+  const canManage = !isAgent || user?.teamPermissions?.can_manage_clients;
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -343,13 +347,17 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline 
           </View>
         </View>
         <View style={s.detailHeaderActions}>
-          <TouchableOpacity style={s.editBtn} onPress={onEdit} activeOpacity={0.7}>
-            <Image source={require('../../../assets/icon-type-pencil.png')} style={s.editBtnIcon} resizeMode="contain" />
-            <Text style={s.editBtnText}>{t('edit')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.deleteBtn} onPress={() => setConfirmDelete(true)} activeOpacity={0.7}>
-            <Image source={ICON_TRASH} style={s.deleteBtnIcon} resizeMode="contain" />
-          </TouchableOpacity>
+          {canManage && (
+            <TouchableOpacity style={s.editBtn} onPress={onEdit} activeOpacity={0.7}>
+              <Image source={require('../../../assets/icon-type-pencil.png')} style={s.editBtnIcon} resizeMode="contain" />
+              <Text style={s.editBtnText}>{t('edit')}</Text>
+            </TouchableOpacity>
+          )}
+          {!isAgent && (
+            <TouchableOpacity style={s.deleteBtn} onPress={() => setConfirmDelete(true)} activeOpacity={0.7}>
+              <Image source={ICON_TRASH} style={s.deleteBtnIcon} resizeMode="contain" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -647,6 +655,9 @@ export default function WebContactsScreen({ onNavigateToProperty, user }) {
   };
 
   // ── Filtered list ──
+  const isAgent = !!user?.teamMembership;
+  const canManage = !isAgent || user?.teamPermissions?.can_manage_clients;
+
   const q = search.trim().toLowerCase();
   const filtered = allContacts.filter(c => {
     if (typeFilter !== 'all' && c.type !== typeFilter) return false;
@@ -676,9 +687,11 @@ export default function WebContactsScreen({ onNavigateToProperty, user }) {
             <Text style={s.leftTitle}>{t('contactsTitle')}</Text>
             <Text style={s.leftSubtitle}>{counts.all} {t('contactsTitle').toLowerCase()}</Text>
           </View>
-          <TouchableOpacity style={s.addBtn} onPress={openCreate} activeOpacity={0.8}>
-            <Text style={s.addBtnText}>+ {t('contactsAddBtn')}</Text>
-          </TouchableOpacity>
+          {canManage && (
+            <TouchableOpacity style={s.addBtn} onPress={openCreate} activeOpacity={0.8}>
+              <Text style={s.addBtnText}>+ {t('contactsAddBtn')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Search */}
@@ -791,6 +804,7 @@ export default function WebContactsScreen({ onNavigateToProperty, user }) {
             onEdit={() => openEdit(selected)}
             onDelete={handleContactDeleted}
             onOpenInline={openInlineProperty}
+            user={user}
           />
         ) : (
           <View style={s.rightEmpty}>
