@@ -16,11 +16,11 @@ const ACCENT_LIGHT = '#B2D8DB';
 export default function WebLayout({ children, activeTab, onTabChange, fullHeight, user }) {
   const { t } = useLanguage();
   const menuItems = [
-    { id: 'dashboard',  label: t('dashboard'), emoji: '🏠' },
-    { id: 'properties', label: t('base'),       emoji: '🏢' },
-    { id: 'bookings',   label: t('bookings'),   emoji: '📅' },
-    { id: 'contacts',   label: t('contacts'),   emoji: '👥' },
-    { id: 'profile',    label: t('myAccount'),  emoji: '👤' },
+    { id: 'dashboard',  label: t('dashboard') },
+    { id: 'properties', label: t('base')       },
+    { id: 'bookings',   label: t('bookings')   },
+    { id: 'contacts',   label: t('contacts')   },
+    { id: 'profile',    label: t('myAccount')  },
   ];
 
   // Имя пользователя для отображения в нижней части сайдбара
@@ -59,7 +59,6 @@ export default function WebLayout({ children, activeTab, onTabChange, fullHeight
               >
                 {/* Левая цветная полоска активного пункта */}
                 {isActive && <View style={styles.menuActiveStripe} />}
-                <Text style={styles.menuItemEmoji}>{item.emoji}</Text>
                 <Text style={[styles.menuItemText, isActive && styles.menuItemTextActive]}>
                   {item.label}
                 </Text>
@@ -157,11 +156,6 @@ const styles = StyleSheet.create({
     width: 3,
     backgroundColor: ACCENT,
     borderRadius: 2,
-  },
-  menuItemEmoji: {
-    fontSize: 16,
-    width: 22,
-    textAlign: 'center',
   },
   menuItemText: {
     fontSize: 14,
