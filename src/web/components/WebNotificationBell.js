@@ -94,8 +94,20 @@ function formatValue(val) {
   return String(val);
 }
 
-// Модальное окно с карточками изменений черновика
-function DiffModal({ visible, onClose, draft, originalProperty }) {
+// Модальное окно с карточками изменений и встроенным принятием решения
+function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onReject }) {
+  // Локальный стейт для режима ввода причины отклонения
+  const [rejectMode, setRejectMode] = useState(false);
+  const [reason, setReason] = useState('');
+
+  // Сброс режима при закрытии/открытии модала
+  React.useEffect(() => {
+    if (!visible) {
+      setRejectMode(false);
+      setReason('');
+    }
+  }, [visible]);
+
   if (!draft || !originalProperty) return null;
 
   // Вычисляем только изменённые поля
@@ -114,6 +126,16 @@ function DiffModal({ visible, onClose, draft, originalProperty }) {
 
   const propName = originalProperty.name || null;
 
+  const handleApprove = () => {
+    onApprove?.();
+    onClose();
+  };
+
+  const handleRejectConfirm = () => {
+    onReject?.(reason);
+    onClose();
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade"
            onRequestClose={onClose} statusBarTranslucent>
@@ -121,11 +143,11 @@ function DiffModal({ visible, onClose, draft, originalProperty }) {
         <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
           <View style={sd.popup}>
 
-            {/* Заголовок с иконкой, названием объекта и крестиком */}
+            {/* Заголовок с иконкой 📋, названием объекта и крестиком */}
             <View style={sd.header}>
               <View style={sd.headerLeft}>
                 <View style={sd.headerIconWrap}>
-                  <Text style={sd.headerIcon}>✏️</Text>
+                  <Text style={sd.headerIcon}>📋</Text>
                 </View>
                 <View>
                   <Text style={sd.title}>Изменения объекта</Text>
@@ -143,10 +165,13 @@ function DiffModal({ visible, onClose, draft, originalProperty }) {
             {/* Счётчик изменений */}
             {changes.length > 0 && (
               <View style={sd.countRow}>
-                <Text style={sd.countText}>{changes.length} {changes.length === 1 ? 'изменение' : changes.length < 5 ? 'изменения' : 'изменений'}</Text>
+                <Text style={sd.countText}>
+                  {changes.length} {changes.length === 1 ? 'изменение' : changes.length < 5 ? 'изменения' : 'изменений'}
+                </Text>
               </View>
             )}
 
+            {/* Карточки изменений */}
             <ScrollView style={sd.scroll} showsVerticalScrollIndicator={false}
                         contentContainerStyle={sd.scrollContent}>
               {changes.length === 0 ? (
@@ -154,9 +179,7 @@ function DiffModal({ visible, onClose, draft, originalProperty }) {
               ) : (
                 changes.map((c, i) => (
                   <View key={i} style={sd.diffCard}>
-                    {/* Название поля */}
                     <Text style={sd.diffCardLabel}>{c.label}</Text>
-                    {/* Было → Стало */}
                     <View style={sd.diffCardRow}>
                       <View style={sd.diffCardOldWrap}>
                         <Text style={sd.diffCardOldHint}>Было</Text>
@@ -172,6 +195,46 @@ function DiffModal({ visible, onClose, draft, originalProperty }) {
                 ))
               )}
             </ScrollView>
+
+            {/* Зона принятия решения — за пределами ScrollView */}
+            <View style={sd.actionZone}>
+              {!rejectMode ? (
+                /* Состояние A: кнопки «Одобрить» и «Отклонить» */
+                <View style={sd.actionBtns}>
+                  <TouchableOpacity style={sd.approveBtn} onPress={handleApprove}>
+                    <Text style={sd.approveBtnText}>✓ Одобрить</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={sd.rejectBtn} onPress={() => setRejectMode(true)}>
+                    <Text style={sd.rejectBtnText}>✕ Отклонить</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                /* Состояние B: форма ввода причины отклонения */
+                <>
+                  <TextInput
+                    style={sd.rejectInput}
+                    placeholder="Причина отклонения..."
+                    placeholderTextColor="#ADB5BD"
+                    value={reason}
+                    onChangeText={setReason}
+                    multiline
+                    numberOfLines={3}
+                    autoFocus
+                  />
+                  <View style={sd.rejectActions}>
+                    <TouchableOpacity
+                      style={sd.backBtn}
+                      onPress={() => { setRejectMode(false); setReason(''); }}
+                    >
+                      <Text style={sd.backBtnText}>Назад</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={sd.rejectConfirmBtn} onPress={handleRejectConfirm}>
+                      <Text style={sd.rejectConfirmBtnText}>Отклонить</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
 
           </View>
         </TouchableOpacity>
@@ -204,44 +267,47 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
       </View>
 
       {/* Кнопки действия — только для Админа, только если не выполнено */}
-      {needsAction && !rejectMode && (
-        <>
-          {/* Кнопка просмотра diff — только для уведомлений о редактировании */}
-          {item.type === 'edit_submitted' && (
-            <TouchableOpacity style={s.diffBtn} onPress={() => onViewDiff(item)}>
-              <Text style={s.diffBtnText}>🔍 Посмотреть изменения</Text>
-            </TouchableOpacity>
-          )}
-          <View style={s.actionRow}>
-            <TouchableOpacity style={s.approveBtn} onPress={() => onApprove(item)}>
-              <Text style={s.approveBtnText}>✓ Одобрить</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.rejectBtn} onPress={() => setRejectMode(true)}>
-              <Text style={s.rejectBtnText}>✕ Отклонить</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
-
-      {/* Форма причины отклонения */}
-      {rejectMode && (
-        <View style={s.rejectForm}>
-          <TextInput
-            style={s.rejectInput}
-            placeholder="Причина отклонения..."
-            value={reason}
-            onChangeText={setReason}
-            autoFocus
-          />
-          <View style={s.rejectFormActions}>
-            <TouchableOpacity style={s.rejectCancelBtn} onPress={() => { setRejectMode(false); setReason(''); }}>
-              <Text style={s.rejectCancelText}>Назад</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.rejectConfirmBtn} onPress={() => onReject(item, reason)}>
-              <Text style={s.rejectConfirmText}>Отклонить</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+      {needsAction && (
+        item.type === 'edit_submitted' ? (
+          /* Для edit_submitted: только кнопка открытия DiffModal с принятием решения */
+          <TouchableOpacity style={s.diffBtn} onPress={() => onViewDiff(item)}>
+            <Text style={s.diffBtnText}>🔍 Посмотреть и принять решение</Text>
+          </TouchableOpacity>
+        ) : (
+          /* Для property_submitted / price_submitted: стандартные кнопки */
+          <>
+            {!rejectMode && (
+              <View style={s.actionRow}>
+                <TouchableOpacity style={s.approveBtn} onPress={() => onApprove(item)}>
+                  <Text style={s.approveBtnText}>✓ Одобрить</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.rejectBtn} onPress={() => setRejectMode(true)}>
+                  <Text style={s.rejectBtnText}>✕ Отклонить</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {/* Форма причины отклонения — только для не-edit_submitted */}
+            {rejectMode && (
+              <View style={s.rejectForm}>
+                <TextInput
+                  style={s.rejectInput}
+                  placeholder="Причина отклонения..."
+                  value={reason}
+                  onChangeText={setReason}
+                  autoFocus
+                />
+                <View style={s.rejectFormActions}>
+                  <TouchableOpacity style={s.rejectCancelBtn} onPress={() => { setRejectMode(false); setReason(''); }}>
+                    <Text style={s.rejectCancelText}>Назад</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.rejectConfirmBtn} onPress={() => onReject(item, reason)}>
+                    <Text style={s.rejectConfirmText}>Отклонить</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </>
+        )
       )}
 
       {/* Уже выполнено */}
@@ -416,7 +482,8 @@ export default function WebNotificationBell({ userId }) {
           .single(),
       ]);
       if (draftRes.data && propRes.data) {
-        setDiffModal({ draft: draftRes.data, originalProperty: propRes.data });
+        // Сохраняем notif чтобы вызвать handleApprove/handleReject прямо из DiffModal
+        setDiffModal({ draft: draftRes.data, originalProperty: propRes.data, notif });
       }
     } catch (e) {
       console.warn('handleViewDiff error', e);
@@ -480,12 +547,20 @@ export default function WebNotificationBell({ userId }) {
         </TouchableOpacity>
       </Modal>
 
-      {/* Модальное окно просмотра изменений черновика */}
+      {/* Модальное окно просмотра изменений с принятием решения */}
       <DiffModal
         visible={!!diffModal}
         onClose={() => setDiffModal(null)}
         draft={diffModal?.draft}
         originalProperty={diffModal?.originalProperty}
+        onApprove={() => {
+          if (diffModal?.notif) handleApprove(diffModal.notif);
+          setDiffModal(null);
+        }}
+        onReject={(reason) => {
+          if (diffModal?.notif) handleReject(diffModal.notif, reason);
+          setDiffModal(null);
+        }}
       />
     </View>
   );
@@ -744,6 +819,86 @@ const sd = StyleSheet.create({
   diffCardNewValue: {
     fontSize: 13,
     color: '#16A34A',
+    fontWeight: '700',
+  },
+
+  // Зона принятия решения — фиксирована внизу модала, за пределами ScrollView
+  actionZone: {
+    borderTopWidth: 1,
+    borderTopColor: '#E9ECEF',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 10,
+  },
+  actionBtns: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  approveBtn: {
+    flex: 1,
+    backgroundColor: '#16A34A',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  approveBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  rejectBtn: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E53935',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  rejectBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#E53935',
+  },
+  rejectInput: {
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: '#212529',
+    minHeight: 72,
+    outlineWidth: 0,
+    textAlignVertical: 'top',
+  },
+  rejectActions: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'flex-end',
+  },
+  backBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  backBtnText: {
+    fontSize: 13,
+    color: '#6C757D',
+    fontWeight: '600',
+  },
+  rejectConfirmBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#E53935',
+  },
+  rejectConfirmBtnText: {
+    fontSize: 13,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
 });
