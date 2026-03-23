@@ -27,6 +27,51 @@ const C = {
   unread: '#EAF4F5',
 };
 
+// Человекочитаемые названия полей объекта для diff-таблицы
+const FIELD_LABELS = {
+  name:                     'Название',
+  city:                     'Город',
+  district:                 'Район',
+  address:                  'Адрес',
+  bedrooms:                 'Спален',
+  bathrooms:                'Санузлов',
+  area:                     'Площадь (м²)',
+  floors:                   'Этажей',
+  houses_count:             'Кол-во домов',
+  air_conditioners:         'Кондиционеры',
+  internet_speed:           'Интернет (Мбит/с)',
+  beach_distance:           'До пляжа (м)',
+  market_distance:          'До магазина (м)',
+  google_maps_link:         'Google Maps',
+  website_url:              'Сайт объекта',
+  description:              'Описание',
+  price_monthly:            'Цена/мес',
+  booking_deposit:          'Депозит бронирования',
+  save_deposit:             'Сохранный депозит',
+  commission:               'Комиссия от клиента',
+  owner_commission_one_time:'Комиссия от собств. разовая',
+  owner_commission_monthly: 'Комиссия от собств. ежемес.',
+  electricity_price:        'Электричество',
+  water_price:              'Вода',
+  gas_price:                'Газ',
+  internet_price:           'Интернет/мес',
+  cleaning_price:           'Уборка',
+  exit_cleaning_price:      'Уборка при выезде',
+  pets_allowed:             'Питомцы разрешены',
+  long_term_booking:        'Длинные даты',
+  video_url:                'Видео ссылка',
+};
+
+// Поля которые не показываем в diff (технические / не информативные)
+const DIFF_SKIP_FIELDS = new Set([
+  'photos', 'amenities', 'currency', 'code', 'code_suffix', 'type',
+  'location_id', 'resort_id', 'owner_id', 'owner_id_2',
+  'price_monthly_is_from', 'booking_deposit_is_from', 'save_deposit_is_from',
+  'commission_is_from', 'owner_commission_one_time_is_from',
+  'owner_commission_one_time_is_percent', 'owner_commission_monthly_is_from',
+  'owner_commission_monthly_is_percent', 'water_price_type',
+]);
+
 const TYPE_ICON = {
   property_submitted: '🏠',
   property_approved:  '✅',
@@ -42,7 +87,77 @@ const TYPE_ICON = {
 // Уведомления которые требуют действия от Админа
 const ACTION_TYPES = new Set(['property_submitted', 'edit_submitted', 'price_submitted']);
 
-function NotificationItem({ item, onDelete, onApprove, onReject }) {
+// Форматирование значения поля для отображения в diff
+function formatValue(val) {
+  if (val === null || val === undefined || val === '') return '—';
+  if (typeof val === 'boolean') return val ? '✅ Да' : '❌ Нет';
+  return String(val);
+}
+
+// Модальное окно с таблицей изменений черновика
+function DiffModal({ visible, onClose, draft, originalProperty }) {
+  if (!draft || !originalProperty) return null;
+
+  // Вычисляем только изменённые поля
+  const changes = [];
+  const draftData = draft.draft_data || {};
+  for (const [field, newVal] of Object.entries(draftData)) {
+    if (DIFF_SKIP_FIELDS.has(field)) continue;
+    const label = FIELD_LABELS[field];
+    if (!label) continue; // неизвестное поле — пропускаем
+    const oldVal = originalProperty[field];
+    const oldStr = formatValue(oldVal);
+    const newStr = formatValue(newVal);
+    if (oldStr === newStr) continue; // не изменилось — пропускаем
+    changes.push({ label, oldStr, newStr });
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade"
+           onRequestClose={onClose} statusBarTranslucent>
+      <TouchableOpacity style={sd.overlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+          <View style={sd.popup}>
+
+            <View style={sd.header}>
+              <Text style={sd.title}>🔍 Изменения объекта</Text>
+              <TouchableOpacity style={sd.closeBtn} onPress={onClose}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={sd.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={sd.scroll} showsVerticalScrollIndicator={false}>
+              {changes.length === 0 ? (
+                <Text style={sd.empty}>Нет отслеживаемых изменений</Text>
+              ) : (
+                <>
+                  {/* Шапка таблицы */}
+                  <View style={sd.tableHeader}>
+                    <Text style={[sd.col, sd.colField, sd.headerText]}>Поле</Text>
+                    <Text style={[sd.col, sd.colOld, sd.headerText]}>Было</Text>
+                    <Text style={[sd.col, sd.colNew, sd.headerText]}>Стало</Text>
+                  </View>
+                  {/* Строки изменений */}
+                  {changes.map((c, i) => (
+                    <View key={i} style={[sd.tableRow, i % 2 === 0 && sd.tableRowEven]}>
+                      <Text style={[sd.col, sd.colField, sd.fieldText]}>{c.label}</Text>
+                      <Text style={[sd.col, sd.colOld, sd.oldText]}>{c.oldStr}</Text>
+                      <Text style={[sd.col, sd.colNew, sd.newText]}>{c.newStr}</Text>
+                    </View>
+                  ))}
+                </>
+              )}
+            </ScrollView>
+
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
   const icon = TYPE_ICON[item.type] || '🔔';
   const time = dayjs(item.created_at).fromNow();
   const needsAction = ACTION_TYPES.has(item.type) && !item.action_taken;
@@ -67,14 +182,22 @@ function NotificationItem({ item, onDelete, onApprove, onReject }) {
 
       {/* Кнопки действия — только для Админа, только если не выполнено */}
       {needsAction && !rejectMode && (
-        <View style={s.actionRow}>
-          <TouchableOpacity style={s.approveBtn} onPress={() => onApprove(item)}>
-            <Text style={s.approveBtnText}>✓ Одобрить</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.rejectBtn} onPress={() => setRejectMode(true)}>
-            <Text style={s.rejectBtnText}>✕ Отклонить</Text>
-          </TouchableOpacity>
-        </View>
+        <>
+          {/* Кнопка просмотра diff — только для уведомлений о редактировании */}
+          {item.type === 'edit_submitted' && (
+            <TouchableOpacity style={s.diffBtn} onPress={() => onViewDiff(item)}>
+              <Text style={s.diffBtnText}>🔍 Посмотреть изменения</Text>
+            </TouchableOpacity>
+          )}
+          <View style={s.actionRow}>
+            <TouchableOpacity style={s.approveBtn} onPress={() => onApprove(item)}>
+              <Text style={s.approveBtnText}>✓ Одобрить</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.rejectBtn} onPress={() => setRejectMode(true)}>
+              <Text style={s.rejectBtnText}>✕ Отклонить</Text>
+            </TouchableOpacity>
+          </View>
+        </>
       )}
 
       {/* Форма причины отклонения */}
@@ -111,6 +234,7 @@ export default function WebNotificationBell({ userId }) {
   const [open, setOpen]             = useState(false);
   const [notifications, setNotifs]  = useState([]);
   const [loading, setLoading]       = useState(false);
+  const [diffModal, setDiffModal]   = useState(null); // { draft, originalProperty } или null
   const loadedRef = useRef(false);
 
   const loadCount = useCallback(async () => {
@@ -251,6 +375,31 @@ export default function WebNotificationBell({ userId }) {
     }
   };
 
+  // Загружаем черновик и оригинальный объект для показа diff
+  const handleViewDiff = async (notif) => {
+    if (!notif.property_id) return;
+    try {
+      const [draftRes, propRes] = await Promise.all([
+        supabase
+          .from('property_drafts')
+          .select('*')
+          .eq('property_id', notif.property_id)
+          .eq('status', 'pending')
+          .maybeSingle(),
+        supabase
+          .from('properties')
+          .select('*')
+          .eq('id', notif.property_id)
+          .single(),
+      ]);
+      if (draftRes.data && propRes.data) {
+        setDiffModal({ draft: draftRes.data, originalProperty: propRes.data });
+      }
+    } catch (e) {
+      console.warn('handleViewDiff error', e);
+    }
+  };
+
   const handleClose = () => {
     setOpen(false);
   };
@@ -298,6 +447,7 @@ export default function WebNotificationBell({ userId }) {
                     onDelete={handleDelete}
                     onApprove={handleApprove}
                     onReject={handleReject}
+                    onViewDiff={handleViewDiff}
                   />
                 ))}
               </ScrollView>
@@ -306,6 +456,14 @@ export default function WebNotificationBell({ userId }) {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* Модальное окно просмотра изменений черновика */}
+      <DiffModal
+        visible={!!diffModal}
+        onClose={() => setDiffModal(null)}
+        draft={diffModal?.draft}
+        originalProperty={diffModal?.originalProperty}
+      />
     </View>
   );
 }
@@ -393,7 +551,95 @@ const s = StyleSheet.create({
   rejectConfirmText: { fontSize: 13, color: '#FFF', fontWeight: '700' },
   actionDone: { marginTop: 8, marginLeft: 48, fontSize: 12, color: '#16A34A', fontWeight: '600' },
 
+  // Кнопка «Посмотреть изменения» для edit_submitted
+  diffBtn: {
+    marginLeft: 48,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#3D7D82',
+    alignSelf: 'flex-start',
+  },
+  diffBtnText: {
+    fontSize: 12,
+    color: '#3D7D82',
+    fontWeight: '600',
+  },
+
   emptyWrap: { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyIcon: { fontSize: 36 },
   emptyText: { fontSize: 14, color: C.muted, textAlign: 'center', padding: 20 },
+});
+
+// Стили для модального окна DiffModal (отдельный объект)
+const sd = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  popup: {
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: 480,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
+  },
+  title: { fontSize: 16, fontWeight: '800', color: '#212529' },
+  closeBtn: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#F4F6F9',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  closeBtnText: { fontSize: 13, color: '#6C757D', fontWeight: '700' },
+  scroll: { maxHeight: 400 },
+  empty: {
+    textAlign: 'center',
+    padding: 24,
+    color: '#6C757D',
+    fontSize: 14,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#F4F6F9',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
+  },
+  headerText: { fontSize: 11, fontWeight: '700', color: '#6C757D', textTransform: 'uppercase' },
+  tableRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F4F6F9',
+  },
+  tableRowEven: { backgroundColor: '#FAFBFC' },
+  col: { fontSize: 13 },
+  colField: { flex: 2, color: '#212529', fontWeight: '600', paddingRight: 8 },
+  colOld: { flex: 2, color: '#6C757D', paddingRight: 8, textDecorationLine: 'line-through' },
+  colNew: { flex: 2, color: '#16A34A', fontWeight: '600' },
+  fieldText: {},
+  oldText: {},
+  newText: {},
 });
