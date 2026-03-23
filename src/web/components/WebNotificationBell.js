@@ -179,6 +179,7 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
                   <View style={sd.tableHead}>
                     <Text style={[sd.tableHeadCell, sd.colField]}>Поле</Text>
                     <Text style={[sd.tableHeadCell, sd.colOld]}>Было</Text>
+                    <Text style={sd.tableArrow}>{' '}</Text>
                     <Text style={[sd.tableHeadCell, sd.colNew]}>Стало</Text>
                   </View>
                   {/* Строки изменений */}
@@ -190,6 +191,7 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
                       <Text style={[sd.tableCell, sd.colOld, sd.oldText]} numberOfLines={2}>
                         {c.oldStr}
                       </Text>
+                      <Text style={sd.tableArrow}>→</Text>
                       <Text style={[sd.tableCell, sd.colNew, sd.newText]} numberOfLines={2}>
                         {c.newStr}
                       </Text>
@@ -680,7 +682,7 @@ const s = StyleSheet.create({
   emptyText: { fontSize: 14, color: C.muted, textAlign: 'center', padding: 20 },
 });
 
-// Стили для модального окна DiffModal (карточный дизайн)
+// Стили для модального окна DiffModal (табличный дизайн)
 const sd = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -691,8 +693,8 @@ const sd = StyleSheet.create({
   },
   popup: {
     width: '100%',
-    maxWidth: 560,
-    maxHeight: 480,
+    maxWidth: 680,
+    maxHeight: 520,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     overflow: 'hidden',
@@ -770,7 +772,7 @@ const sd = StyleSheet.create({
   tableRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 13,
     borderBottomWidth: 1,
     borderBottomColor: '#F4F6F9',
     minHeight: 40,
@@ -781,6 +783,14 @@ const sd = StyleSheet.create({
   },
   tableCell: {
     fontSize: 13,
+  },
+
+  // Стрелка между «Было» и «Стало»
+  tableArrow: {
+    fontSize: 14,
+    color: '#CED4DA',
+    paddingHorizontal: 8,
+    flexShrink: 0,
   },
 
   // Колонки — пропорции
