@@ -4,6 +4,7 @@ import { supabase } from '../../services/supabase';
 import {
   getNotifications,
   getUnreadCount,
+  getPendingActionsCount,
   markAllRead,
   deleteNotification,
   markActionTaken,
@@ -252,7 +253,7 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
 }
 
 function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
-  const icon = TYPE_ICON[item.type] || '🔔';
+  const icon = TYPE_ICON[item.type] ?? null;
   const time = dayjs(item.created_at).fromNow();
   const needsAction = ACTION_TYPES.has(item.type) && !item.action_taken;
   const [rejectMode, setRejectMode] = useState(false);
@@ -261,11 +262,15 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
   return (
     <View style={[s.item, !item.is_read && s.itemUnread]}>
       <View style={s.itemRow}>
-        {icon && (
-          <View style={s.itemIcon}>
-            <Text style={s.itemIconText}>{icon}</Text>
-          </View>
-        )}
+        {/* Цветная точка статуса: красная — ждёт действия, тиловая — выполнено, серая — инфо */}
+        <View style={s.statusDot}>
+          <View style={[
+            s.statusDotInner,
+            needsAction ? s.statusDotPending :
+            item.action_taken ? s.statusDotDone :
+            s.statusDotInfo
+          ]} />
+        </View>
         <View style={s.itemBody}>
           <Text style={s.itemTitle}>{item.title}</Text>
           {!!item.body && <Text style={s.itemBodyText}>{item.body}</Text>}
@@ -337,7 +342,7 @@ export default function WebNotificationBell({ userId }) {
   const loadedRef = useRef(false);
 
   const loadCount = useCallback(async () => {
-    const count = await getUnreadCount();
+    const count = await getPendingActionsCount();
     setUnread(count);
   }, []);
 
@@ -635,8 +640,22 @@ const s = StyleSheet.create({
   },
   itemUnread: { backgroundColor: C.unread },
   itemRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  itemIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  itemIconText: { fontSize: 18 },
+  // Цветная точка статуса уведомления
+  statusDot: {
+    width: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+    flexShrink: 0,
+  },
+  statusDotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  statusDotPending: { backgroundColor: '#E53935' },
+  statusDotDone:    { backgroundColor: '#3D7D82' },
+  statusDotInfo:    { backgroundColor: '#CED4DA' },
   itemBody: { flex: 1, gap: 3 },
   itemTitle: { fontSize: 13, fontWeight: '600', color: C.text, lineHeight: 18 },
   itemBodyText: { fontSize: 12, color: C.muted, lineHeight: 17 },
