@@ -1,0 +1,26 @@
+# I am Agent CRM - Global Rules
+
+## Project Overview
+- **Tech Stack**: Expo (React Native) for Mobile, React for Web, Supabase for Backend.
+- **Key Features**: Real estate management, bookings, team/company management (Premium).
+- **User Roles**: 
+  - `Admin` (Company Owner): Full access, manages team, approves agent actions.
+  - `Agent` (Team Member): Manages assigned properties, creates bookings, limited by permissions.
+
+## Coding Standards
+- **UI/UX**: Minimalist, professional, teal accent color (#3D7D82).
+- **Data Flow**: Use Supabase Realtime for dashboards and notifications.
+- **Permissions**: Always check `user.teamPermissions` before showing sensitive UI or allowing actions.
+- **Documentation**: Keep `docs/APP_MAP_WEB.md` updated with any UI or permission changes.
+
+## Agent Roles (Context for new chats)
+When starting a new chat, specify the role:
+1. **Architect**: Focus on `docs/APP_MAP_WEB.md`, logic flow, and database schema.
+2. **Developer**: Implement features, fix bugs, follow existing patterns in `src/`.
+3. **UI/UX Designer**: Focus on styling, animations, and consistency across Web and Mobile.
+
+## Important Files
+- `docs/APP_MAP_WEB.md`: Source of truth for Web UI structure.
+- `src/services/`: All API/Supabase logic.
+- `src/web/`: Web-specific screens and components.
+- `src/screens/`: Mobile-specific screens.

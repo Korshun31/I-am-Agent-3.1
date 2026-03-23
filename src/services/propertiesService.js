@@ -198,3 +198,194 @@ export async function rejectProperty(propertyId, reason) {
     .eq('id', propertyId);
   if (error) throw new Error(error.message);
 }
+
+// =============================================================================
+// СИСТЕМА ЧЕРНОВИКОВ (Property Drafts)
+// Агент отправляет изменения на одобрение Администратору.
+// Оригинал в properties НЕ меняется до момента одобрения.
+// =============================================================================
+
+/**
+ * Отправить черновик изменений объекта на одобрение Администратору.
+ * Делает UPSERT — если черновик уже существует, обновляет его.
+ * НЕ изменяет таблицу properties.
+ *
+ * @param {string} propertyId - UUID объекта
+ * @param {object} draftData - объект со всеми изменёнными полями
+ * @returns {object} запись черновика
+ */
+export async function submitPropertyDraft(propertyId, draftData) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('property_drafts')
+    .upsert(
+      {
+        property_id: propertyId,
+        agent_id: session.user.id,
+        draft_data: draftData,
+        status: 'pending',
+        rejection_reason: null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'property_id,agent_id' }
+    )
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/**
+ * Получить активный (pending) черновик текущего агента для указанного объекта.
+ *
+ * @param {string} propertyId - UUID объекта
+ * @returns {object|null} черновик или null
+ */
+export async function getPropertyDraft(propertyId) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return null;
+
+  const { data, error } = await supabase
+    .from('property_drafts')
+    .select('*')
+    .eq('property_id', propertyId)
+    .eq('agent_id', session.user.id)
+    .eq('status', 'pending')
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('getPropertyDraft error:', error.message);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Для Администратора: получить все pending черновики объектов компании.
+ * Включает имя объекта, код и имя агента.
+ *
+ * @param {string} companyId - UUID компании
+ * @returns {Array<{draft, propertyName, propertyCode, agentName}>}
+ */
+export async function getPendingDraftsForAdmin(companyId) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return [];
+
+  const { data, error } = await supabase
+    .from('property_drafts')
+    .select(`
+      *,
+      properties!inner(name, code, company_id),
+      agents:agent_id(id, name, last_name, email)
+    `)
+    .eq('properties.company_id', companyId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('getPendingDraftsForAdmin error:', error.message);
+    return [];
+  }
+
+  return (data || []).map((row) => ({
+    draft: {
+      id: row.id,
+      property_id: row.property_id,
+      agent_id: row.agent_id,
+      draft_data: row.draft_data,
+      status: row.status,
+      rejection_reason: row.rejection_reason,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    },
+    propertyName: row.properties?.name || '',
+    propertyCode: row.properties?.code || '',
+    agentName: [row.agents?.name, row.agents?.last_name]
+               .filter(Boolean).join(' ') || row.agents?.email || '',
+  }));
+}
+
+/**
+ * Администратор одобряет черновик: применяет draft_data к объекту,
+ * ставит статус черновика 'approved' и property_status объекта 'approved'.
+ *
+ * @param {string} draftId - UUID черновика
+ * @returns {object} обновлённая запись объекта
+ */
+export async function approvePropertyDraft(draftId) {
+  // Загружаем черновик
+  const { data: draft, error: draftErr } = await supabase
+    .from('property_drafts')
+    .select('*')
+    .eq('id', draftId)
+    .single();
+
+  if (draftErr) throw new Error(draftErr.message);
+  if (!draft) throw new Error('Draft not found');
+
+  // Применяем изменения к объекту и одобряем черновик последовательно
+  const { data: updatedProperty, error: propErr } = await supabase
+    .from('properties')
+    .update({ ...draft.draft_data, property_status: 'approved' })
+    .eq('id', draft.property_id)
+    .select()
+    .single();
+
+  if (propErr) throw new Error(propErr.message);
+
+  const { error: approveErr } = await supabase
+    .from('property_drafts')
+    .update({ status: 'approved', updated_at: new Date().toISOString() })
+    .eq('id', draftId);
+
+  if (approveErr) throw new Error(approveErr.message);
+
+  syncIfEnabled();
+  return updatedProperty;
+}
+
+/**
+ * Администратор отклоняет черновик: ставит статус 'rejected' с причиной.
+ * Данные в properties НЕ меняются. Объект возвращается в статус 'approved'.
+ *
+ * @param {string} draftId - UUID черновика
+ * @param {string} reason - причина отклонения
+ */
+export async function rejectPropertyDraft(draftId, reason) {
+  // Загружаем черновик чтобы получить property_id
+  const { data: draft, error: draftErr } = await supabase
+    .from('property_drafts')
+    .select('property_id')
+    .eq('id', draftId)
+    .single();
+
+  if (draftErr) throw new Error(draftErr.message);
+  if (!draft) throw new Error('Draft not found');
+
+  // Отклоняем черновик
+  const { error: rejectErr } = await supabase
+    .from('property_drafts')
+    .update({
+      status: 'rejected',
+      rejection_reason: reason || '',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', draftId);
+
+  if (rejectErr) throw new Error(rejectErr.message);
+
+  // Возвращаем объект в нормальный статус
+  const { error: propErr } = await supabase
+    .from('properties')
+    .update({ property_status: 'approved' })
+    .eq('id', draft.property_id);
+
+  if (propErr) throw new Error(propErr.message);
+
+  syncIfEnabled();
+}

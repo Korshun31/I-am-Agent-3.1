@@ -9,7 +9,7 @@ import {
   markActionTaken,
   sendNotification,
 } from '../../services/notificationsService';
-import { approveProperty } from '../../services/propertiesService';
+import { approveProperty, approvePropertyDraft, rejectProperty, rejectPropertyDraft } from '../../services/propertiesService';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/ru';
@@ -168,18 +168,38 @@ export default function WebNotificationBell({ userId }) {
   const handleApprove = async (notif) => {
     try {
       if (notif.property_id) {
-        await approveProperty(notif.property_id);
+        // Ищем pending черновик для этого объекта
+        const { data: draft } = await supabase
+          .from('property_drafts')
+          .select('id')
+          .eq('property_id', notif.property_id)
+          .eq('status', 'pending')
+          .maybeSingle();
+
+        if (draft) {
+          // Есть черновик — применяем его (draft_data копируется в properties)
+          await approvePropertyDraft(draft.id);
+        } else {
+          // Нет черновика — это новый объект на модерации (create/create-unit flow)
+          await approveProperty(notif.property_id);
+        }
       }
       await markActionTaken(notif.id);
-      setNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, action_taken: true } : n));
+      setNotifs(prev => prev.map(n =>
+        n.id === notif.id ? { ...n, action_taken: true } : n
+      ));
       // Уведомляем агента
       if (notif.sender_id) {
-        const typeMap = { property_submitted: 'property_approved', edit_submitted: 'edit_approved', price_submitted: 'price_approved' };
+        const typeMap = {
+          property_submitted: 'property_approved',
+          edit_submitted: 'edit_approved',
+          price_submitted: 'price_approved',
+        };
         await sendNotification({
           recipientId: notif.sender_id,
           senderId: userId,
           type: typeMap[notif.type] || 'property_approved',
-          title: '✅ Одобрено',
+          title: '✅ Изменения одобрены',
           body: notif.title,
           propertyId: notif.property_id,
         });
@@ -192,19 +212,36 @@ export default function WebNotificationBell({ userId }) {
   const handleReject = async (notif, reason) => {
     try {
       if (notif.property_id) {
-        // Помечаем объект как отклонённый
-        await supabase.from('properties').update({ property_status: 'rejected', rejection_reason: reason || null }).eq('id', notif.property_id);
+        const { data: draft } = await supabase
+          .from('property_drafts')
+          .select('id')
+          .eq('property_id', notif.property_id)
+          .eq('status', 'pending')
+          .maybeSingle();
+
+        if (draft) {
+          // Есть черновик — отклоняем его (данные в properties не меняются)
+          await rejectPropertyDraft(draft.id, reason);
+        } else {
+          // Нет черновика — это новый объект (create flow), отклоняем объект
+          await rejectProperty(notif.property_id, reason);
+        }
       }
       await markActionTaken(notif.id);
-      setNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, action_taken: true } : n));
-      // Уведомляем агента
+      setNotifs(prev => prev.map(n =>
+        n.id === notif.id ? { ...n, action_taken: true } : n
+      ));
       if (notif.sender_id) {
-        const typeMap = { property_submitted: 'property_rejected', edit_submitted: 'edit_rejected', price_submitted: 'price_rejected' };
+        const typeMap = {
+          property_submitted: 'property_rejected',
+          edit_submitted: 'edit_rejected',
+          price_submitted: 'price_rejected',
+        };
         await sendNotification({
           recipientId: notif.sender_id,
           senderId: userId,
           type: typeMap[notif.type] || 'property_rejected',
-          title: '❌ Отклонено',
+          title: '❌ Изменения отклонены',
           body: reason ? `Причина: ${reason}` : notif.title,
           propertyId: notif.property_id,
         });

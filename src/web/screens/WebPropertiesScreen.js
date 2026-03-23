@@ -38,7 +38,7 @@ const AMENITY_ICONS = {
   blender:         require('../../../assets/icon-amenity-blender.png'),
 };
 
-import { getProperties, createProperty, deleteProperty, approveProperty, rejectProperty, updatePropertyResponsible } from '../../services/propertiesService';
+import { getProperties, createProperty, deleteProperty, approveProperty, rejectProperty, updatePropertyResponsible, getPropertyDraft } from '../../services/propertiesService';
 import { getActiveTeamMembers } from '../../services/companyService';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
 import { getContacts } from '../../services/contactsService';
@@ -259,9 +259,17 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   const isAdmin = !isTeamMember;
   const isCompanyAdmin = !!(user?.workAs === 'company' && user?.companyId);
 
+  // Разрешения агента
+  const isAgent = !!user?.teamMembership;
+  const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
+  const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
+  const canSeeFinancials = !isAgent || user?.teamPermissions?.can_see_financials;
+  const canAddUnit = !isAgent || user?.teamPermissions?.can_add_property;
+
   const [teamMembers, setTeamMembers] = useState([]);
   const [currentResponsible, setCurrentResponsible] = useState(property.responsible_agent_id ?? null);
   const [responsiblePickerVisible, setResponsiblePickerVisible] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState(null);
 
   React.useEffect(() => {
     setCurrentResponsible(property.responsible_agent_id ?? null);
@@ -271,15 +279,15 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
     if (!isCompanyAdmin || !user?.companyId) return;
     getActiveTeamMembers(user.companyId).then(setTeamMembers).catch(() => {});
   }, [isCompanyAdmin, user?.companyId]);
+
+  // Загружаем pending черновик агента для этого объекта
+  React.useEffect(() => {
+    if (!isAgent || !property?.id) { setPendingDraft(null); return; }
+    getPropertyDraft(property.id).then(setPendingDraft).catch(() => {});
+  }, [property?.id, isAgent]);
+
   const isSubmitted = property.property_status === 'submitted';
   const isRejected = property.property_status === 'rejected';
-
-  // Разрешения агента
-  const isAgent = !!user?.teamMembership;
-  const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
-  const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
-  const canSeeFinancials = !isAgent || user?.teamPermissions?.can_see_financials;
-  const canAddUnit = !isAgent || user?.teamPermissions?.can_add_property;
 
   const owner1 = contacts.find(c => c.id === property.owner_id);
   const owner2 = contacts.find(c => c.id === property.owner_id_2);
@@ -521,6 +529,15 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
             <Text style={s.rejectedReason}>{property.rejection_reason}</Text>
           </View>
         ) : null}
+
+        {/* Баннер для агента: изменения отправлены на проверку */}
+        {pendingDraft && (
+          <View style={s.draftBanner}>
+            <Text style={s.draftBannerText}>
+              📋 Ваши изменения отправлены на проверку администратору
+            </Text>
+          </View>
+        )}
 
         {/* ── Location ── */}
         {(property.city || property.beach_distance || property.market_distance || property.google_maps_link || property.website_url) && (
@@ -1808,6 +1825,22 @@ const s = StyleSheet.create({
   statusBadgePendingText: { fontSize: 12, fontWeight: '700', color: '#795548' },
   statusBadgeRejected: { backgroundColor: '#FFF5F5', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#FFCDD2' },
   statusBadgeRejectedText: { fontSize: 12, fontWeight: '700', color: '#E53935' },
+
+  // Баннер «Изменения на проверке» для агента
+  draftBanner: {
+    backgroundColor: '#FFF8E1',
+    borderWidth: 1,
+    borderColor: '#FFE082',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  draftBannerText: {
+    fontSize: 13,
+    color: '#F57F17',
+    fontWeight: '600',
+  },
 
   // ── Empty state ──
   emptyState: {

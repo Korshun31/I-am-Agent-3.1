@@ -21,7 +21,8 @@ import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
 import { useAppData } from '../context/AppDataContext';
-import { getProperties, updateProperty, createPropertyFull, updateResortChildrenDistrict, updatePropertyResponsible } from '../services/propertiesService';
+import { getProperties, updateProperty, createPropertyFull, updateResortChildrenDistrict, updatePropertyResponsible, submitPropertyDraft, getPropertyDraft } from '../services/propertiesService';
+import { sendNotification } from '../services/notificationsService';
 import { getActiveTeamMembers } from '../services/companyService';
 import { deletePhotoFromStorage } from '../services/storageService';
 import { getContacts } from '../services/contactsService';
@@ -1065,6 +1066,9 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const isTeamMember = !!(user?.teamMembership);
   const isAdmin = !isTeamMember && !!(user?.companyId); // владелец компании
   const canBook = user?.teamPermissions?.can_book;
+  const canEditInfo = !isTeamMember || user?.teamPermissions?.can_edit_info;
+  const canEditPrices = !isTeamMember || user?.teamPermissions?.can_edit_prices;
+  const needsApproval = isTeamMember && (!canEditInfo || !canEditPrices);
   const [wizardVisible, setWizardVisible] = useState(false);
   const [responsiblePickerVisible, setResponsiblePickerVisible] = useState(false);
   const [teamMembers, setTeamMembers] = useState([]);
@@ -1091,6 +1095,13 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const [selectedClientContact, setSelectedClientContact] = useState(null);
   const [editBookingModalVisible, setEditBookingModalVisible] = useState(false);
   const [editBookingToEdit, setEditBookingToEdit] = useState(null);
+  const [pendingDraft, setPendingDraft] = useState(null);
+
+  // Загружаем pending-черновик агента для отображения баннера
+  useEffect(() => {
+    if (!isTeamMember || !p?.id) { setPendingDraft(null); return; }
+    getPropertyDraft(p.id).then(setPendingDraft).catch(() => {});
+  }, [p?.id, isTeamMember]);
 
   const loadResortData = useCallback(async (resortId) => {
     if (!resortId) { setResort(null); return; }
@@ -1230,6 +1241,32 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           await deletePhotoFromStorage(url);
         }
       }
+      if (needsApproval) {
+        // Отправляем черновик — оригинал не трогаем
+        await submitPropertyDraft(p.id, updates);
+        const adminId = user?.teamMembership?.adminId;
+        if (adminId) {
+          const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email || '';
+          await sendNotification({
+            recipientId: adminId,
+            senderId: user.id,
+            type: 'edit_submitted',
+            title: `✏️ ${agentName} предлагает изменения объекта «${p.name}»`,
+            body: 'Требуется утверждение изменений',
+            propertyId: p.id,
+          });
+        }
+        // Обновляем local state черновика
+        getPropertyDraft(p.id).then(setPendingDraft).catch(() => {});
+        setWizardVisible(false);
+        Alert.alert(
+          '📋 Отправлено на проверку',
+          'Ваши изменения отправлены администратору для утверждения.'
+        );
+        return; // НЕ вызываем onPropertyUpdated — данные не изменились
+      }
+
+      // Агент с разрешениями или Админ — сохраняем напрямую
       const updated = await updateProperty(p.id, updates);
       const merged = { ...p, ...updated };
       setP(merged);
@@ -1493,6 +1530,15 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Баннер ожидания проверки черновика */}
+      {pendingDraft && (
+        <View style={styles.draftBanner}>
+          <Text style={styles.draftBannerText}>
+            📋 Ваши изменения отправлены на проверку администратору
+          </Text>
+        </View>
+      )}
 
       <ScrollView ref={scrollViewRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {p.type === 'resort' ? (
@@ -2004,5 +2050,20 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     marginBottom: 12,
+  },
+  draftBanner: {
+    backgroundColor: '#FFF8E1',
+    borderWidth: 1,
+    borderColor: '#FFE082',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginBottom: 12,
+  },
+  draftBannerText: {
+    fontSize: 13,
+    color: '#F57F17',
+    fontWeight: '600',
   },
 });

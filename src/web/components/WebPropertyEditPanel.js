@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Switch, Animated, Modal, ActivityIndicator, Image, Platform,
 } from 'react-native';
-import { updateProperty, createPropertyFull, createProperty } from '../../services/propertiesService';
+import { updateProperty, createPropertyFull, createProperty, submitPropertyDraft } from '../../services/propertiesService';
 import { sendNotification } from '../../services/notificationsService';
 import { supabase } from '../../services/supabase';
 import { useLanguage } from '../../context/LanguageContext';
@@ -292,6 +292,8 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
   const isAgent = !!user?.teamMembership;
   const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
   const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
+  // Нужно ли одобрение Админа (доступно на уровне компонента для рендера кнопки)
+  const needsApproval = isAgent && (!canEditInfo || !canEditPrices);
 
   // In edit mode use the currency stored on the property; in create mode use the user's selected currency
   const activeCurrency = (mode === 'edit' && property?.currency) ? property.currency : (userCurrency || 'THB');
@@ -425,32 +427,30 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email;
 
       if (mode === 'edit') {
-        // Если агент редактирует то, на что нет прав — ставим статус 'submitted'
-        // (Упрощение: если хоть одно из измененных полей требует проверки)
-        // Но для простоты: если агент вообще что-то меняет и у него нет полных прав
-        const needsApproval = isAgent && (!canEditInfo || !canEditPrices);
         if (needsApproval) {
-          updates.property_status = 'submitted';
+          // Сохраняем черновик — оригинал НЕ трогаем
+          await submitPropertyDraft(property.id, updates);
+          if (adminId) {
+            await sendNotification({
+              recipientId: adminId,
+              senderId: user.id,
+              type: 'edit_submitted',
+              title: `✏️ ${agentName} предлагает изменения объекта «${updates.name}»`,
+              body: 'Требуется утверждение изменений',
+              propertyId: property.id,
+            });
+          }
+          onSaved(null); // закрываем панель без обновления данных (данные не изменились)
+          return;
         }
         saved = await updateProperty(property.id, updates);
-
-        // Уведомление Админу об изменении
-        if (needsApproval && adminId) {
-          await sendNotification({
-            recipientId: adminId,
-            senderId: user.id,
-            type: 'edit_submitted',
-            title: `✏️ ${agentName} изменил объект «${updates.name}»`,
-            body: `Требуется утверждение изменений`,
-            propertyId: property.id,
-          });
-        }
+        // уведомление не нужно — агент с правами сохраняет напрямую
       } else if (mode === 'create-unit') {
         saved = await createPropertyFull({
           ...updates,
           resort_id: parentProperty.id,
           type: parentProperty.type,
-          property_status: isAgent ? 'submitted' : 'approved',
+          property_status: isAgent ? 'pending' : 'approved',
         });
         if (isAgent && adminId) {
           await sendNotification({
@@ -467,7 +467,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
           name: updates.name,
           code: updates.code,
           type: updates.type,
-          property_status: isAgent ? 'submitted' : 'approved',
+          property_status: isAgent ? 'pending' : 'approved',
         });
         if (saved?.id) {
           saved = await updateProperty(saved.id, updates);
@@ -929,7 +929,9 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
                 {saving
                   ? <ActivityIndicator size="small" color="#FFF" />
                   : <Text style={s.saveBtnText}>
-                      {mode === 'edit' ? `💾 ${t('save')}` : `＋ ${t('add')}`}
+                      {mode === 'edit'
+                        ? (needsApproval ? `📋 Отправить на проверку` : `💾 ${t('save')}`)
+                        : `＋ ${t('add')}`}
                     </Text>
                 }
               </TouchableOpacity>
