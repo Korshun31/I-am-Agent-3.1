@@ -143,11 +143,11 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
         <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
           <View style={sd.popup}>
 
-            {/* Заголовок с иконкой 📋, названием объекта и крестиком */}
+            {/* Заголовок с иконкой ✏️, названием объекта и крестиком */}
             <View style={sd.header}>
               <View style={sd.headerLeft}>
                 <View style={sd.headerIconWrap}>
-                  <Text style={sd.headerIcon}>📋</Text>
+                  <Text style={sd.headerIcon}>✏️</Text>
                 </View>
                 <View>
                   <Text style={sd.title}>Изменения объекта</Text>
@@ -635,19 +635,23 @@ const s = StyleSheet.create({
   itemDeleteText: { fontSize: 13, color: C.muted },
 
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 10, marginLeft: 48 },
-  approveBtn: { flex: 1, backgroundColor: '#F0FAF5', borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 8, paddingVertical: 7, alignItems: 'center' },
-  approveBtnText: { fontSize: 13, fontWeight: '700', color: '#16A34A' },
-  rejectBtn: { flex: 1, backgroundColor: '#FFF5F5', borderWidth: 1, borderColor: '#FFCDD2', borderRadius: 8, paddingVertical: 7, alignItems: 'center' },
-  rejectBtnText: { fontSize: 13, fontWeight: '700', color: C.danger },
+  // Одобрить — тиловый акцент (Primary системы, не зелёный)
+  approveBtn: { flex: 1, backgroundColor: '#EAF4F5', borderWidth: 1, borderColor: '#B2D8DB', borderRadius: 8, paddingVertical: 7, alignItems: 'center' },
+  approveBtnText: { fontSize: 13, fontWeight: '700', color: '#3D7D82' },
+  // Отклонить — нейтральный (рабочее действие, не danger)
+  rejectBtn: { flex: 1, backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#E9ECEF', borderRadius: 8, paddingVertical: 7, alignItems: 'center' },
+  rejectBtnText: { fontSize: 13, fontWeight: '700', color: '#6C757D' },
 
   rejectForm: { marginTop: 10, marginLeft: 48, gap: 8 },
   rejectInput: { borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: C.text, outlineWidth: 0 },
   rejectFormActions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
   rejectCancelBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.border },
   rejectCancelText: { fontSize: 13, color: C.muted, fontWeight: '600' },
-  rejectConfirmBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: C.danger },
-  rejectConfirmText: { fontSize: 13, color: '#FFF', fontWeight: '700' },
-  actionDone: { marginTop: 8, marginLeft: 48, fontSize: 12, color: '#16A34A', fontWeight: '600' },
+  // Финальное подтверждение отклонения — тихий danger (не яркий красный фон)
+  rejectConfirmBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: '#FFF5F5', borderWidth: 1, borderColor: '#FFCDD2' },
+  rejectConfirmText: { fontSize: 13, color: '#C62828', fontWeight: '700' },
+  // Успешное действие — тиловый, не зелёный
+  actionDone: { marginTop: 8, marginLeft: 48, fontSize: 12, color: '#3D7D82', fontWeight: '600' },
 
   // Pill-кнопка «Посмотреть изменения» для edit_submitted
   diffBtn: {
@@ -801,24 +805,25 @@ const sd = StyleSheet.create({
     fontWeight: '700',
     flexShrink: 0,
   },
+  // Блок «Стало» — тиловый акцент системы, не зелёный
   diffCardNewWrap: {
     flex: 1,
-    backgroundColor: '#F0FAF5',
+    backgroundColor: '#EAF4F5',
     borderRadius: 8,
     padding: 10,
     gap: 3,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: '#B2D8DB',
   },
   diffCardNewHint: {
     fontSize: 10,
-    color: '#16A34A',
+    color: '#3D7D82',
     fontWeight: '600',
     textTransform: 'uppercase',
   },
   diffCardNewValue: {
     fontSize: 13,
-    color: '#16A34A',
+    color: '#3D7D82',
     fontWeight: '700',
   },
 
@@ -835,9 +840,10 @@ const sd = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
+  // Одобрить — Primary-кнопка системы (тил, белый текст)
   approveBtn: {
     flex: 1,
-    backgroundColor: '#16A34A',
+    backgroundColor: '#3D7D82',
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
@@ -847,11 +853,12 @@ const sd = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
+  // Отклонить — нейтральный Secondary (рабочее действие, не danger)
   rejectBtn: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#E53935',
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
@@ -859,7 +866,7 @@ const sd = StyleSheet.create({
   rejectBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#E53935',
+    color: '#6C757D',
   },
   rejectInput: {
     borderWidth: 1,
@@ -890,15 +897,18 @@ const sd = StyleSheet.create({
     color: '#6C757D',
     fontWeight: '600',
   },
+  // Финальное подтверждение — тихий Danger по системе (не яркий красный)
   rejectConfirmBtn: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#E53935',
+    backgroundColor: '#FFF5F5',
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
   },
   rejectConfirmBtnText: {
     fontSize: 13,
-    color: '#FFFFFF',
+    color: '#C62828',
     fontWeight: '700',
   },
 });
