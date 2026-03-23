@@ -76,7 +76,7 @@ const TYPE_ICON = {
   property_submitted: '🏠',
   property_approved:  '✅',
   property_rejected:  '❌',
-  edit_submitted:     '✏️',
+  edit_submitted:     null,
   edit_approved:      '✅',
   edit_rejected:      '❌',
   price_submitted:    '💰',
@@ -261,9 +261,11 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
   return (
     <View style={[s.item, !item.is_read && s.itemUnread]}>
       <View style={s.itemRow}>
-        <View style={s.itemIcon}>
-          <Text style={s.itemIconText}>{icon}</Text>
-        </View>
+        {icon && (
+          <View style={s.itemIcon}>
+            <Text style={s.itemIconText}>{icon}</Text>
+          </View>
+        )}
         <View style={s.itemBody}>
           <Text style={s.itemTitle}>{item.title}</Text>
           {!!item.body && <Text style={s.itemBodyText}>{item.body}</Text>}
@@ -795,22 +797,26 @@ const sd = StyleSheet.create({
     color: '#CED4DA',
     paddingHorizontal: 8,
     flexShrink: 0,
+    textAlign: 'center',
+    alignSelf: 'center',
   },
 
   // Колонки — пропорции
   colField: { flex: 3, paddingRight: 8, color: '#495057', fontWeight: '500' },
-  colOld:   { flex: 2, paddingRight: 8 },
-  colNew:   { flex: 2 },
+  colOld:   { flex: 2, paddingRight: 8, textAlign: 'center' },
+  colNew:   { flex: 2, textAlign: 'center' },
 
   // Стили значений
   fieldText: {},
   oldText: {
     color: '#ADB5BD',
     textDecorationLine: 'line-through',
+    textAlign: 'center',
   },
   newText: {
     color: '#3D7D82',
     fontWeight: '700',
+    textAlign: 'center',
   },
 
   // Зона принятия решения — фиксирована внизу модала, за пределами ScrollView
