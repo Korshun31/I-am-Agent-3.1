@@ -394,6 +394,24 @@ export default function WebNotificationBell({ userId }) {
     return () => { supabase.removeChannel(channel); };
   }, [userId, open, loadCount, loadAll]);
 
+  // Realtime INSERT: мгновенно добавляем новое уведомление в список без перезагрузки
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel('notifications-realtime')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `recipient_id=eq.${userId}`,
+      }, (payload) => {
+        setNotifs(prev => [payload.new, ...prev]);
+        setUnread(prev => prev + 1);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
+
   const handleOpen = async () => {
     setOpen(true);
     if (!loadedRef.current) {
