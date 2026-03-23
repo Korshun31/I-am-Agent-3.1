@@ -168,28 +168,34 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
               </View>
             )}
 
-            {/* Карточки изменений */}
+            {/* Компактная таблица изменений */}
             <ScrollView style={sd.scroll} showsVerticalScrollIndicator={false}
                         contentContainerStyle={sd.scrollContent}>
               {changes.length === 0 ? (
                 <Text style={sd.empty}>Нет отслеживаемых изменений</Text>
               ) : (
-                changes.map((c, i) => (
-                  <View key={i} style={sd.diffCard}>
-                    <Text style={sd.diffCardLabel}>{c.label}</Text>
-                    <View style={sd.diffCardRow}>
-                      <View style={sd.diffCardOldWrap}>
-                        <Text style={sd.diffCardOldHint}>Было</Text>
-                        <Text style={sd.diffCardOldValue}>{c.oldStr}</Text>
-                      </View>
-                      <Text style={sd.diffCardArrow}>→</Text>
-                      <View style={sd.diffCardNewWrap}>
-                        <Text style={sd.diffCardNewHint}>Стало</Text>
-                        <Text style={sd.diffCardNewValue}>{c.newStr}</Text>
-                      </View>
-                    </View>
+                <>
+                  {/* Шапка таблицы */}
+                  <View style={sd.tableHead}>
+                    <Text style={[sd.tableHeadCell, sd.colField]}>Поле</Text>
+                    <Text style={[sd.tableHeadCell, sd.colOld]}>Было</Text>
+                    <Text style={[sd.tableHeadCell, sd.colNew]}>Стало</Text>
                   </View>
-                ))
+                  {/* Строки изменений */}
+                  {changes.map((c, i) => (
+                    <View key={i} style={[sd.tableRow, i % 2 === 0 && sd.tableRowEven]}>
+                      <Text style={[sd.tableCell, sd.colField, sd.fieldText]} numberOfLines={2}>
+                        {c.label}
+                      </Text>
+                      <Text style={[sd.tableCell, sd.colOld, sd.oldText]} numberOfLines={2}>
+                        {c.oldStr}
+                      </Text>
+                      <Text style={[sd.tableCell, sd.colNew, sd.newText]} numberOfLines={2}>
+                        {c.newStr}
+                      </Text>
+                    </View>
+                  ))}
+                </>
               )}
             </ScrollView>
 
@@ -686,7 +692,7 @@ const sd = StyleSheet.create({
   popup: {
     width: '100%',
     maxWidth: 560,
-    maxHeight: 520,
+    maxHeight: 480,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     overflow: 'hidden',
@@ -733,8 +739,8 @@ const sd = StyleSheet.create({
   },
   countText: { fontSize: 12, color: '#6C757D', fontWeight: '600' },
 
-  scroll: { maxHeight: 420 },
-  scrollContent: { padding: 16, gap: 10 },
+  scroll: { maxHeight: 320 },
+  scrollContent: { paddingVertical: 0 },
 
   empty: {
     textAlign: 'center',
@@ -743,74 +749,52 @@ const sd = StyleSheet.create({
     fontSize: 14,
   },
 
-  // Карточка изменения
-  diffCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E9ECEF',
-    padding: 14,
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
+  // Шапка таблицы
+  tableHead: {
+    flexDirection: 'row',
+    backgroundColor: '#F4F6F9',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
   },
-  diffCardLabel: {
-    fontSize: 11,
+  tableHeadCell: {
+    fontSize: 10,
     fontWeight: '700',
-    color: '#6C757D',
+    color: '#ADB5BD',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  diffCardRow: {
+
+  // Строки таблицы
+  tableRow: {
     flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F4F6F9',
+    minHeight: 40,
     alignItems: 'center',
-    gap: 10,
   },
-  diffCardOldWrap: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
-    padding: 10,
-    gap: 3,
+  tableRowEven: {
+    backgroundColor: '#FAFBFC',
   },
-  diffCardOldHint: {
-    fontSize: 10,
-    color: '#ADB5BD',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  diffCardOldValue: {
+  tableCell: {
     fontSize: 13,
-    color: '#6C757D',
+  },
+
+  // Колонки — пропорции
+  colField: { flex: 3, paddingRight: 8, color: '#495057', fontWeight: '500' },
+  colOld:   { flex: 2, paddingRight: 8 },
+  colNew:   { flex: 2 },
+
+  // Стили значений
+  fieldText: {},
+  oldText: {
+    color: '#ADB5BD',
     textDecorationLine: 'line-through',
-    fontWeight: '500',
   },
-  diffCardArrow: {
-    fontSize: 16,
-    color: '#ADB5BD',
-    fontWeight: '700',
-    flexShrink: 0,
-  },
-  // Блок «Стало» — тиловый акцент системы, не зелёный
-  diffCardNewWrap: {
-    flex: 1,
-    backgroundColor: '#EAF4F5',
-    borderRadius: 8,
-    padding: 10,
-    gap: 3,
-    borderWidth: 1,
-    borderColor: '#B2D8DB',
-  },
-  diffCardNewHint: {
-    fontSize: 10,
-    color: '#3D7D82',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  diffCardNewValue: {
-    fontSize: 13,
+  newText: {
     color: '#3D7D82',
     fontWeight: '700',
   },
