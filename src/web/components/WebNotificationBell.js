@@ -143,12 +143,9 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
         <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
           <View style={sd.popup}>
 
-            {/* Заголовок с иконкой ✏️, названием объекта и крестиком */}
+            {/* Заголовок с названием объекта и крестиком */}
             <View style={sd.header}>
               <View style={sd.headerLeft}>
-                <View style={sd.headerIconWrap}>
-                  <Text style={sd.headerIcon}>✏️</Text>
-                </View>
                 <View>
                   <Text style={sd.title}>Изменения объекта</Text>
                   {propName ? (
@@ -638,9 +635,9 @@ const s = StyleSheet.create({
   // Одобрить — тиловый акцент (Primary системы, не зелёный)
   approveBtn: { flex: 1, backgroundColor: '#EAF4F5', borderWidth: 1, borderColor: '#B2D8DB', borderRadius: 8, paddingVertical: 7, alignItems: 'center' },
   approveBtnText: { fontSize: 13, fontWeight: '700', color: '#3D7D82' },
-  // Отклонить — нейтральный (рабочее действие, не danger)
-  rejectBtn: { flex: 1, backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#E9ECEF', borderRadius: 8, paddingVertical: 7, alignItems: 'center' },
-  rejectBtnText: { fontSize: 13, fontWeight: '700', color: '#6C757D' },
+  // Отклонить — тихий красный (честный сигнал без крика)
+  rejectBtn: { flex: 1, backgroundColor: '#FFF5F5', borderWidth: 1, borderColor: '#FFCDD2', borderRadius: 8, paddingVertical: 7, alignItems: 'center' },
+  rejectBtnText: { fontSize: 13, fontWeight: '700', color: '#C62828' },
 
   rejectForm: { marginTop: 10, marginLeft: 48, gap: 8 },
   rejectInput: { borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: C.text, outlineWidth: 0 },
@@ -716,15 +713,6 @@ const sd = StyleSheet.create({
     gap: 12,
     flex: 1,
   },
-  headerIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#EAF4F5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerIcon: { fontSize: 20 },
   title: { fontSize: 16, fontWeight: '800', color: '#212529' },
   subtitle: { fontSize: 12, color: '#6C757D', marginTop: 2 },
   closeBtn: {
@@ -853,12 +841,12 @@ const sd = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  // Отклонить — нейтральный Secondary (рабочее действие, не danger)
+  // Отклонить — тихий красный (честный сигнал без крика)
   rejectBtn: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#FFF5F5',
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: '#FFCDD2',
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
@@ -866,7 +854,7 @@ const sd = StyleSheet.create({
   rejectBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#6C757D',
+    color: '#C62828',
   },
   rejectInput: {
     borderWidth: 1,
