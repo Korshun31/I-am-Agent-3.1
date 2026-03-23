@@ -174,20 +174,44 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
                     <Text style={[sd.tableHeadCell, sd.colNew]}>Стало</Text>
                   </View>
                   {/* Строки изменений */}
-                  {changes.map((c, i) => (
-                    <View key={i} style={[sd.tableRow, i % 2 === 0 && sd.tableRowEven]}>
-                      <Text style={[sd.tableCell, sd.colField, sd.fieldText]} numberOfLines={2}>
-                        {c.label}
-                      </Text>
-                      <Text style={[sd.tableCell, sd.colOld, sd.oldText]} numberOfLines={2}>
-                        {c.oldStr}
-                      </Text>
-                      <Text style={sd.tableArrow}>→</Text>
-                      <Text style={[sd.tableCell, sd.colNew, sd.newText]} numberOfLines={2}>
-                        {c.newStr}
-                      </Text>
-                    </View>
-                  ))}
+                  {changes.map((c, i) => {
+                    const isLong = (c.oldStr || '').length > 60 || (c.newStr || '').length > 60;
+                    if (isLong) {
+                      return (
+                        <View key={i} style={[sd.tableRowExpanded, i % 2 === 0 && sd.tableRowEven]}>
+                          <Text style={sd.expandedFieldLabel}>{c.label}</Text>
+                          <View style={sd.expandedValuesRow}>
+                            <View style={sd.expandedBlock}>
+                              <Text style={sd.expandedBlockLabel}>Было</Text>
+                              <ScrollView style={sd.expandedScroll} nestedScrollEnabled>
+                                <Text style={sd.expandedOldText}>{c.oldStr}</Text>
+                              </ScrollView>
+                            </View>
+                            <View style={sd.expandedBlock}>
+                              <Text style={sd.expandedBlockLabel}>Стало</Text>
+                              <ScrollView style={sd.expandedScroll} nestedScrollEnabled>
+                                <Text style={sd.expandedNewText}>{c.newStr}</Text>
+                              </ScrollView>
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    }
+                    return (
+                      <View key={i} style={[sd.tableRow, i % 2 === 0 && sd.tableRowEven]}>
+                        <Text style={[sd.tableCell, sd.colField, sd.fieldText]} numberOfLines={2}>
+                          {c.label}
+                        </Text>
+                        <Text style={[sd.tableCell, sd.colOld, sd.oldText]} numberOfLines={2}>
+                          {c.oldStr}
+                        </Text>
+                        <Text style={sd.tableArrow}>→</Text>
+                        <Text style={[sd.tableCell, sd.colNew, sd.newText]} numberOfLines={2}>
+                          {c.newStr}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </>
               )}
             </ScrollView>
@@ -713,8 +737,8 @@ const sd = StyleSheet.create({
     padding: 20,
   },
   popup: {
-    width: 480,
-    maxWidth: '95%',
+    width: '100%',
+    maxWidth: 660,
     maxHeight: 520,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
@@ -802,6 +826,45 @@ const sd = StyleSheet.create({
   },
   tableRowEven: {
     backgroundColor: '#FAFBFC',
+  },
+  tableRowExpanded: {
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F4F6F9',
+  },
+  expandedFieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#495057',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 8,
+  },
+  expandedValuesRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  expandedBlock: {
+    flex: 1,
+  },
+  expandedBlockLabel: {
+    fontSize: 11,
+    color: '#ADB5BD',
+    marginBottom: 4,
+  },
+  expandedScroll: {
+    maxHeight: 80,
+  },
+  expandedOldText: {
+    fontSize: 13,
+    color: '#333333',
+    lineHeight: 18,
+  },
+  expandedNewText: {
+    fontSize: 13,
+    color: '#1a1a1a',
+    lineHeight: 18,
   },
   tableCell: {
     fontSize: 13,
