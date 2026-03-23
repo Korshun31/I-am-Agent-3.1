@@ -533,8 +533,9 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         {/* Баннер для агента: изменения отправлены на проверку */}
         {pendingDraft && (
           <View style={s.draftBanner}>
+            <Text style={s.draftBannerIcon}>⏳</Text>
             <Text style={s.draftBannerText}>
-              📋 Ваши изменения отправлены на проверку администратору
+              Изменения отправлены на проверку администратору
             </Text>
           </View>
         )}
@@ -1826,20 +1827,31 @@ const s = StyleSheet.create({
   statusBadgeRejected: { backgroundColor: '#FFF5F5', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#FFCDD2' },
   statusBadgeRejectedText: { fontSize: 12, fontWeight: '700', color: '#E53935' },
 
-  // Баннер «Изменения на проверке» для агента
+  // Баннер «Изменения на проверке» для агента — янтарный акцент с иконкой
   draftBanner: {
-    backgroundColor: '#FFF8E1',
-    borderWidth: 1,
-    borderColor: '#FFE082',
-    borderRadius: 8,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1.5,
+    borderColor: '#FCD34D',
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+    borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 12,
+    paddingVertical: 12,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  draftBannerIcon: {
+    fontSize: 18,
+    flexShrink: 0,
   },
   draftBannerText: {
     fontSize: 13,
-    color: '#F57F17',
+    color: '#92400E',
     fontWeight: '600',
+    flex: 1,
+    lineHeight: 18,
   },
 
   // ── Empty state ──
@@ -1912,11 +1924,11 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   cancelBtnText: { fontSize: 14, fontWeight: '600', color: C.muted },
+  // Primary-кнопка: тёмный тил, белый текст
   saveBtn: {
     flex: 2, paddingVertical: 12,
-    borderRadius: 10, backgroundColor: TEAL_BG,
-    borderWidth: 1, borderColor: TEAL_LIGHT,
+    borderRadius: 10, backgroundColor: ACCENT,
     alignItems: 'center',
   },
-  saveBtnText: { fontSize: 14, fontWeight: '700', color: ACCENT },
+  saveBtnText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
 });

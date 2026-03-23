@@ -94,7 +94,7 @@ function formatValue(val) {
   return String(val);
 }
 
-// Модальное окно с таблицей изменений черновика
+// Модальное окно с карточками изменений черновика
 function DiffModal({ visible, onClose, draft, originalProperty }) {
   if (!draft || !originalProperty) return null;
 
@@ -104,13 +104,15 @@ function DiffModal({ visible, onClose, draft, originalProperty }) {
   for (const [field, newVal] of Object.entries(draftData)) {
     if (DIFF_SKIP_FIELDS.has(field)) continue;
     const label = FIELD_LABELS[field];
-    if (!label) continue; // неизвестное поле — пропускаем
+    if (!label) continue;
     const oldVal = originalProperty[field];
     const oldStr = formatValue(oldVal);
     const newStr = formatValue(newVal);
-    if (oldStr === newStr) continue; // не изменилось — пропускаем
+    if (oldStr === newStr) continue;
     changes.push({ label, oldStr, newStr });
   }
+
+  const propName = originalProperty.name || null;
 
   return (
     <Modal visible={visible} transparent animationType="fade"
@@ -119,34 +121,55 @@ function DiffModal({ visible, onClose, draft, originalProperty }) {
         <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
           <View style={sd.popup}>
 
+            {/* Заголовок с иконкой, названием объекта и крестиком */}
             <View style={sd.header}>
-              <Text style={sd.title}>🔍 Изменения объекта</Text>
+              <View style={sd.headerLeft}>
+                <View style={sd.headerIconWrap}>
+                  <Text style={sd.headerIcon}>✏️</Text>
+                </View>
+                <View>
+                  <Text style={sd.title}>Изменения объекта</Text>
+                  {propName ? (
+                    <Text style={sd.subtitle}>{propName}</Text>
+                  ) : null}
+                </View>
+              </View>
               <TouchableOpacity style={sd.closeBtn} onPress={onClose}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={sd.closeBtnText}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={sd.scroll} showsVerticalScrollIndicator={false}>
+            {/* Счётчик изменений */}
+            {changes.length > 0 && (
+              <View style={sd.countRow}>
+                <Text style={sd.countText}>{changes.length} {changes.length === 1 ? 'изменение' : changes.length < 5 ? 'изменения' : 'изменений'}</Text>
+              </View>
+            )}
+
+            <ScrollView style={sd.scroll} showsVerticalScrollIndicator={false}
+                        contentContainerStyle={sd.scrollContent}>
               {changes.length === 0 ? (
                 <Text style={sd.empty}>Нет отслеживаемых изменений</Text>
               ) : (
-                <>
-                  {/* Шапка таблицы */}
-                  <View style={sd.tableHeader}>
-                    <Text style={[sd.col, sd.colField, sd.headerText]}>Поле</Text>
-                    <Text style={[sd.col, sd.colOld, sd.headerText]}>Было</Text>
-                    <Text style={[sd.col, sd.colNew, sd.headerText]}>Стало</Text>
-                  </View>
-                  {/* Строки изменений */}
-                  {changes.map((c, i) => (
-                    <View key={i} style={[sd.tableRow, i % 2 === 0 && sd.tableRowEven]}>
-                      <Text style={[sd.col, sd.colField, sd.fieldText]}>{c.label}</Text>
-                      <Text style={[sd.col, sd.colOld, sd.oldText]}>{c.oldStr}</Text>
-                      <Text style={[sd.col, sd.colNew, sd.newText]}>{c.newStr}</Text>
+                changes.map((c, i) => (
+                  <View key={i} style={sd.diffCard}>
+                    {/* Название поля */}
+                    <Text style={sd.diffCardLabel}>{c.label}</Text>
+                    {/* Было → Стало */}
+                    <View style={sd.diffCardRow}>
+                      <View style={sd.diffCardOldWrap}>
+                        <Text style={sd.diffCardOldHint}>Было</Text>
+                        <Text style={sd.diffCardOldValue}>{c.oldStr}</Text>
+                      </View>
+                      <Text style={sd.diffCardArrow}>→</Text>
+                      <View style={sd.diffCardNewWrap}>
+                        <Text style={sd.diffCardNewHint}>Стало</Text>
+                        <Text style={sd.diffCardNewValue}>{c.newStr}</Text>
+                      </View>
                     </View>
-                  ))}
-                </>
+                  </View>
+                ))
               )}
             </ScrollView>
 
@@ -551,16 +574,17 @@ const s = StyleSheet.create({
   rejectConfirmText: { fontSize: 13, color: '#FFF', fontWeight: '700' },
   actionDone: { marginTop: 8, marginLeft: 48, fontSize: 12, color: '#16A34A', fontWeight: '600' },
 
-  // Кнопка «Посмотреть изменения» для edit_submitted
+  // Pill-кнопка «Посмотреть изменения» для edit_submitted
   diffBtn: {
     marginLeft: 48,
     marginTop: 8,
     marginBottom: 4,
     paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#3D7D82',
+    borderColor: '#B2D8DB',
+    backgroundColor: '#EAF4F5',
     alignSelf: 'flex-start',
   },
   diffBtnText: {
@@ -574,7 +598,7 @@ const s = StyleSheet.create({
   emptyText: { fontSize: 14, color: C.muted, textAlign: 'center', padding: 20 },
 });
 
-// Стили для модального окна DiffModal (отдельный объект)
+// Стили для модального окна DiffModal (карточный дизайн)
 const sd = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -586,60 +610,140 @@ const sd = StyleSheet.create({
   popup: {
     width: '100%',
     maxWidth: 560,
-    maxHeight: 480,
+    maxHeight: 520,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 32,
   },
+
+  // Шапка модала
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
+    backgroundColor: '#FFFFFF',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  headerIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#EAF4F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerIcon: { fontSize: 20 },
+  title: { fontSize: 16, fontWeight: '800', color: '#212529' },
+  subtitle: { fontSize: 12, color: '#6C757D', marginTop: 2 },
+  closeBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: '#F4F6F9',
+    alignItems: 'center', justifyContent: 'center',
+    marginLeft: 8,
+  },
+  closeBtnText: { fontSize: 14, color: '#6C757D', fontWeight: '700' },
+
+  // Счётчик изменений
+  countRow: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    backgroundColor: '#F4F6F9',
     borderBottomWidth: 1,
     borderBottomColor: '#E9ECEF',
   },
-  title: { fontSize: 16, fontWeight: '800', color: '#212529' },
-  closeBtn: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: '#F4F6F9',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  closeBtnText: { fontSize: 13, color: '#6C757D', fontWeight: '700' },
-  scroll: { maxHeight: 400 },
+  countText: { fontSize: 12, color: '#6C757D', fontWeight: '600' },
+
+  scroll: { maxHeight: 420 },
+  scrollContent: { padding: 16, gap: 10 },
+
   empty: {
     textAlign: 'center',
-    padding: 24,
+    padding: 32,
     color: '#6C757D',
     fontSize: 14,
   },
-  tableHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#F4F6F9',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
+
+  // Карточка изменения
+  diffCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    padding: 14,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
   },
-  headerText: { fontSize: 11, fontWeight: '700', color: '#6C757D', textTransform: 'uppercase' },
-  tableRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F4F6F9',
+  diffCardLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6C757D',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  tableRowEven: { backgroundColor: '#FAFBFC' },
-  col: { fontSize: 13 },
-  colField: { flex: 2, color: '#212529', fontWeight: '600', paddingRight: 8 },
-  colOld: { flex: 2, color: '#6C757D', paddingRight: 8, textDecorationLine: 'line-through' },
-  colNew: { flex: 2, color: '#16A34A', fontWeight: '600' },
-  fieldText: {},
-  oldText: {},
-  newText: {},
+  diffCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  diffCardOldWrap: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    padding: 10,
+    gap: 3,
+  },
+  diffCardOldHint: {
+    fontSize: 10,
+    color: '#ADB5BD',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  diffCardOldValue: {
+    fontSize: 13,
+    color: '#6C757D',
+    textDecorationLine: 'line-through',
+    fontWeight: '500',
+  },
+  diffCardArrow: {
+    fontSize: 16,
+    color: '#ADB5BD',
+    fontWeight: '700',
+    flexShrink: 0,
+  },
+  diffCardNewWrap: {
+    flex: 1,
+    backgroundColor: '#F0FAF5',
+    borderRadius: 8,
+    padding: 10,
+    gap: 3,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  diffCardNewHint: {
+    fontSize: 10,
+    color: '#16A34A',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  diffCardNewValue: {
+    fontSize: 13,
+    color: '#16A34A',
+    fontWeight: '700',
+  },
 });
