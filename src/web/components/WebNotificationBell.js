@@ -140,7 +140,10 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
     <Modal visible={visible} transparent animationType="fade"
            onRequestClose={onClose} statusBarTranslucent>
       <TouchableOpacity style={sd.overlay} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={e => e.stopPropagation()}
+        >
           <View style={sd.popup}>
 
             {/* Заголовок с названием объекта и крестиком */}
@@ -692,8 +695,8 @@ const sd = StyleSheet.create({
     padding: 20,
   },
   popup: {
-    width: '100%',
-    maxWidth: 680,
+    width: 480,
+    maxWidth: '95%',
     maxHeight: 520,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
@@ -772,6 +775,7 @@ const sd = StyleSheet.create({
   tableRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
+    paddingRight: 56,
     paddingVertical: 13,
     borderBottomWidth: 1,
     borderBottomColor: '#F4F6F9',
