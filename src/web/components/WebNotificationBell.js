@@ -4,7 +4,6 @@ import { supabase } from '../../services/supabase';
 import {
   getNotifications,
   getUnreadCount,
-  getPendingActionsCount,
   markAllRead,
   deleteNotification,
   markActionTaken,
@@ -72,18 +71,6 @@ const DIFF_SKIP_FIELDS = new Set([
   'owner_commission_one_time_is_percent', 'owner_commission_monthly_is_from',
   'owner_commission_monthly_is_percent', 'water_price_type',
 ]);
-
-const TYPE_ICON = {
-  property_submitted: '🏠',
-  property_approved:  '✅',
-  property_rejected:  '❌',
-  edit_submitted:     null,
-  edit_approved:      '✅',
-  edit_rejected:      '❌',
-  price_submitted:    '💰',
-  price_approved:     '✅',
-  price_rejected:     '❌',
-};
 
 // Уведомления которые требуют действия от Админа
 const ACTION_TYPES = new Set(['property_submitted', 'edit_submitted', 'price_submitted']);
@@ -253,7 +240,6 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
 }
 
 function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
-  const icon = TYPE_ICON[item.type] ?? null;
   const time = dayjs(item.created_at).fromNow();
   const needsAction = ACTION_TYPES.has(item.type) && !item.action_taken;
   const [rejectMode, setRejectMode] = useState(false);
@@ -266,14 +252,24 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
         <View style={s.statusDot}>
           <View style={[
             s.statusDotInner,
-            needsAction ? s.statusDotPending :
-            item.action_taken ? s.statusDotDone :
-            s.statusDotInfo
+            needsAction
+              ? s.statusDotPending
+              : ['property_approved', 'edit_approved', 'price_approved'].includes(item.type)
+                ? s.statusDotDone
+                : ['property_rejected', 'edit_rejected', 'price_rejected'].includes(item.type)
+                  ? s.statusDotRejected
+                  : s.statusDotInfo
           ]} />
         </View>
         <View style={s.itemBody}>
-          <Text style={s.itemTitle}>{item.title}</Text>
-          {!!item.body && <Text style={s.itemBodyText}>{item.body}</Text>}
+          <Text style={s.itemTitle}>
+            {(item.title || '').replace(/^[^\p{L}\p{N}]+/u, '').trim()}
+          </Text>
+          {!!item.body && (
+            <Text style={s.itemBodyText}>
+              {(item.body || '').replace(/^[^\p{L}\p{N}]+/u, '').trim()}
+            </Text>
+          )}
           <Text style={s.itemTime}>{time}</Text>
         </View>
         <TouchableOpacity style={s.itemDelete} onPress={() => onDelete(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -342,7 +338,7 @@ export default function WebNotificationBell({ userId }) {
   const loadedRef = useRef(false);
 
   const loadCount = useCallback(async () => {
-    const count = await getPendingActionsCount();
+    const count = await getUnreadCount();
     setUnread(count);
   }, []);
 
@@ -427,7 +423,7 @@ export default function WebNotificationBell({ userId }) {
           recipientId: notif.sender_id,
           senderId: userId,
           type: typeMap[notif.type] || 'property_approved',
-          title: '✅ Изменения одобрены',
+          title: 'Изменения одобрены',
           body: notif.title,
           propertyId: notif.property_id,
         });
@@ -469,7 +465,7 @@ export default function WebNotificationBell({ userId }) {
           recipientId: notif.sender_id,
           senderId: userId,
           type: typeMap[notif.type] || 'property_rejected',
-          title: '❌ Изменения отклонены',
+          title: 'Изменения отклонены',
           body: reason ? `Причина: ${reason}` : notif.title,
           propertyId: notif.property_id,
         });
@@ -653,9 +649,10 @@ const s = StyleSheet.create({
     height: 10,
     borderRadius: 5,
   },
-  statusDotPending: { backgroundColor: '#E53935' },
-  statusDotDone:    { backgroundColor: '#3D7D82' },
-  statusDotInfo:    { backgroundColor: '#CED4DA' },
+  statusDotPending:  { backgroundColor: '#E53935' },
+  statusDotDone:     { backgroundColor: '#3D7D82' },
+  statusDotRejected: { backgroundColor: '#E53935' },
+  statusDotInfo:     { backgroundColor: '#CED4DA' },
   itemBody: { flex: 1, gap: 3 },
   itemTitle: { fontSize: 13, fontWeight: '600', color: C.text, lineHeight: 18 },
   itemBodyText: { fontSize: 12, color: C.muted, lineHeight: 17 },

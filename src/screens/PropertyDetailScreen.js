@@ -1251,7 +1251,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             recipientId: adminId,
             senderId: user.id,
             type: 'edit_submitted',
-            title: `✏️ ${agentName} предлагает изменения объекта «${p.name}»`,
+            title: `${agentName} предлагает изменения объекта «${p.name}»`,
             body: 'Требуется утверждение изменений',
             propertyId: p.id,
           });

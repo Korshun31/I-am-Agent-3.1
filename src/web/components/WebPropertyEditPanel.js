@@ -435,7 +435,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
               recipientId: adminId,
               senderId: user.id,
               type: 'edit_submitted',
-              title: `✏️ ${agentName} предлагает изменения объекта «${updates.name}»`,
+              title: `${agentName} предлагает изменения объекта «${updates.name}»`,
               body: 'Требуется утверждение изменений',
               propertyId: property.id,
             });
