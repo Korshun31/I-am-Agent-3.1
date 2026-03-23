@@ -360,6 +360,7 @@ export default function WebNotificationBell({ userId }) {
   const [loading, setLoading]       = useState(false);
   const [diffModal, setDiffModal]   = useState(null); // { draft, originalProperty } или null
   const loadedRef = useRef(false);
+  const openRef = useRef(false);
 
   const loadCount = useCallback(async () => {
     const count = await getUnreadCount();
@@ -388,15 +389,16 @@ export default function WebNotificationBell({ userId }) {
         filter: `recipient_id=eq.${userId}`,
       }, () => {
         loadCount();
-        if (open) loadAll();
+        if (openRef.current) loadAll();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [userId, open, loadCount, loadAll]);
+  }, [userId, loadCount, loadAll]);
 
 
   const handleOpen = async () => {
     setOpen(true);
+    openRef.current = true;
     if (!loadedRef.current) {
       loadedRef.current = true;
       await loadAll();
@@ -528,6 +530,7 @@ export default function WebNotificationBell({ userId }) {
 
   const handleClose = () => {
     setOpen(false);
+    openRef.current = false;
   };
 
   return (
