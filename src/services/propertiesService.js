@@ -80,7 +80,6 @@ export async function updateProperty(id, updates) {
     .from('properties')
     .update(updates)
     .eq('id', id)
-    .eq('agent_id', session.user.id)
     .select()
     .single();
 
