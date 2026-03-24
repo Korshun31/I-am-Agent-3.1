@@ -846,8 +846,8 @@ function AddPropertyModal({ visible, onClose, onSaved, user }) {
           recipientId: adminId,
           senderId: user.id,
           type: 'property_submitted',
-          title: `🏠 ${agentName} добавил объект «${name.trim()}»`,
-          body: `Код: ${code.trim().toUpperCase()} · Тип: ${type}`,
+          title: `${agentName} ${t('notifAddedProperty')} «${name.trim()}»`,
+          body: `${t('notifLabelCode')} ${code.trim().toUpperCase()} · ${t('notifLabelType')} ${type}`,
           propertyId: created.id,
         });
       }
