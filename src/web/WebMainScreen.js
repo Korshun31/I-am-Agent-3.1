@@ -32,6 +32,26 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
     fetchUser();
   }, [initialUser.id]);
 
+  // Realtime: обновляем разрешения агента при изменении Админом
+  useEffect(() => {
+    if (!user?.id || !user?.teamMembership) return;
+
+    const channel = supabase
+      .channel('permissions-realtime')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'company_members',
+        filter: `agent_id=eq.${user.id}`,
+      }, async () => {
+        const freshUser = await getUserProfile(user.id);
+        if (freshUser) setUser(freshUser);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, user?.teamMembership]);
+
   // Realtime notifications logic
   useEffect(() => {
     if (!user || Platform.OS !== 'web') return;
