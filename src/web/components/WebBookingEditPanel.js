@@ -156,33 +156,6 @@ function FInput({ value, onChangeText, placeholder, numeric, multiline, prefix }
 
 // ─── Date Input ───────────────────────────────────────────────────────────────
 
-function DateInput({ value, onChange, placeholder }) {
-  const { t } = useLanguage();
-  const [focused, setFocused] = useState(false);
-  if (Platform.OS === 'web') {
-    return (
-      <View style={[s.inputWrap, focused && s.inputWrapFocused]}>
-        <input
-          type="date"
-          value={value || ''}
-          onChange={e => onChange(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          placeholder={placeholder}
-          style={{
-            flex: 1, border: 'none', background: 'transparent',
-            fontSize: 14, color: value ? C.text : C.light,
-            outline: 'none', fontFamily: 'inherit', padding: 0,
-            colorScheme: 'light',
-          }}
-        />
-      </View>
-    );
-  }
-  return (
-    <FInput value={value} onChangeText={onChange} placeholder={placeholder || t('datePlaceholder')} />
-  );
-}
 
 // ─── Property Picker ──────────────────────────────────────────────────────────
 
@@ -501,8 +474,10 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
   // Загружаем бронирования выбранного объекта для отображения занятых дат
   useEffect(() => {
     if (!form.propertyId) { setPropertyBookings([]); return; }
+    const pid = form.propertyId;
     getBookings().then(all => {
-      setPropertyBookings((all || []).filter(b => b.propertyId === form.propertyId));
+      if (pid !== form.propertyId) return;
+      setPropertyBookings((all || []).filter(b => b.propertyId === pid));
     }).catch(() => setPropertyBookings([]));
   }, [form.propertyId]);
 
@@ -515,10 +490,13 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
         event: '*',
         schema: 'public',
         table: 'bookings',
-      }, () => {
-        getBookings().then(all => {
-          setPropertyBookings((all || []).filter(b => b.propertyId === form.propertyId));
-        }).catch(() => {});
+      }, async () => {
+        const currentPid = form.propertyId;
+        try {
+          const all = await getBookings();
+          if (currentPid !== form.propertyId) return;
+          setPropertyBookings((all || []).filter(b => b.propertyId === currentPid));
+        } catch {}
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };

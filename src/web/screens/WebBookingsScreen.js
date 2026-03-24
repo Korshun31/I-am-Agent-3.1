@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Image, TextInput,
+  ActivityIndicator, Image, TextInput, Pressable,
 } from 'react-native';
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
@@ -98,6 +98,18 @@ function dateToPx(dateStr, months) {
   return (dayOffset / totalDays) * months.length * MONTH_W;
 }
 
+// Обратная функция: X-пиксель → дата
+function pxToDate(x, months) {
+  if (!months || months.length === 0) return null;
+  const start = months[0];
+  const end = months[months.length - 1].endOf('month');
+  const totalDays = end.diff(start, 'day') + 1;
+  const totalW = months.length * MONTH_W;
+  if (x < 0 || x > totalW) return null;
+  const dayOffset = Math.min(Math.round((x / totalW) * totalDays), totalDays - 1);
+  return start.add(dayOffset, 'day').format('YYYY-MM-DD');
+}
+
 // Total timeline width
 function timelineWidth(months) {
   return months.length * MONTH_W;
@@ -151,9 +163,9 @@ function statusInfo(checkIn, checkOut, t) {
   const today = dayjs();
   const ci = dayjs(checkIn);
   const co = dayjs(checkOut);
-  if (co.isBefore(today, 'day'))  return { label: t ? t('bookingStatusDone')     : 'Завершено',  color: C.muted,  bg: '#F0F0F0' };
-  if (ci.isAfter(today, 'day'))   return { label: t ? t('bookingStatusUpcoming') : 'Предстоящее',color: C.blue,   bg: C.blueBg };
-  return                                  { label: t ? t('bookingStatusActive')   : 'Текущее',   color: C.green,  bg: C.greenBg };
+  if (co.isBefore(today, 'day'))  return { label: t ? t('bookingStatusDone')     : 'Done',     color: C.muted,  bg: '#F0F0F0' };
+  if (ci.isAfter(today, 'day'))   return { label: t ? t('bookingStatusUpcoming') : 'Upcoming',  color: C.blue,   bg: C.blueBg };
+  return                                  { label: t ? t('bookingStatusActive')   : 'Active',   color: C.green,  bg: C.greenBg };
 }
 
 // ─── Booking Detail Panel ─────────────────────────────────────────────────────
@@ -405,111 +417,6 @@ const d = StyleSheet.create({
 
 // ─── Gantt Chart ──────────────────────────────────────────────────────────────
 
-function GanttChart({ properties, bookings, contacts, months, colorMap, onSelectBooking, selectedBookingId }) {
-  const { t } = useLanguage();
-  const totalW = timelineWidth(months);
-  const today = dayjs();
-  const todayX = dateToPx(today.format('YYYY-MM-DD'), months);
-
-  return (
-    <View style={g.container}>
-      {/* Fixed left column + scrollable right in sync */}
-      <ScrollView style={g.vertScroll} showsVerticalScrollIndicator={false}>
-        <View style={g.rows}>
-          {properties.map((prop, pi) => {
-            const propBookings = bookings.filter(b => b.propertyId === prop.id);
-                        const tc = TYPE_COLOR[getEffectiveType(prop)] || TYPE_COLOR.house;
-                        const fullCode = prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '');
-
-            return (
-              <View key={prop.id} style={[g.row, pi % 2 === 1 && g.rowAlt]}>
-                {/* Left: property name */}
-                <View style={[g.leftCell, { borderLeftColor: tc.border }]}>
-                  <Text style={[g.propCode, { color: tc.text }]} numberOfLines={1}>{fullCode}</Text>
-                  <Text style={g.propName} numberOfLines={1}>{prop.name}</Text>
-                </View>
-
-                {/* Right: timeline bar area */}
-                <View style={[g.timelineCell, { width: totalW }]}>
-                  {/* Today line */}
-                  <View style={[g.todayLine, { left: todayX }]} />
-
-                  {/* Booking bars */}
-                  {propBookings.map(bk => {
-                    const x1 = dateToPx(bk.checkIn, months);
-                    const x2 = dateToPx(bk.checkOut, months);
-                    const w  = Math.max(x2 - x1, 6);
-                    const color = colorMap[bk.id] || '#90A4AE';
-                    const isSelected = bk.id === selectedBookingId;
-                    const contact = contacts.find(c => c.id === bk.contactId);
-                    const label = bk.notMyCustomer
-                      ? t('bookingOwnerLabel')
-                      : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : '');
-
-                    return (
-                      <TouchableOpacity
-                        key={bk.id}
-                        style={[
-                          g.bar,
-                          { left: x1, width: w, backgroundColor: color },
-                          isSelected && g.barSelected,
-                        ]}
-                        onPress={() => onSelectBooking(bk)}
-                        activeOpacity={0.8}
-                      >
-                        {w >= 40 && (
-                          <Text style={g.barDate} numberOfLines={1}>
-                            {dayjs(bk.checkIn).format('DD.MM')}
-                          </Text>
-                        )}
-                        {w >= 80 && (
-                          <Text style={g.barLabel} numberOfLines={1}>{label}</Text>
-                        )}
-                        {w >= 40 && (
-                          <Text style={g.barDateRight} numberOfLines={1}>
-                            {dayjs(bk.checkOut).format('DD.MM')}
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      </ScrollView>
-    </View>
-  );
-}
-
-const g = StyleSheet.create({
-  container: { flex: 1, flexDirection: 'column' },
-  vertScroll: { flex: 1 },
-  rows: {},
-  row: { flexDirection: 'row', height: ROW_H, backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border },
-  rowAlt: { backgroundColor: '#FAFBFC' },
-  leftCell: {
-    width: LEFT_W, minWidth: LEFT_W, maxWidth: LEFT_W,
-    justifyContent: 'center', paddingHorizontal: 10,
-    borderLeftWidth: 3, borderBottomWidth: 0,
-    borderRightWidth: 1, borderRightColor: C.border,
-    backgroundColor: C.surface,
-  },
-  propCode: { fontSize: 12, fontWeight: '700' },
-  propName: { fontSize: 10, color: C.muted, marginTop: 1 },
-  timelineCell: { height: ROW_H, position: 'relative', overflow: 'hidden' },
-  todayLine: { position: 'absolute', top: 0, bottom: 0, width: 1.5, backgroundColor: '#E53935', zIndex: 1, opacity: 0.6 },
-  bar: {
-    position: 'absolute', top: 7, height: ROW_H - 14,
-    borderRadius: 4, flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 4, overflow: 'hidden',
-  },
-  barSelected: { borderWidth: 2, borderColor: C.text, opacity: 1 },
-  barDate: { fontSize: 9, color: 'rgba(0,0,0,0.6)', fontWeight: '600' },
-  barLabel: { flex: 1, fontSize: 10, color: 'rgba(0,0,0,0.75)', fontWeight: '500', textAlign: 'center', marginHorizontal: 2 },
-  barDateRight: { fontSize: 9, color: 'rgba(0,0,0,0.6)', fontWeight: '600' },
-});
 
 // ─── List View ────────────────────────────────────────────────────────────────
 
@@ -610,51 +517,6 @@ const lv = StyleSheet.create({
   priceEmpty: { fontSize: 13, color: C.light },
 });
 
-// ─── Month Header Row ─────────────────────────────────────────────────────────
-
-function MonthHeader({ months }) {
-  const today = dayjs();
-  return (
-    <View style={mh.row}>
-      <View style={mh.leftSpacer} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEnabled={false} style={mh.scroll}>
-        {months.map((m, i) => {
-          const isCurrent = m.isSame(today, 'month');
-          const isPast = m.isBefore(today, 'month');
-          return (
-            <View
-              key={i}
-              style={[
-                mh.cell,
-                isCurrent && mh.cellCurrent,
-                isPast && mh.cellPast,
-              ]}
-            >
-              <Text style={[mh.monthName, isCurrent && mh.monthNameCurrent]}>
-                {m.format('MMM')}
-              </Text>
-              <Text style={[mh.yearText, isCurrent && { color: '#E53935' }]}>
-                {m.format('YY')}
-              </Text>
-            </View>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
-
-const mh = StyleSheet.create({
-  row: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: C.border, backgroundColor: C.surface },
-  leftSpacer: { width: LEFT_W, borderRightWidth: 1, borderRightColor: C.border },
-  scroll: { flex: 1 },
-  cell: { width: MONTH_W, alignItems: 'center', paddingVertical: 8, borderRightWidth: 1, borderRightColor: C.border, backgroundColor: '#FAFAFA' },
-  cellCurrent: { backgroundColor: '#E8F5E9' },
-  cellPast: { backgroundColor: '#F5F3EF' },
-  monthName: { fontSize: 12, fontWeight: '600', color: C.text, textTransform: 'capitalize' },
-  monthNameCurrent: { color: C.green, fontWeight: '800' },
-  yearText: { fontSize: 10, color: C.muted, marginTop: 1 },
-});
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -678,12 +540,21 @@ export default function WebBookingsScreen({ user }) {
   const bedroomsLeaveTimer = useRef(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [editPanelMode, setEditPanelMode]     = useState(null); // null | 'create' | 'edit'
+  const [createTemplate, setCreateTemplate]   = useState(null);
   const [propDetailProperty, setPropDetailProperty] = useState(null);
   const [search, setSearch]         = useState('');
 
   const months   = useMemo(() => buildMonths(), []);
   const totalW   = useMemo(() => timelineWidth(months), [months]);
   const colorMap = useMemo(() => assignColors(bookings), [bookings]);
+
+  const canCreate = !user?.teamMembership || !!user?.teamPermissions?.can_book;
+
+  const handleGanttCellPress = (prop, date) => {
+    setCreateTemplate({ propertyId: prop.id, checkIn: date });
+    setSelectedBooking(null);
+    setEditPanelMode('create');
+  };
 
   // Загружаем название компании для агента-участника напрямую из БД
   useEffect(() => {
@@ -853,7 +724,7 @@ export default function WebBookingsScreen({ user }) {
             )}
           </View>
           {(!user?.teamMembership || user?.teamPermissions?.can_book) && (
-            <TouchableOpacity style={s.addBtn} onPress={() => { setSelectedBooking(null); setEditPanelMode('create'); }}>
+            <TouchableOpacity style={s.addBtn} onPress={() => { setCreateTemplate(null); setSelectedBooking(null); setEditPanelMode('create'); }}>
               <Text style={s.addBtnText}>+ {t('bookingsAddBtn')}</Text>
             </TouchableOpacity>
           )}
@@ -1053,7 +924,14 @@ export default function WebBookingsScreen({ user }) {
                           </TouchableOpacity>
 
                           {/* Timeline */}
-                          <View style={[s.ganttRow, { width: totalW }]}>
+                          <Pressable
+                            style={[s.ganttRow, { width: totalW }]}
+                            onPress={canCreate ? (e) => {
+                              const x = e.nativeEvent.locationX;
+                              const date = pxToDate(x, months);
+                              if (date) handleGanttCellPress(prop, date);
+                            } : undefined}
+                          >
                             {/* Month background bands */}
                             {months.map((m, mi) => {
                               const now = dayjs();
@@ -1095,19 +973,20 @@ export default function WebBookingsScreen({ user }) {
                                   ? t('bookingOwnerLabel')
                                   : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : ''));
                               return (
-                                <TouchableOpacity
-                                  key={bk.id}
-                                  style={[s.bar, { left: x1, width: w, backgroundColor: color }, isSelected && s.barSelected, isCompanyProperty && s.barCompany]}
-                                  onPress={() => { if (!isCompanyProperty) setSelectedBooking(bk); }}
-                                  activeOpacity={isCompanyProperty ? 1 : 0.8}
-                                >
-                                  {w >= 50 && <Text style={s.barDateL} numberOfLines={1}>{dayjs(bk.checkIn).format('DD.MM')}</Text>}
-                                  {w >= 110 && <Text style={s.barLabel} numberOfLines={1}>{label}</Text>}
-                                  {w >= 50 && <Text style={s.barDateR} numberOfLines={1}>{dayjs(bk.checkOut).format('DD.MM')}</Text>}
-                                </TouchableOpacity>
+                                <View key={bk.id} onClick={e => e.stopPropagation()}>
+                                  <TouchableOpacity
+                                    style={[s.bar, { left: x1, width: w, backgroundColor: color }, isSelected && s.barSelected, isCompanyProperty && s.barCompany]}
+                                    onPress={() => { if (!isCompanyProperty) setSelectedBooking(bk); }}
+                                    activeOpacity={isCompanyProperty ? 1 : 0.8}
+                                  >
+                                    {w >= 50 && <Text style={s.barDateL} numberOfLines={1}>{dayjs(bk.checkIn).format('DD.MM')}</Text>}
+                                    {w >= 110 && <Text style={s.barLabel} numberOfLines={1}>{label}</Text>}
+                                    {w >= 50 && <Text style={s.barDateR} numberOfLines={1}>{dayjs(bk.checkOut).format('DD.MM')}</Text>}
+                                  </TouchableOpacity>
+                                </View>
                               );
                             })}
-                          </View>
+                          </Pressable>
                         </View>
                       );
                     })}
@@ -1157,7 +1036,7 @@ export default function WebBookingsScreen({ user }) {
       <WebBookingEditPanel
         visible={editPanelMode !== null}
         mode={editPanelMode || 'create'}
-        booking={editPanelMode === 'edit' ? selectedBooking : null}
+        booking={editPanelMode === 'edit' ? selectedBooking : createTemplate}
         properties={
           user?.teamMembership
             ? properties.filter(p => p.responsible_agent_id === user.id)
