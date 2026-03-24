@@ -250,7 +250,7 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
 
 // ─── Property Detail ──────────────────────────────────────────────────────────
 
-export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit, user, onApprove, onReject }) {
+export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit, user, onApprove, onReject, draftRefreshKey }) {
   const { t } = useLanguage();
   const TYPE_META = getTypeMeta(t);
   const AMENITY_LABELS = getAmenityLabels(t);
@@ -285,7 +285,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   React.useEffect(() => {
     if (!isAgent || !property?.id) { setPendingDraft(null); return; }
     getPropertyDraft(property.id).then(setPendingDraft).catch(() => {});
-  }, [property?.id, isAgent]);
+  }, [property?.id, isAgent, draftRefreshKey]);
 
   const isSubmitted = property.property_status === 'pending';
   const isRejected = property.property_status === 'rejected';
@@ -965,6 +965,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
   const [restoreScrollY, setRestoreScrollY] = useState(0);
   const [addVisible, setAddVisible] = useState(false);
   const [editPanel, setEditPanel] = useState({ visible: false, mode: 'create', property: null, parentProperty: null });
+  const [draftRefreshKey, setDraftRefreshKey] = useState(0);
 
   const handleSelectProperty = (prop) => {
     setSelected(prop);
@@ -1088,6 +1089,11 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
 
   const handlePanelSaved = (saved) => {
     closePanel();
+    if (!saved) {
+      // Был отправлен черновик — перезагружаем баннер без перезагрузки списка
+      setDraftRefreshKey(k => k + 1);
+      return;
+    }
     setLoading(true);
     load().then(() => {
       if (saved?.id) {
@@ -1223,6 +1229,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
             onEdit={() => openEdit(selected)}
             onAddUnit={() => openCreateUnit(selected)}
             user={user}
+            draftRefreshKey={draftRefreshKey}
             onApprove={async () => {
               await approveProperty(selected.id);
               await load();
