@@ -17,7 +17,7 @@ if (Platform.OS !== 'web') {
   } catch {}
 }
 import { LanguageProvider } from './src/context/LanguageContext';
-import { AppDataProvider } from './src/context/AppDataContext';
+import { AppDataProvider, useAppData } from './src/context/AppDataContext';
 import Preloader from './src/screens/Preloader';
 import Login from './src/screens/Login';
 import Registration from './src/screens/Registration';
@@ -28,6 +28,12 @@ import { supabase } from './src/services/supabase';
 import WebInviteAcceptScreen from './src/web/screens/WebInviteAcceptScreen';
 
 const initialUser = { email: '', name: '', lastName: '', phone: '', telegram: '', documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '', photoUri: '' };
+
+function AppMainLoader({ onLogout, user, onUserUpdate }) {
+  const { isLoaded, loadingProgress } = useAppData();
+  if (!isLoaded) return <Preloader progress={loadingProgress} />;
+  return <MainScreen onLogout={onLogout} user={user} onUserUpdate={onUserUpdate} />;
+}
 
 export default function App() {
   const [screen, setScreen] = useState('preloader');
@@ -143,7 +149,6 @@ export default function App() {
         />
       ) : (
         <>
-          {screen === 'preloader' && Platform.OS !== 'web' && <Preloader />}
           {(screen === 'login' || (screen === 'preloader' && Platform.OS === 'web')) && (
             <Login
               onSignUp={() => setScreen('registration')}
@@ -161,7 +166,7 @@ export default function App() {
               <WebMainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
             ) : (
               <AppDataProvider user={user}>
-                <MainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
+                <AppMainLoader onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
               </AppDataProvider>
             )
           )}

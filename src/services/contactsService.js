@@ -102,13 +102,14 @@ export async function getContacts(type) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return [];
 
-  const { data, error } = await supabase
+  let q = supabase
     .from('contacts')
     .select('*')
     .eq('agent_id', session.user.id)
-    .eq('type', type)
     .order('name', { ascending: true })
     .limit(10000);
+  if (type) q = q.eq('type', type);
+  const { data, error } = await q;
 
   if (error) {
     console.error('getContacts error:', error.message);

@@ -24,8 +24,9 @@ import dayjs from 'dayjs';
 import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
-import { getContacts, createContact, getContactById } from '../services/contactsService';
-import { getBookings, createBooking, updateBooking } from '../services/bookingsService';
+import { createContact, getContactById } from '../services/contactsService';
+import { createBooking, updateBooking } from '../services/bookingsService';
+import { useAppData } from '../context/AppDataContext';
 import { scheduleBookingReminders, cancelBookingReminders } from '../services/bookingRemindersService';
 import { getCommissionDateAmounts, scheduleCommissionReminders, cancelCommissionReminders } from '../services/commissionRemindersService';
 import { requestReminderPermissions } from '../services/calendarRemindersService';
@@ -176,6 +177,7 @@ const CALENDAR_LOCALES = {
 
 export default function AddBookingModal({ visible, onClose, onSaved, property, editBooking, initialMonth }) {
   const { t, language, currency, currencySymbol: globalSym } = useLanguage();
+  const { contacts, bookings } = useAppData();
   const activeCurrency = property?.currency || currency || 'THB';
   const sym = getCurrencySymbol(activeCurrency);
   const [step, setStep] = useState(1);
@@ -237,17 +239,11 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
     ? (property.code || '') + (property.code_suffix ? ` (${property.code_suffix})` : '')
     : '';
 
-  const loadClients = useCallback(async () => {
+  const loadClients = useCallback(() => {
     setLoadingClients(true);
-    try {
-      const data = await getContacts('clients');
-      setClients(data);
-    } catch (e) {
-      console.error('Load clients error:', e);
-    } finally {
-      setLoadingClients(false);
-    }
-  }, []);
+    setClients(contacts.filter(c => c.type === 'clients'));
+    setLoadingClients(false);
+  }, [contacts]);
 
   useEffect(() => {
     if (visible) {
@@ -338,12 +334,11 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
 
   useEffect(() => {
     if (step === 2 && property?.id) {
-      getBookings(property.id).then((bookings) => {
-        const toUse = editBooking?.id ? bookings.filter((b) => b.id !== editBooking.id) : bookings;
-        setOccupiedDates(getOccupiedDates(toUse));
-        setOccupiedCheckInDates(getOccupiedCheckInDates(toUse));
-        setOccupiedCheckOutDates(getOccupiedCheckOutDates(toUse));
-      }).catch(() => { setOccupiedDates([]); setOccupiedCheckInDates([]); setOccupiedCheckOutDates([]); });
+      const propertyBookings = bookings.filter(b => b.propertyId === property.id);
+      const toUse = editBooking?.id ? propertyBookings.filter(b => b.id !== editBooking.id) : propertyBookings;
+      setOccupiedDates(getOccupiedDates(toUse));
+      setOccupiedCheckInDates(getOccupiedCheckInDates(toUse));
+      setOccupiedCheckOutDates(getOccupiedCheckOutDates(toUse));
     } else {
       setOccupiedDates([]);
       setOccupiedCheckInDates([]);

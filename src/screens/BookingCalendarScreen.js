@@ -23,7 +23,6 @@ import { useAppData } from '../context/AppDataContext';
 import { deleteProperty } from '../services/propertiesService';
 import { deleteBooking } from '../services/bookingsService';
 import { cancelBookingReminders } from '../services/bookingRemindersService';
-import { getContactById, getContacts } from '../services/contactsService';
 import FilterBottomSheet from '../components/FilterBottomSheet';
 import AddBookingModal from '../components/AddBookingModal';
 import BookingDetailScreen from './BookingDetailScreen';
@@ -129,10 +128,11 @@ function getOwnerLabel(width, labels) {
 
 export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose, onReady, readOnly = false, user } = {}) {
   const { t, language } = useLanguage();
-  const { properties, bookings, propertiesLoading, refreshProperties, refreshBookings } = useAppData();
+  const { properties, bookings, contacts, propertiesLoading, refreshProperties, refreshBookings } = useAppData();
 
-  useEffect(() => { onReady?.(); }, []);
-  const [contactsCache, setContactsCache] = useState({});
+  useEffect(() => {
+    onReady?.();
+  }, []);
   const [filterVisible, setFilterVisible] = useState(false);
   const [filterValues, setFilterValues] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -142,8 +142,8 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [detailVisible, setDetailVisible] = useState(false);
   const [initialMonth, setInitialMonth] = useState(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
   const [preloadedProperty, setPreloadedProperty] = useState(null);
   const [preloadedContact, setPreloadedContact] = useState(null);
   const [selectedOwnerContact, setSelectedOwnerContact] = useState(null);
@@ -336,17 +336,11 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return (dayIndex / totalDays) * rowWidth;
   }, [months]);
 
-  const getContactName = useCallback(async (contactId) => {
-    if (!contactId || contactsCache[contactId]) return contactsCache[contactId] || '';
-    try {
-      const c = await getContactById(contactId);
-      const name = c ? (`${(c.name || '').trim()} ${(c.lastName || '').trim()}`.trim() || c.phone || '') : '';
-      setContactsCache(prev => ({ ...prev, [contactId]: name }));
-      return name;
-    } catch {
-      return '';
-    }
-  }, [contactsCache]);
+  const getContactName = useCallback((contactId) => {
+    if (!contactId) return '';
+    const c = contacts.find(ct => ct.id === contactId);
+    return c ? (`${(c.name || '').trim()} ${(c.lastName || '').trim()}`.trim() || c.phone || '') : '';
+  }, [contacts]);
 
   const handleLeftScroll = (e) => {
     const y = e.nativeEvent.contentOffset.y;
@@ -396,7 +390,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     if (selectedBooking) hasOpenedDetailRef.current = true;
   }, [selectedBooking, initialScrollX]);
 
-  const handleAddPress = (property, monthKey) => {
+  const handleAddPress = useCallback((property, monthKey) => {
     setSelectedProperty(property);
     setSelectedBooking(null);
     if (monthKey) {
@@ -406,53 +400,44 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       setInitialMonth(null);
     }
     setAddModalVisible(true);
-  };
+  }, []);
 
-  const handleBookingPress = useCallback(async (booking, property) => {
+  const handleBookingPress = useCallback((booking, property) => {
     setInitialMonth(null);
     setEditModalVisible(false);
-    setLoadingDetail(true);
-    setPreloadedProperty(null);
-    setPreloadedContact(null);
-    try {
-          const [propResult, contactResult] = await Promise.all([
-          (async () => {
-            if (!booking?.propertyId) return null;
-            const prop = properties.find(p => p.id === booking.propertyId);
-            if (!prop) return null;
-            let resort = null;
-            if (prop.resort_id) resort = properties.find(p => p.id === prop.resort_id) || null;
-          const owners = await getContacts('owners');
-          const owner = prop.owner_id ? owners.find(o => o.id === prop.owner_id) : null;
-          const owner2 = prop.owner_id_2 ? owners.find(o => o.id === prop.owner_id_2) : null;
-          return {
-            ...prop,
-            _resort: resort,
-            _owner: owner || null,
-            _owner2: owner2 || null,
-            ownerName: owner ? `${owner.name} ${owner.lastName}`.trim() : '',
-            ownerPhone1: owner?.phone || '',
-            ownerPhone2: owner?.extraPhones?.[0] || '',
-            ownerTelegram: owner?.telegram || '',
-            owner2Name: owner2 ? `${owner2.name} ${owner2.lastName}`.trim() : '',
-            owner2Phone1: owner2?.phone || '',
-            owner2Phone2: owner2?.extraPhones?.[0] || '',
-            owner2Telegram: owner2?.telegram || '',
-          };
-        })(),
-        booking?.contactId ? getContactById(booking.contactId) : Promise.resolve(null),
-      ]);
-      setPreloadedProperty(propResult);
-      setPreloadedContact(contactResult);
-      setSelectedBooking(booking);
-      setSelectedProperty(property);
-    } catch {
-      setSelectedBooking(booking);
-      setSelectedProperty(property);
-    } finally {
-      setLoadingDetail(false);
-    }
-  }, []);
+
+    const prop = booking?.propertyId ? properties.find(p => p.id === booking.propertyId) : null;
+    const propResult = prop ? (() => {
+      const resort = prop.resort_id ? (properties.find(p => p.id === prop.resort_id) || null) : null;
+      const owners = contacts.filter(c => c.type === 'owners');
+      const owner = prop.owner_id ? owners.find(o => o.id === prop.owner_id) : null;
+      const owner2 = prop.owner_id_2 ? owners.find(o => o.id === prop.owner_id_2) : null;
+      return {
+        ...prop,
+        _resort: resort,
+        _owner: owner || null,
+        _owner2: owner2 || null,
+        ownerName: owner ? `${owner.name} ${owner.lastName}`.trim() : '',
+        ownerPhone1: owner?.phone || '',
+        ownerPhone2: owner?.extraPhones?.[0] || '',
+        ownerTelegram: owner?.telegram || '',
+        owner2Name: owner2 ? `${owner2.name} ${owner2.lastName}`.trim() : '',
+        owner2Phone1: owner2?.phone || '',
+        owner2Phone2: owner2?.extraPhones?.[0] || '',
+        owner2Telegram: owner2?.telegram || '',
+      };
+    })() : null;
+
+    const contactResult = booking?.contactId
+      ? (contacts.find(c => c.id === booking.contactId) || null)
+      : null;
+
+    setPreloadedProperty(propResult);
+    setPreloadedContact(contactResult);
+    setSelectedBooking(booking);
+    setSelectedProperty(property);
+    setDetailVisible(true);
+  }, [properties, contacts]);
 
   const handleSaved = () => {
     loadData(false);
@@ -508,58 +493,13 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     );
   }
 
-  if (selectedBooking && selectedProperty) {
-    const parent = selectedProperty.resort_id ? getParent(selectedProperty.resort_id) : null;
-    const codeDisplay = parent
-      ? (parent.code || '') + (selectedProperty.code_suffix ? ` (${selectedProperty.code_suffix})` : '')
-      : (selectedProperty.code || '') + (selectedProperty.code_suffix ? ` (${selectedProperty.code_suffix})` : '');
-    const propBookings = bookingsByProperty[selectedProperty.id] || [];
-    const propertyCode = `${codeDisplay} ${getBookingNumber(selectedBooking, propBookings)}`;
-
-    return (
-      <View style={{ flex: 1 }}>
-        <BookingDetailScreen
-          booking={selectedBooking}
-          propertyCode={propertyCode}
-          initialProperty={preloadedProperty}
-          initialContact={preloadedContact}
-          onContactPress={(contact) => setSelectedOwnerContact(contact)}
-          user={user}
-          onBack={() => { setSelectedBooking(null); setSelectedProperty(null); setPreloadedProperty(null); setPreloadedContact(null); setSelectedOwnerContact(null); }}
-          onDelete={async (id) => {
-            try {
-              await cancelBookingReminders(id);
-              await deleteBooking(id);
-              setSelectedBooking(null);
-              setSelectedProperty(null);
-              setPreloadedProperty(null);
-              setPreloadedContact(null);
-              handleSaved();
-            } catch (e) {
-              Alert.alert(t('error'), e?.message || String(e));
-            }
-          }}
-          onEdit={(b) => {
-            setEditModalVisible(true);
-          }}
-        />
-        <AddBookingModal
-          visible={editModalVisible}
-          onClose={() => { setEditModalVisible(false); }}
-          onSaved={(updated) => {
-            setEditModalVisible(false);
-            if (updated) setSelectedBooking(updated);
-            handleSaved();
-          }}
-          property={selectedProperty}
-          editBooking={selectedBooking}
-        />
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
+    <View style={{ flex: 1 }}>
+
+      {/* Слой 1: Гант-календарь — всегда в DOM, скрыт когда открыто бронирование */}
+      <View style={{ flex: 1, opacity: detailVisible ? 0 : 1 }}
+            pointerEvents={detailVisible ? 'none' : 'auto'}>
+      <View style={styles.container}>
       {!embeddedInModal && (
         <View style={styles.fixedTop}>
           <View style={styles.header}>
@@ -741,11 +681,60 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         initialMonth={initialMonth}
       />
 
-      {loadingDetail && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#5DB8D4" />
+    </View>
+      </View>
+
+      {/* Слой 2: Детали бронирования — монтируется один раз, остаётся в DOM */}
+      {selectedBooking && selectedProperty && (
+        <View style={[StyleSheet.absoluteFill, { opacity: detailVisible ? 1 : 0 }]}
+              pointerEvents={detailVisible ? 'auto' : 'none'}>
+          <BookingDetailScreen
+            booking={selectedBooking}
+            propertyCode={(() => {
+              const parent = selectedProperty.resort_id ? getParent(selectedProperty.resort_id) : null;
+              const codeDisplay = parent
+                ? (parent.code || '') + (selectedProperty.code_suffix ? ` (${selectedProperty.code_suffix})` : '')
+                : (selectedProperty.code || '') + (selectedProperty.code_suffix ? ` (${selectedProperty.code_suffix})` : '');
+              const propBookings = bookingsByProperty[selectedProperty.id] || [];
+              return `${codeDisplay} ${getBookingNumber(selectedBooking, propBookings)}`;
+            })()}
+            initialProperty={preloadedProperty}
+            initialContact={preloadedContact}
+            onContactPress={(contact) => setSelectedOwnerContact(contact)}
+            user={user}
+            onBack={() => {
+              setDetailVisible(false);
+            }}
+            onDelete={async (id) => {
+              try {
+                await cancelBookingReminders(id);
+                await deleteBooking(id);
+                setDetailVisible(false);
+                setSelectedBooking(null);
+                setSelectedProperty(null);
+                setPreloadedProperty(null);
+                setPreloadedContact(null);
+                handleSaved();
+              } catch (e) {
+                Alert.alert(t('error'), e?.message || String(e));
+              }
+            }}
+            onEdit={() => setEditModalVisible(true)}
+          />
+          <AddBookingModal
+            visible={editModalVisible}
+            onClose={() => setEditModalVisible(false)}
+            onSaved={(updated) => {
+              setEditModalVisible(false);
+              if (updated) setSelectedBooking(updated);
+              handleSaved();
+            }}
+            property={selectedProperty}
+            editBooking={selectedBooking}
+          />
         </View>
       )}
+
     </View>
   );
 }
@@ -834,7 +823,7 @@ const yearPickerStyles = StyleSheet.create({
   },
 });
 
-function CalendarRow({
+const CalendarRow = React.memo(function CalendarRow({
   unit,
   months,
   monthWidth,
@@ -853,17 +842,12 @@ function CalendarRow({
   const [contactNames, setContactNames] = useState({});
 
   useEffect(() => {
-    let cancelled = false;
-    bookings.forEach(async (b) => {
-      if (b.notMyCustomer) return;
-      if (b.contactId && !contactNames[b.id]) {
-        try {
-          const name = await getContactName(b.contactId);
-          if (!cancelled) setContactNames(prev => ({ ...prev, [b.id]: name }));
-        } catch {}
-      }
+    const names = {};
+    bookings.forEach(b => {
+      if (b.notMyCustomer || !b.contactId) return;
+      names[b.id] = getContactName(b.contactId);
     });
-    return () => { cancelled = true; };
+    setContactNames(names);
   }, [bookings, getContactName]);
 
   const rowWidth = months.length * monthWidth;
@@ -883,19 +867,26 @@ function CalendarRow({
 
   return (
     <View style={[rowStyles.row, { height: rowHeight, width: rowWidth }]}>
-      {months.map((m) => {
-        const isPast = m.year < currentYear || (m.year === currentYear && m.month < currentMonth);
-        const isCurrent = m.year === currentYear && m.month === currentMonth;
-        const cellBg = isPast ? COLORS.monthPast : isCurrent ? COLORS.monthCurrent : COLORS.monthFuture;
-        return (
-          <TouchableOpacity
-            key={m.key}
-            style={[rowStyles.cell, { width: monthWidth, backgroundColor: cellBg }]}
-            onPress={onCellPress ? () => onCellPress(unit, m.key) : undefined}
-            activeOpacity={onCellPress ? 0.7 : 1}
-          />
-        );
-      })}
+      <Pressable
+        style={{ flexDirection: 'row', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        onPress={onCellPress ? (e) => {
+          const x = e.nativeEvent.locationX;
+          const monthIdx = Math.min(Math.floor(x / monthWidth), months.length - 1);
+          if (monthIdx >= 0) onCellPress(unit, months[monthIdx].key);
+        } : undefined}
+      >
+        {months.map((m) => {
+          const isPast = m.year < currentYear || (m.year === currentYear && m.month < currentMonth);
+          const isCurrent = m.year === currentYear && m.month === currentMonth;
+          const cellBg = isPast ? COLORS.monthPast : isCurrent ? COLORS.monthCurrent : COLORS.monthFuture;
+          return (
+            <View
+              key={m.key}
+              style={[rowStyles.cell, { width: monthWidth, backgroundColor: cellBg }]}
+            />
+          );
+        })}
+      </Pressable>
       {bookings.map((b) => {
         const checkInStr = typeof b.checkIn === 'string' && b.checkIn.length >= 10 ? b.checkIn.substring(0, 10) : b.checkIn;
         const checkOutStr = typeof b.checkOut === 'string' && b.checkOut.length >= 10 ? b.checkOut.substring(0, 10) : b.checkOut;
@@ -948,7 +939,7 @@ function CalendarRow({
       })}
     </View>
   );
-}
+});
 
 const rowStyles = StyleSheet.create({
   row: {

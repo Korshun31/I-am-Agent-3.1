@@ -50,7 +50,8 @@ function JumpingDot({ color, index }) {
   );
 }
 
-export default function Preloader() {
+export default function Preloader({ progress }) {
+  const showProgress = typeof progress === 'number';
   return (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
@@ -63,7 +64,13 @@ export default function Preloader() {
           <JumpingDot key={i} color={color} index={i} />
         ))}
       </View>
-      <Text style={styles.loadingText}>Загрузка...</Text>
+      {showProgress ? (
+        <View style={styles.progressWrap}>
+          <View style={[styles.progressBar, { width: `${progress}%` }]} />
+        </View>
+      ) : (
+        <Text style={styles.loadingText}>Loading...</Text>
+      )}
     </View>
   );
 }
@@ -105,5 +112,18 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     color: COLORS.subtitle,
+  },
+  progressWrap: {
+    width: 160,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+  progressBar: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.green,
   },
 });

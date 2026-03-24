@@ -24,8 +24,7 @@ import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
 import { getCommissionDateAmounts } from '../services/commissionRemindersService';
 import { useAppData } from '../context/AppDataContext';
-import { getContactById } from '../services/contactsService';
-import { getCalendarEvents, eventOccursOnDate, updateCalendarEvent } from '../services/calendarEventsService';
+import { eventOccursOnDate, updateCalendarEvent } from '../services/calendarEventsService';
 import AddCalendarEventModal from '../components/AddCalendarEventModal';
 import AddBookingModal from '../components/AddBookingModal';
 import BookingDetailScreen from './BookingDetailScreen';
@@ -92,6 +91,7 @@ const DRAWER_ANIMATION = {
 };
 
 function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBooking, isBooking, t, onStatusChange }) {
+  const { contacts } = useAppData();
   const [contactName, setContactName] = useState('');
   const [localCompleted, setLocalCompleted] = useState(!!event.isCompleted);
 
@@ -124,10 +124,9 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
       setContactName('');
       return;
     }
-    getContactById(b.contactId).then((c) => {
-      setContactName(c ? `${c.name} ${c.lastName}`.trim() : '');
-    }).catch(() => setContactName(''));
-  }, [isBooking, event?.booking?.contactId, event?.booking?.notMyCustomer, t]);
+    const c = contacts.find(ct => ct.id === b.contactId);
+    setContactName(c ? `${c.name} ${c.lastName}`.trim() : '');
+  }, [isBooking, event?.booking?.contactId, event?.booking?.notMyCustomer, t, contacts]);
 
   if (isBooking) {
     const isCommission = event.eventType === 'commissionOneTime' || event.eventType === 'commissionMonthly';
@@ -253,7 +252,7 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
 
 export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenProperty, onReady, user }) {
   const { t, language } = useLanguage();
-  const { properties, bookings, refreshProperties, refreshBookings } = useAppData();
+  const { properties, bookings, contacts, calendarEvents, refreshProperties, refreshBookings, refreshCalendarEvents } = useAppData();
 
   useEffect(() => { onReady?.(); }, []);
   const [selectedDate, setSelectedDate] = useState(() => formatDateYMD(new Date()));
@@ -269,28 +268,25 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
   const [selectedOwnerContact, setSelectedOwnerContact] = useState(null);
 
   // Загружаем только события календаря — properties/bookings уже есть в общем сторе
-  const loadEvents = useCallback(async (opts = {}) => {
+  const loadEvents = useCallback((opts = {}) => {
     if (!opts.silent) setLoading(true);
-    try {
-      const e = await getCalendarEvents();
-      setCustomEvents(e);
-    } catch {}
+    setCustomEvents(calendarEvents);
     if (!opts.silent) setLoading(false);
-  }, []);
+  }, [calendarEvents]);
 
   // Полное обновление (после мутаций): события + общий стор
   const loadData = useCallback(async (opts = {}) => {
     if (!opts.silent) setLoading(true);
     try {
-      const [e] = await Promise.all([
-        getCalendarEvents(),
+      await Promise.all([
+        refreshCalendarEvents(),
         refreshProperties(),
         refreshBookings(),
       ]);
-      setCustomEvents(e);
+      setCustomEvents(calendarEvents);
     } catch {}
     if (!opts.silent) setLoading(false);
-  }, [refreshProperties, refreshBookings]);
+  }, [refreshCalendarEvents, refreshProperties, refreshBookings, calendarEvents]);
 
   const hasLoadedRef = useRef(false); // загружаем только один раз при первом открытии
   const prevVisibleRef = useRef(false);
@@ -553,13 +549,39 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
       setEditBookingDetailModalVisible(false);
       setSelectedOwnerContact(null);
     };
+    const detailProperty = (() => {
+      if (!booking?.propertyId) return null;
+      const prop = properties.find(p => p.id === booking.propertyId);
+      if (!prop) return null;
+      const resort = prop.resort_id ? (properties.find(p => p.id === prop.resort_id) || null) : null;
+      const owners = contacts.filter(c => c.type === 'owners');
+      const owner = prop.owner_id ? owners.find(o => o.id === prop.owner_id) : null;
+      const owner2 = prop.owner_id_2 ? owners.find(o => o.id === prop.owner_id_2) : null;
+      return {
+        ...prop,
+        _resort: resort,
+        _owner: owner || null,
+        _owner2: owner2 || null,
+        ownerName: owner ? `${owner.name} ${owner.lastName}`.trim() : '',
+        ownerPhone1: owner?.phone || '',
+        ownerPhone2: owner?.extraPhones?.[0] || '',
+        ownerTelegram: owner?.telegram || '',
+        owner2Name: owner2 ? `${owner2.name} ${owner2.lastName}`.trim() : '',
+        owner2Phone1: owner2?.phone || '',
+        owner2Phone2: owner2?.extraPhones?.[0] || '',
+        owner2Telegram: owner2?.telegram || '',
+      };
+    })();
+    const detailContact = booking?.contactId
+      ? (contacts.find(c => c.id === booking.contactId) || null)
+      : null;
     return (
       <View style={{ flex: 1 }}>
         <BookingDetailScreen
           booking={booking}
           propertyCode={propertyCode}
-          initialProperty={null}
-          initialContact={null}
+          initialProperty={detailProperty}
+          initialContact={detailContact}
           onContactPress={(contact) => setSelectedOwnerContact(contact)}
           onBack={clearDetail}
           onDelete={async (id) => {
