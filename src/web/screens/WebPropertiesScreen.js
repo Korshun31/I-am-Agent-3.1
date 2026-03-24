@@ -1008,11 +1008,9 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
   useEffect(() => { load(); }, []);
 
   // Realtime: обновляем данные объекта при изменениях — только для агента
-  const isAgent = !!user?.teamMembership;
-  const agentId = user?.id;
-
   useEffect(() => {
-    if (!isAgent || !agentId) return;
+    if (!user?.teamMembership || !user?.id) return;
+    const agentId = user.id;
 
     const channel = supabase
       .channel('properties-realtime')
@@ -1034,7 +1032,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [isAgent, agentId]);
+  }, [user?.teamMembership, user?.id]);
 
   // Auto-select property when navigating from Contacts
   useEffect(() => {
