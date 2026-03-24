@@ -616,7 +616,11 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
       }
       onSaved(saved);
     } catch (e) {
-      setError(e.message || t('errorSave'));
+      if (e.message === 'BOOKING_CONFLICT') {
+        setError(t('bookingConflictError'));
+      } else {
+        setError(e.message || t('errorSave'));
+      }
     } finally {
       setSaving(false);
     }

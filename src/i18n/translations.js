@@ -178,6 +178,7 @@ export const translations = {
     // Common field/error
     fieldRequired: 'Required',
     errorSave: 'Save error',
+    bookingConflictError: 'These dates are already booked for this property.',
     errorUpload: 'Upload error',
     pdPhotos: 'Photos',
     propName: 'Name',
@@ -1021,6 +1022,7 @@ export const translations = {
     // Common field/error
     fieldRequired: 'จำเป็น',
     errorSave: 'ข้อผิดพลาดในการบันทึก',
+    bookingConflictError: 'วันที่เหล่านี้ถูกจองแล้วสำหรับอสังหาริมทรัพย์นี้',
     errorUpload: 'ข้อผิดพลาดในการอัปโหลด',
     pdPhotos: 'รูปภาพ',
     propName: 'ชื่อ',
@@ -1848,6 +1850,7 @@ export const translations = {
     // Common field/error
     fieldRequired: 'Обязательное поле',
     errorSave: 'Ошибка сохранения',
+    bookingConflictError: 'Эти даты уже заняты для данного объекта.',
     errorUpload: 'Ошибка загрузки',
     pdPhotos: 'Фотографии',
     propName: 'Название',

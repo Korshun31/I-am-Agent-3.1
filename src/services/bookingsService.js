@@ -40,9 +40,33 @@ export async function getBookings(propertyId = null, contactId = null, agentId =
   return (data || []).map(mapBooking);
 }
 
+async function checkBookingConflict(propertyId, checkIn, checkOut, excludeId = null) {
+  let q = supabase
+    .from('bookings')
+    .select('id, check_in, check_out')
+    .eq('property_id', propertyId)
+    .lt('check_in', checkOut)
+    .gt('check_out', checkIn);
+
+  if (excludeId) {
+    q = q.neq('id', excludeId);
+  }
+
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data || []).length > 0;
+}
+
 export async function createBooking(booking) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
+
+  const hasConflict = await checkBookingConflict(
+    booking.propertyId,
+    booking.checkIn,
+    booking.checkOut
+  );
+  if (hasConflict) throw new Error('BOOKING_CONFLICT');
 
   const row = {
     agent_id: session.user.id,
@@ -86,6 +110,14 @@ export async function createBooking(booking) {
 export async function updateBooking(id, booking) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
+
+  const hasConflict = await checkBookingConflict(
+    booking.propertyId,
+    booking.checkIn,
+    booking.checkOut,
+    id
+  );
+  if (hasConflict) throw new Error('BOOKING_CONFLICT');
 
   const updates = {
     contact_id: booking.contactId || null,

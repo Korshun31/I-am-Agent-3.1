@@ -530,7 +530,10 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
       }
       onClose?.();
     } catch (e) {
-      Alert.alert(t('error'), e.message || 'Failed to save booking');
+      const msg = e.message === 'BOOKING_CONFLICT'
+        ? t('bookingConflictError')
+        : (e.message || 'Failed to save booking');
+      Alert.alert(t('error'), msg);
     } finally {
       setSaving(false);
     }
