@@ -102,16 +102,13 @@ function MemberPermissionsModal({ member, visible, onClose, onSave }) {
                 onToggle={() => toggle('can_add_property')}
               />
               <PermissionToggleRow
-                label="Редактирование основных данных"
-                hint="Фото, описание, спальни, удобства, расстояния — без проверки Админа"
+                label="Редактирование объектов"
+                hint="Агент может редактировать свои объекты без проверки Админа"
                 value={!!permissions.can_edit_info}
-                onToggle={() => toggle('can_edit_info')}
-              />
-              <PermissionToggleRow
-                label="Редактирование цен"
-                hint="Стоимость аренды и депозиты — без проверки Админа"
-                value={!!permissions.can_edit_prices}
-                onToggle={() => toggle('can_edit_prices')}
+                onToggle={() => {
+                  const newVal = !permissions.can_edit_info;
+                  setPermissions(prev => ({ ...prev, can_edit_info: newVal, can_edit_prices: newVal }));
+                }}
               />
             </View>
 
@@ -119,27 +116,10 @@ function MemberPermissionsModal({ member, visible, onClose, onSave }) {
             <View style={s.modalSection}>
               <Text style={s.modalSectionTitle}>БРОНИРОВАНИЯ</Text>
               <PermissionToggleRow
-                label={t('permCanBook') || 'Создание бронирований'}
+                label="Добавление и редактирование бронирований"
                 hint="Агент может создавать и редактировать бронирования своих объектов"
                 value={!!permissions.can_book}
                 onToggle={() => toggle('can_book')}
-              />
-              <PermissionToggleRow
-                label="Удаление бронирований"
-                hint="Агент может удалять бронирования своих объектов"
-                value={!!permissions.can_delete_booking}
-                onToggle={() => toggle('can_delete_booking')}
-              />
-            </View>
-
-            {/* Раздел: Финансы */}
-            <View style={s.modalSection}>
-              <Text style={s.modalSectionTitle}>ФИНАНСЫ</Text>
-              <PermissionToggleRow
-                label="Просмотр финансовых данных"
-                hint="Агент видит комиссии и коммунальные расходы в карточке объекта"
-                value={!!permissions.can_see_financials}
-                onToggle={() => toggle('can_see_financials')}
               />
             </View>
 
