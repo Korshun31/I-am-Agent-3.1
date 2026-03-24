@@ -359,7 +359,7 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
               ))
             )}
             <TouchableOpacity style={s.addLocationBtn} onPress={() => setLocationsVisible(true)}>
-              <Text style={s.addLocationText}>+ {t('locationsAddRemove')}</Text>
+              <Text style={s.addLocationText}>{t('locationsAddRemove')}</Text>
             </TouchableOpacity>
           </SectionCard>
 
