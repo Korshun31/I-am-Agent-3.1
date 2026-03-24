@@ -292,8 +292,8 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
   const isAgent = !!user?.teamMembership;
   const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
   const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
-  // Нужно ли одобрение Админа (доступно на уровне компонента для рендера кнопки)
-  const needsApproval = isAgent && (!canEditInfo || !canEditPrices);
+  // Кнопка «Отправить на проверку» если агент не может редактировать основные данные
+  const needsApproval = isAgent && !canEditInfo;
 
   // In edit mode use the currency stored on the property; in create mode use the user's selected currency
   const activeCurrency = (mode === 'edit' && property?.currency) ? property.currency : (userCurrency || 'THB');
@@ -372,6 +372,20 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
     setSaving(true);
     setError('');
 
+    // Ценовые поля — контролируются разрешением can_edit_prices
+    const PRICE_FIELDS = new Set([
+      'price_monthly', 'price_monthly_is_from',
+      'booking_deposit', 'booking_deposit_is_from',
+      'save_deposit', 'save_deposit_is_from',
+      'commission', 'commission_is_from',
+      'owner_commission_one_time', 'owner_commission_one_time_is_from', 'owner_commission_one_time_is_percent',
+      'owner_commission_monthly', 'owner_commission_monthly_is_from', 'owner_commission_monthly_is_percent',
+      'electricity_price', 'water_price', 'water_price_type',
+      'gas_price', 'internet_price',
+      'cleaning_price', 'exit_cleaning_price',
+      'currency',
+    ]);
+
     const updates = {
       name: form.name.trim(),
       code: form.code.trim().toUpperCase(),
@@ -421,15 +435,32 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       currency: activeCurrency,
     };
 
+    // Разделяем поля: что сохранить напрямую, что отправить в черновик
+    const directSave = {};
+    const draftData = {};
+
+    Object.entries(updates).forEach(([key, val]) => {
+      const isPriceField = PRICE_FIELDS.has(key);
+      if (isPriceField) {
+        canEditPrices ? (directSave[key] = val) : (draftData[key] = val);
+      } else {
+        canEditInfo ? (directSave[key] = val) : (draftData[key] = val);
+      }
+    });
+
     try {
       let saved;
       const adminId = user?.teamMembership?.adminId;
       const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email;
 
       if (mode === 'edit') {
-        if (needsApproval) {
-          // Сохраняем черновик — оригинал НЕ трогаем
-          await submitPropertyDraft(property.id, updates);
+        // Сохраняем напрямую то, на что есть права
+        if (Object.keys(directSave).length > 0) {
+          saved = await updateProperty(property.id, directSave);
+        }
+        // Отправляем на проверку то, на что прав нет
+        if (Object.keys(draftData).length > 0) {
+          await submitPropertyDraft(property.id, draftData);
           if (adminId) {
             await sendNotification({
               recipientId: adminId,
@@ -440,11 +471,10 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
               propertyId: property.id,
             });
           }
-          onSaved(null); // закрываем панель без обновления данных (данные не изменились)
-          return;
         }
-        saved = await updateProperty(property.id, updates);
-        // уведомление не нужно — агент с правами сохраняет напрямую
+        // Закрываем панель: если было прямое сохранение — передаём saved, иначе null
+        onSaved(saved ?? null);
+        return;
       } else if (mode === 'create-unit') {
         saved = await createPropertyFull({
           ...updates,
