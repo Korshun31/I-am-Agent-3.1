@@ -456,7 +456,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
   // Разрешения агента
   const isAgent = !!user?.teamMembership;
   const canSeeFinancials = !isAgent || user?.teamPermissions?.can_see_financials;
-  const canManageClients = !isAgent || user?.teamPermissions?.can_manage_clients;
+  const canManageClients = !isAgent || !!user?.teamPermissions?.can_book;
 
   const [form, setForm]             = useState(() => buildForm(booking, null));
   const [saving, setSaving]         = useState(false);

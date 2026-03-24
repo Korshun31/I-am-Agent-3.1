@@ -424,6 +424,7 @@ export default function WebNotificationBell({ userId }) {
           .from('property_drafts')
           .select('id')
           .eq('property_id', notif.property_id)
+          .eq('agent_id', notif.sender_id)
           .eq('status', 'pending')
           .maybeSingle();
 
@@ -467,6 +468,7 @@ export default function WebNotificationBell({ userId }) {
           .from('property_drafts')
           .select('id')
           .eq('property_id', notif.property_id)
+          .eq('agent_id', notif.sender_id)
           .eq('status', 'pending')
           .maybeSingle();
 

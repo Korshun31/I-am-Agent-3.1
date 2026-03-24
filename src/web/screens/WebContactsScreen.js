@@ -288,7 +288,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
 
   // Разрешения агента
   const isAgent = !!user?.teamMembership;
-  const canManage = !isAgent || user?.teamPermissions?.can_manage_clients;
+  const canManage = !isAgent || !!user?.teamPermissions?.can_book;
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -656,7 +656,7 @@ export default function WebContactsScreen({ onNavigateToProperty, user }) {
 
   // ── Filtered list ──
   const isAgent = !!user?.teamMembership;
-  const canManage = !isAgent || user?.teamPermissions?.can_manage_clients;
+  const canManage = !isAgent || !!user?.teamPermissions?.can_book;
 
   const q = search.trim().toLowerCase();
   const filtered = allContacts.filter(c => {
