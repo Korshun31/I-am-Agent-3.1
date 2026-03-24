@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput } from 'react-native';
 import { supabase } from '../../services/supabase';
-import { useLanguage } from '../../i18n/LanguageContext';
+import { useLanguage } from '../../context/LanguageContext';
 import {
   getNotifications,
   getUnreadCount,
