@@ -179,7 +179,7 @@ const canDeleteBooking = !user?.teamMembership || booking?.agentId === user?.id;
       await deleteBooking(booking.id);
       onDelete();
     } catch (e) {
-      alert('Ошибка удаления: ' + e.message);
+      alert(t('errorPrefix') + ' ' + e.message);
     } finally {
       setDeleting(false);
     }
@@ -213,7 +213,7 @@ const canDeleteBooking = !user?.teamMembership || booking?.agentId === user?.id;
             <Text style={[d.statusText, { color: st.color }]}>{st.label}</Text>
           </View>
           <Text style={d.propName} numberOfLines={1}>
-            {property?.name || 'Объект'}
+            {property?.name || t('bookingProperty')}
           </Text>
           <View style={d.propMeta}>
             <View style={[d.typeDot, { backgroundColor: tc.border }]} />

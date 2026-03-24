@@ -222,8 +222,8 @@ function BookingRow({ booking, properties }) {
   const { t } = useLanguage();
   const prop = properties.find(p => p.id === booking.propertyId);
   const propName = prop ? (prop.name || prop.code) : '—';
-  const checkIn  = booking.checkIn  ? dayjs(booking.checkIn).format('DD.MM.YYYY')  : '—';
-  const checkOut = booking.checkOut ? dayjs(booking.checkOut).format('DD.MM.YYYY') : '—';
+  const checkIn  = booking.checkIn  ? dayjs(booking.checkIn).format(t('dateFormat'))  : '—';
+  const checkOut = booking.checkOut ? dayjs(booking.checkOut).format(t('dateFormat')) : '—';
   const nights = (booking.checkIn && booking.checkOut)
     ? dayjs(booking.checkOut).diff(dayjs(booking.checkIn), 'day')
     : null;
@@ -406,7 +406,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
               <Image source={ICON_BIRTHDAY} style={s.infoLabelIcon} resizeMode="contain" />
               <Text style={s.infoLabel}>{t('birthdayDate')}</Text>
             </View>
-            <Text style={s.infoValue}>{dayjs(contact.birthday).format('DD.MM.YYYY')}</Text>
+            <Text style={s.infoValue}>{dayjs(contact.birthday).format(t('dateFormat'))}</Text>
           </View>
         ) : null}
         {contact.documentNumber ? (

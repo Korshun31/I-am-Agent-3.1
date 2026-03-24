@@ -96,7 +96,7 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
       // Если ошибка — возвращаем как было
       setUser(user);
       onUserUpdate?.(user);
-      alert('Ошибка сохранения настроек');
+      alert(t('errorSaveSettings'));
     }
   };
   const [loading, setLoading] = useState(false);
@@ -160,13 +160,13 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
       setEditingCompany(false);
     } catch (e) {
       console.error('Save company error:', e);
-      alert('Ошибка сохранения данных компании');
+      alert(t('errorSaveCompany'));
     }
   };
 
   const handleSwitchToCompany = async () => {
     if (!['premium', 'admin'].includes(user?.role)) {
-      alert('Это Premium функция. Обновите тариф чтобы создать компанию и пригласить команду.');
+      alert(t('premiumRequiredAlert'));
       return;
     }
     try {
@@ -185,7 +185,7 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
       updateAndSync(updated);
     } catch (e) {
       if (e?.message === 'HAS_ACTIVE_MEMBERS') {
-        alert('Нельзя перейти в режим частного агента пока в команде есть активные участники. Сначала удалите всех агентов.');
+        alert(t('errorActiveAgents'));
       } else {
         console.error('Switch to private error:', e);
       }
@@ -203,7 +203,7 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
   if (!user) {
     return (
       <View style={s.centered}>
-        <Text style={s.emptyText}>Пользователь не найден</Text>
+        <Text style={s.emptyText}>{t('userNotFound')}</Text>
       </View>
     );
   }
@@ -370,7 +370,7 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
             >
               <Text style={s.settingLabel}>{t('language')}</Text>
               <Text style={[s.settingValue, { color: ACCENT }]}>
-                {user?.language === 'ru' ? 'Русский' : user?.language === 'th' ? 'Thai' : 'English'}
+                {user?.language === 'ru' ? t('langNameRu') : user?.language === 'th' ? t('langNameTh') : t('langNameEn')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity 

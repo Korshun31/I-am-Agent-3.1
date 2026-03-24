@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput } from 'react-native';
 import { supabase } from '../../services/supabase';
+import { useLanguage } from '../../i18n/LanguageContext';
 import {
   getNotifications,
   getUnreadCount,
@@ -28,39 +29,41 @@ const C = {
 };
 
 // Человекочитаемые названия полей объекта для diff-таблицы
-const FIELD_LABELS = {
-  name:                     'Название',
-  city:                     'Город',
-  district:                 'Район',
-  address:                  'Адрес',
-  bedrooms:                 'Спален',
-  bathrooms:                'Санузлов',
-  area:                     'Площадь (м²)',
-  floors:                   'Этажей',
-  houses_count:             'Кол-во домов',
-  air_conditioners:         'Кондиционеры',
-  internet_speed:           'Интернет (Мбит/с)',
-  beach_distance:           'До пляжа (м)',
-  market_distance:          'До магазина (м)',
-  google_maps_link:         'Google Maps',
-  website_url:              'Сайт объекта',
-  description:              'Описание',
-  price_monthly:            'Цена/мес',
-  booking_deposit:          'Депозит бронирования',
-  save_deposit:             'Сохранный депозит',
-  commission:               'Комиссия от клиента',
-  owner_commission_one_time:'Комиссия от собств. разовая',
-  owner_commission_monthly: 'Комиссия от собств. ежемес.',
-  electricity_price:        'Электричество',
-  water_price:              'Вода',
-  gas_price:                'Газ',
-  internet_price:           'Интернет/мес',
-  cleaning_price:           'Уборка',
-  exit_cleaning_price:      'Уборка при выезде',
-  pets_allowed:             'Питомцы разрешены',
-  long_term_booking:        'Длинные даты',
-  video_url:                'Видео ссылка',
-};
+function getFieldLabels(t) {
+  return {
+    name:                      t('fieldName'),
+    city:                      t('fieldCity'),
+    district:                  t('fieldDistrict'),
+    address:                   t('fieldAddress'),
+    bedrooms:                  t('fieldBedrooms'),
+    bathrooms:                 t('fieldBathrooms'),
+    area:                      t('fieldArea'),
+    floors:                    t('fieldFloors'),
+    houses_count:              t('fieldHousesCount'),
+    air_conditioners:          t('fieldAirConditioners'),
+    internet_speed:            t('fieldInternetSpeed'),
+    beach_distance:            t('fieldBeachDistance'),
+    market_distance:           t('fieldMarketDistance'),
+    google_maps_link:          t('fieldGoogleMaps'),
+    website_url:               t('fieldWebsiteUrl'),
+    description:               t('fieldDescription'),
+    price_monthly:             t('fieldPriceMonthly'),
+    booking_deposit:           t('fieldBookingDeposit'),
+    save_deposit:              t('fieldSaveDeposit'),
+    commission:                t('fieldCommission'),
+    owner_commission_one_time: t('fieldOwnerCommissionOneTime'),
+    owner_commission_monthly:  t('fieldOwnerCommissionMonthly'),
+    electricity_price:         t('fieldElectricityPrice'),
+    water_price:               t('fieldWaterPrice'),
+    gas_price:                 t('fieldGasPrice'),
+    internet_price:            t('fieldInternetPrice'),
+    cleaning_price:            t('fieldCleaningPrice'),
+    exit_cleaning_price:       t('fieldExitCleaningPrice'),
+    pets_allowed:              t('fieldPetsAllowed'),
+    long_term_booking:         t('fieldLongTermBooking'),
+    video_url:                 t('fieldVideoUrl'),
+  };
+}
 
 // Поля которые не показываем в diff (технические / не информативные)
 const DIFF_SKIP_FIELDS = new Set([
@@ -84,6 +87,8 @@ function formatValue(val) {
 
 // Модальное окно с карточками изменений и встроенным принятием решения
 function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onReject }) {
+  const { t } = useLanguage();
+  const FIELD_LABELS = getFieldLabels(t);
   // Локальный стейт для режима ввода причины отклонения
   const [rejectMode, setRejectMode] = useState(false);
   const [reason, setReason] = useState('');
@@ -138,7 +143,7 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
             <View style={sd.header}>
               <View style={sd.headerLeft}>
                 <View>
-                  <Text style={sd.title}>Изменения объекта</Text>
+                  <Text style={sd.title}>{t('diffModalTitle')}</Text>
                   {propName ? (
                     <Text style={sd.subtitle}>{propName}</Text>
                   ) : null}
@@ -163,15 +168,15 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
             <ScrollView style={sd.scroll} showsVerticalScrollIndicator={false}
                         contentContainerStyle={sd.scrollContent}>
               {changes.length === 0 ? (
-                <Text style={sd.empty}>Нет отслеживаемых изменений</Text>
+                <Text style={sd.empty}>{t('diffNoChanges')}</Text>
               ) : (
                 <>
                   {/* Шапка таблицы */}
                   <View style={sd.tableHead}>
                     <Text style={[sd.tableHeadCell, sd.colField]}>Поле</Text>
-                    <Text style={[sd.tableHeadCell, sd.colOld]}>Было</Text>
+                    <Text style={[sd.tableHeadCell, sd.colOld]}>{t('diffWas')}</Text>
                     <Text style={sd.tableArrow}>{' '}</Text>
-                    <Text style={[sd.tableHeadCell, sd.colNew]}>Стало</Text>
+                    <Text style={[sd.tableHeadCell, sd.colNew]}>{t('diffNow')}</Text>
                   </View>
                   {/* Строки изменений */}
                   {changes.map((c, i) => {
@@ -182,13 +187,13 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
                           <Text style={sd.expandedFieldLabel}>{c.label}</Text>
                           <View style={sd.expandedValuesRow}>
                             <View style={sd.expandedBlock}>
-                              <Text style={sd.expandedBlockLabel}>Было</Text>
+                              <Text style={sd.expandedBlockLabel}>{t('diffWas')}</Text>
                               <ScrollView style={sd.expandedScroll} nestedScrollEnabled>
                                 <Text style={sd.expandedOldText}>{c.oldStr}</Text>
                               </ScrollView>
                             </View>
                             <View style={sd.expandedBlock}>
-                              <Text style={sd.expandedBlockLabel}>Стало</Text>
+                              <Text style={sd.expandedBlockLabel}>{t('diffNow')}</Text>
                               <ScrollView style={sd.expandedScroll} nestedScrollEnabled>
                                 <Text style={sd.expandedNewText}>{c.newStr}</Text>
                               </ScrollView>
@@ -222,10 +227,10 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
                 /* Состояние A: кнопки «Одобрить» и «Отклонить» */
                 <View style={sd.actionBtns}>
                   <TouchableOpacity style={sd.approveBtn} onPress={handleApprove}>
-                    <Text style={sd.approveBtnText}>✓ Одобрить</Text>
+                    <Text style={sd.approveBtnText}>{`✓ ${t('diffApprove')}`}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={sd.rejectBtn} onPress={() => setRejectMode(true)}>
-                    <Text style={sd.rejectBtnText}>✕ Отклонить</Text>
+                    <Text style={sd.rejectBtnText}>{`✕ ${t('diffReject')}`}</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -233,7 +238,7 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
                 <>
                   <TextInput
                     style={sd.rejectInput}
-                    placeholder="Причина отклонения..."
+                    placeholder={t('diffRejectPlaceholder')}
                     placeholderTextColor="#ADB5BD"
                     value={reason}
                     onChangeText={setReason}
@@ -249,7 +254,7 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
                       <Text style={sd.backBtnText}>Назад</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={sd.rejectConfirmBtn} onPress={handleRejectConfirm}>
-                      <Text style={sd.rejectConfirmBtnText}>Отклонить</Text>
+                      <Text style={sd.rejectConfirmBtnText}>{t('diffReject')}</Text>
                     </TouchableOpacity>
                   </View>
                 </>
@@ -264,6 +269,7 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
 }
 
 function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
+  const { t } = useLanguage();
   const time = dayjs(item.created_at).fromNow();
   const needsAction = ACTION_TYPES.has(item.type) && !item.action_taken;
   const [rejectMode, setRejectMode] = useState(false);
@@ -314,10 +320,10 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
             {!rejectMode && (
               <View style={s.actionRow}>
                 <TouchableOpacity style={s.approveBtn} onPress={() => onApprove(item)}>
-                  <Text style={s.approveBtnText}>✓ Одобрить</Text>
+                  <Text style={s.approveBtnText}>{`✓ ${t('diffApprove')}`}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.rejectBtn} onPress={() => setRejectMode(true)}>
-                  <Text style={s.rejectBtnText}>✕ Отклонить</Text>
+                  <Text style={s.rejectBtnText}>{`✕ ${t('diffReject')}`}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -326,7 +332,7 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
               <View style={s.rejectForm}>
                 <TextInput
                   style={s.rejectInput}
-                  placeholder="Причина отклонения..."
+                  placeholder={t('diffRejectPlaceholder')}
                   value={reason}
                   onChangeText={setReason}
                   autoFocus
@@ -336,7 +342,7 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
                     <Text style={s.rejectCancelText}>Назад</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={s.rejectConfirmBtn} onPress={() => onReject(item, reason)}>
-                    <Text style={s.rejectConfirmText}>Отклонить</Text>
+                    <Text style={s.rejectConfirmText}>{t('diffReject')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -354,6 +360,7 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
 }
 
 export default function WebNotificationBell({ userId }) {
+  const { t } = useLanguage();
   const [unread, setUnread]         = useState(0);
   const [open, setOpen]             = useState(false);
   const [notifications, setNotifs]  = useState([]);
@@ -451,7 +458,7 @@ export default function WebNotificationBell({ userId }) {
           recipientId: notif.sender_id,
           senderId: userId,
           type: typeMap[notif.type] || 'property_approved',
-          title: 'Изменения одобрены',
+          title: t('changesApproved'),
           body: notif.title,
           propertyId: notif.property_id,
         });
@@ -494,8 +501,8 @@ export default function WebNotificationBell({ userId }) {
           recipientId: notif.sender_id,
           senderId: userId,
           type: typeMap[notif.type] || 'property_rejected',
-          title: 'Изменения отклонены',
-          body: reason ? `Причина: ${reason}` : notif.title,
+          title: t('changesRejected'),
+          body: reason ? `${t('diffReason')} ${reason}` : notif.title,
           propertyId: notif.property_id,
         });
       }
@@ -539,7 +546,7 @@ export default function WebNotificationBell({ userId }) {
     <View>
       <TouchableOpacity style={s.bell} onPress={handleOpen} activeOpacity={0.7}>
         <Text style={s.bellIcon}>🔔</Text>
-        <Text style={s.bellLabel}>Уведомления</Text>
+        <Text style={s.bellLabel}>{t('notifications')}</Text>
         {unread > 0 && (
           <View style={s.badge}>
             <Text style={s.badgeText}>{unread > 99 ? '99+' : unread}</Text>
@@ -554,7 +561,7 @@ export default function WebNotificationBell({ userId }) {
 
               {/* Шапка */}
               <View style={s.popupHeader}>
-                <Text style={s.popupTitle}>🔔 Уведомления</Text>
+                <Text style={s.popupTitle}>{`🔔 ${t('notifications')}`}</Text>
                 <TouchableOpacity style={s.closeBtn} onPress={handleClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Text style={s.closeBtnText}>✕</Text>
                 </TouchableOpacity>

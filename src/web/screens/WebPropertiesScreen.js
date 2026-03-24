@@ -355,7 +355,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
             {meta.img
               ? <Image source={meta.img} style={s.galleryPlaceholderImg} resizeMode="contain" />
               : <Text style={s.galleryPlaceholderIcon}>{meta.icon}</Text>}
-            <Text style={[s.galleryPlaceholderText, { color: meta.color }]}>Фото не добавлены</Text>
+            <Text style={[s.galleryPlaceholderText, { color: meta.color }]}>{t('propNoPhotos')}</Text>
           </View>
         )}
       </View>
@@ -368,15 +368,15 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
             onPress={() => setResponsiblePickerVisible(true)}
             activeOpacity={0.7}
           >
-            <Text style={s.responsibleLabel}>Ответственный:</Text>
+            <Text style={s.responsibleLabel}>{t('propResponsibleLabel')}</Text>
             <Text style={s.responsibleValue}>
               {!currentResponsible
-                ? 'Компания'
+                ? t('workAsCompany')
                 : currentResponsible === user?.id
-                  ? ([user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email || 'Я')
+                  ? ([user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email || t('propMe'))
                   : (() => {
                       const m = teamMembers.find(tm => tm.agent_id === currentResponsible);
-                      return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : 'Компания';
+                      return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : t('workAsCompany');
                     })()}
             </Text>
             <Text style={s.responsibleChevron}>✎</Text>
@@ -390,7 +390,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
           >
             <TouchableOpacity style={s.pickerOverlay} activeOpacity={1} onPress={() => setResponsiblePickerVisible(false)}>
               <View style={s.pickerSheet}>
-                <Text style={s.pickerTitle}>Ответственный</Text>
+                <Text style={s.pickerTitle}>{t('propResponsiblePicker')}</Text>
                 <TouchableOpacity
                   style={[s.pickerItem, !currentResponsible && s.pickerItemActive]}
                   onPress={async () => {
@@ -399,7 +399,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                     setResponsiblePickerVisible(false);
                   }}
                 >
-                  <Text style={[s.pickerItemText, !currentResponsible && s.pickerItemTextActive]}>Компания</Text>
+                  <Text style={[s.pickerItemText, !currentResponsible && s.pickerItemTextActive]}>{t('workAsCompany')}</Text>
                 </TouchableOpacity>
                 {teamMembers.filter(m => m.role !== 'owner').map(m => {
                   const name = [m.name, m.last_name].filter(Boolean).join(' ') || m.email;
@@ -536,7 +536,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
           <View style={s.draftBanner}>
             <Text style={s.draftBannerIcon}>⏳</Text>
             <Text style={s.draftBannerText}>
-              Изменения отправлены на проверку администратору
+              {t('propDraftSent')}
             </Text>
           </View>
         )}
@@ -827,8 +827,8 @@ function AddPropertyModal({ visible, onClose, onSaved, user }) {
   const reset = () => { setName(''); setCode(''); setType('house'); setCity(''); setError(''); };
 
   const handleSave = async () => {
-    if (!name.trim()) { setError('Введите название объекта'); return; }
-    if (!code.trim()) { setError('Введите код объекта'); return; }
+    if (!name.trim()) { setError(t('propEnterName')); return; }
+    if (!code.trim()) { setError(t('propEnterCode')); return; }
     setSaving(true);
     setError('');
     try {
@@ -854,7 +854,7 @@ function AddPropertyModal({ visible, onClose, onSaved, user }) {
       reset();
       onSaved();
     } catch (e) {
-      setError(e.message || 'Ошибка сохранения');
+      setError(e.message || t('errorSave'));
     } finally {
       setSaving(false);
     }
@@ -892,7 +892,7 @@ function AddPropertyModal({ visible, onClose, onSaved, user }) {
             style={s.fieldInput}
             value={name}
             onChangeText={setName}
-            placeholder="Например: Вилла Sunset"
+            placeholder={t('propPlaceholderName')}
             placeholderTextColor={C.light}
           />
 
@@ -901,7 +901,7 @@ function AddPropertyModal({ visible, onClose, onSaved, user }) {
             style={s.fieldInput}
             value={code}
             onChangeText={setCode}
-            placeholder="Например: CW01"
+            placeholder={t('propPlaceholderCode')}
             placeholderTextColor={C.light}
             autoCapitalize="characters"
           />
@@ -911,7 +911,7 @@ function AddPropertyModal({ visible, onClose, onSaved, user }) {
             style={s.fieldInput}
             value={city}
             onChangeText={setCity}
-            placeholder="Например: Samui"
+            placeholder={t('propPlaceholderCity')}
             placeholderTextColor={C.light}
           />
 
@@ -1236,7 +1236,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
               setSelected(prev => ({ ...prev, property_status: 'approved' }));
             }}
             onReject={async () => {
-              const reason = window.prompt('Причина отклонения (необязательно):') ?? '';
+              const reason = window.prompt(t('propRejectPrompt')) ?? '';
               await rejectProperty(selected.id, reason);
               await load();
               setSelected(prev => ({ ...prev, property_status: 'rejected', rejection_reason: reason }));

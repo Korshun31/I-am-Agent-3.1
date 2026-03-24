@@ -94,16 +94,16 @@ function MemberPermissionsModal({ member, visible, onClose, onSave }) {
 
             {/* Раздел: Объекты */}
             <View style={s.modalSection}>
-              <Text style={s.modalSectionTitle}>ОБЪЕКТЫ</Text>
+              <Text style={s.modalSectionTitle}>{t('permSectionProperties')}</Text>
               <PermissionToggleRow
-                label="Добавление объектов"
-                hint="Агент может добавлять новые объекты — Админ проверяет перед публикацией"
+                label={t('permCanAddProperty')}
+                hint={t('permCanAddPropertyHint')}
                 value={!!permissions.can_add_property}
                 onToggle={() => toggle('can_add_property')}
               />
               <PermissionToggleRow
-                label="Редактирование объектов"
-                hint="Агент может редактировать свои объекты без проверки Админа"
+                label={t('permCanEditProperty')}
+                hint={t('permCanEditPropertyHint')}
                 value={!!permissions.can_edit_info}
                 onToggle={() => {
                   const newVal = !permissions.can_edit_info;
@@ -114,10 +114,10 @@ function MemberPermissionsModal({ member, visible, onClose, onSave }) {
 
             {/* Раздел: Бронирования */}
             <View style={s.modalSection}>
-              <Text style={s.modalSectionTitle}>БРОНИРОВАНИЯ</Text>
+              <Text style={s.modalSectionTitle}>{t('permSectionBookings')}</Text>
               <PermissionToggleRow
-                label="Добавление и редактирование бронирований"
-                hint="Агент может создавать и редактировать бронирования своих объектов"
+                label={t('permCanBookLabel')}
+                hint={t('permCanBookLabelHint')}
                 value={!!permissions.can_book}
                 onToggle={() => toggle('can_book')}
               />
@@ -267,7 +267,7 @@ function InviteSuccessCard({ result, onClose }) {
             style={[s.copyBtn, copied === 'link' && s.copyBtnSuccess]}
             onPress={() => handleCopy(result.inviteLink, 'link')}
           >
-            <Text style={s.copyBtnText}>{copied === 'link' ? '✓ Скопировано' : t('copy') || 'Копировать'}</Text>
+            <Text style={s.copyBtnText}>{copied === 'link' ? `✓ ${t('copied')}` : t('copy') || 'Копировать'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -280,7 +280,7 @@ function InviteSuccessCard({ result, onClose }) {
             style={[s.copyBtn, copied === 'code' && s.copyBtnSuccess]}
             onPress={() => handleCopy(result.secretCode, 'code')}
           >
-            <Text style={s.copyBtnText}>{copied === 'code' ? '✓ Скопировано' : t('copy') || 'Копировать'}</Text>
+            <Text style={s.copyBtnText}>{copied === 'code' ? `✓ ${t('copied')}` : t('copy') || 'Копировать'}</Text>
           </TouchableOpacity>
         </View>
       </View>

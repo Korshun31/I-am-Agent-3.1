@@ -434,8 +434,8 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
               recipientId: adminId,
               senderId: user.id,
               type: 'edit_submitted',
-              title: `${agentName} предлагает изменения объекта «${updates.name}»`,
-              body: 'Требуется утверждение изменений',
+              title: `${agentName} ${t('notifPropChangesMiddle')} «${updates.name}»`,
+              body: t('notifApprovalRequired'),
               propertyId: property.id,
             });
           }
@@ -455,8 +455,8 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
             recipientId: adminId,
             senderId: user.id,
             type: 'property_submitted',
-            title: `🏠 ${agentName} добавил объект в ${parentProperty.name}`,
-            body: `Объект: ${updates.name} · Код: ${updates.code}`,
+              title: `🏠 ${agentName} ${t('notifAddedPropertyTo')} ${parentProperty.name}`,
+              body: `${t('notifLabelProperty')} ${updates.name} · ${t('notifLabelCode')} ${updates.code}`,
             propertyId: saved.id,
           });
         }
@@ -474,8 +474,8 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
               recipientId: adminId,
               senderId: user.id,
               type: 'property_submitted',
-              title: `🏠 ${agentName} добавил объект «${updates.name}»`,
-              body: `Код: ${updates.code} · Тип: ${updates.type}`,
+              title: `🏠 ${agentName} ${t('notifAddedProperty')} «${updates.name}»`,
+              body: `${t('notifLabelCode')} ${updates.code} · ${t('notifLabelType')} ${updates.type}`,
               propertyId: saved.id,
             });
           }
@@ -508,7 +508,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
           const { error: upErr } = await supabase.storage
             .from(PHOTOS_BUCKET)
             .upload(fileName, file, { upsert: true, contentType: file.type });
-          if (upErr) { setError(`Ошибка: ${upErr.message}`); continue; }
+          if (upErr) { setError(`${t('errorPrefix')} ${upErr.message}`); continue; }
           const { data: pub } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(fileName);
           newUrls.push(pub.publicUrl);
         }
@@ -928,7 +928,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
                   ? <ActivityIndicator size="small" color="#FFF" />
                   : <Text style={s.saveBtnText}>
                       {mode === 'edit'
-                        ? (needsApproval ? `Отправить на проверку` : `Сохранить`)
+                        ? (needsApproval ? t('submitForReview') : t('save'))
                         : `＋ ${t('add')}`}
                     </Text>
                 }
