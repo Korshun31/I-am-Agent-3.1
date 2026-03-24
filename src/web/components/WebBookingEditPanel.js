@@ -4,8 +4,9 @@ import {
   TextInput, Switch, Animated, Modal, ActivityIndicator, Platform, Image,
 } from 'react-native';
 import dayjs from 'dayjs';
-import { createBooking, updateBooking } from '../../services/bookingsService';
+import { createBooking, updateBooking, getBookings } from '../../services/bookingsService';
 import WebContactEditPanel from './WebContactEditPanel';
+import WebBookingCalendarPicker from './WebBookingCalendarPicker';
 import { supabase } from '../../services/supabase';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
@@ -467,6 +468,8 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
   const [newContactVisible, setNewContactVisible] = useState(false);
   const [newContactInitialName, setNewContactInitialName] = useState('');
   const [localContacts, setLocalContacts] = useState(contacts);
+  const [calendarVisible, setCalendarVisible] = useState(false);
+  const [propertyBookings, setPropertyBookings] = useState([]);
   const fileInputRef                = useRef(null);
 
   // Sync contacts when prop changes
@@ -494,6 +497,32 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
       ]).start(() => setMounted(false));
     }
   }, [visible, booking]);
+
+  // Загружаем бронирования выбранного объекта для отображения занятых дат
+  useEffect(() => {
+    if (!form.propertyId) { setPropertyBookings([]); return; }
+    getBookings().then(all => {
+      setPropertyBookings((all || []).filter(b => b.propertyId === form.propertyId));
+    }).catch(() => setPropertyBookings([]));
+  }, [form.propertyId]);
+
+  // Realtime-подписка на изменения бронирований выбранного объекта
+  useEffect(() => {
+    if (!form.propertyId) return;
+    const channel = supabase
+      .channel(`booking-picker-${form.propertyId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'bookings',
+      }, () => {
+        getBookings().then(all => {
+          setPropertyBookings((all || []).filter(b => b.propertyId === form.propertyId));
+        }).catch(() => {});
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [form.propertyId]);
 
   // Auto-compute total price
   useEffect(() => {
@@ -544,6 +573,10 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
   }, []);
 
   if (!mounted) return null;
+
+  const bookedRanges = propertyBookings
+    .filter(b => b.id !== booking?.id)
+    .map(b => ({ checkIn: b.checkIn, checkOut: b.checkOut }));
 
   const handlePhotoAdd = () => fileInputRef.current?.click();
   const handlePhotoRemove = (i) => setForm(f => ({ ...f, photos: f.photos.filter((_, idx) => idx !== i) }));
@@ -710,10 +743,18 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
             <SectionCard title={t('bkSectionDates')} icon="📅">
               <View style={s.row2}>
                 <Field label={t('checkIn')} required half>
-                  <DateInput value={form.checkIn} onChange={v => set('checkIn', v)} />
+                  <TouchableOpacity style={s.dateBtn} onPress={() => setCalendarVisible(true)}>
+                    <Text style={form.checkIn ? s.dateBtnText : s.dateBtnPlaceholder}>
+                      {form.checkIn ? dayjs(form.checkIn).format(t('dateFormat')) : t('datePlaceholder')}
+                    </Text>
+                  </TouchableOpacity>
                 </Field>
                 <Field label={t('checkOut')} required half>
-                  <DateInput value={form.checkOut} onChange={v => set('checkOut', v)} />
+                  <TouchableOpacity style={s.dateBtn} onPress={() => setCalendarVisible(true)}>
+                    <Text style={form.checkOut ? s.dateBtnText : s.dateBtnPlaceholder}>
+                      {form.checkOut ? dayjs(form.checkOut).format(t('dateFormat')) : t('datePlaceholder')}
+                    </Text>
+                  </TouchableOpacity>
                 </Field>
               </View>
               <View style={s.row2}>
@@ -732,6 +773,19 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                 </View>
               )}
             </SectionCard>
+
+            <WebBookingCalendarPicker
+              visible={calendarVisible}
+              onClose={() => setCalendarVisible(false)}
+              checkIn={form.checkIn}
+              checkOut={form.checkOut}
+              onSelect={(ci, co) => {
+                set('checkIn', ci);
+                set('checkOut', co);
+                setCalendarVisible(false);
+              }}
+              bookedRanges={bookedRanges}
+            />
 
             {/* Стоимость, Гости, Фото — только для обычного бронирования */}
             {!form.notMyCustomer && (
@@ -1144,4 +1198,10 @@ const s = StyleSheet.create({
     borderColor: '#B2D8DB',
   },
   saveBtnText: { fontSize: 14, color: '#3D7D82', fontWeight: '700', letterSpacing: 0.3 },
+  dateBtn: {
+    borderWidth: 1, borderColor: '#DEE2E6', borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#fff',
+  },
+  dateBtnText: { fontSize: 14, color: '#212529' },
+  dateBtnPlaceholder: { fontSize: 14, color: '#ADB5BD' },
 });
