@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../../services/supabase';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, FlatList, Image, Linking, Modal,
@@ -1005,6 +1006,35 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
   }, []);
 
   useEffect(() => { load(); }, []);
+
+  // Realtime: обновляем данные объекта при изменениях — только для агента
+  const isAgent = !!user?.teamMembership;
+  const agentId = user?.id;
+
+  useEffect(() => {
+    if (!isAgent || !agentId) return;
+
+    const channel = supabase
+      .channel('properties-realtime')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'properties',
+        filter: `responsible_agent_id=eq.${agentId}`,
+      }, (payload) => {
+        const updated = payload.new;
+        // Обновляем список объектов
+        setProperties(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
+        // Обновляем selected если это тот же объект и панель редактирования закрыта
+        setSelected(prev => {
+          if (!prev || prev.id !== updated.id) return prev;
+          return { ...prev, ...updated };
+        });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [isAgent, agentId]);
 
   // Auto-select property when navigating from Contacts
   useEffect(() => {
