@@ -93,6 +93,7 @@ export default function WebDashboardScreen({ user }) {
               propertyId: b.propertyId,
               propertyCode: prop?.code || '—',
               propertyName: prop?.name || '—',
+              currency: prop?.currency || 'THB',
               type: 'COMMISSION'
             });
           });
@@ -391,7 +392,7 @@ export default function WebDashboardScreen({ user }) {
       <View style={styles.agendaInfo}>
         {item.type === 'COMMISSION' ? (
           <>
-            <Text style={styles.agendaCode}>Комиссия: {item.amount} THB</Text>
+            <Text style={styles.agendaCode}>{t('commissionLabel')}: {item.amount} {item.currency}</Text>
             <Text style={styles.agendaPropName}>{item.propertyCode} — {item.propertyName}</Text>
           </>
         ) : type === 'EVENT' ? (
@@ -626,7 +627,7 @@ export default function WebDashboardScreen({ user }) {
                 return true;
               })
               .sort((a, b) => a.checkIn.localeCompare(b.checkIn))
-              .slice(0, 5);
+              .slice(0, 20);
             return (
               <View style={styles.upcomingRow}>
                 <View style={styles.agendaColumn}>
@@ -634,34 +635,36 @@ export default function WebDashboardScreen({ user }) {
                     <View style={styles.sectionHeader}>
                       <Text style={styles.sectionTitle}>{t('upcoming')}</Text>
                     </View>
-                    {next5.length === 0 ? (
-                      <Text style={[styles.emptyText, { marginVertical: 16 }]}>{t('bookingsNoData')}</Text>
-                    ) : next5.map((b, i) => {
-                      const prop = allProperties.find(p => p.id === b.propertyId);
-                      const contact = allContacts.find(c => c.id === b.contactId);
-                      const propColor = prop?.resort_id ? '#2563EB' : '#C2920E';
-                      const code = prop ? (prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '')) : '—';
-                      const daysUntil = dayjs(b.checkIn).diff(dayjs(), 'day');
-                      return (
-                        <View key={b.id} style={[styles.agendaItem, i < next5.length - 1 && { borderBottomWidth: 1, borderBottomColor: '#F8F9FA' }]}>
-                          <View style={styles.upcomingDateBadge}>
-                            <Text style={styles.upcomingDateDay}>{dayjs(b.checkIn).format('DD')}</Text>
-                            <Text style={styles.upcomingDateMon}>{dayjs(b.checkIn).format('MMM')}</Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <View style={[styles.upcomingCodePill, { backgroundColor: propColor + '22', borderColor: propColor + '66', alignSelf: 'flex-start', marginBottom: 2 }]}>
-                              <Text style={[styles.upcomingCodeText, { color: propColor }]}>{code}</Text>
+                    <ScrollView style={styles.agendaScroll} showsVerticalScrollIndicator={true}>
+                      {next5.length === 0 ? (
+                        <Text style={[styles.emptyText, { marginVertical: 16 }]}>{t('bookingsNoData')}</Text>
+                      ) : next5.map((b, i) => {
+                        const prop = allProperties.find(p => p.id === b.propertyId);
+                        const contact = allContacts.find(c => c.id === b.contactId);
+                        const propColor = prop?.resort_id ? '#2563EB' : '#C2920E';
+                        const code = prop ? (prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '')) : '—';
+                        const daysUntil = dayjs(b.checkIn).diff(dayjs(), 'day');
+                        return (
+                          <View key={b.id} style={[styles.agendaItem, i < next5.length - 1 && { borderBottomWidth: 1, borderBottomColor: '#F8F9FA' }]}>
+                            <View style={styles.upcomingDateBadge}>
+                              <Text style={styles.upcomingDateDay}>{dayjs(b.checkIn).format('DD')}</Text>
+                              <Text style={styles.upcomingDateMon}>{dayjs(b.checkIn).format('MMM')}</Text>
                             </View>
-                            <Text style={styles.upcomingGuest} numberOfLines={1}>
-                              {contact ? [contact.name, contact.lastName].filter(Boolean).join(' ') : '—'}
+                            <View style={{ flex: 1 }}>
+                              <View style={[styles.upcomingCodePill, { backgroundColor: propColor + '22', borderColor: propColor + '66', alignSelf: 'flex-start', marginBottom: 2 }]}>
+                                <Text style={[styles.upcomingCodeText, { color: propColor }]}>{code}</Text>
+                              </View>
+                              <Text style={styles.upcomingGuest} numberOfLines={1}>
+                                {contact ? [contact.name, contact.lastName].filter(Boolean).join(' ') : '—'}
+                              </Text>
+                            </View>
+                            <Text style={[styles.upcomingDays, daysUntil <= 3 && { color: '#C97570' }]}>
+                              {daysUntil === 1 ? t('tomorrow') : `${t('daysUntilPrefix')} ${daysUntil} ${t('daysUntilSuffix')}`}
                             </Text>
                           </View>
-                          <Text style={[styles.upcomingDays, daysUntil <= 3 && { color: '#C97570' }]}>
-                            {daysUntil === 1 ? t('tomorrow') : `${t('daysUntilPrefix')} ${daysUntil} ${t('daysUntilSuffix')}`}
-                          </Text>
-                        </View>
-                      );
-                    })}
+                        );
+                      })}
+                    </ScrollView>
                   </View>
                 </View>
                 {/* Пустое место справа (FlightTracker теперь плавающий) */}
