@@ -287,7 +287,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
     getPropertyDraft(property.id).then(setPendingDraft).catch(() => {});
   }, [property?.id, isAgent]);
 
-  const isSubmitted = property.property_status === 'submitted';
+  const isSubmitted = property.property_status === 'pending';
   const isRejected = property.property_status === 'rejected';
 
   const owner1 = contacts.find(c => c.id === property.owner_id);
@@ -836,7 +836,7 @@ function AddPropertyModal({ visible, onClose, onSaved, user }) {
         name: name.trim(),
         code: code.trim().toUpperCase(),
         type,
-        property_status: user?.teamMembership ? 'submitted' : 'approved',
+        property_status: user?.teamMembership ? 'pending' : 'approved',
       });
       // Уведомляем Админа если создаёт агент
       const adminId = user?.teamMembership?.adminId;

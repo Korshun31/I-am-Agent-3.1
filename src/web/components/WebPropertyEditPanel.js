@@ -372,20 +372,6 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
     setSaving(true);
     setError('');
 
-    // Ценовые поля — контролируются разрешением can_edit_prices
-    const PRICE_FIELDS = new Set([
-      'price_monthly', 'price_monthly_is_from',
-      'booking_deposit', 'booking_deposit_is_from',
-      'save_deposit', 'save_deposit_is_from',
-      'commission', 'commission_is_from',
-      'owner_commission_one_time', 'owner_commission_one_time_is_from', 'owner_commission_one_time_is_percent',
-      'owner_commission_monthly', 'owner_commission_monthly_is_from', 'owner_commission_monthly_is_percent',
-      'electricity_price', 'water_price', 'water_price_type',
-      'gas_price', 'internet_price',
-      'cleaning_price', 'exit_cleaning_price',
-      'currency',
-    ]);
-
     const updates = {
       name: form.name.trim(),
       code: form.code.trim().toUpperCase(),
@@ -435,32 +421,14 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       currency: activeCurrency,
     };
 
-    // Разделяем поля: что сохранить напрямую, что отправить в черновик
-    const directSave = {};
-    const draftData = {};
-
-    Object.entries(updates).forEach(([key, val]) => {
-      const isPriceField = PRICE_FIELDS.has(key);
-      if (isPriceField) {
-        canEditPrices ? (directSave[key] = val) : (draftData[key] = val);
-      } else {
-        canEditInfo ? (directSave[key] = val) : (draftData[key] = val);
-      }
-    });
-
     try {
       let saved;
       const adminId = user?.teamMembership?.adminId;
       const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email;
 
       if (mode === 'edit') {
-        // Сохраняем напрямую то, на что есть права
-        if (Object.keys(directSave).length > 0) {
-          saved = await updateProperty(property.id, directSave);
-        }
-        // Отправляем на проверку то, на что прав нет
-        if (Object.keys(draftData).length > 0) {
-          await submitPropertyDraft(property.id, draftData);
+        if (needsApproval) {
+          await submitPropertyDraft(property.id, updates);
           if (adminId) {
             await sendNotification({
               recipientId: adminId,
@@ -471,10 +439,10 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
               propertyId: property.id,
             });
           }
+          onSaved(null);
+          return;
         }
-        // Закрываем панель: если было прямое сохранение — передаём saved, иначе null
-        onSaved(saved ?? null);
-        return;
+        saved = await updateProperty(property.id, updates);
       } else if (mode === 'create-unit') {
         saved = await createPropertyFull({
           ...updates,
@@ -960,7 +928,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
                   ? <ActivityIndicator size="small" color="#FFF" />
                   : <Text style={s.saveBtnText}>
                       {mode === 'edit'
-                        ? (needsApproval ? `📋 Отправить на проверку` : `💾 ${t('save')}`)
+                        ? (needsApproval ? `Отправить на проверку` : `Сохранить`)
                         : `＋ ${t('add')}`}
                     </Text>
                 }
