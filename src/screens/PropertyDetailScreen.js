@@ -527,7 +527,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         {responsibleName !== undefined && (
           <>
             <View style={styles.divider} />
-            <InfoRow label="Ответственный" value={responsibleName} labelBold />
+            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} labelBold />
           </>
         )}
       </SectionBlock>
@@ -742,7 +742,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
         {responsibleName !== undefined && (
           <>
             <View style={styles.divider} />
-            <InfoRow label="Ответственный" value={responsibleName} labelBold />
+            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} labelBold />
           </>
         )}
       </SectionBlock>
@@ -972,7 +972,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
         {responsibleName !== undefined && (
           <>
             <View style={styles.divider} />
-            <InfoRow label="Ответственный" value={responsibleName} labelBold />
+            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} labelBold />
           </>
         )}
       </SectionBlock>
@@ -1251,18 +1251,15 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             recipientId: adminId,
             senderId: user.id,
             type: 'edit_submitted',
-            title: `${agentName} предлагает изменения объекта «${p.name}»`,
-            body: 'Требуется утверждение изменений',
+            title: `${agentName} ${t('notifPropChangesMiddle')} «${p.name}»`,
+            body: t('notifApprovalRequired'),
             propertyId: p.id,
           });
         }
         // Обновляем local state черновика
         getPropertyDraft(p.id).then(setPendingDraft).catch(() => {});
         setWizardVisible(false);
-        Alert.alert(
-          '📋 Отправлено на проверку',
-          'Ваши изменения отправлены администратору для утверждения.'
-        );
+        Alert.alert(t('draftSentAlertTitle'), t('draftSentAlertBody'));
         return; // НЕ вызываем onPropertyUpdated — данные не изменились
       }
 
@@ -1481,7 +1478,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           onPress={() => setResponsiblePickerVisible(false)}
         >
           <View style={styles.pickerSheet}>
-            <Text style={styles.pickerTitle}>Ответственный</Text>
+            <Text style={styles.pickerTitle}>{t('propResponsiblePicker')}</Text>
             {/* Компания */}
             <TouchableOpacity
               style={[styles.pickerItem, !currentResponsible && styles.pickerItemActive]}
@@ -1535,7 +1532,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       {pendingDraft && (
         <View style={styles.draftBanner}>
           <Text style={styles.draftBannerText}>
-            📋 Ваши изменения отправлены на проверку администратору
+            {t('propDraftSent')}
           </Text>
         </View>
       )}

@@ -193,7 +193,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
   const handleGenerateConfirmation = async () => {
     if (!booking) return;
     if (!property) {
-      Alert.alert(t('error'), 'Загрузите данные объекта');
+      Alert.alert(t('error'), t('errorLoadProperty'));
       return;
     }
     setGeneratingPdf(true);
@@ -215,7 +215,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
       setPdfPreviewHtml(html);
       setPdfPreviewVisible(true);
     } catch (e) {
-      Alert.alert(t('error'), e.message || 'Не удалось создать PDF');
+      Alert.alert(t('error'), e.message || t('errorCreatePdf'));
     } finally {
       setGeneratingPdf(false);
     }
@@ -227,7 +227,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
       const result = await Share.share({
         url: pdfPreviewUri,
         type: 'application/pdf',
-        title: t('pdfPreviewTitle') || 'Подтверждение бронирования',
+        title: t('pdfPreviewTitle'),
       });
       if (result.action === Share.sharedAction) {
         setPdfPreviewVisible(false);
@@ -235,7 +235,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
         setPdfPreviewHtml(null);
       }
     } catch (e) {
-      Alert.alert(t('error'), e.message || 'Не удалось отправить');
+      Alert.alert(t('error'), e.message || t('errorSendFile'));
     }
   };
 

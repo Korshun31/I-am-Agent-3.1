@@ -177,7 +177,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
   const owner2Display = data._owner2Name || (owners || []).find(o => o.id === data.owner_id_2)?.name || '';
   const isHouseInResort = Boolean(resortId);
   const isAdmin = !!(currentUser?.companyId) && !currentUser?.teamMembership;
-  const companyDisplayName = currentUser?.companyInfo?.name || 'Компания';
+  const companyDisplayName = currentUser?.companyInfo?.name || t('workAsCompany');
   const getResponsibleDisplay = (agentId) => {
     if (!agentId || agentId === currentUser?.id) return companyDisplayName;
     const m = (teamMembers || []).find(tm => tm.agent_id === agentId);
@@ -333,7 +333,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
       {/* Ответственный — только для Admin */}
       {isAdmin && (
         <View style={s.fieldWrap}>
-          <Text style={s.fieldLabel}>Ответственный</Text>
+          <Text style={s.fieldLabel}>{t('propResponsiblePicker')}</Text>
           <TouchableOpacity
             style={s.pickerBtn}
             onPress={() => { setTempResponsible(data.responsible_agent_id ?? null); setResponsiblePickerVisible(true); }}
@@ -469,7 +469,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
             )}
             <Pressable style={s.ownerPickerBox} onPress={(e) => e.stopPropagation()}>
               <View style={s.ownerPickerHeader}>
-                <Text style={s.ownerPickerTitle}>Ответственный</Text>
+                <Text style={s.ownerPickerTitle}>{t('propResponsiblePicker')}</Text>
                 <TouchableOpacity onPress={() => setResponsiblePickerVisible(false)} style={s.ownerPickerClose} activeOpacity={0.8}>
                   <Text style={s.ownerPickerCloseIcon}>✕</Text>
                 </TouchableOpacity>
@@ -510,7 +510,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={s.responsibleSaveBtnText}>Сохранить</Text>
+                <Text style={s.responsibleSaveBtnText}>{t('save')}</Text>
               </TouchableOpacity>
             </Pressable>
           </Pressable>
