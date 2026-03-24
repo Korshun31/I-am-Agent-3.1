@@ -28,7 +28,7 @@ export default function WebLayout({ children, activeTab, onTabChange, fullHeight
     ? ([user.name, user.lastName].filter(Boolean).join(' ') || user.email || '')
     : '';
   const avatarLetter = displayName ? displayName[0].toUpperCase() : '?';
-  const roleLabel = user?.workAs === 'company' ? 'Администратор' : 'Агент';
+  const roleLabel = user?.workAs === 'company' ? t('admin') : t('roleAgent');
 
   return (
     <View style={styles.container}>

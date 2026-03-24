@@ -275,7 +275,7 @@ export default function WebDashboardScreen({ user }) {
       const client = contacts.find(c => c.id === b.contactId);
       return {
         ...b,
-        propertyName: prop?.name || 'Без названия',
+        propertyName: prop?.name || t('noName'),
         propertyCode: prop?.code || '—',
         clientName: client ? `${client.name} ${client.lastName}` : '—',
         clientPhone: client?.phone || '',
@@ -657,7 +657,7 @@ export default function WebDashboardScreen({ user }) {
                             </Text>
                           </View>
                           <Text style={[styles.upcomingDays, daysUntil <= 3 && { color: '#C97570' }]}>
-                            {daysUntil === 1 ? 'завтра' : `через ${daysUntil} д.`}
+                            {daysUntil === 1 ? t('tomorrow') : `${t('daysUntilPrefix')} ${daysUntil} ${t('daysUntilSuffix')}`}
                           </Text>
                         </View>
                       );
