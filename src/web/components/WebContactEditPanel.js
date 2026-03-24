@@ -356,7 +356,7 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
                 <FField label={t('ctNationality')}  value={form.nationality}    onChange={setF('nationality')}    placeholder="Russia" />
               </View>
               <View style={{ flex: 1 }}>
-                <FField label={t('ctBirthday')}     value={form.birthday}       onChange={setF('birthday')}       placeholder="YYYY-MM-DD" dateType />
+                <FField label={t('ctBirthday')}     value={form.birthday}       onChange={setF('birthday')}       placeholder={t('datePlaceholder')} dateType />
               </View>
             </View>
             <FField label={t('ctDocumentNumber')} value={form.documentNumber} onChange={setF('documentNumber')} placeholder="AB1234567" />

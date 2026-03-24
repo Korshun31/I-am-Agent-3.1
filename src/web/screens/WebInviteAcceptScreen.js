@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator,
 import { supabase } from '../../services/supabase';
 import { signUp, signIn, getUserProfile } from '../../services/authService';
 import { joinCompanyViaInvitation } from '../../services/companyService';
+import { useLanguage } from '../../context/LanguageContext';
 
 const ACCENT = '#3D7D82';
 const C = {
@@ -28,6 +29,7 @@ const STEPS = {
 };
 
 export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
+  const { t } = useLanguage();
   const [step, setStep] = useState(STEPS.LOADING);
   const [invitation, setInvitation] = useState(null);
   const [code, setCode] = useState('');
@@ -59,12 +61,12 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
 
   // Проверяем секретный код
   const handleVerifyCode = async () => {
-    if (code.length !== 6) { setCodeError('Введите 6-значный код'); return; }
+    if (code.length !== 6) { setCodeError(t('inviteEnter6Code')); return; }
     setLoading(true);
     setCodeError('');
     try {
       const { data: ok } = await supabase.rpc('verify_invitation_secret', { p_token: token, p_code: code });
-      if (!ok) { setCodeError('Неверный код. Попробуйте ещё раз.'); setLoading(false); return; }
+      if (!ok) { setCodeError(t('inviteCodeWrong')); setLoading(false); return; }
 
       // Проверяем есть ли уже аккаунт с этим email
       const { data: exists } = await supabase.rpc('check_email_exists', { p_email: invitation.email });
@@ -74,7 +76,7 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
         setStep(STEPS.NEW_USER_FORM);
       }
     } catch {
-      setCodeError('Ошибка проверки кода. Попробуйте ещё раз.');
+      setCodeError(t('inviteCodeVerifyError'));
     } finally {
       setLoading(false);
     }
@@ -82,9 +84,9 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
 
   // Регистрация нового пользователя
   const handleRegister = async () => {
-    if (!name.trim()) { setFormError('Введите ваше имя'); return; }
-    if (password.length < 6) { setFormError('Пароль минимум 6 символов'); return; }
-    if (password !== confirmPassword) { setFormError('Пароли не совпадают'); return; }
+    if (!name.trim()) { setFormError(t('inviteEnterName')); return; }
+    if (password.length < 6) { setFormError(t('invitePasswordMin')); return; }
+    if (password !== confirmPassword) { setFormError(t('invitePasswordMatch')); return; }
     setLoading(true);
     setFormError('');
     setStep(STEPS.JOINING);
@@ -95,7 +97,7 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
       setStep(STEPS.SUCCESS);
       setTimeout(() => onComplete(profile), 1500);
     } catch (e) {
-      setFormError(e?.message || 'Ошибка регистрации. Попробуйте ещё раз.');
+      setFormError(e?.message || t('inviteRegisterError'));
       setStep(STEPS.NEW_USER_FORM);
     } finally {
       setLoading(false);
@@ -107,7 +109,7 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
 
   // Логин существующего пользователя
   const handleLogin = async () => {
-    if (!loginPassword) { setFormError('Введите пароль'); return; }
+    if (!loginPassword) { setFormError(t('enterPassword')); return; }
     setLoading(true);
     setFormError('');
     setStep(STEPS.JOINING);
@@ -118,7 +120,7 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
       setStep(STEPS.SUCCESS);
       setTimeout(() => onComplete(profile), 1500);
     } catch (e) {
-      setFormError(e?.message?.includes('Invalid') ? 'Неверный пароль' : (e?.message || 'Ошибка входа'));
+      setFormError(e?.message?.includes('Invalid') ? t('invitePasswordWrong') : (e?.message || t('inviteLoginError')));
       setStep(STEPS.EXISTING_USER_LOGIN);
     } finally {
       setLoading(false);
@@ -138,7 +140,7 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
         {step === STEPS.LOADING && (
           <View style={s.center}>
             <ActivityIndicator size="large" color={ACCENT} />
-            <Text style={s.loadingText}>Проверяем приглашение...</Text>
+            <Text style={s.loadingText}>{t('inviteChecking')}</Text>
           </View>
         )}
 
@@ -146,10 +148,10 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
         {step === STEPS.INVALID && (
           <View style={s.center}>
             <Text style={s.errorIcon}>⚠️</Text>
-            <Text style={s.errorTitle}>Ссылка недействительна</Text>
-            <Text style={s.errorSubtitle}>Приглашение устарело или уже было использовано. Попросите Admin отправить новое приглашение.</Text>
+            <Text style={s.errorTitle}>{t('inviteLinkInvalid')}</Text>
+            <Text style={s.errorSubtitle}>{t('inviteLinkExpired')}</Text>
             <TouchableOpacity style={s.primaryBtn} onPress={onCancel}>
-              <Text style={s.primaryBtnText}>На главную</Text>
+              <Text style={s.primaryBtnText}>{t('inviteGoHome')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -158,10 +160,10 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
         {step === STEPS.ENTER_CODE && invitation && (
           <View style={s.stepWrap}>
             <Text style={s.companyBadge}>🏢 {invitation.company_name}</Text>
-            <Text style={s.stepTitle}>Введите код доступа</Text>
+            <Text style={s.stepTitle}>{t('inviteEnterCode')}</Text>
             <Text style={s.stepSubtitle}>
-              Вас приглашают в команду компании {invitation.company_name}.
-              Введите 6-значный код который вам передали лично.
+              {t('inviteCodeSubtitle1')} {invitation.company_name}.
+              {' '}{t('inviteCodeSubtitle2')}
             </Text>
             <TextInput
               style={[s.codeInput, !!codeError && s.inputError]}
@@ -178,10 +180,10 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
               onPress={handleVerifyCode}
               disabled={code.length !== 6 || loading}
             >
-              <Text style={s.primaryBtnText}>{loading ? 'Проверяем...' : 'Продолжить'}</Text>
+              <Text style={s.primaryBtnText}>{loading ? t('inviteVerifying') : t('inviteContinue')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.cancelLink} onPress={onCancel}>
-              <Text style={s.cancelLinkText}>Отмена</Text>
+              <Text style={s.cancelLinkText}>{t('cancel')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -189,32 +191,32 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
         {/* НОВЫЙ ПОЛЬЗОВАТЕЛЬ — СОЗДАНИЕ АККАУНТА */}
         {step === STEPS.NEW_USER_FORM && (
           <View style={s.stepWrap}>
-            <Text style={s.stepTitle}>Создайте аккаунт</Text>
+            <Text style={s.stepTitle}>{t('inviteCreateAccount')}</Text>
             <Text style={s.stepSubtitle}>Email: {invitation?.email}</Text>
             <TextInput
               style={s.input}
               value={name}
               onChangeText={v => { setName(v); setFormError(''); }}
-              placeholder="Ваше имя"
+              placeholder={t('invitePlaceholderName')}
               autoCapitalize="words"
             />
             <TextInput
               style={s.input}
               value={password}
               onChangeText={v => { setPassword(v); setFormError(''); }}
-              placeholder="Пароль (минимум 6 символов)"
+              placeholder={t('invitePlaceholderPassword')}
               secureTextEntry
             />
             <TextInput
               style={s.input}
               value={confirmPassword}
               onChangeText={v => { setConfirmPassword(v); setFormError(''); }}
-              placeholder="Повторите пароль"
+              placeholder={t('invitePlaceholderConfirmPassword')}
               secureTextEntry
             />
             {!!formError && <Text style={s.errorText}>{formError}</Text>}
             <TouchableOpacity style={[s.primaryBtn, loading && s.btnDisabled]} onPress={handleRegister} disabled={loading}>
-              <Text style={s.primaryBtnText}>{loading ? 'Создаём аккаунт...' : 'Создать аккаунт и войти в команду'}</Text>
+              <Text style={s.primaryBtnText}>{loading ? t('inviteCreating') : t('inviteCreateAndJoin')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -223,17 +225,17 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
         {step === STEPS.EXISTING_USER_CONFIRM && (
           <View style={s.stepWrap}>
             <Text style={s.warningIcon}>⚠️</Text>
-            <Text style={s.stepTitle}>У вас уже есть аккаунт</Text>
+            <Text style={s.stepTitle}>{t('inviteHaveAccount')}</Text>
             <Text style={s.stepSubtitle}>
-              После вступления в команду ваши объекты станут видны участникам команды в ограниченном режиме — без точных адресов, контактов собственников и финансовых деталей.
+              {t('inviteTeamWarning')}
               {'\n\n'}
-              Хотите войти в команду {invitation?.company_name}?
+              {t('inviteJoinQuestion')} {invitation?.company_name}?
             </Text>
             <TouchableOpacity style={s.primaryBtn} onPress={handleExistingConfirm}>
-              <Text style={s.primaryBtnText}>Да, войти в команду</Text>
+              <Text style={s.primaryBtnText}>{t('inviteYesJoin')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.cancelLink} onPress={onCancel}>
-              <Text style={s.cancelLinkText}>Нет, отказаться</Text>
+              <Text style={s.cancelLinkText}>{t('inviteNoDecline')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -241,19 +243,19 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
         {/* ЛОГИН СУЩЕСТВУЮЩЕГО ПОЛЬЗОВАТЕЛЯ */}
         {step === STEPS.EXISTING_USER_LOGIN && (
           <View style={s.stepWrap}>
-            <Text style={s.stepTitle}>Войдите в аккаунт</Text>
+            <Text style={s.stepTitle}>{t('inviteLoginTitle')}</Text>
             <Text style={s.stepSubtitle}>Email: {invitation?.email}</Text>
             <TextInput
               style={s.input}
               value={loginPassword}
               onChangeText={v => { setLoginPassword(v); setFormError(''); }}
-              placeholder="Ваш пароль"
+              placeholder={t('invitePlaceholderLoginPassword')}
               secureTextEntry
               autoFocus
             />
             {!!formError && <Text style={s.errorText}>{formError}</Text>}
             <TouchableOpacity style={[s.primaryBtn, loading && s.btnDisabled]} onPress={handleLogin} disabled={loading}>
-              <Text style={s.primaryBtnText}>{loading ? 'Входим...' : 'Войти и присоединиться к команде'}</Text>
+              <Text style={s.primaryBtnText}>{loading ? t('inviteLoggingIn') : t('inviteLoginAndJoin')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -262,7 +264,7 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
         {step === STEPS.JOINING && (
           <View style={s.center}>
             <ActivityIndicator size="large" color={ACCENT} />
-            <Text style={s.loadingText}>Вступаем в команду...</Text>
+            <Text style={s.loadingText}>{t('inviteJoining')}</Text>
           </View>
         )}
 
@@ -270,8 +272,8 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
         {step === STEPS.SUCCESS && (
           <View style={s.center}>
             <Text style={s.successIcon}>🎉</Text>
-            <Text style={s.successTitle}>Добро пожаловать в команду!</Text>
-            <Text style={s.stepSubtitle}>Вы успешно вступили в команду {invitation?.company_name}</Text>
+            <Text style={s.successTitle}>{t('inviteWelcomeTitle')}</Text>
+            <Text style={s.stepSubtitle}>{t('inviteSuccessText')} {invitation?.company_name}</Text>
           </View>
         )}
       </View>

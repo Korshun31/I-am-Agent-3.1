@@ -156,6 +156,7 @@ function FInput({ value, onChangeText, placeholder, numeric, multiline, prefix }
 // ─── Date Input ───────────────────────────────────────────────────────────────
 
 function DateInput({ value, onChange, placeholder }) {
+  const { t } = useLanguage();
   const [focused, setFocused] = useState(false);
   if (Platform.OS === 'web') {
     return (
@@ -178,7 +179,7 @@ function DateInput({ value, onChange, placeholder }) {
     );
   }
   return (
-    <FInput value={value} onChangeText={onChange} placeholder={placeholder || 'YYYY-MM-DD'} />
+    <FInput value={value} onChangeText={onChange} placeholder={placeholder || t('datePlaceholder')} />
   );
 }
 
