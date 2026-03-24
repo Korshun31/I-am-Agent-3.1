@@ -240,7 +240,7 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
 
         {item.price_monthly ? (
           <Text style={[s.cardPrice, isSelected && s.cardPriceSelected]}>
-            {item.price_monthly_is_from ? `${t('propFrom')} ` : ''}{fmt(item.price_monthly, '')} {getCurrencySymbol(item.currency || 'THB')}/{t('perMonth')}
+            {item.price_monthly_is_from ? `${t('propFrom')} ` : ''}{fmt(item.price_monthly, '')} {getCurrencySymbol(item.currency || 'THB')}{t('perMonth')}
           </Text>
         ) : null}
       </View>
