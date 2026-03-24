@@ -80,12 +80,11 @@ export async function updateProperty(id, updates) {
     .from('properties')
     .update(updates)
     .eq('id', id)
-    .select()
-    .single();
+    .select();
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
-  return data;
+  return data?.[0] ?? null;
 }
 
 export async function deleteProperty(id) {
