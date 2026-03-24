@@ -377,13 +377,5 @@ export async function rejectPropertyDraft(draftId, reason) {
 
   if (rejectErr) throw new Error(rejectErr.message);
 
-  // Возвращаем объект в нормальный статус
-  const { error: propErr } = await supabase
-    .from('properties')
-    .update({ property_status: 'approved' })
-    .eq('id', draft.property_id);
-
-  if (propErr) throw new Error(propErr.message);
-
   syncIfEnabled();
 }
