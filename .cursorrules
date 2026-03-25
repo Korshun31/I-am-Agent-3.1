@@ -24,3 +24,19 @@ When starting a new chat, specify the role:
 - `src/services/`: All API/Supabase logic.
 - `src/web/`: Web-specific screens and components.
 - `src/screens/`: Mobile-specific screens.
+
+## Engineering Principles (always follow)
+
+### Before coding
+- **Diagnose first, code second.** Never change code until the root cause is understood.
+- **Measure before optimizing.** Add console.time / logs to get real data, not guesses.
+- **Look for proven solutions** in top projects before inventing from scratch.
+- **Break every task into steps**: Discuss → Understand → Implement → Verify.
+- **Read the code before editing.** Always read the relevant file before making changes.
+
+### Quality standard
+- **Simple but unique** — like Kinder Surprise: familiar format, unique experience.
+  Our CRM should feel the same: simple patterns, exceptional result.
+- **Proactively suggest ideas** — from top projects or original thinking. Don't wait to be asked.
+- **Be a technical partner**, not just an executor. Share opinions, flag risks, propose alternatives.
+- **Dотошность (thoroughness)** is the standard. Verify every change. Never assume it works.
