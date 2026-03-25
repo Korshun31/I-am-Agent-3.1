@@ -113,6 +113,14 @@ export default function RealEstateScreen({ onReady }) {
     prevVisible.current = isVisible;
   }, [isVisible]);
 
+  useEffect(() => {
+    if (!selectedProperty) return;
+    const fresh = properties.find(p => p.id === selectedProperty.id);
+    if (fresh && fresh !== selectedProperty) {
+      setSelectedProperty(fresh);
+    }
+  }, [properties]);
+
   const drawerAnimation = {
     duration: 300,
     create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
