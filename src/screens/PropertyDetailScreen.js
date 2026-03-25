@@ -1087,7 +1087,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const [showOwner, setShowOwner] = useState(false);
   const [showOwner2, setShowOwner2] = useState(false);
   const [resort, setResort] = useState(null);
-  const { refreshBookings } = useAppData();
+  const { refreshBookings, properties } = useAppData();
   const [refreshBookingsTrigger, setRefreshBookingsTrigger] = useState(0);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [selectedBookingTitle, setSelectedBookingTitle] = useState('');
@@ -1101,7 +1101,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   useEffect(() => {
     if (!isTeamMember || !p?.id) { setPendingDraft(null); return; }
     getPropertyDraft(p.id).then(setPendingDraft).catch(() => {});
-  }, [p?.id, isTeamMember]);
+  }, [p?.id, isTeamMember, properties]);
 
   const loadResortData = useCallback(async (resortId) => {
     if (!resortId) { setResort(null); return; }
