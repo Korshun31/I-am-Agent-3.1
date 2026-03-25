@@ -390,7 +390,7 @@ export default function WebNotificationBell({ userId }) {
   useEffect(() => {
     if (!userId) return;
     const channel = supabase
-      .channel('notif-bell')
+      .channel(`notif-bell-${userId}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'notifications',
         filter: `recipient_id=eq.${userId}`,

@@ -24,7 +24,7 @@ import { AppDataProvider, useAppData } from './src/context/AppDataContext';
 import Preloader from './src/screens/Preloader';
 import Login from './src/screens/Login';
 import Registration from './src/screens/Registration';
-import MainScreen from './src/screens/MainScreen';
+import MainNavigator from './src/navigation/MainNavigator';
 import WebMainScreen from './src/web/WebMainScreen';
 import { getCurrentUser, signOut } from './src/services/authService';
 import { supabase } from './src/services/supabase';
@@ -32,9 +32,8 @@ import WebInviteAcceptScreen from './src/web/screens/WebInviteAcceptScreen';
 
 function AppMainLoader({ onLogout }) {
   const { isLoaded, loadingProgress } = useAppData();
-  const { user, handleUserUpdate } = useUser();
   if (!isLoaded) return <Preloader progress={loadingProgress} />;
-  return <MainScreen onLogout={onLogout} user={user} onUserUpdate={handleUserUpdate} />;
+  return <MainNavigator onLogout={onLogout} />;
 }
 
 function AppContent() {

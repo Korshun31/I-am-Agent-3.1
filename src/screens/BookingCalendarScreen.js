@@ -21,6 +21,7 @@ import 'dayjs/locale/th';
 import { useLanguage } from '../context/LanguageContext';
 import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
+import { useIsFocused } from '@react-navigation/native';
 import { deleteProperty } from '../services/propertiesService';
 import { deleteBooking } from '../services/bookingsService';
 import { cancelBookingReminders } from '../services/bookingRemindersService';
@@ -129,6 +130,8 @@ function getOwnerLabel(width, labels) {
 
 export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose, onReady, readOnly = false } = {}) {
   const { user } = useUser();
+  const isFocused = useIsFocused();
+  const effectiveVisible = embeddedInModal ? isVisible : isFocused;
   const { t, language } = useLanguage();
   const { properties, bookings, contacts, propertiesLoading, refreshProperties, refreshBookings } = useAppData();
 
@@ -154,7 +157,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const rightScrollRef = useRef(null);
   const rightVerticalRef = useRef(null);
   const scrollSyncRef = useRef(false);
-  const prevVisibleRef = useRef(isVisible);
+  const prevVisibleRef = useRef(false);
 
   const topLevel = properties.filter(p => !p.resort_id);
   const children = properties.filter(p => p.resort_id);
@@ -260,7 +263,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   }, [refreshProperties, refreshBookings]);
 
   useEffect(() => {
-    if (prevVisibleRef.current && !isVisible) {
+    if (prevVisibleRef.current && !effectiveVisible) {
       setSelectedProperty(null);
       setSelectedBooking(null);
       setSelectedOwnerContact(null);
@@ -270,8 +273,8 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       setAddModalVisible(false);
       setEditModalVisible(false);
     }
-    prevVisibleRef.current = isVisible;
-  }, [isVisible]);
+    prevVisibleRef.current = effectiveVisible;
+  }, [effectiveVisible]);
 
   const bookingsByProperty = React.useMemo(() => {
     const map = {};
@@ -374,12 +377,12 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   }, [initialScrollX, listToShow.length]);
 
   useEffect(() => {
-    if (isVisible && rightScrollRef.current) {
+    if (effectiveVisible && rightScrollRef.current) {
       setTimeout(() => {
         rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
       }, 50);
     }
-  }, [isVisible, initialScrollX]);
+  }, [effectiveVisible, initialScrollX]);
 
   // При возврате с экрана брони — прокрутить к текущему месяцу
   useEffect(() => {

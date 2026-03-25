@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { supabase } from '../services/supabase';
 import { getProperties } from '../services/propertiesService';
 import { getBookings } from '../services/bookingsService';
 import { getContacts } from '../services/contactsService';
@@ -85,6 +86,22 @@ export function AppDataProvider({ children, user }) {
   useEffect(() => {
     refreshAll();
   }, [refreshAll]);
+
+  // Realtime: обновляем объекты при изменениях на сервере (напр. утверждение черновика админом)
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`properties-sync-${user.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'properties',
+      }, () => {
+        refreshProperties();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, refreshProperties]);
 
   return (
     <AppDataContext.Provider value={{

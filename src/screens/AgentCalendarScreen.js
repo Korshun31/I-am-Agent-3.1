@@ -25,6 +25,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { getCommissionDateAmounts } from '../services/commissionRemindersService';
 import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { eventOccursOnDate, updateCalendarEvent } from '../services/calendarEventsService';
 import AddCalendarEventModal from '../components/AddCalendarEventModal';
 import AddBookingModal from '../components/AddBookingModal';
@@ -91,7 +92,8 @@ const DRAWER_ANIMATION = {
   delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
 };
 
-function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBooking, isBooking, t, onStatusChange }) {
+function EventCard({ event, expanded, onToggle, onEdit, onOpenBooking, isBooking, t, onStatusChange }) {
+  const navigation = useNavigation();
   const { contacts } = useAppData();
   const [contactName, setContactName] = useState('');
   const [localCompleted, setLocalCompleted] = useState(!!event.isCompleted);
@@ -160,7 +162,7 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
         {expanded && (
           <View style={styles.eventExpanded}>
             {event.property ? (
-              <TouchableOpacity style={styles.eventDetailRow} onPress={() => onOpenProperty?.(event.property)} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.eventDetailRow} onPress={() => navigation.navigate('RealEstate', { propertyToOpen: event.property })} activeOpacity={0.7}>
                 <Image source={require('../../assets/icon-property-house.png')} style={styles.eventDetailIcon} resizeMode="contain" />
                 <Text style={styles.eventDetailLink}>{event.propertyLabel || '—'}</Text>
               </TouchableOpacity>
@@ -251,8 +253,9 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
   );
 }
 
-export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenProperty, onReady }) {
+export default function AgentCalendarScreen({ onReady }) {
   const { user } = useUser();
+  const isVisible = useIsFocused();
   const { t, language } = useLanguage();
   const { properties, bookings, contacts, calendarEvents, refreshProperties, refreshBookings, refreshCalendarEvents } = useAppData();
 
@@ -723,7 +726,6 @@ export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenPr
                 expanded={expandedIds.has(ev.key)}
                 onToggle={() => toggleExpand(ev.key)}
                 onEdit={ev.type === 'booking' ? () => openEditBooking(ev) : () => openEditEvent(ev)}
-                onOpenProperty={onOpenProperty}
                 onOpenBooking={handleViewBooking}
                 isBooking={ev.type === 'booking'}
                 t={t}

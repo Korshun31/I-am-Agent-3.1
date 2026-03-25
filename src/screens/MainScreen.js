@@ -16,7 +16,6 @@ const MemoAgentCalendar   = memo(AgentCalendarScreen);
 export default function MainScreen({ onLogout, onUserUpdate }) {
   const [activeTab, setActiveTab] = useState(3);
   const [screenWithinAccount, setScreenWithinAccount] = useState('account');
-  const [propertyToOpen, setPropertyToOpen] = useState(null);
 
   // Lazy rendering — монтируем экран только при первом визите
   const visitedRef = useRef(new Set([3]));
@@ -56,32 +55,6 @@ export default function MainScreen({ onLogout, onUserUpdate }) {
   const handleTab0Ready = useCallback(() => hideOverlay(0), [hideOverlay]);
   const handleTab1Ready = useCallback(() => hideOverlay(1), [hideOverlay]);
   const handleTab2Ready = useCallback(() => hideOverlay(2), [hideOverlay]);
-
-  // ─── Навигация к объекту ───────────────────────────────────────────────────
-  const handleOpenProperty = useCallback((property) => {
-    if (!property) return;
-    const prevTab = activeTabRef.current;
-    if (prevTab !== 0) {
-      tabOpacities[prevTab].setValue(0);
-      tabOpacities[0].setValue(1);
-    }
-    activeTabRef.current = 0;
-
-    if (!visitedRef.current.has(0)) showOverlay(0);
-
-    setPropertyToOpen(property);
-    setInteractiveTab(0); // срочно — чтобы вкладка сразу принимала касания
-
-    startTransition(() => {
-      setActiveTab(0);
-      if (!visitedRef.current.has(0)) {
-        visitedRef.current = new Set([...visitedRef.current, 0]);
-        setVisited(new Set(visitedRef.current));
-      }
-    });
-  }, [showOverlay]);
-
-  const handlePropertyOpened = useCallback(() => setPropertyToOpen(null), []);
 
   // ─── Переключение вкладок ──────────────────────────────────────────────────
   const handleTabSelect = useCallback((newIndex) => {
@@ -123,8 +96,6 @@ export default function MainScreen({ onLogout, onUserUpdate }) {
       >
         {visited.has(0) && (
           <MemoRealEstate
-            propertyToOpen={propertyToOpen}
-            onPropertyOpened={handlePropertyOpened}
             isVisible={activeTab === 0}
             onReady={handleTab0Ready}
           />
@@ -151,7 +122,6 @@ export default function MainScreen({ onLogout, onUserUpdate }) {
         {visited.has(2) && (
           <MemoAgentCalendar
             isVisible={activeTab === 2}
-            onOpenProperty={handleOpenProperty}
             onReady={handleTab2Ready}
           />
         )}

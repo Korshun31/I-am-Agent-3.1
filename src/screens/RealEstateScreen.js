@@ -22,6 +22,7 @@ import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
+import { useRoute, useNavigation, useIsFocused } from '@react-navigation/native';
 import { createProperty, deleteProperty } from '../services/propertiesService';
 import AddPropertyModal from '../components/AddPropertyModal';
 import FilterBottomSheet from '../components/FilterBottomSheet';
@@ -60,8 +61,12 @@ const COLORS = {
   searchBorder: '#E0D8CC',
 };
 
-export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isVisible = true, onReady }) {
+export default function RealEstateScreen({ onReady }) {
   const { user } = useUser();
+  const route = useRoute();
+  const navigation = useNavigation();
+  const isVisible = useIsFocused();
+  const propertyToOpen = route.params?.propertyToOpen ?? null;
   const { t } = useLanguage();
   const { properties, propertiesLoading: loading, refreshProperties } = useAppData();
 
@@ -93,13 +98,13 @@ export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isV
   }, []);
 
   useEffect(() => {
-    if (propertyToOpen && onPropertyOpened) {
+    if (propertyToOpen) {
       setSelectedProperty(propertyToOpen);
-      onPropertyOpened();
+      navigation.setParams({ propertyToOpen: undefined });
     }
-  }, [propertyToOpen, onPropertyOpened]);
+  }, [propertyToOpen]);
 
-  const prevVisible = useRef(isVisible);
+  const prevVisible = useRef(false);
   useEffect(() => {
     if (prevVisible.current && !isVisible) {
       setSelectedProperty(null);
