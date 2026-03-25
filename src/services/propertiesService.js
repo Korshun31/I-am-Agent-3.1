@@ -94,8 +94,7 @@ export async function deleteProperty(id) {
   const { error } = await supabase
     .from('properties')
     .delete()
-    .eq('id', id)
-    .eq('agent_id', session.user.id);
+    .eq('id', id);
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
