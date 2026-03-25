@@ -69,6 +69,7 @@ export default function RealEstateScreen({ onReady }) {
   const propertyToOpen = route.params?.propertyToOpen ?? null;
   const { t } = useLanguage();
   const { properties, propertiesLoading: loading, refreshProperties } = useAppData();
+  const canAdd = !user?.teamMembership || user?.teamPermissions?.can_add_property;
 
   useEffect(() => { onReady?.(); }, []);
   const [filterVisible, setFilterVisible] = useState(false);
@@ -153,7 +154,10 @@ export default function RealEstateScreen({ onReady }) {
 
   const handleSaveProperty = useCallback(async (data) => {
     try {
-      await createProperty(data);
+      const propertyData = user?.teamMembership
+        ? { ...data, property_status: 'pending' }
+        : data;
+      await createProperty(propertyData);
       setAddModalVisible(false);
       refreshProperties();
     } catch (e) {
@@ -328,9 +332,11 @@ export default function RealEstateScreen({ onReady }) {
             autoCorrect={false}
           />
         </View>
-        <TouchableOpacity style={styles.toolbarBtn} activeOpacity={0.7} onPress={() => setAddModalVisible(true)}>
-          <Image source={require('../../assets/icon-add-property.png')} style={styles.toolbarBtnImage} resizeMode="contain" />
-        </TouchableOpacity>
+        {canAdd && (
+          <TouchableOpacity style={styles.toolbarBtn} activeOpacity={0.7} onPress={() => setAddModalVisible(true)}>
+            <Image source={require('../../assets/icon-add-property.png')} style={styles.toolbarBtnImage} resizeMode="contain" />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.toolbarBtn} activeOpacity={0.7} onPress={toggleExpandAll}>
           <Image
             source={allExpanded
