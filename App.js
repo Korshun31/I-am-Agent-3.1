@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 if (Platform.OS !== 'web') {
   try {
@@ -17,6 +19,7 @@ if (Platform.OS !== 'web') {
   } catch {}
 }
 import { LanguageProvider } from './src/context/LanguageContext';
+import { UserProvider, useUser } from './src/context/UserContext';
 import { AppDataProvider, useAppData } from './src/context/AppDataContext';
 import Preloader from './src/screens/Preloader';
 import Login from './src/screens/Login';
@@ -27,17 +30,16 @@ import { getCurrentUser, signOut } from './src/services/authService';
 import { supabase } from './src/services/supabase';
 import WebInviteAcceptScreen from './src/web/screens/WebInviteAcceptScreen';
 
-const initialUser = { email: '', name: '', lastName: '', phone: '', telegram: '', documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '', photoUri: '' };
-
-function AppMainLoader({ onLogout, user, onUserUpdate }) {
+function AppMainLoader({ onLogout }) {
   const { isLoaded, loadingProgress } = useAppData();
+  const { user, handleUserUpdate } = useUser();
   if (!isLoaded) return <Preloader progress={loadingProgress} />;
-  return <MainScreen onLogout={onLogout} user={user} onUserUpdate={onUserUpdate} />;
+  return <MainScreen onLogout={onLogout} user={user} onUserUpdate={handleUserUpdate} />;
 }
 
-export default function App() {
+function AppContent() {
+  const { user, updateUser, resetUser, handleUserUpdate } = useUser();
   const [screen, setScreen] = useState('preloader');
-  const [user, setUser] = useState(initialUser);
   const [inviteToken, setInviteToken] = useState(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -51,7 +53,7 @@ export default function App() {
       try {
         const userData = await getCurrentUser();
         if (userData) {
-          setUser(userData);
+          updateUser(userData);
           setScreen('main');
         } else {
           setScreen('login');
@@ -73,52 +75,16 @@ export default function App() {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED_ERROR') {
-        setUser(initialUser);
+        resetUser();
         setScreen('login');
       }
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  const goToMain = (userData) => {
-    if (userData && typeof userData === 'object') {
-      setUser({
-        ...userData,
-        email: userData.email || '',
-        name: userData.name || '',
-        lastName: userData.lastName || '',
-        phone: userData.phone || '',
-        telegram: userData.telegram || '',
-        documentNumber: userData.documentNumber || '',
-        extraPhones: Array.isArray(userData.extraPhones) ? userData.extraPhones : [],
-        extraEmails: Array.isArray(userData.extraEmails) ? userData.extraEmails : [],
-        whatsapp: userData.whatsapp || '',
-        photoUri: userData.photoUri || '',
-        workAs: userData.workAs === 'company' ? 'company' : 'private',
-        companyInfo: userData.companyInfo || {},
-      });
-    } else {
-      setUser(initialUser);
-    }
-    setScreen('main');
-  };
-
-  const handleUserUpdate = (updatedUser) => {
-    setUser((prev) => ({
-      ...prev,
-      ...updatedUser,
-      extraPhones: Array.isArray(updatedUser?.extraPhones) ? updatedUser.extraPhones : prev.extraPhones || [],
-      extraEmails: Array.isArray(updatedUser?.extraEmails) ? updatedUser.extraEmails : prev.extraEmails || [],
-      whatsapp: updatedUser?.whatsapp !== undefined ? updatedUser.whatsapp : prev.whatsapp || '',
-      photoUri: updatedUser?.photoUri !== undefined ? updatedUser.photoUri : prev.photoUri || '',
-      workAs: updatedUser?.workAs !== undefined ? updatedUser.workAs : prev.workAs || 'private',
-      companyInfo: updatedUser?.companyInfo !== undefined ? updatedUser.companyInfo : prev.companyInfo || {},
-    }));
-  };
-
   const handleLogout = async () => {
     try { await signOut(); } catch {}
-    setUser(initialUser);
+    resetUser();
     setScreen('login');
   };
 
@@ -127,7 +93,10 @@ export default function App() {
       window.history.replaceState({}, '', '/');
     }
     setInviteToken(null);
-    if (userData) goToMain(userData);
+    if (userData) {
+      updateUser(userData);
+      setScreen('main');
+    }
   };
 
   const handleInviteCancel = () => {
@@ -138,8 +107,7 @@ export default function App() {
   };
 
   return (
-    <ErrorBoundary>
-    <LanguageProvider>
+    <>
       <StatusBar style="dark" />
       {Platform.OS === 'web' && inviteToken ? (
         <WebInviteAcceptScreen
@@ -152,27 +120,47 @@ export default function App() {
           {(screen === 'login' || (screen === 'preloader' && Platform.OS === 'web')) && (
             <Login
               onSignUp={() => setScreen('registration')}
-              onLogin={(user) => goToMain(user)}
+              onLogin={(userData) => { updateUser(userData); setScreen('main'); }}
             />
           )}
           {screen === 'registration' && (
             <Registration
               onBack={() => setScreen('login')}
-              onSuccess={(user) => goToMain(user)}
+              onSuccess={(userData) => { updateUser(userData); setScreen('main'); }}
             />
           )}
+          {screen === 'preloader' && Platform.OS !== 'web' && <Preloader />}
           {screen === 'main' && (
             Platform.OS === 'web' ? (
               <WebMainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
             ) : (
               <AppDataProvider user={user}>
-                <AppMainLoader onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
+                <AppMainLoader onLogout={handleLogout} />
               </AppDataProvider>
             )
           )}
         </>
       )}
-    </LanguageProvider>
+    </>
+  );
+}
+
+export default function App() {
+  const handleLogout = async () => {
+    try { await signOut(); } catch {}
+  };
+
+  return (
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <UserProvider onLogout={handleLogout}>
+          <NavigationContainer>
+            <LanguageProvider>
+              <AppContent />
+            </LanguageProvider>
+          </NavigationContainer>
+        </UserProvider>
+      </SafeAreaProvider>
     </ErrorBoundary>
   );
 }
