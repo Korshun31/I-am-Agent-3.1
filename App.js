@@ -32,6 +32,25 @@ import WebInviteAcceptScreen from './src/web/screens/WebInviteAcceptScreen';
 
 function AppMainLoader({ onLogout }) {
   const { isLoaded, loadingProgress } = useAppData();
+  const { user, handleUserUpdate, updateUser } = useUser();
+
+  useEffect(() => {
+    if (!user?.id || !user?.teamMembership) return;
+    const channel = supabase
+      .channel(`permissions-sync-${user.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'company_members',
+        filter: `agent_id=eq.${user.id}`,
+      }, async () => {
+        const freshUser = await getCurrentUser();
+        if (freshUser) updateUser(freshUser);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, user?.teamMembership]);
+
   if (!isLoaded) return <Preloader progress={loadingProgress} />;
   return <MainNavigator onLogout={onLogout} />;
 }
