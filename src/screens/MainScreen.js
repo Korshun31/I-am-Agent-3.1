@@ -13,7 +13,7 @@ const MemoRealEstate      = memo(RealEstateScreen);
 const MemoBookingCalendar = memo(BookingCalendarScreen);
 const MemoAgentCalendar   = memo(AgentCalendarScreen);
 
-export default function MainScreen({ onLogout, user, onUserUpdate }) {
+export default function MainScreen({ onLogout, onUserUpdate }) {
   const [activeTab, setActiveTab] = useState(3);
   const [screenWithinAccount, setScreenWithinAccount] = useState('account');
   const [propertyToOpen, setPropertyToOpen] = useState(null);
@@ -127,7 +127,6 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
             onPropertyOpened={handlePropertyOpened}
             isVisible={activeTab === 0}
             onReady={handleTab0Ready}
-            user={user}
           />
         )}
         <TabLoadingOverlay opacity={overlayOpacities[0]} />
@@ -139,7 +138,7 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
         pointerEvents={interactiveTab === 1 ? 'auto' : 'none'}
       >
         {visited.has(1) && (
-          <MemoBookingCalendar isVisible={activeTab === 1} onReady={handleTab1Ready} user={user} />
+          <MemoBookingCalendar isVisible={activeTab === 1} onReady={handleTab1Ready} />
         )}
         <TabLoadingOverlay opacity={overlayOpacities[1]} />
       </Animated.View>
@@ -154,7 +153,6 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
             isVisible={activeTab === 2}
             onOpenProperty={handleOpenProperty}
             onReady={handleTab2Ready}
-            user={user}
           />
         )}
         <TabLoadingOverlay opacity={overlayOpacities[2]} />
@@ -172,7 +170,6 @@ export default function MainScreen({ onLogout, user, onUserUpdate }) {
         ) : (
           <AccountScreen
             onLogout={onLogout}
-            user={user || {}}
             onUserUpdate={onUserUpdate}
             onOpenContacts={() => setScreenWithinAccount('contacts')}
             onOpenStatistics={() => setScreenWithinAccount('statistics')}

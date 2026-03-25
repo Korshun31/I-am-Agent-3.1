@@ -20,6 +20,7 @@ import 'dayjs/locale/ru';
 import 'dayjs/locale/th';
 import { useLanguage } from '../context/LanguageContext';
 import { useAppData } from '../context/AppDataContext';
+import { useUser } from '../context/UserContext';
 import { deleteProperty } from '../services/propertiesService';
 import { deleteBooking } from '../services/bookingsService';
 import { cancelBookingReminders } from '../services/bookingRemindersService';
@@ -126,7 +127,8 @@ function getOwnerLabel(width, labels) {
   return min || '';
 }
 
-export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose, onReady, readOnly = false, user } = {}) {
+export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose, onReady, readOnly = false } = {}) {
+  const { user } = useUser();
   const { t, language } = useLanguage();
   const { properties, bookings, contacts, propertiesLoading, refreshProperties, refreshBookings } = useAppData();
 

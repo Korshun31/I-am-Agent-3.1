@@ -20,6 +20,7 @@ import CurrencyModal from '../components/CurrencyModal';
 import AddLocationsModal from '../components/AddLocationsModal';
 import DataUploadModal from '../components/DataUploadModal';
 import { useLanguage } from '../context/LanguageContext';
+import { useUser } from '../context/UserContext';
 import { ROLES } from '../constants/roleFeatures';
 import { updateUserProfile, getCurrentUser, canChangePassword } from '../services/authService';
 import { getLocations, createLocation, updateLocation, deleteLocation, setLocationDistricts } from '../services/locationsService';
@@ -43,7 +44,8 @@ const BLOCK_ROW_GAP = 8; // Отступ между строками внутр�
 const LOCATIONS_BOTTOM_PADDING = 10;
 const ANIM_DURATION = 280;
 
-export default function AccountScreen({ onLogout, user = {}, onUserUpdate, onOpenContacts, onOpenStatistics, isVisible }) {
+export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, onOpenStatistics, isVisible }) {
+  const { user = {} } = useUser();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsClosing, setSettingsClosing] = useState(false);
   const [locationsOpen, setLocationsOpen] = useState(false);

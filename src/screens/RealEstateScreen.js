@@ -21,6 +21,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { useAppData } from '../context/AppDataContext';
+import { useUser } from '../context/UserContext';
 import { createProperty, deleteProperty } from '../services/propertiesService';
 import AddPropertyModal from '../components/AddPropertyModal';
 import FilterBottomSheet from '../components/FilterBottomSheet';
@@ -59,7 +60,8 @@ const COLORS = {
   searchBorder: '#E0D8CC',
 };
 
-export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isVisible = true, onReady, user }) {
+export default function RealEstateScreen({ propertyToOpen, onPropertyOpened, isVisible = true, onReady }) {
+  const { user } = useUser();
   const { t } = useLanguage();
   const { properties, propertiesLoading: loading, refreshProperties } = useAppData();
 

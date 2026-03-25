@@ -24,6 +24,7 @@ import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
 import { getCommissionDateAmounts } from '../services/commissionRemindersService';
 import { useAppData } from '../context/AppDataContext';
+import { useUser } from '../context/UserContext';
 import { eventOccursOnDate, updateCalendarEvent } from '../services/calendarEventsService';
 import AddCalendarEventModal from '../components/AddCalendarEventModal';
 import AddBookingModal from '../components/AddBookingModal';
@@ -250,7 +251,8 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenProperty, onOpenBo
   );
 }
 
-export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenProperty, onReady, user }) {
+export default function AgentCalendarScreen({ isVisible, onBookingEdit, onOpenProperty, onReady }) {
+  const { user } = useUser();
   const { t, language } = useLanguage();
   const { properties, bookings, contacts, calendarEvents, refreshProperties, refreshBookings, refreshCalendarEvents } = useAppData();
 
