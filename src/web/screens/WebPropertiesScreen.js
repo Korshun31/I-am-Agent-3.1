@@ -1014,7 +1014,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
     const agentId = user.id;
 
     const channel = supabase
-      .channel('properties-realtime')
+      .channel(`properties-realtime-${agentId}`)
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
@@ -1022,13 +1022,15 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
         filter: `responsible_agent_id=eq.${agentId}`,
       }, (payload) => {
         const updated = payload.new;
-        // Обновляем список объектов
         setProperties(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
-        // Обновляем selected если это тот же объект и панель редактирования закрыта
         setSelected(prev => {
           if (!prev || prev.id !== updated.id) return prev;
           return { ...prev, ...updated };
         });
+        // Сбрасываем черновик — после одобрения/отклонения баннер должен исчезнуть
+        if (updated.property_status === 'approved' || updated.property_status === 'rejected') {
+          setDraftRefreshKey(k => k + 1);
+        }
       })
       .subscribe();
 
