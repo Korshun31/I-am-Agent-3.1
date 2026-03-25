@@ -479,7 +479,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
   const marketDistance = p.market_distance ?? resort?.market_distance;
   const city = p.city ?? resort?.city;
   const district = p.district ?? resort?.district;
-  const googleMapsLink = p.google_maps_link ?? resort?.google_maps_link;
+  const googleMapsLink = p.google_maps_link || resort?.google_maps_link;
   const codeDisplay = resort
     ? (resort.code || '') + (p.code_suffix ? ` (${p.code_suffix})` : '')
     : p.code;
@@ -508,6 +508,9 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         <InfoRow label={t('propBedrooms')} value={p.bedrooms != null ? `${p.bedrooms}  pc` : '—'} labelBold />
         <InfoRow label={t('pdBathrooms')} value={p.bathrooms != null ? `${p.bathrooms}  pc` : '—'} labelBold />
         <InfoRow label={t('pdArea')} value={p.area != null ? `${p.area}  m2` : '—'} labelBold />
+        {isApartment && p.floor_number != null && (
+          <InfoRow label={t('propFloorNumber')} value={String(p.floor_number)} labelBold />
+        )}
         <InfoRow label={t('propBeach')} value={beachDistance != null ? `${beachDistance}  m` : '—'} labelBold />
         <InfoRow label={t('propMarket')} value={marketDistance != null ? `${marketDistance}  m` : '—'} labelBold />
         <View style={styles.divider} />

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { getProperties } from '../services/propertiesService';
 import { getBookings } from '../services/bookingsService';
@@ -73,6 +73,16 @@ export function AppDataProvider({ children, user }) {
     ]);
   }, [refreshProperties, refreshBookings, refreshContacts, refreshCalendarEvents]);
 
+  // Бронирования только для утверждённых объектов (pending/rejected исключены)
+  const filteredBookings = useMemo(() => {
+    const approvedIds = new Set(
+      properties
+        .filter(p => !p.property_status || p.property_status === 'approved')
+        .map(p => p.id)
+    );
+    return bookings.filter(b => approvedIds.has(b.propertyId));
+  }, [properties, bookings]);
+
   const isLoaded = !propertiesLoading && !bookingsLoading && !contactsLoading && !eventsLoading;
 
   const loadingProgress = (
@@ -93,11 +103,19 @@ export function AppDataProvider({ children, user }) {
     const channel = supabase
       .channel(`properties-sync-${user.id}`)
       .on('postgres_changes', {
-        event: 'UPDATE',
+        event: '*',
         schema: 'public',
         table: 'properties',
-      }, () => {
-        refreshProperties();
+      }, (payload) => {
+        if (payload.eventType === 'UPDATE') {
+          refreshProperties();
+        }
+        if (payload.eventType === 'DELETE') {
+          const deletedId = payload.old?.id;
+          if (deletedId) {
+            setProperties(prev => prev.filter(p => p.id !== deletedId));
+          }
+        }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -106,7 +124,7 @@ export function AppDataProvider({ children, user }) {
   return (
     <AppDataContext.Provider value={{
       properties,
-      bookings,
+      bookings: filteredBookings,
       propertiesLoading,
       bookingsLoading,
       refreshProperties,

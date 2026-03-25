@@ -188,22 +188,6 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
   return (
     <>
       <Field label={t('propertyName')} value={data.name} onChangeText={v => setData(d => ({ ...d, name: v }))} />
-      {isHouseInResort ? (
-        <>
-          <View style={s.fieldWrap}>
-            <Text style={s.fieldLabel}>{t('wizResortCode')}</Text>
-            <Text style={[s.pickerBtnText, { paddingVertical: 10 }]}>{resortCode || data.code || '—'}</Text>
-          </View>
-          <Field
-            label={t('wizInternalCodeSuffix')}
-            value={data.code_suffix}
-            onChangeText={v => setData(d => ({ ...d, code_suffix: v }))}
-            placeholder="72-А"
-          />
-        </>
-      ) : (
-        <Field label={t('propertyCode')} value={data.code} onChangeText={v => setData(d => ({ ...d, code: v }))} />
-      )}
 
       {/* City picker */}
       <View style={s.fieldWrap}>
@@ -294,6 +278,23 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
           </>
         )}
       </View>
+
+      {isHouseInResort ? (
+        <>
+          <View style={s.fieldWrap}>
+            <Text style={s.fieldLabel}>{t('wizResortCode')}</Text>
+            <Text style={[s.pickerBtnText, { paddingVertical: 10 }]}>{resortCode || data.code || '—'}</Text>
+          </View>
+          <Field
+            label={t('wizInternalCodeSuffix')}
+            value={data.code_suffix}
+            onChangeText={v => setData(d => ({ ...d, code_suffix: v }))}
+            placeholder="72-А"
+          />
+        </>
+      ) : (
+        <Field label={t('propertyCode')} value={data.code} onChangeText={v => setData(d => ({ ...d, code: v }))} />
+      )}
 
       <Field label={t('pdLocation') + ' (Google Maps)'} value={data.google_maps_link} onChangeText={v => setData(d => ({ ...d, google_maps_link: v }))} placeholder="https://maps.google.com/..." />
 
@@ -520,7 +521,10 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
   );
 }
 
-function StepCharacteristics({ data, setData, t, propertyType }) {
+function StepCharacteristics({ data, setData, t, propertyType, resortId, parentResort }) {
+  const isHouseInResort = Boolean(resortId);
+  const isApartment = isHouseInResort && parentResort?.type === 'condo';
+
   return (
     <>
       {propertyType === 'house' && (
@@ -528,6 +532,9 @@ function StepCharacteristics({ data, setData, t, propertyType }) {
           <Field label={t('propBedrooms')} value={data.bedrooms} onChangeText={v => setData(d => ({ ...d, bedrooms: v }))} keyboardType="numeric" />
           <Field label={t('pdBathrooms')} value={data.bathrooms} onChangeText={v => setData(d => ({ ...d, bathrooms: v }))} keyboardType="numeric" />
           <Field label={t('pdArea') + ' (m\u00B2)'} value={data.area} onChangeText={v => setData(d => ({ ...d, area: v }))} keyboardType="numeric" />
+          {isApartment && (
+            <Field label={t('propFloorNumber') || 'Этаж'} value={data.floor_number} onChangeText={v => setData(d => ({ ...d, floor_number: v }))} keyboardType="numeric" />
+          )}
         </>
       )}
       {propertyType === 'resort' && (
@@ -867,8 +874,9 @@ function buildInitialData(p, parentResort) {
     area: toStr(p.area),
     houses_count: toStr(p.houses_count),
     floors: toStr(p.floors),
-    beach_distance: toStr(p.beach_distance),
-    market_distance: toStr(p.market_distance),
+    floor_number: toStr(p.floor_number),
+    beach_distance: toStr(p.beach_distance ?? (isHouseInResort ? parentResort?.beach_distance : null)),
+    market_distance: toStr(p.market_distance ?? (isHouseInResort ? parentResort?.market_distance : null)),
     description: p.description || '',
     comments: p.comments || '',
     website_url: p.website_url || '',
@@ -923,6 +931,7 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
     area: toNum(data.area),
     houses_count: toNum(data.houses_count),
     floors: toNum(data.floors),
+    floor_number: toNum(data.floor_number),
     beach_distance: toNum(data.beach_distance),
     market_distance: toNum(data.market_distance),
     description: data.description.trim(),
@@ -954,7 +963,7 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
   };
 }
 
-export default function PropertyEditWizard({ visible, property, onClose, onSave, parentResort }) {
+export default function PropertyEditWizard({ visible, property, onClose, onSave, parentResort, mode = 'edit', initialType = 'house' }) {
   const { t, currency, currencySymbol: sym } = useLanguage();
   const [step, setStep] = useState(0);
   const [data, setData] = useState({});
@@ -972,9 +981,13 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
   const loadOwners = () => getContacts('owners').then(setOwners).catch(() => {});
 
   useEffect(() => {
-    if (visible && property) {
-      setData(buildInitialData(property, parentResort));
-      setStep(0);
+    if (!visible) return;
+    setStep(0);
+    const shouldInit = mode === 'create' || property;
+    if (shouldInit) {
+      const src = mode === 'create' ? { type: initialType } : property;
+      const resort = mode === 'create' ? null : parentResort;
+      setData(buildInitialData(src, resort));
       getLocations().then(setLocations).catch(() => {});
       loadOwners();
       getCurrentUser().then(u => {
@@ -985,7 +998,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
         }
       }).catch(() => setMaxPhotos(10));
     }
-  }, [visible, property, parentResort]);
+  }, [visible, property, parentResort, mode, initialType]);
 
   useEffect(() => {
     if (visible && data.location_id) {
@@ -999,13 +1012,15 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [step]);
 
-  if (!visible || !property) return null;
+  if (!visible) return null;
+  if (mode === 'edit' && !property) return null;
 
-  const steps = getStepsForType(property.type);
-  const totalSteps = steps.length;
-  const isLast = step === totalSteps - 1;
-  const isFirst = step === 0;
-  const currentStep = steps[step];
+  const propertyType = mode === 'create' ? initialType : property.type;
+  const steps = getStepsForType(propertyType);
+  const safeStep = Math.min(step, steps.length - 1);
+  const currentStep = steps[safeStep];
+  const isLast = safeStep === steps.length - 1;
+  const isFirst = safeStep === 0;
 
   const animateTransition = (direction, callback) => {
     Animated.timing(fadeAnim, { toValue: 0, duration: 120, useNativeDriver: true }).start(() => {
@@ -1061,7 +1076,9 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       }
       setUploadProgress('');
 
-      const updates = buildUpdates(data, property, parentResort, maxPhotos, currency);
+      const propRef = mode === 'create' ? { type: propertyType } : property;
+      const resortRef = mode === 'create' ? null : parentResort;
+      const updates = buildUpdates(data, propRef, resortRef, maxPhotos, currency);
       await onSave(updates);
     } catch (e) {
       Alert.alert(t('error'), e.message || 'Error');
@@ -1078,7 +1095,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
           data={data}
           setData={setData}
           t={t}
-          propertyType={property.type}
+          propertyType={propertyType}
           locations={locations}
           locationDistricts={locationDistricts}
           onDistrictAdded={async (locationId, district) => {
@@ -1096,11 +1113,11 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
           currentUser={currentUser}
         />
       );
-      case 'chars': return <StepCharacteristics data={data} setData={setData} t={t} propertyType={property.type} />;
+      case 'chars': return <StepCharacteristics data={data} setData={setData} t={t} propertyType={propertyType} resortId={property?.resort_id} parentResort={parentResort} />;
       case 'desc': return <StepDescription data={data} setData={setData} t={t} />;
       case 'media': return <StepMedia data={data} setData={setData} t={t} maxPhotos={maxPhotos} />;
       case 'amenities': return <StepAmenities data={data} setData={setData} t={t} />;
-      case 'additional': return <StepAdditional data={data} setData={setData} t={t} propertyType={property.type} />;
+      case 'additional': return <StepAdditional data={data} setData={setData} t={t} propertyType={propertyType} />;
       case 'pricing': return <StepPricing data={data} setData={setData} t={t} sym={sym} />;
       case 'comments': return <StepComments data={data} setData={setData} t={t} property={property} />;
       default: return null;
@@ -1127,7 +1144,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
                 <View style={s.headerSpacer} />
                 <View style={s.headerCenter}>
                   <Text style={s.title}>{t(currentStep.titleKey)}</Text>
-                  <Text style={s.stepCounter}>{step + 1} / {totalSteps}</Text>
+                  <Text style={s.stepCounter}>{safeStep + 1} / {steps.length}</Text>
                 </View>
                 <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.8}>
                   <Text style={s.closeIcon}>✕</Text>

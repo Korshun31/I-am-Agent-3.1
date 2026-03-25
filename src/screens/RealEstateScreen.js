@@ -23,8 +23,9 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
 import { useRoute, useNavigation, useIsFocused } from '@react-navigation/native';
-import { createProperty, deleteProperty } from '../services/propertiesService';
+import { createPropertyFull, deleteProperty } from '../services/propertiesService';
 import AddPropertyModal from '../components/AddPropertyModal';
+import PropertyEditWizard from '../components/PropertyEditWizard';
 import FilterBottomSheet from '../components/FilterBottomSheet';
 import PropertyDetailScreen from './PropertyDetailScreen';
 import PropertyItem from '../components/PropertyItem';
@@ -76,6 +77,8 @@ export default function RealEstateScreen({ onReady }) {
   const [filterValues, setFilterValues] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [addModalVisible, setAddModalVisible] = useState(false);
+  const [newPropertyType, setNewPropertyType] = useState('house');
+  const [wizardVisible, setWizardVisible] = useState(false);
   const [allExpanded, setAllExpanded] = useState(false);
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [selectedProperty, setSelectedProperty] = useState(null);
@@ -117,7 +120,11 @@ export default function RealEstateScreen({ onReady }) {
   useEffect(() => {
     if (!selectedProperty) return;
     const fresh = properties.find(p => p.id === selectedProperty.id);
-    if (fresh && fresh !== selectedProperty) {
+    if (!fresh) {
+      setSelectedProperty(null);
+      return;
+    }
+    if (fresh !== selectedProperty) {
       setSelectedProperty(fresh);
     }
   }, [properties]);
@@ -154,16 +161,20 @@ export default function RealEstateScreen({ onReady }) {
 
   const handleSaveProperty = useCallback(async (data) => {
     try {
-      const propertyData = user?.teamMembership
+      const isAgent = !!user?.teamMembership;
+      const propertyData = isAgent
         ? { ...data, property_status: 'pending' }
         : data;
-      await createProperty(propertyData);
-      setAddModalVisible(false);
+      await createPropertyFull(propertyData);
+      setWizardVisible(false);
       refreshProperties();
+      if (isAgent) {
+        Alert.alert(t('addProperty'), t('propSentForApproval') || 'Объект отправлен на утверждение администратору');
+      }
     } catch (e) {
       Alert.alert(t('error'), e.message);
     }
-  }, [refreshProperties, t]);
+  }, [refreshProperties, t, user?.teamMembership]);
 
   const handleDeleteProperty = useCallback((prop) => {
     Alert.alert(t('pdDeleteTitle'), t('pdDeleteConfirm'), [
@@ -183,9 +194,13 @@ export default function RealEstateScreen({ onReady }) {
   }, [refreshProperties, t]);
 
   // ─── Derived data — memoized so they only recompute when inputs change ─────
-  const { listToShow, uniqueCities, uniqueDistricts, hasActiveFilter } = useMemo(() => {
-    const topLevel = properties.filter(p => !p.resort_id);
-    const children = properties.filter(p => p.resort_id);
+  const { listToShow, drafts, uniqueCities, uniqueDistricts, hasActiveFilter } = useMemo(() => {
+    const draftStatuses = new Set(['pending', 'rejected']);
+    const drafts = properties.filter(p => draftStatuses.has(p.property_status));
+    const approvedProperties = properties.filter(p => !p.property_status || p.property_status === 'approved');
+
+    const topLevel = approvedProperties.filter(p => !p.resort_id);
+    const children = approvedProperties.filter(p => p.resort_id);
     const getParent = (id) => properties.find(pr => pr.id === id);
 
     const hasActiveFilter = filterValues && (
@@ -289,6 +304,7 @@ export default function RealEstateScreen({ onReady }) {
 
     return {
       listToShow: list,
+      drafts,
       uniqueCities: [...new Set(allCities)].sort(),
       uniqueDistricts: [...new Set(allDistricts)].sort(),
       hasActiveFilter: Boolean(hasActiveFilter),
@@ -354,7 +370,7 @@ export default function RealEstateScreen({ onReady }) {
         <View style={styles.emptyWrap}>
           <ActivityIndicator size="large" color="#999" />
         </View>
-      ) : listToShow.length === 0 ? (
+      ) : listToShow.length === 0 && drafts.length === 0 ? (
         <View style={styles.emptyWrap}>
           <Text style={styles.emptyText}>{t('realEstateEmpty')}</Text>
         </View>
@@ -377,12 +393,54 @@ export default function RealEstateScreen({ onReady }) {
           initialNumToRender={12}
           maxToRenderPerBatch={8}
           windowSize={5}
+          ListFooterComponent={drafts.length > 0 ? (
+            <View style={styles.draftsSection}>
+              <Text style={styles.draftsSectionTitle}>{t('draftsSectionTitle') || 'На проверке'}</Text>
+              {drafts.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.draftCard}
+                  onPress={() => navigateToProperty(item)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.draftCardInfo}>
+                    <Text style={styles.draftCardName} numberOfLines={1}>{item.name || '—'}</Text>
+                    {!!item.code && <Text style={styles.draftCardCode}>{item.code}</Text>}
+                  </View>
+                  <View style={[
+                    styles.draftStatusBadge,
+                    item.property_status === 'rejected' && styles.draftStatusBadgeRejected,
+                  ]}>
+                    <Text style={[
+                      styles.draftStatusText,
+                      item.property_status === 'rejected' && styles.draftStatusTextRejected,
+                    ]}>
+                      {item.property_status === 'rejected'
+                        ? (t('statusRejected') || 'Отклонён')
+                        : (t('statusPending') || 'На проверке')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
         />
       )}
 
       <AddPropertyModal
         visible={addModalVisible}
         onClose={() => setAddModalVisible(false)}
+        onTypeSelected={(type) => {
+          setNewPropertyType(type);
+          setWizardVisible(true);
+        }}
+      />
+
+      <PropertyEditWizard
+        mode="create"
+        initialType={newPropertyType}
+        visible={wizardVisible}
+        onClose={() => setWizardVisible(false)}
         onSave={handleSaveProperty}
       />
 
@@ -505,5 +563,65 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 20,
     paddingBottom: 100,
+  },
+  draftsSection: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
+  },
+  draftsSectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.subtitle,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  draftCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F3',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D5D5D0',
+    borderStyle: 'dashed',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+    opacity: 0.75,
+  },
+  draftCardInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  draftCardName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.title,
+  },
+  draftCardCode: {
+    fontSize: 12,
+    color: COLORS.subtitle,
+  },
+  draftStatusBadge: {
+    backgroundColor: '#FFF8E1',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#FFE082',
+    marginLeft: 8,
+  },
+  draftStatusBadgeRejected: {
+    backgroundColor: '#FFF5F5',
+    borderColor: '#FFCDD2',
+  },
+  draftStatusText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#F59E0B',
+  },
+  draftStatusTextRejected: {
+    color: '#E53935',
   },
 });

@@ -250,7 +250,7 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
 
 // ─── Property Detail ──────────────────────────────────────────────────────────
 
-export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit, user, onApprove, onReject, draftRefreshKey }) {
+export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit, user, onApprove, onReject, onDelete, draftRefreshKey }) {
   const { t } = useLanguage();
   const TYPE_META = getTypeMeta(t);
   const AMENITY_LABELS = getAmenityLabels(t);
@@ -522,6 +522,20 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
               </TouchableOpacity>
             </View>
           </View>
+        )}
+
+        {/* ── Admin: Delete property ── */}
+        {!isAgent && (
+          <TouchableOpacity
+            style={s.deleteBtn}
+            onPress={() => {
+              if (window.confirm(t('pdDeleteConfirm') || 'Delete this property?')) {
+                onDelete?.();
+              }
+            }}
+          >
+            <Text style={s.deleteBtnText}>🗑</Text>
+          </TouchableOpacity>
         )}
 
         {isRejected && property.rejection_reason ? (
@@ -1016,12 +1030,20 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
     const channel = supabase
       .channel(`properties-realtime-${agentId}`)
       .on('postgres_changes', {
-        event: 'UPDATE',
+        event: '*',
         schema: 'public',
         table: 'properties',
         filter: `responsible_agent_id=eq.${agentId}`,
       }, (payload) => {
         const updated = payload.new;
+        const deletedId = payload.old?.id;
+
+        if (payload.eventType === 'DELETE' && deletedId) {
+          setProperties(prev => prev.filter(p => p.id !== deletedId));
+          setSelected(prev => prev?.id === deletedId ? null : prev);
+          return;
+        }
+
         setProperties(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
         setSelected(prev => {
           if (!prev || prev.id !== updated.id) return prev;
@@ -1242,6 +1264,11 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
               await rejectProperty(selected.id, reason);
               await load();
               setSelected(prev => ({ ...prev, property_status: 'rejected', rejection_reason: reason }));
+            }}
+            onDelete={async () => {
+              await deleteProperty(selected.id);
+              setSelected(null);
+              setProperties(prev => prev.filter(p => p.id !== selected.id));
             }}
           />
         ) : (
@@ -1856,6 +1883,8 @@ const s = StyleSheet.create({
   approveBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
   rejectBtn: { flex: 1, height: 42, backgroundColor: '#FFF', borderRadius: 10, borderWidth: 1.5, borderColor: '#E53935', alignItems: 'center', justifyContent: 'center' },
   rejectBtnText: { fontSize: 14, fontWeight: '700', color: '#E53935' },
+  deleteBtn: { backgroundColor: '#EB5757', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8, alignSelf: 'flex-start', marginTop: 12 },
+  deleteBtnText: { color: '#fff', fontSize: 16 },
   rejectedBlock: { backgroundColor: '#FFF5F5', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#FFCDD2', gap: 4 },
   rejectedLabel: { fontSize: 12, fontWeight: '700', color: '#E53935' },
   rejectedReason: { fontSize: 13, color: '#C62828' },

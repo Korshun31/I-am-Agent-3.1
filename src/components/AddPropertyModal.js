@@ -1,28 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   Modal,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   Image,
   Platform,
   Pressable,
-  KeyboardAvoidingView,
-  Keyboard,
-  Alert,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useLanguage } from '../context/LanguageContext';
 
 const COLORS = {
-  boxBg: 'rgba(255,255,255,0.72)',
+  boxBg: 'rgba(255,255,255,0.92)',
   title: '#2C2C2C',
-  inputBg: '#F5F2EB',
   border: '#E0D8CC',
-  saveGreen: '#2E7D32',
 };
 
 const PROPERTY_TYPES = [
@@ -31,150 +24,65 @@ const PROPERTY_TYPES = [
   { key: 'condo', color: '#BBDEFB', borderColor: '#64B5F6', icon: require('../../assets/icon-property-condo.png') },
 ];
 
-export default function AddPropertyModal({ visible, onClose, onSave, editProperty = null }) {
+export default function AddPropertyModal({ visible, onClose, onTypeSelected }) {
   const { t } = useLanguage();
-  const [name, setName] = useState('');
-  const [code, setCode] = useState('');
   const [type, setType] = useState('house');
-  const scrollRef = useRef(null);
-
-  useEffect(() => {
-    if (visible) {
-      setTimeout(() => scrollRef.current?.flashScrollIndicators(), 400);
-    }
-  }, [visible]);
-
-  useEffect(() => {
-    if (visible) {
-      if (editProperty) {
-        setName(editProperty.name || '');
-        setCode(editProperty.code || '');
-        setType(editProperty.type || 'house');
-      } else {
-        setName('');
-        setCode('');
-        setType('house');
-      }
-    }
-  }, [visible, editProperty]);
-
-  const handleSave = () => {
-    Keyboard.dismiss();
-    if (!name.trim()) {
-      Alert.alert(t('error'), t('enterPropertyName'));
-      return;
-    }
-    if (!code.trim()) {
-      Alert.alert(t('error'), t('enterPropertyCode'));
-      return;
-    }
-    onSave?.({
-      name: name.trim(),
-      code: code.trim(),
-      type,
-    });
-  };
 
   if (!visible) return null;
 
+  const handleSelect = (selectedType) => {
+    setType(selectedType);
+    onTypeSelected?.(selectedType);
+    onClose?.();
+  };
+
   return (
     <Modal transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable style={styles.backdrop} onPress={Keyboard.dismiss}>
+      <Pressable style={styles.backdrop} onPress={onClose}>
         {Platform.OS === 'web' ? (
           <View style={[StyleSheet.absoluteFill, styles.backdropWeb]} />
         ) : (
           <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
         )}
-        <KeyboardAvoidingView
-          style={styles.keyboardWrap}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={40}
-        >
-          <Pressable
-            style={styles.boxWrap}
-            onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}
-          >
-            <View style={styles.box}>
-              <View style={styles.headerRow}>
-                <View style={styles.headerSpacer} />
-                <Text style={styles.title}>
-                  {editProperty ? t('editProperty') : t('addProperty')}
-                </Text>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-                  <Text style={styles.closeIcon}>✕</Text>
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView
-                ref={scrollRef}
-                style={styles.scroll}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={true}
-                keyboardShouldPersistTaps="handled"
-                onScrollBeginDrag={Keyboard.dismiss}
-                indicatorStyle="black"
-              >
-                <Text style={styles.fieldLabel}>{t('propertyType')}</Text>
-                <View style={styles.typeRow}>
-                  {PROPERTY_TYPES.map((pt) => {
-                    const isActive = type === pt.key;
-                    return (
-                      <TouchableOpacity
-                        key={pt.key}
-                        style={[
-                          styles.typeBtn,
-                          isActive
-                            ? { backgroundColor: pt.color, borderColor: pt.borderColor }
-                            : styles.typeBtnInactive,
-                          isActive && styles.typeBtnActive,
-                        ]}
-                        onPress={() => setType(pt.key)}
-                        activeOpacity={0.7}
-                      >
-                        <Image source={pt.icon} style={[styles.typeBtnIcon, !isActive && styles.typeBtnIconInactive]} resizeMode="contain" />
-                        <Text style={[
-                          styles.typeBtnLabel,
-                          isActive && styles.typeBtnLabelActive,
-                        ]}>
-                          {t(`propertyType_${pt.key}`)}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                <Text style={styles.fieldLabel}>{t('propertyName')}</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={t('propertyNamePlaceholder')}
-                  placeholderTextColor="#999"
-                  value={name}
-                  onChangeText={setName}
-                  autoCapitalize="words"
-                />
-
-                <Text style={styles.fieldLabel}>{t('propertyCode')}</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={t('propertyCodePlaceholder')}
-                  placeholderTextColor="#999"
-                  value={code}
-                  onChangeText={setCode}
-                  autoCapitalize="characters"
-                  returnKeyType="done"
-                />
-
-                <TouchableOpacity
-                  style={styles.saveBtn}
-                  onPress={handleSave}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.saveBtnText}>{t('save')}</Text>
-                </TouchableOpacity>
-              </ScrollView>
+        <Pressable style={styles.boxWrap} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.box}>
+            <View style={styles.headerRow}>
+              <View style={styles.headerSpacer} />
+              <Text style={styles.title}>{t('addProperty')}</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
+                <Text style={styles.closeIcon}>✕</Text>
+              </TouchableOpacity>
             </View>
-          </Pressable>
-        </KeyboardAvoidingView>
+
+            <View style={styles.content}>
+              <Text style={styles.hint}>{t('propertyType')}</Text>
+              <View style={styles.typeRow}>
+                {PROPERTY_TYPES.map((pt) => (
+                  <TouchableOpacity
+                    key={pt.key}
+                    style={[
+                      styles.typeBtn,
+                      type === pt.key
+                        ? { backgroundColor: pt.color, borderColor: pt.borderColor, ...styles.typeBtnActive }
+                        : styles.typeBtnInactive,
+                    ]}
+                    onPress={() => handleSelect(pt.key)}
+                    activeOpacity={0.7}
+                  >
+                    <Image
+                      source={pt.icon}
+                      style={[styles.typeBtnIcon, type !== pt.key && styles.typeBtnIconInactive]}
+                      resizeMode="contain"
+                    />
+                    <Text style={[styles.typeBtnLabel, type === pt.key && styles.typeBtnLabelActive]}>
+                      {t(`propertyType_${pt.key}`)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        </Pressable>
       </Pressable>
     </Modal>
   );
@@ -190,14 +98,9 @@ const styles = StyleSheet.create({
   backdropWeb: {
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  keyboardWrap: {
-    width: '100%',
-    alignItems: 'center',
-  },
   boxWrap: {
     width: '100%',
     maxWidth: 360,
-    maxHeight: '85%',
   },
   box: {
     borderRadius: 20,
@@ -221,9 +124,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.06)',
   },
-  headerSpacer: {
-    width: 36,
-  },
+  headerSpacer: { width: 36 },
   title: {
     fontSize: 18,
     fontWeight: '700',
@@ -242,29 +143,26 @@ const styles = StyleSheet.create({
     color: '#E85D4C',
     fontWeight: '600',
   },
-  scroll: {
-    maxHeight: 420,
-  },
-  scrollContent: {
+  content: {
     padding: 20,
   },
-  fieldLabel: {
+  hint: {
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.title,
-    marginBottom: 8,
+    marginBottom: 14,
+    textAlign: 'center',
   },
   typeRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 20,
   },
   typeBtn: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 16,
+    borderRadius: 14,
     borderWidth: 2,
   },
   typeBtnInactive: {
@@ -279,9 +177,9 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   typeBtnIcon: {
-    width: 32,
-    height: 32,
-    marginBottom: 4,
+    width: 36,
+    height: 36,
+    marginBottom: 6,
   },
   typeBtnIconInactive: {
     opacity: 0.35,
@@ -294,31 +192,5 @@ const styles = StyleSheet.create({
   typeBtnLabelActive: {
     color: '#2C2C2C',
     fontWeight: '700',
-  },
-  input: {
-    backgroundColor: COLORS.inputBg,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: COLORS.title,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 16,
-  },
-  saveBtn: {
-    marginTop: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: 'rgba(46, 125, 50, 0.5)',
-    backgroundColor: 'rgba(46, 125, 50, 0.06)',
-  },
-  saveBtnText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.saveGreen,
   },
 });
