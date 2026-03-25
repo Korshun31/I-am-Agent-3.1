@@ -271,6 +271,30 @@ export async function updateMemberPermissions(memberId, permissions) {
 }
 
 /**
+ * Получить назначенные локации участника команды.
+ */
+export async function getMemberAssignedLocations(memberId) {
+  const { data, error } = await supabase
+    .from('company_members')
+    .select('assigned_location_ids')
+    .eq('id', memberId)
+    .maybeSingle();
+  if (error) return [];
+  return data?.assigned_location_ids || [];
+}
+
+/**
+ * Обновить назначенные локации (города) участника команды.
+ */
+export async function updateMemberLocations(memberId, locationIds) {
+  const { error } = await supabase
+    .from('company_members')
+    .update({ assigned_location_ids: locationIds })
+    .eq('id', memberId);
+  if (error) throw new Error(error.message);
+}
+
+/**
  * Вступить в команду по токену приглашения.
  * Вызывается после успешной авторизации агента.
  */

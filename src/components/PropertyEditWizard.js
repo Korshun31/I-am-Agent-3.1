@@ -257,7 +257,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
                     <Text style={[s.pickerItemCity, data.district === d && s.pickerItemCityActive]}>{d}</Text>
                   </TouchableOpacity>
                 ))}
-                {data.location_id && (
+                {data.location_id && !currentUser?.teamMembership && (
                 <View style={s.newDistrictRow}>
                   <TextInput
                     style={s.newDistrictInput}
@@ -988,7 +988,9 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       const src = mode === 'create' ? { type: initialType } : property;
       const resort = mode === 'create' ? null : parentResort;
       setData(buildInitialData(src, resort));
-      getLocations().then(setLocations).catch(() => {});
+      getLocations().then(allLocs => {
+        setLocations(allLocs);
+      }).catch(() => {});
       loadOwners();
       getCurrentUser().then(u => {
         setCurrentUser(u);
@@ -1017,6 +1019,11 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
 
   const propertyType = mode === 'create' ? initialType : property.type;
   const steps = getStepsForType(propertyType);
+
+  const assignedIds = currentUser?.teamMembership?.assignedLocationIds;
+  const filteredLocations = assignedIds?.length > 0
+    ? locations.filter(l => assignedIds.includes(l.id))
+    : locations;
   const safeStep = Math.min(step, steps.length - 1);
   const currentStep = steps[safeStep];
   const isLast = safeStep === steps.length - 1;
@@ -1096,7 +1103,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
           setData={setData}
           t={t}
           propertyType={propertyType}
-          locations={locations}
+          locations={filteredLocations}
           locationDistricts={locationDistricts}
           onDistrictAdded={async (locationId, district) => {
             const current = await getLocationDistricts(locationId);

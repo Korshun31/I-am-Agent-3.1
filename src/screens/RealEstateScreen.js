@@ -395,33 +395,63 @@ export default function RealEstateScreen({ onReady }) {
           windowSize={5}
           ListFooterComponent={drafts.length > 0 ? (
             <View style={styles.draftsSection}>
-              <Text style={styles.draftsSectionTitle}>{t('draftsSectionTitle') || 'На проверке'}</Text>
-              {drafts.map(item => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.draftCard}
-                  onPress={() => navigateToProperty(item)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.draftCardInfo}>
-                    <Text style={styles.draftCardName} numberOfLines={1}>{item.name || '—'}</Text>
-                    {!!item.code && <Text style={styles.draftCardCode}>{item.code}</Text>}
-                  </View>
-                  <View style={[
-                    styles.draftStatusBadge,
-                    item.property_status === 'rejected' && styles.draftStatusBadgeRejected,
-                  ]}>
-                    <Text style={[
-                      styles.draftStatusText,
-                      item.property_status === 'rejected' && styles.draftStatusTextRejected,
+              <Text style={styles.draftsSectionTitle}>{t('draftsSectionTitle')}</Text>
+              {drafts.map(item => {
+                const typeColor = item.type === 'resort' ? '#81C784' : item.type === 'condo' ? '#64B5F6' : '#FFD54F';
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.draftCard}
+                    onPress={() => navigateToProperty(item)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.draftCardInfo}>
+                      <Text style={styles.draftCardName} numberOfLines={1}>{item.name || '—'}</Text>
+                      {!!item.code && <Text style={styles.draftCardCode}>{item.code}</Text>}
+                    </View>
+                    <View style={[
+                      styles.draftStatusBadge,
+                      item.property_status === 'rejected' && styles.draftStatusBadgeRejected,
                     ]}>
-                      {item.property_status === 'rejected'
-                        ? (t('statusRejected') || 'Отклонён')
-                        : (t('statusPending') || 'На проверке')}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                      <Text style={[
+                        styles.draftStatusText,
+                        item.property_status === 'rejected' && styles.draftStatusTextRejected,
+                      ]}>
+                        {item.property_status === 'rejected'
+                          ? t('statusRejected')
+                          : t('statusPending')}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.draftDeleteBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      onPress={() => {
+                        Alert.alert(
+                          t('pdDeleteTitle') || 'Удалить',
+                          t('pdDeleteConfirm') || 'Удалить черновик?',
+                          [
+                            { text: t('no') || 'Нет', style: 'cancel' },
+                            {
+                              text: t('yes') || 'Да', style: 'destructive',
+                              onPress: async () => {
+                                try {
+                                  await deleteProperty(item.id);
+                                  refreshProperties();
+                                } catch (e) {
+                                  Alert.alert(t('error'), e.message);
+                                }
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                    >
+                      <Text style={styles.draftDeleteIcon}>🗑</Text>
+                    </TouchableOpacity>
+                    <View style={[styles.draftTypeStripe, { backgroundColor: typeColor }]} />
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           ) : null}
         />
@@ -623,5 +653,21 @@ const styles = StyleSheet.create({
   },
   draftStatusTextRejected: {
     color: '#E53935',
+  },
+  draftDeleteBtn: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  draftDeleteIcon: {
+    fontSize: 13,
+  },
+  draftTypeStripe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 5,
+    borderTopLeftRadius: 11,
+    borderBottomLeftRadius: 11,
   },
 });

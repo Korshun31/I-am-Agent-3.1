@@ -80,7 +80,7 @@ export async function getUserProfile(userId) {
   // Проверяем: является ли пользователь участником чужой команды (роль agent)
   const { data: membershipData } = await supabase
     .from('company_members')
-    .select('company_id, role, permissions')
+    .select('company_id, role, permissions, assigned_location_ids')
     .eq('agent_id', userId)
     .eq('role', 'agent')
     .maybeSingle();
@@ -143,6 +143,7 @@ export async function getUserProfile(userId) {
       companyName: memberCompanyName,
       role: membershipData.role,
       adminId: memberCompanyOwnerId,
+      assignedLocationIds: membershipData.assigned_location_ids || [],
     } : null,
     // Разрешения агента в команде
     teamPermissions: membershipData?.permissions || {},

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { useLanguage } from '../../context/LanguageContext';
-import { getTeamData, createInvitation, revokeInvitation, updateMemberPermissions } from '../../services/companyService';
+import { getTeamData, createInvitation, revokeInvitation, updateMemberPermissions, getMemberAssignedLocations, updateMemberLocations } from '../../services/companyService';
+import { getLocations } from '../../services/locationsService';
 import dayjs from 'dayjs';
 
 const ACCENT = '#3D7D82';
@@ -43,17 +44,33 @@ function MemberPermissionsModal({ member, visible, onClose, onSave }) {
   const { t } = useLanguage();
   const [permissions, setPermissions] = useState(member?.permissions || {});
   const [saving, setSaving] = useState(false);
+  const [locations, setLocations] = useState([]);
+  const [assignedLocationIds, setAssignedLocationIds] = useState([]);
 
   useEffect(() => {
-    if (member) setPermissions(member.permissions || {});
+    if (!member) return;
+    setPermissions(member.permissions || {});
+    getLocations().then(setLocations).catch(() => setLocations([]));
+    getMemberAssignedLocations(member.member_id)
+      .then(setAssignedLocationIds)
+      .catch(() => setAssignedLocationIds([]));
   }, [member?.member_id]);
 
   const toggle = (key) => setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const toggleLocation = (locationId) => {
+    setAssignedLocationIds(prev =>
+      prev.includes(locationId)
+        ? prev.filter(id => id !== locationId)
+        : [...prev, locationId]
+    );
+  };
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await onSave(member.member_id, permissions);
+      await updateMemberLocations(member.member_id, assignedLocationIds);
       onClose();
     } finally {
       setSaving(false);
@@ -122,6 +139,30 @@ function MemberPermissionsModal({ member, visible, onClose, onSave }) {
                 onToggle={() => toggle('can_book')}
               />
             </View>
+
+            {/* Раздел: Локации */}
+            {locations.length > 0 && (
+              <View style={s.modalSection}>
+                <Text style={s.modalSectionTitle}>{t('permSectionLocations') || 'ЛОКАЦИИ'}</Text>
+                <Text style={s.locationHint}>{t('permLocationsHint') || 'Выберите города, в которых работает агент'}</Text>
+                {locations.map(loc => {
+                  const checked = assignedLocationIds.includes(loc.id);
+                  return (
+                    <TouchableOpacity
+                      key={loc.id}
+                      style={s.locationRow}
+                      onPress={() => toggleLocation(loc.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[s.locationCheckbox, checked && s.locationCheckboxChecked]}>
+                        {checked && <Text style={s.locationCheckmark}>✓</Text>}
+                      </View>
+                      <Text style={s.locationName}>{loc.displayName}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
 
             {/* Кнопки */}
             <View style={s.modalActions}>
@@ -550,6 +591,13 @@ const s = StyleSheet.create({
   toggleOn: { backgroundColor: ACCENT },
   toggleThumb: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2 },
   toggleThumbOn: { alignSelf: 'flex-end' },
+
+  locationHint: { fontSize: 12, color: C.muted, marginBottom: 10 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderTopWidth: 1, borderTopColor: C.border },
+  locationCheckbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 2, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+  locationCheckboxChecked: { backgroundColor: ACCENT, borderColor: ACCENT },
+  locationCheckmark: { fontSize: 12, color: '#FFF', fontWeight: '800' },
+  locationName: { fontSize: 14, color: C.text, flex: 1 },
 
   modalActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end', padding: 20, borderTopWidth: 1, borderTopColor: C.border, marginTop: 8 },
   modalCancelBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border },
