@@ -42,7 +42,7 @@ function AppMainLoader({ onLogout }) {
         event: 'UPDATE',
         schema: 'public',
         table: 'company_members',
-        filter: `agent_id=eq.${user.id}`,
+        filter: `user_id=eq.${user.id}`,
       }, async () => {
         const freshUser = await getCurrentUser();
         if (freshUser) updateUser(freshUser);

@@ -75,8 +75,8 @@ export async function activateCompany(companyData = {}) {
   await supabase
     .from('company_members')
     .upsert(
-      { company_id: companyId, agent_id: userId, role: 'owner' },
-      { onConflict: 'company_id,agent_id' }
+      { company_id: companyId, user_id: userId, role: 'owner' },
+      { onConflict: 'company_id,user_id' }
     );
 
   return companyId;
@@ -159,7 +159,7 @@ export async function deactivateCompany() {
 export async function getCompanyMembers(companyId) {
   const { data, error } = await supabase
     .from('company_members')
-    .select('id, agent_id, role, joined_at')
+    .select('id, user_id, role, joined_at')
     .eq('company_id', companyId)
     .order('joined_at', { ascending: true });
 

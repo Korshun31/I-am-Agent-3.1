@@ -456,7 +456,7 @@ export default function WebTeamSection({ companyId, currentUserId }) {
             <MemberRow
               key={m.member_id}
               member={m}
-              isCurrentUser={m.agent_id === currentUserId}
+              isCurrentUser={m.user_id === currentUserId}
               onPress={() => setSelectedMember(m)}
             />
           ))}

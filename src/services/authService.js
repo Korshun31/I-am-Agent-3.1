@@ -81,7 +81,7 @@ export async function getUserProfile(userId) {
   const { data: membershipData } = await supabase
     .from('company_members')
     .select('company_id, role, permissions, assigned_location_ids')
-    .eq('agent_id', userId)
+    .eq('user_id', userId)
     .eq('role', 'agent')
     .maybeSingle();
 

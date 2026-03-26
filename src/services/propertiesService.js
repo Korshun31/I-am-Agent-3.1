@@ -220,13 +220,13 @@ export async function submitPropertyDraft(propertyId, draftData) {
     .upsert(
       {
         property_id: propertyId,
-        agent_id: session.user.id,
+        user_id: session.user.id,
         draft_data: draftData,
         status: 'pending',
         rejection_reason: null,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'property_id,agent_id' }
+      { onConflict: 'property_id,user_id' }
     )
     .select()
     .single();
@@ -249,7 +249,7 @@ export async function getPropertyDraft(propertyId) {
     .from('property_drafts')
     .select('*')
     .eq('property_id', propertyId)
-    .eq('agent_id', session.user.id)
+    .eq('user_id', session.user.id)
     .eq('status', 'pending')
     .limit(1)
     .maybeSingle();
@@ -278,7 +278,7 @@ export async function getPendingDraftsForAdmin(companyId) {
     .select(`
       *,
       properties!inner(name, code, company_id),
-      agents:agent_id(id, name, last_name, email)
+      agents:user_id(id, name, last_name, email)
     `)
     .eq('properties.company_id', companyId)
     .eq('status', 'pending')
@@ -293,7 +293,7 @@ export async function getPendingDraftsForAdmin(companyId) {
     draft: {
       id: row.id,
       property_id: row.property_id,
-      agent_id: row.agent_id,
+      user_id: row.user_id,
       draft_data: row.draft_data,
       status: row.status,
       rejection_reason: row.rejection_reason,
