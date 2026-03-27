@@ -564,7 +564,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
       const { data: membership } = await supabase
         .from('company_members')
         .select('company_id')
-        .eq('agent_id', session.user.id)
+        .eq('user_id', session.user.id)
         .eq('role', 'agent')
         .maybeSingle();
       if (!membership?.company_id) return;
