@@ -4,6 +4,7 @@ import {
   TextInput, Switch, Animated, Modal, ActivityIndicator, Image, Platform,
 } from 'react-native';
 import { updateProperty, createPropertyFull, createProperty, submitPropertyDraft } from '../../services/propertiesService';
+import { getCompanyLocations, getLocationsForAgent, getLocationDistricts } from '../../services/locationsService';
 import { sendNotification } from '../../services/notificationsService';
 import { supabase } from '../../services/supabase';
 import { useLanguage } from '../../context/LanguageContext';
@@ -86,6 +87,30 @@ function FieldInput({ value, onChangeText, placeholder, numeric, multiline }) {
       multiline={multiline}
       numberOfLines={multiline ? 3 : 1}
     />
+  );
+}
+
+function FieldDropdown({ value, options, onChange, placeholder, disabled }) {
+  return (
+    <select
+      value={value || ''}
+      onChange={e => onChange(e.target.value)}
+      disabled={!!disabled}
+      style={{
+        height: 42, width: '100%',
+        border: `1px solid ${disabled ? '#F0F0F0' : C.border}`,
+        borderRadius: 10, paddingLeft: 12, paddingRight: 8,
+        fontSize: 14, color: value ? C.text : C.light,
+        backgroundColor: disabled ? '#F8F9FA' : C.bg,
+        outline: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+        appearance: 'auto',
+      }}
+    >
+      <option value="" disabled>{placeholder || '—'}</option>
+      {options.map(opt => (
+        <option key={opt.value} value={opt.value}>{opt.label}</option>
+      ))}
+    </select>
   );
 }
 
@@ -199,6 +224,7 @@ function buildForm(property, parentProperty) {
       code: property.code || '',
       code_suffix: property.code_suffix || '',
       type: property.type || 'house',
+      location_id: property.location_id || null,
       city: property.city || '',
       district: property.district || '',
       houses_count: property.houses_count ?? '',
@@ -247,6 +273,7 @@ function buildForm(property, parentProperty) {
   return {
     name: '', code: parentProperty?.code || '', code_suffix: '',
     type: 'house',
+    location_id: parentProperty?.location_id || null,
     city: parentProperty?.city || '',
     district: parentProperty?.district || '',
     houses_count: '', floors: '',
@@ -304,6 +331,29 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
   const AMENITY_KEYS = getAmenityKeys(t);
   const [tab, setTab] = useState('main');
   const [form, setForm] = useState(() => buildForm(property, parentProperty));
+  const [locations, setLocations] = useState([]);
+  const [districts, setDistricts] = useState([]);
+
+  // Load available locations based on user role
+  useEffect(() => {
+    if (!visible) return;
+    const load = async () => {
+      let locs = [];
+      if (user?.teamMembership?.companyId) {
+        locs = await getLocationsForAgent(user.id, user.teamMembership.companyId).catch(() => []);
+      } else if (user?.companyId) {
+        locs = await getCompanyLocations(user.companyId).catch(() => []);
+      }
+      setLocations(locs);
+    };
+    load();
+  }, [visible, user?.id, user?.companyId, user?.teamMembership?.companyId]);
+
+  // Load districts when location changes
+  useEffect(() => {
+    if (!form.location_id) { setDistricts([]); return; }
+    getLocationDistricts(form.location_id).then(setDistricts).catch(() => setDistricts([]));
+  }, [form.location_id]);
 
   // Determine if this is a parent resort/condo (not a child unit)
   const effectiveType = mode === 'create-unit' ? (parentProperty?.type || 'house') : (property?.type || form.type);
@@ -369,16 +419,20 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
   const handleSave = async () => {
     if (!form.name.trim()) { setError(t('fieldRequired') + ': ' + t('propName')); setTab('main'); return; }
     if (!form.code.trim()) { setError(t('fieldRequired') + ': ' + t('propCode')); setTab('main'); return; }
+    if (!isChildUnit && !form.location_id) { setError(t('fieldRequired') + ': ' + t('city')); setTab('main'); return; }
     setSaving(true);
     setError('');
+
+    const selectedLoc = locations.find(l => l.id === form.location_id);
 
     const updates = {
       name: form.name.trim(),
       code: form.code.trim().toUpperCase(),
       code_suffix: form.code_suffix.trim() || null,
       type: form.type,
-      city: form.city.trim() || null,
-      district: form.district.trim() || null,
+      location_id: form.location_id || null,
+      city: selectedLoc?.city || form.city.trim() || null,
+      district: form.district || null,
       houses_count: numOrNull(form.houses_count),
       floors: numOrNull(form.floors),
       bedrooms: numOrNull(form.bedrooms),
@@ -578,26 +632,40 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
 
       <View style={s.row2}>
         <View style={{ flex: 1 }}>
-          <FieldRow label={t('city')}>
-            {mode === 'edit' && property?.resort_id ? (
+          <FieldRow label={t('city')} required={!isChildUnit}>
+            {isChildUnit ? (
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{form.city || '—'}</Text>
                 <Text style={s.fieldInputReadonlyHint}>🔒</Text>
               </View>
             ) : (
-              <FieldInput value={form.city} onChangeText={v => set('city', v)} placeholder="Ko Samui" />
+              <FieldDropdown
+                value={form.location_id}
+                options={locations.map(l => ({ value: l.id, label: l.displayName }))}
+                onChange={id => {
+                  const loc = locations.find(l => l.id === id);
+                  setForm(f => ({ ...f, location_id: id || null, city: loc?.city || '', district: '' }));
+                }}
+                placeholder={t('city') + '...'}
+              />
             )}
           </FieldRow>
         </View>
         <View style={{ flex: 1 }}>
           <FieldRow label={t('filterDistrict')}>
-            {mode === 'edit' && property?.resort_id ? (
+            {isChildUnit ? (
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{form.district || '—'}</Text>
                 <Text style={s.fieldInputReadonlyHint}>🔒</Text>
               </View>
             ) : (
-              <FieldInput value={form.district} onChangeText={v => set('district', v)} placeholder="BanTai" />
+              <FieldDropdown
+                value={form.district}
+                options={districts.map(d => ({ value: d, label: d }))}
+                onChange={v => set('district', v)}
+                placeholder={districts.length ? (t('filterDistrict') + '...') : '—'}
+                disabled={!form.location_id || districts.length === 0}
+              />
             )}
           </FieldRow>
         </View>

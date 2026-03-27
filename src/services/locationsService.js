@@ -157,3 +157,21 @@ export async function getLocationsForAgent(userId, companyId) {
   if (error) return [];
   return (data || []).map(r => r.locations).filter(Boolean).map(mapLocation);
 }
+
+/** Returns all locations belonging to the company owner (admin's locations for the company). */
+export async function getCompanyLocations(companyId) {
+  const { data: company, error: compErr } = await supabase
+    .from('companies')
+    .select('owner_id')
+    .eq('id', companyId)
+    .single();
+  if (compErr || !company) return [];
+
+  const { data, error } = await supabase
+    .from('locations')
+    .select('*')
+    .eq('user_id', company.owner_id)
+    .order('created_at', { ascending: true });
+  if (error) return [];
+  return (data || []).map(mapLocation);
+}
