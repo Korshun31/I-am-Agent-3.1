@@ -598,6 +598,10 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     } catch (e) {
       if (e.message === 'BOOKING_CONFLICT') {
         setError(t('bookingConflictError'));
+      } else if (e.message === 'BOOKING_NO_COMPANY') {
+        setError(t('bookingNoCompany') || 'Не удалось определить компанию объекта. Убедитесь, что объект привязан к компании.');
+      } else if (e.message === 'CONTACT_NO_COMPANY') {
+        setError(t('contactNoCompany') || 'Не удалось определить компанию контакта. Обратитесь к администратору.');
       } else {
         setError(e.message || t('errorSave'));
       }

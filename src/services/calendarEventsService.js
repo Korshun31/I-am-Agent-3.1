@@ -17,6 +17,24 @@ import { broadcastChange } from './companyChannel';
  * RLS: user_id = auth.uid()
  */
 
+async function resolveCompanyId(userId) {
+  const { data: company } = await supabase
+    .from('companies')
+    .select('id')
+    .eq('owner_id', userId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (company) return company.id;
+  const { data: member } = await supabase
+    .from('company_members')
+    .select('company_id')
+    .eq('user_id', userId)
+    .eq('role', 'agent')
+    .eq('status', 'active')
+    .maybeSingle();
+  return member?.company_id ?? null;
+}
+
 function normalizeReminderMinutes(val) {
   if (val == null) return [];
   if (Array.isArray(val)) return val.filter((n) => typeof n === 'number');
@@ -76,6 +94,7 @@ export async function createCalendarEvent(event) {
     reminder_minutes: Array.isArray(event.reminderMinutes) && event.reminderMinutes.length > 0 ? event.reminderMinutes : [],
     repeat_type: rt,
   };
+  row.company_id = await resolveCompanyId(session.user.id);
 
   const { data, error } = await supabase
     .from('calendar_events')

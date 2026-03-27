@@ -6,6 +6,23 @@ import * as FileSystem from 'expo-file-system/legacy';
 // Bucket name in Supabase Storage
 const PHOTOS_BUCKET = 'contact-photos';
 
+async function resolveCompanyId(userId) {
+  const { data: company } = await supabase
+    .from('companies')
+    .select('id')
+    .eq('owner_id', userId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (company) return company.id;
+  const { data: member } = await supabase
+    .from('company_members')
+    .select('company_id')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .maybeSingle();
+  return member?.company_id ?? null;
+}
+
 /**
  * Uploads a local photo URI to Supabase Storage.
  * Returns the public https:// URL, or the original URI on failure.
@@ -174,6 +191,8 @@ export async function createContact(contactData) {
     extra_whatsapps: extraWa,
     documents: contactData.documents || [],
   };
+  row.company_id = await resolveCompanyId(session.user.id);
+  if (!row.company_id) throw new Error('CONTACT_NO_COMPANY');
 
   const { data, error } = await supabase
     .from('contacts')

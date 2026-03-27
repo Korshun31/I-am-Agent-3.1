@@ -69,8 +69,16 @@ export async function createBooking(booking) {
   );
   if (hasConflict) throw new Error('BOOKING_CONFLICT');
 
+  const { data: prop } = await supabase
+    .from('properties')
+    .select('company_id')
+    .eq('id', booking.propertyId)
+    .maybeSingle();
+  if (!prop?.company_id) throw new Error('BOOKING_NO_COMPANY');
+
   const row = {
     user_id: session.user.id,
+    company_id: prop.company_id,
     property_id: booking.propertyId,
     contact_id: booking.contactId || null,
     passport_id: booking.passportId || null,
@@ -121,7 +129,18 @@ export async function updateBooking(id, booking) {
   );
   if (hasConflict) throw new Error('BOOKING_CONFLICT');
 
-  const updates = {
+  const updates = {};
+
+  if (booking.propertyId) {
+    const { data: prop } = await supabase
+      .from('properties')
+      .select('company_id')
+      .eq('id', booking.propertyId)
+      .maybeSingle();
+    if (prop?.company_id) updates.company_id = prop.company_id;
+  }
+
+  Object.assign(updates, {
     contact_id: booking.contactId || null,
     passport_id: booking.passportId || null,
     not_my_customer: !!booking.notMyCustomer,
@@ -145,7 +164,7 @@ export async function updateBooking(id, booking) {
     photos: Array.isArray(booking.photos) && booking.photos.length > 0 ? booking.photos : null,
     reminder_days: Array.isArray(booking.reminderDays) && booking.reminderDays.length > 0 ? booking.reminderDays : [],
     currency: booking.currency || 'THB',
-  };
+  });
   updates.updated_at = new Date().toISOString();
 
   const { data, error } = await supabase

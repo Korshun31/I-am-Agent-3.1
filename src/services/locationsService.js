@@ -2,6 +2,24 @@ import { supabase } from './supabase';
 import { syncIfEnabled } from './dataUploadService';
 import { updatePropertiesDistrictForLocation } from './propertiesService';
 
+async function resolveCompanyId(userId) {
+  const { data: company } = await supabase
+    .from('companies')
+    .select('id')
+    .eq('owner_id', userId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (company) return company.id;
+  const { data: member } = await supabase
+    .from('company_members')
+    .select('company_id')
+    .eq('user_id', userId)
+    .eq('role', 'agent')
+    .eq('status', 'active')
+    .maybeSingle();
+  return member?.company_id ?? null;
+}
+
 export async function getLocations() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return [];
@@ -28,6 +46,7 @@ export async function createLocation({ country, region, city }) {
     .from('locations')
     .insert({
       user_id: session.user.id,
+      company_id: await resolveCompanyId(session.user.id),
       country: country || '',
       region: region || '',
       city: city || '',
