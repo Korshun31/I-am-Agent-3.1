@@ -80,10 +80,19 @@ export async function getUserProfile(userId) {
   // Проверяем: является ли пользователь участником чужой команды (роль agent)
   const { data: membershipData } = await supabase
     .from('company_members')
-    .select('company_id, role, permissions, assigned_location_ids')
+    .select('company_id, role, permissions')
     .eq('user_id', userId)
     .eq('role', 'agent')
     .maybeSingle();
+  let assignedLocationIds = [];
+  if (membershipData?.company_id) {
+    const { data: locationAccess } = await supabase
+      .from('agent_location_access')
+      .select('location_id')
+      .eq('user_id', userId)
+      .eq('company_id', membershipData.company_id);
+    assignedLocationIds = (locationAccess || []).map(r => r.location_id);
+  }
 
   // Получаем название компании и ID владельца (Админа) если нашли членство
   let memberCompanyName = '';
@@ -143,7 +152,7 @@ export async function getUserProfile(userId) {
       companyName: memberCompanyName,
       role: membershipData.role,
       adminId: memberCompanyOwnerId,
-      assignedLocationIds: membershipData.assigned_location_ids || [],
+      assignedLocationIds,
     } : null,
     // Разрешения агента в команде
     teamPermissions: membershipData?.permissions || {},

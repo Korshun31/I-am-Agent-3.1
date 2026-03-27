@@ -24,7 +24,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrentUser } from '../services/authService';
 import { getPhotoLimitForProperty } from '../constants/roleFeatures';
-import { getLocations, getLocationDistricts, setLocationDistricts } from '../services/locationsService';
+import { getLocations, getLocationsForAgent, getLocationDistricts, setLocationDistricts } from '../services/locationsService';
 import { getContacts, createContact } from '../services/contactsService';
 import { getActiveTeamMembers } from '../services/companyService';
 import { uploadPhoto, isLocalUri } from '../services/storageService';
@@ -988,15 +988,19 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       const src = mode === 'create' ? { type: initialType } : property;
       const resort = mode === 'create' ? null : parentResort;
       setData(buildInitialData(src, resort));
-      getLocations().then(allLocs => {
-        setLocations(allLocs);
-      }).catch(() => {});
       loadOwners();
       getCurrentUser().then(u => {
         setCurrentUser(u);
         setMaxPhotos(getPhotoLimitForProperty(u?.role || 'standard'));
         if (u?.companyId) {
           getActiveTeamMembers(u.companyId).then(setTeamMembers).catch(() => setTeamMembers([]));
+        }
+        if (u?.teamMembership?.companyId) {
+          getLocationsForAgent(u.id, u.teamMembership.companyId)
+            .then(setLocations)
+            .catch(() => setLocations([]));
+        } else {
+          getLocations().then(setLocations).catch(() => setLocations([]));
         }
       }).catch(() => setMaxPhotos(10));
     }

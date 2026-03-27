@@ -147,3 +147,13 @@ function mapLocation(row) {
     displayName: formatLocation(row),
   };
 }
+
+export async function getLocationsForAgent(userId, companyId) {
+  const { data, error } = await supabase
+    .from('agent_location_access')
+    .select('locations(*)')
+    .eq('user_id', userId)
+    .eq('company_id', companyId);
+  if (error) return [];
+  return (data || []).map(r => r.locations).filter(Boolean).map(mapLocation);
+}

@@ -271,26 +271,31 @@ export async function updateMemberPermissions(memberId, permissions) {
 }
 
 /**
- * Получить назначенные локации участника команды.
+ * Получить ID локаций, доступных агенту в компании (через agent_location_access).
  */
-export async function getMemberAssignedLocations(memberId) {
+export async function getAgentLocationAccess(userId, companyId) {
   const { data, error } = await supabase
-    .from('company_members')
-    .select('assigned_location_ids')
-    .eq('id', memberId)
-    .maybeSingle();
+    .from('agent_location_access')
+    .select('location_id')
+    .eq('user_id', userId)
+    .eq('company_id', companyId);
   if (error) return [];
-  return data?.assigned_location_ids || [];
+  return (data || []).map(r => r.location_id);
 }
 
 /**
- * Обновить назначенные локации (города) участника команды.
+ * Установить доступные локации агента в компании (через agent_location_access).
+ * Полная замена: сначала удаляем все, затем вставляем новые.
  */
-export async function updateMemberLocations(memberId, locationIds) {
-  const { error } = await supabase
-    .from('company_members')
-    .update({ assigned_location_ids: locationIds })
-    .eq('id', memberId);
+export async function setAgentLocationAccess(userId, companyId, locationIds) {
+  await supabase
+    .from('agent_location_access')
+    .delete()
+    .eq('user_id', userId)
+    .eq('company_id', companyId);
+  if (!locationIds || locationIds.length === 0) return;
+  const rows = locationIds.map(location_id => ({ user_id: userId, company_id: companyId, location_id }));
+  const { error } = await supabase.from('agent_location_access').insert(rows);
   if (error) throw new Error(error.message);
 }
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { useLanguage } from '../../context/LanguageContext';
-import { getTeamData, createInvitation, revokeInvitation, updateMemberPermissions, getMemberAssignedLocations, updateMemberLocations } from '../../services/companyService';
+import { getTeamData, createInvitation, revokeInvitation, updateMemberPermissions, getAgentLocationAccess, setAgentLocationAccess } from '../../services/companyService';
 import { getLocations } from '../../services/locationsService';
+import { broadcastChange } from '../../services/companyChannel';
 import dayjs from 'dayjs';
 
 const ACCENT = '#3D7D82';
@@ -40,7 +41,7 @@ function PermissionToggleRow({ label, hint, value, onToggle }) {
   );
 }
 
-function MemberPermissionsModal({ member, visible, onClose, onSave }) {
+function MemberPermissionsModal({ member, companyId, visible, onClose, onSave }) {
   const { t } = useLanguage();
   const [permissions, setPermissions] = useState(member?.permissions || {});
   const [saving, setSaving] = useState(false);
@@ -51,10 +52,10 @@ function MemberPermissionsModal({ member, visible, onClose, onSave }) {
     if (!member) return;
     setPermissions(member.permissions || {});
     getLocations().then(setLocations).catch(() => setLocations([]));
-    getMemberAssignedLocations(member.member_id)
+    getAgentLocationAccess(member.user_id, companyId)
       .then(setAssignedLocationIds)
       .catch(() => setAssignedLocationIds([]));
-  }, [member?.member_id]);
+  }, [member?.user_id, companyId]);
 
   const toggle = (key) => setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -70,7 +71,8 @@ function MemberPermissionsModal({ member, visible, onClose, onSave }) {
     setSaving(true);
     try {
       await onSave(member.member_id, permissions);
-      await updateMemberLocations(member.member_id, assignedLocationIds);
+      await setAgentLocationAccess(member.user_id, companyId, assignedLocationIds);
+      await broadcastChange('permissions');
       onClose();
     } finally {
       setSaving(false);
@@ -476,6 +478,7 @@ export default function WebTeamSection({ companyId, currentUserId }) {
       {selectedMember && (
         <MemberPermissionsModal
           member={selectedMember}
+          companyId={companyId}
           visible={!!selectedMember}
           onClose={() => setSelectedMember(null)}
           onSave={async (memberId, permissions) => {
