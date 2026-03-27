@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { syncIfEnabled } from './dataUploadService';
+import { broadcastChange } from './companyChannel';
 
 /**
  * Таблица calendar_events в Supabase:
@@ -84,6 +85,7 @@ export async function createCalendarEvent(event) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+  broadcastChange('calendar_events');
   return mapEvent(data);
 }
 
@@ -113,6 +115,7 @@ export async function updateCalendarEvent(id, event) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+  broadcastChange('calendar_events');
   return mapEvent(data);
 }
 
@@ -128,6 +131,7 @@ export async function deleteCalendarEvent(id) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+  broadcastChange('calendar_events');
 }
 
 /**

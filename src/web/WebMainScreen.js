@@ -10,6 +10,7 @@ import WebFlightTracker from './components/WebFlightTracker';
 import { supabase } from '../services/supabase';
 import { getUserProfile } from '../services/authService';
 import { useLanguage } from '../context/LanguageContext';
+import { initCompanyChannel, destroyCompanyChannel } from '../services/companyChannel';
 
 const FULL_HEIGHT_TABS = new Set(['properties', 'contacts', 'bookings', 'profile']);
 
@@ -22,6 +23,9 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [propertiesInitialId, setPropertiesInitialId] = useState(null);
   const [visited, setVisited] = useState(() => new Set(['dashboard']));
+  const [refreshKey, setRefreshKey] = useState({
+    properties: 0, bookings: 0, contacts: 0, calendar_events: 0,
+  });
 
   // Обновляем полный профиль пользователя при монтировании (с teamMembership, teamPermissions и т.д.)
   useEffect(() => {
@@ -32,25 +36,23 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
     fetchUser();
   }, [initialUser.id]);
 
-  // Realtime: обновляем разрешения агента при изменении Админом
+  // Broadcast: обновляем данные через лёгкий канал компании
   useEffect(() => {
-    if (!user?.id || !user?.teamMembership) return;
-
-    const channel = supabase
-      .channel('permissions-realtime')
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'company_members',
-        filter: `agent_id=eq.${user.id}`,
-      }, async () => {
+    if (!user?.id) return;
+    const companyId = user?.teamMembership?.companyId || user?.companyId;
+    if (!companyId) return;
+    initCompanyChannel(companyId, {
+      properties: () => setRefreshKey(k => ({ ...k, properties: k.properties + 1 })),
+      bookings: () => setRefreshKey(k => ({ ...k, bookings: k.bookings + 1 })),
+      contacts: () => setRefreshKey(k => ({ ...k, contacts: k.contacts + 1 })),
+      calendar_events: () => setRefreshKey(k => ({ ...k, calendar_events: k.calendar_events + 1 })),
+      permissions: async () => {
         const freshUser = await getUserProfile(user.id);
         if (freshUser) setUser(freshUser);
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [user?.id, user?.teamMembership]);
+      },
+    });
+    return () => destroyCompanyChannel();
+  }, [user?.id, user?.companyId, user?.teamMembership?.companyId]);
 
   // Realtime notifications logic
   useEffect(() => {
@@ -160,27 +162,27 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
     >
       {/* Dashboard — монтируется сразу */}
       <View style={[styles.tabWrap, tabStyle('dashboard')]}>
-        <WebDashboardScreen user={user} />
+        <WebDashboardScreen user={user} refreshKey={refreshKey.calendar_events} />
       </View>
 
       {/* Properties — монтируется при первом посещении */}
       {visited.has('properties') && (
         <View style={[styles.tabWrap, tabStyle('properties')]}>
-          <WebPropertiesScreen initialPropertyId={propertiesInitialId} user={user} />
+          <WebPropertiesScreen initialPropertyId={propertiesInitialId} user={user} refreshKey={refreshKey.properties} />
         </View>
       )}
 
       {/* Contacts — монтируется при первом посещении */}
       {visited.has('contacts') && (
         <View style={[styles.tabWrap, tabStyle('contacts')]}>
-          <WebContactsScreen onNavigateToProperty={navigateToProperty} user={user} />
+          <WebContactsScreen onNavigateToProperty={navigateToProperty} user={user} refreshKey={refreshKey.contacts} />
         </View>
       )}
 
       {/* Bookings — монтируется при первом посещении */}
       {visited.has('bookings') && (
         <View style={[styles.tabWrap, tabStyle('bookings')]}>
-          <WebBookingsScreen user={user} />
+          <WebBookingsScreen user={user} refreshKey={refreshKey.bookings} />
         </View>
       )}
 

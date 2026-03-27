@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase } from '../services/supabase';
+import { initCompanyChannel, destroyCompanyChannel } from '../services/companyChannel';
 import { getProperties } from '../services/propertiesService';
 import { getBookings } from '../services/bookingsService';
 import { getContacts } from '../services/contactsService';
@@ -97,29 +97,24 @@ export function AppDataProvider({ children, user }) {
     refreshAll();
   }, [refreshAll]);
 
-  // Realtime: обновляем объекты при изменениях на сервере (напр. утверждение черновика админом)
+  // Broadcast: получаем push-уведомления об изменениях данных от других участников
   useEffect(() => {
     if (!user?.id) return;
-    const channel = supabase
-      .channel(`properties-sync-${user.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'properties',
-      }, (payload) => {
-        if (payload.eventType === 'UPDATE') {
-          refreshProperties();
-        }
-        if (payload.eventType === 'DELETE') {
-          const deletedId = payload.old?.id;
-          if (deletedId) {
-            setProperties(prev => prev.filter(p => p.id !== deletedId));
-          }
-        }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [user?.id, refreshProperties]);
+    const companyId = user?.teamMembership?.companyId || user?.companyId;
+    if (!companyId) return;
+    initCompanyChannel(companyId, {
+      properties: refreshProperties,
+      bookings: refreshBookings,
+      contacts: refreshContacts,
+      calendar_events: refreshCalendarEvents,
+      permissions: async () => {
+        const { getCurrentUser } = await import('../services/authService');
+        const freshUser = await getCurrentUser();
+        if (freshUser) refreshAll();
+      },
+    });
+    return () => destroyCompanyChannel();
+  }, [user?.id, user?.companyId, user?.teamMembership?.companyId]);
 
   return (
     <AppDataContext.Provider value={{

@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { cancelCommissionReminders } from './commissionRemindersService';
 import { syncIfEnabled } from './dataUploadService';
+import { broadcastChange } from './companyChannel';
 
 export async function getBookings(propertyId = null, contactId = null, agentId = null) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -104,6 +105,7 @@ export async function createBooking(booking) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+  broadcastChange('bookings');
   return mapBooking(data);
 }
 
@@ -156,6 +158,7 @@ export async function updateBooking(id, booking) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+  broadcastChange('bookings');
   return mapBooking(data);
 }
 
@@ -172,6 +175,7 @@ export async function deleteBooking(id) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+  broadcastChange('bookings');
 }
 
 function mapBooking(row) {

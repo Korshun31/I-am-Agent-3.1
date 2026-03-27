@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { syncIfEnabled } from './dataUploadService';
+import { broadcastChange } from './companyChannel';
 
 export async function getProperties(agentId = null) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -46,6 +47,7 @@ export async function createProperty({ name, code, type, location_id, owner_id, 
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+  broadcastChange('properties');
   return data;
 }
 
@@ -69,6 +71,7 @@ export async function createPropertyFull(updates) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+  broadcastChange('properties');
   return data;
 }
 
@@ -84,6 +87,7 @@ export async function updateProperty(id, updates) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+  broadcastChange('properties');
   return data?.[0] ?? null;
 }
 
@@ -98,6 +102,7 @@ export async function deleteProperty(id) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+  broadcastChange('properties');
 }
 
 /**

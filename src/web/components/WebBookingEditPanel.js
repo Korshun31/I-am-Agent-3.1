@@ -481,26 +481,6 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     }).catch(() => setPropertyBookings([]));
   }, [form.propertyId]);
 
-  // Realtime-подписка на изменения бронирований выбранного объекта
-  useEffect(() => {
-    if (!form.propertyId) return;
-    const channel = supabase
-      .channel(`booking-picker-${form.propertyId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'bookings',
-      }, async () => {
-        const currentPid = form.propertyId;
-        try {
-          const all = await getBookings();
-          if (currentPid !== form.propertyId) return;
-          setPropertyBookings((all || []).filter(b => b.propertyId === currentPid));
-        } catch {}
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [form.propertyId]);
 
   // Auto-compute total price
   useEffect(() => {

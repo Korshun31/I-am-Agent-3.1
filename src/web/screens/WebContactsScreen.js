@@ -505,7 +505,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export default function WebContactsScreen({ onNavigateToProperty, user }) {
+export default function WebContactsScreen({ onNavigateToProperty, user, refreshKey }) {
   const { t } = useLanguage();
   const [allContacts, setAllContacts] = useState([]);
   const [allProperties, setAllProperties] = useState([]);
@@ -584,6 +584,7 @@ export default function WebContactsScreen({ onNavigateToProperty, user }) {
   }, [isTeamMember]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (refreshKey) load(); }, [refreshKey]);
 
   // Load bookings for inline property view
   useEffect(() => {

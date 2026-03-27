@@ -44,7 +44,7 @@ const CLR = {
   commBg:   '#FDF4E7',
 };
 
-export default function WebDashboardScreen({ user }) {
+export default function WebDashboardScreen({ user, refreshKey }) {
   const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -242,6 +242,7 @@ export default function WebDashboardScreen({ user }) {
   useEffect(() => {
     loadDashboardData();
   }, []);
+  useEffect(() => { if (refreshKey) loadDashboardDataRef.current(); }, [refreshKey]);
 
   // Ref всегда указывает на актуальную версию loadDashboardData (с текущим selectedDate в замыкании)
   const loadDashboardDataRef = useRef(loadDashboardData);
@@ -249,21 +250,6 @@ export default function WebDashboardScreen({ user }) {
     loadDashboardDataRef.current = loadDashboardData;
   });
 
-  useEffect(() => {
-    const channel = supabase
-      .channel('dashboard-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, () => {
-        loadDashboardDataRef.current();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'properties' }, () => {
-        loadDashboardDataRef.current();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        loadDashboardDataRef.current();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []);
 
   const updateEventsForDate = (date, bookings, properties, contacts, calendarEvents, allComms) => {
     const dateStr = date.format('YYYY-MM-DD');

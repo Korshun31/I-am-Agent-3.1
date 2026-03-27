@@ -65,23 +65,6 @@ export default function WebCalendarStrip({ selectedDate, onDateSelect, user }) {
     loadData();
   }, []);
 
-  useEffect(() => {
-    const channel = supabase
-      .channel('calendar-strip-events-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, async (payload) => {
-        console.log('[Realtime] calendar_events change:', payload);
-        try {
-          const updated = await getCalendarEvents();
-          setCalendarEvents(updated);
-        } catch (e) {
-          console.error('[Realtime] calendar strip error:', e);
-        }
-      })
-      .subscribe((status, err) => {
-        console.log('[Realtime] CalendarStrip subscription status:', status, err || '');
-      });
-    return () => { supabase.removeChannel(channel); };
-  }, []);
 
   const scrollToToday = () => {
     if (flatListRef.current && containerWidth > 0) {

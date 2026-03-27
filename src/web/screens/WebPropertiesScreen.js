@@ -964,7 +964,7 @@ function EmptyState() {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export default function WebPropertiesScreen({ initialPropertyId, user }) {
+export default function WebPropertiesScreen({ initialPropertyId, user, refreshKey }) {
   const { t, currency: userCurrency } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState([]);
@@ -1021,43 +1021,8 @@ export default function WebPropertiesScreen({ initialPropertyId, user }) {
   }, []);
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { if (refreshKey) { load(); setDraftRefreshKey(k => k + 1); } }, [refreshKey]);
 
-  // Realtime: обновляем данные объекта при изменениях — только для агента
-  useEffect(() => {
-    if (!user?.teamMembership || !user?.id) return;
-    const agentId = user.id;
-
-    const channel = supabase
-      .channel(`properties-realtime-${agentId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'properties',
-        filter: `responsible_agent_id=eq.${agentId}`,
-      }, (payload) => {
-        const updated = payload.new;
-        const deletedId = payload.old?.id;
-
-        if (payload.eventType === 'DELETE' && deletedId) {
-          setProperties(prev => prev.filter(p => p.id !== deletedId));
-          setSelected(prev => prev?.id === deletedId ? null : prev);
-          return;
-        }
-
-        setProperties(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
-        setSelected(prev => {
-          if (!prev || prev.id !== updated.id) return prev;
-          return { ...prev, ...updated };
-        });
-        // Сбрасываем черновик — после одобрения/отклонения баннер должен исчезнуть
-        if (updated.property_status === 'approved' || updated.property_status === 'rejected') {
-          setDraftRefreshKey(k => k + 1);
-        }
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [user?.teamMembership, user?.id]);
 
   // Auto-select property when navigating from Contacts
   useEffect(() => {

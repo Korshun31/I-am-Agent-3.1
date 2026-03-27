@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { syncIfEnabled } from './dataUploadService';
+import { broadcastChange } from './companyChannel';
 import * as FileSystem from 'expo-file-system/legacy';
 
 // Bucket name in Supabase Storage
@@ -182,6 +183,7 @@ export async function createContact(contactData) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+  broadcastChange('contacts');
   return mapContact(data);
 }
 
@@ -223,6 +225,7 @@ export async function updateContact(id, contactData) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+  broadcastChange('contacts');
   return mapContact(data);
 }
 
@@ -238,6 +241,7 @@ export async function deleteContact(id) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
+  broadcastChange('contacts');
 }
 
 function mapContact(row) {
