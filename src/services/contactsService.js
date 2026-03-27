@@ -120,12 +120,28 @@ export async function getContacts(type) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return [];
 
+  // Owner/admin: read all contacts in the company (by company_id)
+  const { data: ownedCompany } = await supabase
+    .from('companies')
+    .select('id')
+    .eq('owner_id', session.user.id)
+    .eq('status', 'active')
+    .maybeSingle();
+
   let q = supabase
     .from('contacts')
     .select('*')
-    .eq('user_id', session.user.id)
     .order('name', { ascending: true })
     .limit(10000);
+
+  if (ownedCompany) {
+    // A) Owner/admin: see all contacts that belong to the company
+    q = q.eq('company_id', ownedCompany.id);
+  } else {
+    // B) Agent or private user: see only own contacts
+    q = q.eq('user_id', session.user.id);
+  }
+
   if (type) q = q.eq('type', type);
   const { data, error } = await q;
 
@@ -155,12 +171,21 @@ export async function getContactById(id) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return null;
 
-  const { data, error } = await supabase
-    .from('contacts')
-    .select('*')
-    .eq('id', id)
-    .eq('user_id', session.user.id)
-    .single();
+  const { data: ownedCompany } = await supabase
+    .from('companies')
+    .select('id')
+    .eq('owner_id', session.user.id)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  let q = supabase.from('contacts').select('*').eq('id', id);
+  if (ownedCompany) {
+    q = q.eq('company_id', ownedCompany.id);
+  } else {
+    q = q.eq('user_id', session.user.id);
+  }
+
+  const { data, error } = await q.single();
 
   if (error || !data) return null;
   return mapContact(data);

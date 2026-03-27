@@ -549,6 +549,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     if (contact?.id) {
       setLocalContacts(prev => [contact, ...prev]);
       set('contactId', contact.id);
+      set('passportId', contact.documentNumber || '');
     }
     setNewContactVisible(false);
   };
