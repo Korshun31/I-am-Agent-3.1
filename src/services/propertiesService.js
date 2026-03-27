@@ -26,9 +26,33 @@ export async function getProperties(agentId = null) {
   return data || [];
 }
 
-export async function createProperty({ name, code, type, location_id, owner_id, property_status }) {
+/** Resolve company_id for the current session user.
+ *  Returns the agent's company_id if they are an active team member,
+ *  otherwise returns null (owner/private flow — unchanged). */
+async function resolveAgentCompanyId(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('company_members')
+      .select('company_id')
+      .eq('user_id', userId)
+      .eq('role', 'agent')
+      .maybeSingle();
+    if (error) {
+      console.warn('resolveAgentCompanyId: query error', error.message);
+      return null;
+    }
+    return data?.company_id ?? null;
+  } catch (e) {
+    console.warn('resolveAgentCompanyId: unexpected error', e.message);
+    return null;
+  }
+}
+
+export async function createProperty({ name, code, type, location_id, owner_id, property_status, company_id }) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
+
+  const effectiveCompanyId = company_id ?? await resolveAgentCompanyId(session.user.id);
 
   const { data, error } = await supabase
     .from('properties')
@@ -41,6 +65,7 @@ export async function createProperty({ name, code, type, location_id, owner_id, 
       location_id: location_id || null,
       owner_id: owner_id || null,
       property_status: property_status || 'approved',
+      company_id: effectiveCompanyId,
     })
     .select()
     .single();
@@ -56,11 +81,14 @@ export async function createPropertyFull(updates) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
+  const effectiveCompanyId = updates.company_id ?? await resolveAgentCompanyId(session.user.id);
+
   const row = {
     agent_id: session.user.id,
     responsible_agent_id: updates.responsible_agent_id ?? session.user.id,
     property_status: updates.property_status || 'approved',
     ...updates,
+    company_id: effectiveCompanyId,
   };
 
   const { data, error } = await supabase
