@@ -247,7 +247,7 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
           )}
 
           {/* Location link — hidden for team members */}
-          {property?.google_maps_link && !(user?.id && property?.agent_id && user.id !== property.agent_id && user.workAs !== 'company') ? (
+          {property?.google_maps_link && !(user?.id && property?.user_id && user.id !== property.user_id && user.workAs !== 'company') ? (
             <TouchableOpacity
               style={st.locationBtn}
               onPress={() => Linking.openURL(property.google_maps_link)}

@@ -256,7 +256,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   const AMENITY_LABELS = getAmenityLabels(t);
   const psym = getCurrencySymbol(property.currency || 'THB');
   // Участник команды: видит чужой объект и сам не является владельцем компании
-  const isTeamMember = !!(user?.id && property.agent_id && user.id !== property.agent_id && user.workAs !== 'company');
+  const isTeamMember = !!(user?.id && property.user_id && user.id !== property.user_id && user.workAs !== 'company');
   const isAdmin = !isTeamMember;
   const isCompanyAdmin = !!(user?.workAs === 'company' && user?.companyId);
 

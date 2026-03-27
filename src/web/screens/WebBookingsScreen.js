@@ -900,7 +900,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
                       const fullCode = prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '');
                       const propBookings = bookings.filter(b => b.propertyId === prop.id);
                       // Объект принадлежит другому агенту — это объект компании
-                      const isCompanyProperty = !!(user?.id && prop.agent_id && user.id !== prop.agent_id && user.workAs !== 'company');
+                      const isCompanyProperty = !!(user?.id && prop.user_id && user.id !== prop.user_id && user.workAs !== 'company');
                       const todayX = dateToPx(dayjs().format('YYYY-MM-DD'), months);
                       return (
                         <View key={prop.id} style={s.ganttRowWrap}>
