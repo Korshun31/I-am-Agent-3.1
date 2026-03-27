@@ -13,7 +13,7 @@ export async function getProperties(agentId = null) {
     .limit(10000);
 
   if (agentId) {
-    q = q.eq('responsible_agent_id', agentId);
+    q = q.or(`agent_id.eq.${agentId},responsible_agent_id.eq.${agentId}`);
   }
 
   const { data, error } = await q;
