@@ -62,7 +62,7 @@ export async function migrateContactPhotos() {
     const { data: rows, error } = await supabase
       .from('contacts')
       .select('id, photo_url')
-      .eq('agent_id', session.user.id)
+      .eq('user_id', session.user.id)
       .not('photo_url', 'is', null)
       .neq('photo_url', '');
 
@@ -106,7 +106,7 @@ export async function getContacts(type) {
   let q = supabase
     .from('contacts')
     .select('*')
-    .eq('agent_id', session.user.id)
+    .eq('user_id', session.user.id)
     .order('name', { ascending: true })
     .limit(10000);
   if (type) q = q.eq('type', type);
@@ -142,7 +142,7 @@ export async function getContactById(id) {
     .from('contacts')
     .select('*')
     .eq('id', id)
-    .eq('agent_id', session.user.id)
+    .eq('user_id', session.user.id)
     .single();
 
   if (error || !data) return null;
@@ -156,7 +156,7 @@ export async function createContact(contactData) {
   const extraTg = Array.isArray(contactData.extraTelegrams) ? contactData.extraTelegrams : [];
   const extraWa = Array.isArray(contactData.extraWhatsapps) ? contactData.extraWhatsapps : [];
   const row = {
-    agent_id: session.user.id,
+    user_id: session.user.id,
     type: contactData.type || 'clients',
     name: contactData.name || '',
     last_name: contactData.lastName || '',
@@ -219,7 +219,7 @@ export async function updateContact(id, contactData) {
     .from('contacts')
     .update(updates)
     .eq('id', id)
-    .eq('agent_id', session.user.id)
+    .eq('user_id', session.user.id)
     .select()
     .single();
 
@@ -237,7 +237,7 @@ export async function deleteContact(id) {
     .from('contacts')
     .delete()
     .eq('id', id)
-    .eq('agent_id', session.user.id);
+    .eq('user_id', session.user.id);
 
   if (error) throw new Error(error.message);
   syncIfEnabled();

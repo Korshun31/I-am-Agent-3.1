@@ -93,11 +93,11 @@ async function syncToTarget(targetUrl, serviceRoleKey) {
 
   // 1. Fetch from our DB (raw rows for insert)
   const [locRes, contactRes, propRes, bookRes, eventRes] = await Promise.all([
-    supabase.from('locations').select('*').eq('agent_id', agentId).order('created_at', { ascending: true }),
-    supabase.from('contacts').select('*').eq('agent_id', agentId),
-    supabase.from('properties').select('*').eq('agent_id', agentId).order('name', { ascending: true }),
-    supabase.from('bookings').select('*').eq('agent_id', agentId),
-    supabase.from('calendar_events').select('*').eq('agent_id', agentId),
+    supabase.from('locations').select('*').eq('user_id', agentId).order('created_at', { ascending: true }),
+    supabase.from('contacts').select('*').eq('user_id', agentId),
+    supabase.from('properties').select('*').eq('user_id', agentId).order('name', { ascending: true }),
+    supabase.from('bookings').select('*').eq('user_id', agentId),
+    supabase.from('calendar_events').select('*').eq('user_id', agentId),
   ]);
 
   const locations = locRes.data || [];
@@ -118,14 +118,14 @@ async function syncToTarget(targetUrl, serviceRoleKey) {
   }
 
   // 2. Delete existing agent data on target (reverse FK order)
-  await target.from('bookings').delete().eq('agent_id', agentId);
-  await target.from('calendar_events').delete().eq('agent_id', agentId);
-  await target.from('properties').delete().eq('agent_id', agentId);
-  await target.from('contacts').delete().eq('agent_id', agentId);
+  await target.from('bookings').delete().eq('user_id', agentId);
+  await target.from('calendar_events').delete().eq('user_id', agentId);
+  await target.from('properties').delete().eq('user_id', agentId);
+  await target.from('contacts').delete().eq('user_id', agentId);
   if (locationIds.length > 0) {
     await target.from('location_districts').delete().in('location_id', locationIds);
   }
-  await target.from('locations').delete().eq('agent_id', agentId);
+  await target.from('locations').delete().eq('user_id', agentId);
 
   // 3. Insert in FK order
   if (locations.length > 0) {

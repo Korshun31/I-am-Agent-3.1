@@ -9,7 +9,7 @@ export async function getLocations() {
   const { data, error } = await supabase
     .from('locations')
     .select('*')
-    .eq('agent_id', session.user.id)
+    .eq('user_id', session.user.id)
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -27,7 +27,7 @@ export async function createLocation({ country, region, city }) {
   const { data, error } = await supabase
     .from('locations')
     .insert({
-      agent_id: session.user.id,
+      user_id: session.user.id,
       country: country || '',
       region: region || '',
       city: city || '',
@@ -53,7 +53,7 @@ export async function updateLocation(id, { country, region, city }) {
     .from('locations')
     .update(updates)
     .eq('id', id)
-    .eq('agent_id', session.user.id)
+    .eq('user_id', session.user.id)
     .select()
     .single();
 
@@ -70,7 +70,7 @@ export async function deleteLocation(id) {
     .from('locations')
     .delete()
     .eq('id', id)
-    .eq('agent_id', session.user.id);
+    .eq('user_id', session.user.id);
 
   if (error) throw new Error(error.message);
   syncIfEnabled();

@@ -72,22 +72,22 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
     const channel = supabase
       .channel('web-notifications')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, payload => {
-        if (user.web_notifications?.new_booking && payload.new.agent_id !== user.id) {
+        if (user.web_notifications?.new_booking && payload.new.user_id !== user.id) {
           showToast(t('notifNewBooking'), t('bkNewTitle'));
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings' }, payload => {
-        if (user.web_notifications?.booking_changed && payload.new.agent_id !== user.id) {
+        if (user.web_notifications?.booking_changed && payload.new.user_id !== user.id) {
           showToast(t('notifBookingChanged'), `${t('edit')}: ${payload.new.check_in} - ${payload.new.check_out}`);
         }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calendar_events' }, payload => {
-        if (user.web_notifications?.new_event && payload.new.agent_id !== user.id) {
+        if (user.web_notifications?.new_event && payload.new.user_id !== user.id) {
           showToast(t('notifNewEvent'), payload.new.title);
         }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'properties' }, payload => {
-        if (user.web_notifications?.new_property && payload.new.agent_id !== user.id) {
+        if (user.web_notifications?.new_property && payload.new.user_id !== user.id) {
           showToast(t('notifNewProperty'), payload.new.name);
         }
       })

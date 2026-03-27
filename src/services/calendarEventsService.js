@@ -6,7 +6,7 @@ import { broadcastChange } from './companyChannel';
  * Таблица calendar_events в Supabase:
  * CREATE TABLE calendar_events (
  *   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
- *   agent_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+ *   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
  *   event_date date NOT NULL,
  *   event_time time,
  *   title text NOT NULL,
@@ -14,7 +14,7 @@ import { broadcastChange } from './companyChannel';
  *   comments text,
  *   created_at timestamptz DEFAULT now()
  * );
- * RLS: agent_id = auth.uid()
+ * RLS: user_id = auth.uid()
  */
 
 function normalizeReminderMinutes(val) {
@@ -48,7 +48,7 @@ export async function getCalendarEvents() {
   const { data, error } = await supabase
     .from('calendar_events')
     .select('*')
-    .eq('agent_id', session.user.id)
+    .eq('user_id', session.user.id)
     .order('event_date', { ascending: true })
     .order('event_time', { ascending: true, nullsFirst: false })
     .limit(10000);
@@ -66,7 +66,7 @@ export async function createCalendarEvent(event) {
 
   const rt = event.repeatType && REPEAT_TYPES.includes(event.repeatType) ? event.repeatType : null;
   const row = {
-    agent_id: session.user.id,
+    user_id: session.user.id,
     event_date: event.eventDate,
     event_time: event.eventTime || null,
     title: (event.title || '').trim(),
@@ -109,7 +109,7 @@ export async function updateCalendarEvent(id, event) {
     .from('calendar_events')
     .update(updates)
     .eq('id', id)
-    .eq('agent_id', session.user.id)
+    .eq('user_id', session.user.id)
     .select()
     .single();
 
@@ -127,7 +127,7 @@ export async function deleteCalendarEvent(id) {
     .from('calendar_events')
     .delete()
     .eq('id', id)
-    .eq('agent_id', session.user.id);
+    .eq('user_id', session.user.id);
 
   if (error) throw new Error(error.message);
   syncIfEnabled();

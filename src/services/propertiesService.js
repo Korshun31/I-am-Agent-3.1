@@ -13,7 +13,7 @@ export async function getProperties(agentId = null) {
     .limit(10000);
 
   if (agentId) {
-    q = q.or(`agent_id.eq.${agentId},responsible_agent_id.eq.${agentId}`);
+    q = q.or(`user_id.eq.${agentId},responsible_agent_id.eq.${agentId}`);
   }
 
   const { data, error } = await q;
@@ -58,7 +58,7 @@ export async function createProperty({ name, code, type, location_id, owner_id, 
   const { data, error } = await supabase
     .from('properties')
     .insert({
-      agent_id: session.user.id,
+      user_id: session.user.id,
       responsible_agent_id: session.user.id,
       name: name || '',
       code: code || '',
@@ -85,7 +85,7 @@ export async function createPropertyFull(updates) {
   const effectiveCompanyId = updates.company_id ?? await resolveAgentCompanyId(session.user.id);
 
   const row = {
-    agent_id: session.user.id,
+    user_id: session.user.id,
     responsible_agent_id: updates.responsible_agent_id ?? session.user.id,
     property_status: updates.property_status || 'approved',
     ...updates,
@@ -146,7 +146,7 @@ export async function updatePropertiesDistrictForLocation(locationId, oldDistric
   const { data: props, error: fetchErr } = await supabase
     .from('properties')
     .select('id, type, resort_id')
-    .eq('agent_id', session.user.id)
+    .eq('user_id', session.user.id)
     .eq('location_id', locationId)
     .eq('district', oldDistrict);
 
@@ -160,7 +160,7 @@ export async function updatePropertiesDistrictForLocation(locationId, oldDistric
     .from('properties')
     .update({ district: newDistrict || null })
     .in('id', ids)
-    .eq('agent_id', session.user.id);
+    .eq('user_id', session.user.id);
 
   const resortIds = props.filter((p) => p.type === 'resort' || p.type === 'condo').map((p) => p.id);
   for (const rid of resortIds) {
@@ -179,7 +179,7 @@ export async function updateResortChildrenDistrict(resortId, district) {
     .from('properties')
     .select('id')
     .eq('resort_id', resortId)
-    .eq('agent_id', session.user.id);
+    .eq('user_id', session.user.id);
 
   if (fetchErr || !children?.length) return;
   const ids = children.map((c) => c.id);
@@ -187,7 +187,7 @@ export async function updateResortChildrenDistrict(resortId, district) {
     .from('properties')
     .update({ district: district || null })
     .in('id', ids)
-    .eq('agent_id', session.user.id);
+    .eq('user_id', session.user.id);
   syncIfEnabled();
 }
 

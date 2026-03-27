@@ -70,7 +70,7 @@ export async function createBooking(booking) {
   if (hasConflict) throw new Error('BOOKING_CONFLICT');
 
   const row = {
-    agent_id: session.user.id,
+    user_id: session.user.id,
     property_id: booking.propertyId,
     contact_id: booking.contactId || null,
     passport_id: booking.passportId || null,
@@ -152,7 +152,7 @@ export async function updateBooking(id, booking) {
     .from('bookings')
     .update(updates)
     .eq('id', id)
-    .eq('agent_id', session.user.id)
+    .eq('user_id', session.user.id)
     .select()
     .single();
 
@@ -171,7 +171,7 @@ export async function deleteBooking(id) {
     .from('bookings')
     .delete()
     .eq('id', id)
-    .eq('agent_id', session.user.id);
+    .eq('user_id', session.user.id);
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
@@ -181,7 +181,7 @@ export async function deleteBooking(id) {
 function mapBooking(row) {
   return {
     id: row.id,
-    agentId: row.agent_id,
+    agentId: row.user_id,
     createdAt: row.created_at,
     propertyId: row.property_id,
     contactId: row.contact_id,
