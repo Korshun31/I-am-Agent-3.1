@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { getCurrentUser, updateUserProfile, signOut, canChangePassword } from '../../services/authService';
 import { activateCompany, deactivateCompany, updateCompany } from '../../services/companyService';
-import { getLocations } from '../../services/locationsService';
+import { getLocations, getLocationsForAgent } from '../../services/locationsService';
 import { useLanguage } from '../../context/LanguageContext';
 import WebMyDetailsEditModal from '../components/WebMyDetailsEditModal';
 import WebLocationsModal from '../components/WebLocationsModal';
@@ -111,9 +111,13 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      const isAgent = !!initialUser?.teamMembership;
+      const locsPromise = isAgent
+        ? getLocationsForAgent(initialUser.id, initialUser.teamMembership.companyId)
+        : getLocations();
       const [profile, locs, canChange] = await Promise.all([
         getCurrentUser(),
-        getLocations(),
+        locsPromise,
         canChangePassword(),
       ]);
       if (profile) setUser(profile);
@@ -349,18 +353,27 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
         {/* Правая колонка */}
         <View style={s.column}>
           <SectionCard title={t('locations')}>
-            {locations.length === 0 ? (
-              <Text style={s.emptyText}>Локации не добавлены</Text>
-            ) : (
-              locations.map(loc => (
-                <View key={loc.id} style={s.locationItem}>
-                  <Text style={s.locationName}>{loc.displayName}</Text>
-                </View>
-              ))
-            )}
-            <TouchableOpacity style={s.addLocationBtn} onPress={() => setLocationsVisible(true)}>
-              <Text style={s.addLocationText}>{t('locationsAddRemove')}</Text>
-            </TouchableOpacity>
+            {(() => {
+              const isAgent = !!user?.teamMembership;
+              return (
+                <>
+                  {locations.length === 0 ? (
+                    <Text style={s.emptyText}>{t('noLocationsAssigned') || 'Локации не добавлены'}</Text>
+                  ) : (
+                    locations.map(loc => (
+                      <View key={loc.id} style={s.locationItem}>
+                        <Text style={s.locationName}>{loc.displayName}</Text>
+                      </View>
+                    ))
+                  )}
+                  {!isAgent && (
+                    <TouchableOpacity style={s.addLocationBtn} onPress={() => setLocationsVisible(true)}>
+                      <Text style={s.addLocationText}>{t('locationsAddRemove')}</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              );
+            })()}
           </SectionCard>
 
           <SectionCard title={t('settings')}>
