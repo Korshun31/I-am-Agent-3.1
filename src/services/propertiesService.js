@@ -36,6 +36,7 @@ async function resolveAgentCompanyId(userId) {
       .select('company_id')
       .eq('user_id', userId)
       .eq('role', 'agent')
+      .eq('status', 'active')
       .maybeSingle();
     if (error) {
       console.warn('resolveAgentCompanyId: query error', error.message);
