@@ -271,6 +271,19 @@ export async function updateMemberPermissions(memberId, permissions) {
 }
 
 /**
+ * Soft deactivate: перевести агента в status='inactive'.
+ * Снимает доступ к локациям и переназначает responsible_agent_id через SQL-функцию.
+ * auth.users НЕ удаляется.
+ */
+export async function deactivateMember(companyId, userId) {
+  const { error } = await supabase.rpc('deactivate_member', {
+    p_company_id: companyId,
+    p_user_id: userId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
  * Получить ID локаций, доступных агенту в компании (через agent_location_access).
  */
 export async function getAgentLocationAccess(userId, companyId) {

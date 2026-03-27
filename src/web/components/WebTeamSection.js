@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { useLanguage } from '../../context/LanguageContext';
-import { getTeamData, createInvitation, revokeInvitation, updateMemberPermissions, getAgentLocationAccess, setAgentLocationAccess } from '../../services/companyService';
+import { getTeamData, createInvitation, revokeInvitation, updateMemberPermissions, getAgentLocationAccess, setAgentLocationAccess, deactivateMember } from '../../services/companyService';
 import { getLocations } from '../../services/locationsService';
 import { broadcastChange } from '../../services/companyChannel';
 import dayjs from 'dayjs';
@@ -184,7 +184,7 @@ function MemberPermissionsModal({ member, companyId, visible, onClose, onSave })
   );
 }
 
-function MemberRow({ member, isCurrentUser, onPress }) {
+function MemberRow({ member, isCurrentUser, onPress, onDeactivate }) {
   const { t } = useLanguage();
   const initials = ((member.name || '')[0] || (member.email || '')[0] || '?').toUpperCase();
   const displayName = [member.name, member.last_name].filter(Boolean).join(' ') || member.email;
@@ -215,6 +215,15 @@ function MemberRow({ member, isCurrentUser, onPress }) {
         </View>
         <Text style={s.memberDate}>{dayjs(member.joined_at).format('DD MMM YYYY')}</Text>
         {member.role !== 'owner' && <Text style={s.memberEditHint}>⚙️</Text>}
+        {onDeactivate && (
+          <TouchableOpacity
+            style={s.dismissBtn}
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+            onPress={onDeactivate}
+          >
+            <Text style={s.dismissBtnText}>{t('dismiss') || 'Уволить'}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -396,6 +405,17 @@ export default function WebTeamSection({ companyId, currentUserId }) {
     }
   };
 
+  const handleDeactivate = async (userId) => {
+    if (!window.confirm(t('deactivateConfirm') || 'Уволить агента? Доступ к компании будет закрыт.')) return;
+    try {
+      await deactivateMember(companyId, userId);
+      await loadTeam();
+    } catch (e) {
+      console.error('Deactivate error:', e);
+      window.alert(t('error') || 'Ошибка при увольнении агента.');
+    }
+  };
+
   const handleCloseSuccess = () => {
     setInviteResult(null);
   };
@@ -460,6 +480,7 @@ export default function WebTeamSection({ companyId, currentUserId }) {
               member={m}
               isCurrentUser={m.user_id === currentUserId}
               onPress={() => setSelectedMember(m)}
+              onDeactivate={m.role === 'agent' && m.user_id !== currentUserId ? () => handleDeactivate(m.user_id) : undefined}
             />
           ))}
         </View>
@@ -570,6 +591,8 @@ const s = StyleSheet.create({
 
   memberPerms: { fontSize: 11, color: C.muted, marginTop: 2 },
   memberEditHint: { fontSize: 14, color: C.muted },
+  dismissBtn: { marginTop: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#FFCDD2', backgroundColor: C.dangerBg },
+  dismissBtnText: { fontSize: 10, fontWeight: '700', color: C.danger },
 
   // ── Agent modal ──
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },

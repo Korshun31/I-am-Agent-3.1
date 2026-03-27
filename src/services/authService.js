@@ -83,6 +83,7 @@ export async function getUserProfile(userId) {
     .select('company_id, role, permissions')
     .eq('user_id', userId)
     .eq('role', 'agent')
+    .eq('status', 'active')
     .maybeSingle();
   let assignedLocationIds = [];
   if (membershipData?.company_id) {
