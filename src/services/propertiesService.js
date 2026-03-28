@@ -220,14 +220,27 @@ export async function approveProperty(propertyId) {
     .update({ property_status: 'approved' })
     .eq('id', propertyId);
   if (error) throw new Error(error.message);
+  broadcastChange('properties');
 }
 
 export async function rejectProperty(propertyId, reason) {
+  const { data: { session } } = await supabase.auth.getSession();
   const { error } = await supabase
     .from('properties')
     .update({ property_status: 'rejected', rejection_reason: reason || '' })
     .eq('id', propertyId);
   if (error) throw new Error(error.message);
+
+  // Пишем запись в журнал отклонений
+  const { error: histErr } = await supabase.from('property_rejection_history').insert({
+    property_id:    propertyId,
+    reason:         reason || '',
+    rejection_type: 'property_submitted',
+    rejected_by:    session?.user?.id ?? null,
+  });
+  if (histErr) throw new Error(histErr.message);
+
+  broadcastChange('properties');
 }
 
 // =============================================================================
@@ -377,6 +390,7 @@ export async function approvePropertyDraft(draftId) {
   if (approveErr) throw new Error(approveErr.message);
 
   syncIfEnabled();
+  broadcastChange('properties');
   return updatedProperty;
 }
 
@@ -388,10 +402,12 @@ export async function approvePropertyDraft(draftId) {
  * @param {string} reason - причина отклонения
  */
 export async function rejectPropertyDraft(draftId, reason) {
-  // Загружаем черновик чтобы получить property_id
+  const { data: { session } } = await supabase.auth.getSession();
+
+  // Загружаем черновик чтобы получить property_id и тип уведомления
   const { data: draft, error: draftErr } = await supabase
     .from('property_drafts')
-    .select('property_id')
+    .select('property_id, status')
     .eq('id', draftId)
     .single();
 
@@ -410,5 +426,42 @@ export async function rejectPropertyDraft(draftId, reason) {
 
   if (rejectErr) throw new Error(rejectErr.message);
 
+  // Обновляем сам объект: статус rejected + причина (критично для UI агента)
+  const { error: propErr } = await supabase
+    .from('properties')
+    .update({ property_status: 'rejected', rejection_reason: reason || '' })
+    .eq('id', draft.property_id);
+
+  if (propErr) throw new Error(propErr.message);
+
+  // Пишем запись в журнал отклонений
+  const { error: histErr } = await supabase.from('property_rejection_history').insert({
+    property_id:    draft.property_id,
+    reason:         reason || '',
+    rejection_type: 'edit_submitted',
+    rejected_by:    session?.user?.id ?? null,
+  });
+  if (histErr) throw new Error(histErr.message);
+
   syncIfEnabled();
+  broadcastChange('properties');
+}
+
+/**
+ * Получить полную историю отклонений объекта, отсортированную от новых к старым.
+ * @param {string} propertyId - UUID объекта
+ * @returns {Array} массив записей { id, reason, rejection_type, rejected_by, created_at }
+ */
+export async function getPropertyRejectionHistory(propertyId) {
+  const { data, error } = await supabase
+    .from('property_rejection_history')
+    .select('id, reason, rejection_type, rejected_by, created_at')
+    .eq('property_id', propertyId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('getPropertyRejectionHistory error:', error.message);
+    return [];
+  }
+  return data || [];
 }

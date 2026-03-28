@@ -14,11 +14,11 @@ async function resolveCompanyId(userId) {
     .eq('status', 'active')
     .maybeSingle();
   if (company) return company.id;
+  // company_members использует agent_id (не user_id), статусного поля нет
   const { data: member } = await supabase
     .from('company_members')
     .select('company_id')
-    .eq('user_id', userId)
-    .eq('status', 'active')
+    .eq('agent_id', userId)
     .maybeSingle();
   return member?.company_id ?? null;
 }
@@ -120,13 +120,8 @@ export async function getContacts(type) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return [];
 
-  // Owner/admin: read all contacts in the company (by company_id)
-  const { data: ownedCompany } = await supabase
-    .from('companies')
-    .select('id')
-    .eq('owner_id', session.user.id)
-    .eq('status', 'active')
-    .maybeSingle();
+  // Единый company-first scope: owner или agent — оба используют company_id
+  const companyId = await resolveCompanyId(session.user.id);
 
   let q = supabase
     .from('contacts')
@@ -134,11 +129,10 @@ export async function getContacts(type) {
     .order('name', { ascending: true })
     .limit(10000);
 
-  if (ownedCompany) {
-    // A) Owner/admin: see all contacts that belong to the company
-    q = q.eq('company_id', ownedCompany.id);
+  if (companyId) {
+    q = q.eq('company_id', companyId);
   } else {
-    // B) Agent or private user: see only own contacts
+    // Личный режим: пользователь без компании видит только свои контакты
     q = q.eq('user_id', session.user.id);
   }
 
@@ -171,21 +165,17 @@ export async function getContactById(id) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return null;
 
-  const { data: ownedCompany } = await supabase
-    .from('companies')
-    .select('id')
-    .eq('owner_id', session.user.id)
-    .eq('status', 'active')
-    .maybeSingle();
+  // Единый company-first scope: owner или agent — оба используют company_id
+  const companyId = await resolveCompanyId(session.user.id);
 
   let q = supabase.from('contacts').select('*').eq('id', id);
-  if (ownedCompany) {
-    q = q.eq('company_id', ownedCompany.id);
+  if (companyId) {
+    q = q.eq('company_id', companyId);
   } else {
     q = q.eq('user_id', session.user.id);
   }
 
-  const { data, error } = await q.single();
+  const { data, error } = await q.maybeSingle();
 
   if (error || !data) return null;
   return mapContact(data);
@@ -259,11 +249,12 @@ export async function updateContact(id, contactData) {
   if (contactData.documents !== undefined) updates.documents = contactData.documents;
   updates.updated_at = new Date().toISOString();
 
+  // Без фильтра user_id — RLS таблицы contacts обеспечивает авторизацию.
+  // Owner может редактировать контакты любого члена своей компании.
   const { data, error } = await supabase
     .from('contacts')
     .update(updates)
     .eq('id', id)
-    .eq('user_id', session.user.id)
     .select()
     .single();
 
@@ -277,11 +268,11 @@ export async function deleteContact(id) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
+  // Без фильтра user_id — RLS таблицы contacts обеспечивает авторизацию.
   const { error } = await supabase
     .from('contacts')
     .delete()
-    .eq('id', id)
-    .eq('user_id', session.user.id);
+    .eq('id', id);
 
   if (error) throw new Error(error.message);
   syncIfEnabled();

@@ -175,7 +175,8 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-const canEditBooking = !user?.teamMembership || (booking?.agentId === user?.id && !!user?.teamPermissions?.can_book);
+// Guard: agent can edit/delete only bookings they personally created (agentId = own id)
+const canEditBooking   = !user?.teamMembership || (booking?.agentId === user?.id && !!user?.teamPermissions?.can_book);
 const canDeleteBooking = !user?.teamMembership || booking?.agentId === user?.id;
 
   if (!booking) return null;
@@ -191,7 +192,11 @@ const canDeleteBooking = !user?.teamMembership || booking?.agentId === user?.id;
       await deleteBooking(booking.id);
       onDelete();
     } catch (e) {
-      alert(t('errorPrefix') + ' ' + e.message);
+      if (e.message === 'BOOKING_DELETE_FORBIDDEN') {
+        alert(t('bookingDeleteForbidden') || 'Нет прав на удаление этого бронирования.');
+      } else {
+        alert(t('errorPrefix') + ' ' + e.message);
+      }
     } finally {
       setDeleting(false);
     }
@@ -899,8 +904,9 @@ export default function WebBookingsScreen({ user, refreshKey }) {
                       const tc = TYPE_COLOR[getEffectiveType(prop)] || TYPE_COLOR.house;
                       const fullCode = prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '');
                       const propBookings = bookings.filter(b => b.propertyId === prop.id);
-                      // Объект принадлежит другому агенту — это объект компании
-                      const isCompanyProperty = !!(user?.id && prop.user_id && user.id !== prop.user_id && user.workAs !== 'company');
+                      // Contract flags (company-first)
+                      const isAgent              = !!user?.teamMembership;
+                      const isResponsibleProperty = isAgent && prop.responsible_agent_id === user?.id;
                       const todayX = dateToPx(dayjs().format('YYYY-MM-DD'), months);
                       return (
                         <View key={prop.id} style={s.ganttRowWrap}>
@@ -950,25 +956,29 @@ export default function WebBookingsScreen({ user, refreshKey }) {
                               const x1 = dateToPx(bk.checkIn, months);
                               const x2 = dateToPx(bk.checkOut, months);
                               const w  = Math.max(x2 - x1, 6);
-                              const color = isCompanyProperty
-                                ? (bk.notMyCustomer ? '#B0BEC5' : colorMap[bk.id] || '#90A4AE')
-                                : (colorMap[bk.id] || '#90A4AE');
+                              const color = colorMap[bk.id] || '#90A4AE';
                               const isSelected = bk.id === selectedBooking?.id;
                               const contact = contacts.find(c => c.id === bk.contactId);
                               const companyName = myCompanyName || user?.companyInfo?.name || user?.teamMembership?.companyName || '';
-                              const label = isCompanyProperty
-                                ? (bk.notMyCustomer
-                                    ? (t('bookingOwnerLabel') || 'Owner')
-                                    : companyName)
-                                : (bk.notMyCustomer
-                                  ? t('bookingOwnerLabel')
-                                  : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : ''));
+
+                              // Per-booking contract flags
+                              const isOwnBooking   = bk.agentId === user?.id;
+                              const isAdminBooking = isAgent && isResponsibleProperty && !isOwnBooking;
+                              const canOpenBooking = !isAgent || (isResponsibleProperty && isOwnBooking);
+
+                              // Label: Владелец > компания (чужая бронь) > клиент
+                              const label = bk.notMyCustomer
+                                ? (t('bookingOwnerLabel') || 'Владелец')
+                                : isAdminBooking
+                                  ? companyName
+                                  : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : '');
+
                               return (
                                 <View key={bk.id} onClick={e => e.stopPropagation()}>
                                   <TouchableOpacity
-                                    style={[s.bar, { left: x1, width: w, backgroundColor: color }, isSelected && s.barSelected, isCompanyProperty && s.barCompany]}
-                                    onPress={() => { if (!isCompanyProperty) setSelectedBooking(bk); }}
-                                    activeOpacity={isCompanyProperty ? 1 : 0.8}
+                                    style={[s.bar, { left: x1, width: w, backgroundColor: color }, isSelected && s.barSelected, isAdminBooking && s.barCompany]}
+                                    onPress={() => { if (canOpenBooking) setSelectedBooking(bk); }}
+                                    activeOpacity={canOpenBooking ? 0.8 : 1}
                                   >
                                     {w >= 50 && <Text style={s.barDateL} numberOfLines={1}>{dayjs(bk.checkIn).format('DD.MM')}</Text>}
                                     {w >= 110 && <Text style={s.barLabel} numberOfLines={1}>{label}</Text>}

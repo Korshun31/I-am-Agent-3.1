@@ -68,42 +68,47 @@ function FieldLabel({ text, required }) {
   );
 }
 
-function FieldInput({ value, onChangeText, placeholder, numeric, multiline }) {
+function FieldInput({ value, onChangeText, placeholder, numeric, multiline, readOnly }) {
   return (
     <TextInput
-      style={[s.fieldInput, multiline && s.fieldInputMulti]}
+      style={[s.fieldInput, multiline && s.fieldInputMulti, readOnly && s.fieldInputReadonlyStyle]}
       value={value != null ? String(value) : ''}
-      onChangeText={text => {
+      onChangeText={readOnly ? undefined : (text => {
         if (numeric) {
           const cleaned = text.replace(/[^0-9.]/g, '');
           onChangeText(cleaned === '' ? null : cleaned);
         } else {
           onChangeText(text);
         }
-      }}
-      placeholder={placeholder || ''}
+      })}
+      placeholder={readOnly ? '' : (placeholder || '')}
       placeholderTextColor={C.light}
       keyboardType={numeric ? 'numeric' : 'default'}
       multiline={multiline}
       numberOfLines={multiline ? 3 : 1}
+      editable={!readOnly}
+      selectTextOnFocus={!readOnly}
+      caretHidden={!!readOnly}
     />
   );
 }
 
-function FieldDropdown({ value, options, onChange, placeholder, disabled }) {
+function FieldDropdown({ value, options, onChange, placeholder, disabled, readOnly }) {
+  const isDisabled = !!disabled || !!readOnly;
   return (
     <select
       value={value || ''}
-      onChange={e => onChange(e.target.value)}
-      disabled={!!disabled}
+      onChange={e => { if (isDisabled) return; onChange(e.target.value); }}
+      disabled={isDisabled}
       style={{
         height: 42, width: '100%',
-        border: `1px solid ${disabled ? '#F0F0F0' : C.border}`,
+        border: `1px solid ${isDisabled ? '#E9ECEF' : C.border}`,
         borderRadius: 10, paddingLeft: 12, paddingRight: 8,
-        fontSize: 14, color: value ? C.text : C.light,
-        backgroundColor: disabled ? '#F8F9FA' : C.bg,
-        outline: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+        fontSize: 14, color: value ? (isDisabled ? '#6C757D' : C.text) : C.light,
+        backgroundColor: isDisabled ? '#F8F9FA' : C.bg,
+        outline: 'none', cursor: isDisabled ? 'not-allowed' : 'pointer',
         appearance: 'auto',
+        opacity: isDisabled ? 0.92 : 1,
       }}
     >
       <option value="" disabled>{placeholder || '—'}</option>
@@ -123,22 +128,23 @@ function FieldRow({ label, children, required }) {
   );
 }
 
-function FieldToggle({ label, icon, value, onChange, compact }) {
+function FieldToggle({ label, icon, value, onChange, compact, readOnly }) {
   return (
     <View style={[s.toggleRow, compact && s.toggleRowCompact]}>
       {icon && <Image source={icon} style={s.toggleIcon} resizeMode="contain" />}
       <Text style={[s.toggleLabel, compact && s.toggleLabelCompact]}>{label}</Text>
       <Switch
         value={!!value}
-        onValueChange={onChange}
+        onValueChange={readOnly ? undefined : onChange}
         trackColor={{ false: C.border, true: ACCENT }}
         thumbColor="#FFF"
+        disabled={!!readOnly}
       />
     </View>
   );
 }
 
-function OwnerCommField({ label, value, isPercent, onChangeValue, onTogglePercent, sym, priceMonthly }) {
+function OwnerCommField({ label, value, isPercent, onChangeValue, onTogglePercent, sym, priceMonthly, readOnly }) {
   const calcAmount = isPercent && value && priceMonthly
     ? Math.round((parseFloat(value) / 100) * parseFloat(priceMonthly))
     : null;
@@ -150,12 +156,15 @@ function OwnerCommField({ label, value, isPercent, onChangeValue, onTogglePercen
         {isPercent ? (
           <>
             <TextInput
-              style={[s.fieldInput, { flex: 1 }]}
+              style={[s.fieldInput, { flex: 1 }, readOnly && s.fieldInputReadonlyStyle]}
               value={value != null ? String(value) : ''}
-              onChangeText={text => onChangeValue(text.replace(/[^0-9.]/g, '') || null)}
-              placeholder="10"
+              onChangeText={readOnly ? undefined : (text => onChangeValue(text.replace(/[^0-9.]/g, '') || null))}
+              placeholder={readOnly ? '' : '10'}
               placeholderTextColor={C.light}
               keyboardType="numeric"
+              editable={!readOnly}
+              selectTextOnFocus={!readOnly}
+              caretHidden={!!readOnly}
             />
             <View style={[s.fieldInput, { flex: 2, justifyContent: 'center', backgroundColor: '#F8F9FA' }]}>
               <Text style={{ fontSize: 14, color: calcAmount != null ? C.text : C.light }}>
@@ -165,41 +174,55 @@ function OwnerCommField({ label, value, isPercent, onChangeValue, onTogglePercen
           </>
         ) : (
           <TextInput
-            style={[s.fieldInput, { flex: 1 }]}
+            style={[s.fieldInput, { flex: 1 }, readOnly && s.fieldInputReadonlyStyle]}
             value={value != null ? String(value) : ''}
-            onChangeText={text => onChangeValue(text.replace(/[^0-9.]/g, '') || null)}
-            placeholder="15 000"
+            onChangeText={readOnly ? undefined : (text => onChangeValue(text.replace(/[^0-9.]/g, '') || null))}
+            placeholder={readOnly ? '' : '15 000'}
             placeholderTextColor={C.light}
             keyboardType="numeric"
+            editable={!readOnly}
+            selectTextOnFocus={!readOnly}
+            caretHidden={!!readOnly}
           />
         )}
-        <View style={{ flexDirection: 'row', borderRadius: 7, borderWidth: 1, borderColor: C.border, overflow: 'hidden' }}>
-          <TouchableOpacity
-            onPress={() => onTogglePercent(false)}
-            style={{ paddingHorizontal: 11, paddingVertical: 8, backgroundColor: !isPercent ? ACCENT : C.bg }}
-          >
-            <Text style={{ fontSize: 12, fontWeight: '700', color: !isPercent ? '#FFF' : C.muted }}>{sym}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => onTogglePercent(true)}
-            style={{ paddingHorizontal: 11, paddingVertical: 8, backgroundColor: isPercent ? ACCENT : C.bg }}
-          >
-            <Text style={{ fontSize: 12, fontWeight: '700', color: isPercent ? '#FFF' : C.muted }}>%</Text>
-          </TouchableOpacity>
-        </View>
+        {!readOnly ? (
+          <View style={{ flexDirection: 'row', borderRadius: 7, borderWidth: 1, borderColor: C.border, overflow: 'hidden' }}>
+            <TouchableOpacity
+              onPress={() => onTogglePercent(false)}
+              style={{ paddingHorizontal: 11, paddingVertical: 8, backgroundColor: !isPercent ? ACCENT : C.bg }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: !isPercent ? '#FFF' : C.muted }}>{sym}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => onTogglePercent(true)}
+              style={{ paddingHorizontal: 11, paddingVertical: 8, backgroundColor: isPercent ? ACCENT : C.bg }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: isPercent ? '#FFF' : C.muted }}>%</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: C.muted }}>{isPercent ? '%' : sym}</Text>
+          </View>
+        )}
       </View>
     </View>
   );
 }
 
-function FieldSelect({ value, options, onChange }) {
+function FieldSelect({ value, options, onChange, readOnly }) {
   return (
-    <View style={s.selectRow}>
+    <View style={[s.selectRow, readOnly && { opacity: 0.75, cursor: 'not-allowed' }]}>
       {options.map(opt => (
         <TouchableOpacity
           key={opt.value}
-          style={[s.selectOption, value === opt.value && s.selectOptionActive]}
-          onPress={() => onChange(opt.value)}
+          style={[
+            s.selectOption,
+            readOnly && s.selectOptionReadonly,
+            value === opt.value && s.selectOptionActive,
+          ]}
+          onPress={readOnly ? undefined : () => onChange(opt.value)}
+          activeOpacity={readOnly ? 1 : 0.75}
         >
           {opt.icon && <Image source={opt.icon} style={s.selectOptionIcon} resizeMode="contain" />}
           <Text style={[s.selectOptionText, value === opt.value && s.selectOptionTextActive]}>
@@ -312,7 +335,13 @@ function buildForm(property, parentProperty) {
  * property: existing property (edit mode)
  * parentProperty: resort/condo (create-unit mode)
  */
-export default function WebPropertyEditPanel({ visible, mode, property, parentProperty, onClose, onSaved, userCurrency, user }) {
+export default function WebPropertyEditPanel({
+  visible, mode, property, parentProperty, onClose, onSaved, userCurrency, user,
+  readOnly = false,
+  reviewMode = false,
+  onApprove = null,
+  onReject = null,
+}) {
   const { t } = useLanguage();
 
   // Разрешения агента
@@ -365,6 +394,8 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [reviewRejectMode, setReviewRejectMode] = useState(false);
+  const [reviewReason, setReviewReason] = useState('');
   const slideAnim    = useRef(new Animated.Value(540)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(false);
@@ -376,6 +407,8 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       setForm(buildForm(property, parentProperty));
       setTab('main');
       setError('');
+      setReviewRejectMode(false);
+      setReviewReason('');
       Animated.parallel([
         Animated.spring(slideAnim, {
           toValue: 0,
@@ -407,8 +440,8 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
     }
   }, [visible, property?.id]);
 
-  const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
-  const setAmenity = (key, val) => setForm(f => ({ ...f, amenities: { ...f.amenities, [key]: val } }));
+  const set = readOnly ? () => {} : (key, val) => setForm(f => ({ ...f, [key]: val }));
+  const setAmenity = readOnly ? () => {} : (key, val) => setForm(f => ({ ...f, amenities: { ...f.amenities, [key]: val } }));
 
   const numOrNull = val => {
     if (val === '' || val == null) return null;
@@ -496,7 +529,25 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
           onSaved(null);
           return;
         }
+        // Авто-принятие: админ сохраняет отклонённый объект -> статус становится approved
+        const isCompanyAdmin = !!(user?.workAs === 'company' && user?.companyId);
+        const wasRejected = property?.property_status === 'rejected';
+        if (isCompanyAdmin && wasRejected) {
+          updates.property_status = 'approved';
+          updates.rejection_reason = '';
+        }
         saved = await updateProperty(property.id, updates);
+        // Уведомить агента об одобрении после авто-принятия
+        if (isCompanyAdmin && wasRejected && saved && property.user_id) {
+          await sendNotification({
+            recipientId: property.user_id,
+            senderId: user.id,
+            type: 'property_approved',
+            title: t('changesApproved'),
+            body: `🏠 ${updates.name}`,
+            propertyId: property.id,
+          });
+        }
       } else if (mode === 'create-unit') {
         saved = await createPropertyFull({
           ...updates,
@@ -582,7 +633,9 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
     setForm(f => ({ ...f, photos: f.photos.filter((_, i) => i !== idx) }));
   };
 
-  const title = mode === 'edit'
+  const title = reviewMode
+    ? `${t('propertyReviewTitle')}: ${property?.name || ''}`
+    : mode === 'edit'
     ? `${t('editProperty')}: ${property?.name || ''}`
     : mode === 'create-unit'
     ? `${t('addPropertyUnit')} ${parentProperty?.name || ''}`
@@ -592,26 +645,26 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
 
   const renderMain = () => (
     <>
-      <FieldRow label={t('propName')} required>
-        <FieldInput value={form.name} onChangeText={v => set('name', v)} placeholder="Villa Sunset" />
+      <FieldRow label={t('propName')} required={!readOnly}>
+        <FieldInput value={form.name} onChangeText={v => set('name', v)} placeholder="Villa Sunset" readOnly={readOnly} />
       </FieldRow>
 
       <View style={s.row2}>
         <View style={{ flex: 1 }}>
-          <FieldRow label={t('propCode')} required={!(mode === 'edit' && property?.resort_id)}>
-            {mode === 'edit' && property?.resort_id ? (
+          <FieldRow label={t('propCode')} required={!readOnly && !(mode === 'edit' && property?.resort_id)}>
+            {!readOnly && mode === 'edit' && property?.resort_id ? (
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{form.code}</Text>
                 <Text style={s.fieldInputReadonlyHint}>🔒</Text>
               </View>
             ) : (
-              <FieldInput value={form.code} onChangeText={v => set('code', v)} placeholder="CW01" />
+              <FieldInput value={form.code} onChangeText={v => set('code', v)} placeholder="CW01" readOnly={readOnly} />
             )}
           </FieldRow>
         </View>
         <View style={{ flex: 1 }}>
           <FieldRow label={t('codeSuffix')}>
-            <FieldInput value={form.code_suffix} onChangeText={v => set('code_suffix', v)} placeholder="A, B, 32…" />
+            <FieldInput value={form.code_suffix} onChangeText={v => set('code_suffix', v)} placeholder="A, B, 32…" readOnly={readOnly} />
           </FieldRow>
         </View>
       </View>
@@ -621,6 +674,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
           <FieldSelect
             value={form.type}
             onChange={v => set('type', v)}
+            readOnly={readOnly}
             options={[
               { value: 'house',  label: `🏠 ${t('house')}` },
               { value: 'resort', label: `🏨 ${t('resort')}` },
@@ -632,7 +686,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
 
       <View style={s.row2}>
         <View style={{ flex: 1 }}>
-          <FieldRow label={t('city')} required={!isChildUnit}>
+          <FieldRow label={t('city')} required={!readOnly && !isChildUnit}>
             {isChildUnit ? (
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{form.city || '—'}</Text>
@@ -647,6 +701,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
                   setForm(f => ({ ...f, location_id: id || null, city: loc?.city || '', district: '' }));
                 }}
                 placeholder={t('city') + '...'}
+                readOnly={readOnly}
               />
             )}
           </FieldRow>
@@ -665,6 +720,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
                 onChange={v => set('district', v)}
                 placeholder={districts.length ? (t('filterDistrict') + '...') : '—'}
                 disabled={!form.location_id || districts.length === 0}
+                readOnly={readOnly}
               />
             )}
           </FieldRow>
@@ -675,13 +731,13 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
 
       {isParent && effectiveType === 'resort' && (
         <FieldRow label={t('propHousesCount')}>
-          <FieldInput value={form.houses_count} onChangeText={v => set('houses_count', v)} placeholder="10" numeric />
+          <FieldInput value={form.houses_count} onChangeText={v => set('houses_count', v)} placeholder="10" numeric readOnly={readOnly} />
         </FieldRow>
       )}
 
       {isParent && effectiveType === 'condo' && (
         <FieldRow label={t('propFloors')}>
-          <FieldInput value={form.floors} onChangeText={v => set('floors', v)} placeholder="7" numeric />
+          <FieldInput value={form.floors} onChangeText={v => set('floors', v)} placeholder="7" numeric readOnly={readOnly} />
         </FieldRow>
       )}
 
@@ -690,29 +746,29 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
           <View style={s.row3}>
             <View style={{ flex: 1 }}>
               <FieldRow label={t('propBedrooms3')}>
-                <FieldInput value={form.bedrooms} onChangeText={v => set('bedrooms', v)} placeholder="2" numeric />
+                <FieldInput value={form.bedrooms} onChangeText={v => set('bedrooms', v)} placeholder="2" numeric readOnly={readOnly} />
               </FieldRow>
             </View>
             <View style={{ flex: 1 }}>
               <FieldRow label={t('propBathrooms3')}>
-                <FieldInput value={form.bathrooms} onChangeText={v => set('bathrooms', v)} placeholder="1" numeric />
+                <FieldInput value={form.bathrooms} onChangeText={v => set('bathrooms', v)} placeholder="1" numeric readOnly={readOnly} />
               </FieldRow>
             </View>
             <View style={{ flex: 1 }}>
               <FieldRow label={t('propAreaSqm')}>
-                <FieldInput value={form.area} onChangeText={v => set('area', v)} placeholder="55" numeric />
+                <FieldInput value={form.area} onChangeText={v => set('area', v)} placeholder="55" numeric readOnly={readOnly} />
               </FieldRow>
             </View>
           </View>
           <View style={s.row2}>
             <View style={{ flex: 1 }}>
               <FieldRow label={t('propAirConditioners')}>
-                <FieldInput value={form.air_conditioners} onChangeText={v => set('air_conditioners', v)} placeholder="2" numeric />
+                <FieldInput value={form.air_conditioners} onChangeText={v => set('air_conditioners', v)} placeholder="2" numeric readOnly={readOnly} />
               </FieldRow>
             </View>
             <View style={{ flex: 1 }}>
               <FieldRow label={t('propInternetSpeed')}>
-                <FieldInput value={form.internet_speed} onChangeText={v => set('internet_speed', v)} placeholder="300" numeric />
+                <FieldInput value={form.internet_speed} onChangeText={v => set('internet_speed', v)} placeholder="300" numeric readOnly={readOnly} />
               </FieldRow>
             </View>
           </View>
@@ -724,34 +780,34 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       <View style={s.row2}>
         <View style={{ flex: 1 }}>
           <FieldRow label={t('propBeachDist')}>
-            <FieldInput value={form.beach_distance} onChangeText={v => set('beach_distance', v)} placeholder="500" numeric />
+            <FieldInput value={form.beach_distance} onChangeText={v => set('beach_distance', v)} placeholder="500" numeric readOnly={readOnly} />
           </FieldRow>
         </View>
         <View style={{ flex: 1 }}>
           <FieldRow label={t('propMarketDist')}>
-            <FieldInput value={form.market_distance} onChangeText={v => set('market_distance', v)} placeholder="200" numeric />
+            <FieldInput value={form.market_distance} onChangeText={v => set('market_distance', v)} placeholder="200" numeric readOnly={readOnly} />
           </FieldRow>
         </View>
       </View>
 
       <FieldRow label={t('propGoogleMapsLink')}>
-        <FieldInput value={form.google_maps_link} onChangeText={v => set('google_maps_link', v)} placeholder="https://maps.google.com/..." />
+        <FieldInput value={form.google_maps_link} onChangeText={v => set('google_maps_link', v)} placeholder="https://maps.google.com/..." readOnly={readOnly} />
       </FieldRow>
 
       {!isParent && (
         <FieldRow label={t('propWebsite')}>
-          <FieldInput value={form.website_url} onChangeText={v => set('website_url', v)} placeholder="https://..." />
+          <FieldInput value={form.website_url} onChangeText={v => set('website_url', v)} placeholder="https://..." readOnly={readOnly} />
         </FieldRow>
       )}
 
       <SectionDivider title={t('propDescriptionSection')} />
 
       <FieldRow label={t('pdDescription')}>
-        <FieldInput value={form.description} onChangeText={v => set('description', v)} placeholder={t('propDescriptionPlaceholder')} multiline />
+        <FieldInput value={form.description} onChangeText={v => set('description', v)} placeholder={t('propDescriptionPlaceholder')} multiline readOnly={readOnly} />
       </FieldRow>
 
       <FieldRow label={t('propCommentsAgent')}>
-        <FieldInput value={form.comments} onChangeText={v => set('comments', v)} placeholder={t('propCommentsPlaceholder')} multiline />
+        <FieldInput value={form.comments} onChangeText={v => set('comments', v)} placeholder={t('propCommentsPlaceholder')} multiline readOnly={readOnly} />
       </FieldRow>
     </>
   );
@@ -761,28 +817,28 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       <SectionDivider title={t('propRentalSection')} />
 
       <FieldRow label={L('propPriceMonthly')}>
-        <FieldInput value={form.price_monthly} onChangeText={v => set('price_monthly', v)} placeholder="15 000" numeric />
+        <FieldInput value={form.price_monthly} onChangeText={v => set('price_monthly', v)} placeholder="15 000" numeric readOnly={readOnly} />
       </FieldRow>
-      <FieldToggle label={t('propFromToggle')} compact value={form.price_monthly_is_from} onChange={v => set('price_monthly_is_from', v)} />
+      <FieldToggle label={t('propFromToggle')} compact value={form.price_monthly_is_from} onChange={v => set('price_monthly_is_from', v)} readOnly={readOnly} />
 
       <SectionDivider title={t('propDeposits')} />
 
       <FieldRow label={L('propBookingDeposit2')}>
-        <FieldInput value={form.booking_deposit} onChangeText={v => set('booking_deposit', v)} placeholder="5 000" numeric />
+        <FieldInput value={form.booking_deposit} onChangeText={v => set('booking_deposit', v)} placeholder="5 000" numeric readOnly={readOnly} />
       </FieldRow>
-      <FieldToggle label={t('propFromToggle')} compact value={form.booking_deposit_is_from} onChange={v => set('booking_deposit_is_from', v)} />
+      <FieldToggle label={t('propFromToggle')} compact value={form.booking_deposit_is_from} onChange={v => set('booking_deposit_is_from', v)} readOnly={readOnly} />
 
       <FieldRow label={L('propSaveDeposit2')}>
-        <FieldInput value={form.save_deposit} onChangeText={v => set('save_deposit', v)} placeholder="10 000" numeric />
+        <FieldInput value={form.save_deposit} onChangeText={v => set('save_deposit', v)} placeholder="10 000" numeric readOnly={readOnly} />
       </FieldRow>
-      <FieldToggle label={t('propFromToggle')} compact value={form.save_deposit_is_from} onChange={v => set('save_deposit_is_from', v)} />
+      <FieldToggle label={t('propFromToggle')} compact value={form.save_deposit_is_from} onChange={v => set('save_deposit_is_from', v)} readOnly={readOnly} />
 
       <SectionDivider title={t('propCommissionSection')} />
 
       <FieldRow label={L('propCommissionField')}>
-        <FieldInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="15 000" numeric />
+        <FieldInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="15 000" numeric readOnly={readOnly} />
       </FieldRow>
-      <FieldToggle label={t('propFromToggle')} compact value={form.commission_is_from} onChange={v => set('commission_is_from', v)} />
+      <FieldToggle label={t('propFromToggle')} compact value={form.commission_is_from} onChange={v => set('commission_is_from', v)} readOnly={readOnly} />
 
       <OwnerCommField
         label={t('propOwnerCommOnce').replace(' (฿)', '')}
@@ -792,6 +848,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
         onTogglePercent={v => set('owner_commission_one_time_is_percent', v)}
         sym={sym}
         priceMonthly={form.price_monthly}
+        readOnly={readOnly}
       />
 
       <OwnerCommField
@@ -802,6 +859,7 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
         onTogglePercent={v => set('owner_commission_monthly_is_percent', v)}
         sym={sym}
         priceMonthly={form.price_monthly}
+        readOnly={readOnly}
       />
     </>
   );
@@ -811,17 +869,18 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       <SectionDivider title={t('propElectricityWater')} />
 
       <FieldRow label={L('propElectricityField')}>
-        <FieldInput value={form.electricity_price} onChangeText={v => set('electricity_price', v)} placeholder="7" numeric />
+        <FieldInput value={form.electricity_price} onChangeText={v => set('electricity_price', v)} placeholder="7" numeric readOnly={readOnly} />
       </FieldRow>
 
       <FieldRow label={L('propWaterField')}>
-        <FieldInput value={form.water_price} onChangeText={v => set('water_price', v)} placeholder="100" numeric />
+        <FieldInput value={form.water_price} onChangeText={v => set('water_price', v)} placeholder="100" numeric readOnly={readOnly} />
       </FieldRow>
 
       <FieldRow label={t('propWaterType')}>
         <FieldSelect
           value={form.water_price_type}
           onChange={v => set('water_price_type', v)}
+          readOnly={readOnly}
           options={[
             { value: 'cubic',  label: t('propWaterCubic'),  icon: require('../../../assets/icon-price-water.png') },
             { value: 'person', label: t('propWaterPerson'), icon: require('../../../assets/icon-contact-phone.png') },
@@ -833,19 +892,19 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
       <SectionDivider title={t('propOtherServices')} />
 
       <FieldRow label={L('propGasField')}>
-        <FieldInput value={form.gas_price} onChangeText={v => set('gas_price', v)} placeholder="500" numeric />
+        <FieldInput value={form.gas_price} onChangeText={v => set('gas_price', v)} placeholder="500" numeric readOnly={readOnly} />
       </FieldRow>
 
       <FieldRow label={L('propInternetMonth')}>
-        <FieldInput value={form.internet_price} onChangeText={v => set('internet_price', v)} placeholder="600" numeric />
+        <FieldInput value={form.internet_price} onChangeText={v => set('internet_price', v)} placeholder="600" numeric readOnly={readOnly} />
       </FieldRow>
 
       <FieldRow label={L('propCleaningField')}>
-        <FieldInput value={form.cleaning_price} onChangeText={v => set('cleaning_price', v)} placeholder="500" numeric />
+        <FieldInput value={form.cleaning_price} onChangeText={v => set('cleaning_price', v)} placeholder="500" numeric readOnly={readOnly} />
       </FieldRow>
 
       <FieldRow label={L('propExitCleaningField')}>
-        <FieldInput value={form.exit_cleaning_price} onChangeText={v => set('exit_cleaning_price', v)} placeholder="1 000" numeric />
+        <FieldInput value={form.exit_cleaning_price} onChangeText={v => set('exit_cleaning_price', v)} placeholder="1 000" numeric readOnly={readOnly} />
       </FieldRow>
 
     </>
@@ -854,33 +913,43 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
   const renderPhotosTab = () => (
     <>
       <SectionDivider title={t('pdPhotos')} />
+      {reviewMode && (
+        <Text style={s.reviewModeLabel}>👁 {t('reviewMode') || 'Режим просмотра'}</Text>
+      )}
       <View style={s.photosGrid}>
         {(form.photos || []).map((uri, idx) => (
           <View key={idx} style={s.photoThumb}>
             <Image source={{ uri }} style={s.photoThumbImg} resizeMode="cover" />
-            <TouchableOpacity style={s.photoRemoveBtn} onPress={() => handleRemovePhoto(idx)}>
-              <Text style={s.photoRemoveText}>✕</Text>
-            </TouchableOpacity>
+            {!readOnly && (
+              <TouchableOpacity style={s.photoRemoveBtn} onPress={() => handleRemovePhoto(idx)}>
+                <Text style={s.photoRemoveText}>✕</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ))}
-        <TouchableOpacity style={s.photoAddBtn} onPress={handlePickPhotos} disabled={uploadingPhoto}>
-          {uploadingPhoto
-            ? <ActivityIndicator size="small" color={ACCENT} />
-            : <Text style={s.photoAddText}>{t('propAddPhoto')}</Text>
-          }
-        </TouchableOpacity>
+        {!readOnly && (
+          <TouchableOpacity style={s.photoAddBtn} onPress={handlePickPhotos} disabled={uploadingPhoto}>
+            {uploadingPhoto
+              ? <ActivityIndicator size="small" color={ACCENT} />
+              : <Text style={s.photoAddText}>{t('propAddPhoto')}</Text>
+            }
+          </TouchableOpacity>
+        )}
       </View>
 
       <SectionDivider title={t('pdVideo')} />
       <View style={s.fieldRow}>
         <TextInput
-          style={s.input}
+          style={[s.input, readOnly && s.fieldInputReadonlyStyle]}
           value={form.video_url}
-          onChangeText={v => set('video_url', v)}
-          placeholder={t('propVideoLink')}
+          onChangeText={readOnly ? undefined : (v => set('video_url', v))}
+          placeholder={readOnly ? '' : t('propVideoLink')}
           placeholderTextColor={C.light}
           autoCapitalize="none"
           keyboardType="url"
+          editable={!readOnly}
+          selectTextOnFocus={!readOnly}
+          caretHidden={!!readOnly}
         />
       </View>
     </>
@@ -895,12 +964,14 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
         label={t('propPetsLabel')}
         value={form.pets_allowed}
         onChange={v => set('pets_allowed', v)}
+        readOnly={readOnly}
       />
       <FieldToggle
         icon={ICON_TOGGLE_BOOKING}
         label={t('propLongTermLabel')}
         value={form.long_term_booking}
         onChange={v => set('long_term_booking', v)}
+        readOnly={readOnly}
       />
 
       <SectionDivider title={t('tabAmenities')} />
@@ -910,8 +981,8 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
           <TouchableOpacity
             key={key}
             style={[s.amenityChip, form.amenities[key] && s.amenityChipActive]}
-            onPress={() => setAmenity(key, !form.amenities[key])}
-            activeOpacity={0.75}
+            onPress={readOnly ? undefined : () => setAmenity(key, !form.amenities[key])}
+            activeOpacity={readOnly ? 1 : 0.75}
           >
             <Image
               source={icon}
@@ -987,21 +1058,65 @@ export default function WebPropertyEditPanel({ visible, mode, property, parentPr
           {/* Footer */}
           <View style={s.footer}>
             {error ? <Text style={s.footerError}>{error}</Text> : null}
-            <View style={s.footerBtns}>
-              <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
-                <Text style={s.cancelBtnText}>{t('cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
-                {saving
-                  ? <ActivityIndicator size="small" color="#FFF" />
-                  : <Text style={s.saveBtnText}>
-                      {mode === 'edit'
-                        ? (needsApproval ? t('submitForReview') : t('save'))
-                        : `＋ ${t('add')}`}
-                    </Text>
-                }
-              </TouchableOpacity>
-            </View>
+
+            {reviewMode ? (
+              /* ── Review mode: Одобрить / Отклонить ── */
+              reviewRejectMode ? (
+                <>
+                  <TextInput
+                    style={s.reviewRejectInput}
+                    placeholder={t('diffRejectPlaceholder')}
+                    placeholderTextColor={C.light}
+                    value={reviewReason}
+                    onChangeText={setReviewReason}
+                    multiline
+                    numberOfLines={3}
+                    autoFocus
+                  />
+                  <View style={s.footerBtns}>
+                    <TouchableOpacity style={s.cancelBtn}
+                      onPress={() => { setReviewRejectMode(false); setReviewReason(''); }}>
+                      <Text style={s.cancelBtnText}>{t('reviewBack')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[s.saveBtn, { backgroundColor: '#FFF5F5', borderColor: '#FFCDD2' }]}
+                      onPress={() => { onReject?.(reviewReason); onClose(); }}>
+                      <Text style={[s.saveBtnText, { color: '#C62828' }]}>{t('diffReject')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <View style={s.footerBtns}>
+                  <TouchableOpacity
+                    style={[s.cancelBtn, { borderColor: '#FFCDD2' }]}
+                    onPress={() => setReviewRejectMode(true)}>
+                    <Text style={[s.cancelBtnText, { color: '#C62828' }]}>{`✕ ${t('diffReject')}`}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.saveBtn, { backgroundColor: ACCENT, borderColor: ACCENT }]}
+                    onPress={() => { onApprove?.(); onClose(); }}>
+                    <Text style={[s.saveBtnText, { color: '#FFF' }]}>{`✓ ${t('diffApprove')}`}</Text>
+                  </TouchableOpacity>
+                </View>
+              )
+            ) : (
+              /* ── Normal mode: Отмена + Сохранить ── */
+              <View style={s.footerBtns}>
+                <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
+                  <Text style={s.cancelBtnText}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
+                  {saving
+                    ? <ActivityIndicator size="small" color="#FFF" />
+                    : <Text style={s.saveBtnText}>
+                        {mode === 'edit'
+                          ? (needsApproval ? t('submitForReview') : t('save'))
+                          : `＋ ${t('add')}`}
+                      </Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </Animated.View>
       </View>
@@ -1110,6 +1225,40 @@ const s = StyleSheet.create({
   },
   fieldInputReadonlyText: { fontSize: 14, fontWeight: '700', color: C.muted },
   fieldInputReadonlyHint: { fontSize: 11, color: C.light },
+  // Applied to FieldInput/TextInput when readOnly=true
+  fieldInputReadonlyStyle: {
+    backgroundColor: '#F8F9FA',
+    borderColor: '#E9ECEF',
+    color: '#6C757D',
+    opacity: 0.92,
+  },
+  // General "disabled look" — applies to all read-only interactive fields
+  fieldDisabledLook: {
+    backgroundColor: '#F8F9FA',
+    borderColor: '#E9ECEF',
+    color: '#6C757D',
+    opacity: 0.92,
+  },
+  selectOptionReadonly: {
+    backgroundColor: '#F8F9FA',
+    borderColor: '#E9ECEF',
+  },
+  reviewModeLabel: {
+    fontSize: 12,
+    color: C.muted,
+    textAlign: 'center',
+    paddingVertical: 6,
+    paddingBottom: 10,
+    fontStyle: 'italic',
+  },
+  // Reject reason input in review footer
+  reviewRejectInput: {
+    borderWidth: 1, borderColor: C.border, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 10,
+    fontSize: 13, color: C.text,
+    minHeight: 72, outlineWidth: 0, textAlignVertical: 'top',
+    marginBottom: 8,
+  },
 
   row2: { flexDirection: 'row', gap: 12 },
   row3: { flexDirection: 'row', gap: 12 },

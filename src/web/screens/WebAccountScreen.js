@@ -128,7 +128,8 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
     } finally {
       setLoading(false);
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialUser]);
 
   useEffect(() => {
     loadData();
@@ -358,7 +359,9 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
               return (
                 <>
                   {locations.length === 0 ? (
-                    <Text style={s.emptyText}>{t('noLocationsAssigned') || 'Локации не добавлены'}</Text>
+                    <Text style={s.emptyText}>
+                      {isAgent ? t('noLocationsAssigned') : t('noLocationsYet')}
+                    </Text>
                   ) : (
                     locations.map(loc => (
                       <View key={loc.id} style={s.locationItem}>

@@ -3,18 +3,21 @@ import { syncIfEnabled } from './dataUploadService';
 import { broadcastChange } from './companyChannel';
 
 /**
- * Таблица calendar_events в Supabase:
- * CREATE TABLE calendar_events (
- *   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
- *   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
- *   event_date date NOT NULL,
- *   event_time time,
- *   title text NOT NULL,
- *   color text NOT NULL,
- *   comments text,
- *   created_at timestamptz DEFAULT now()
- * );
- * RLS: user_id = auth.uid()
+ * Таблица calendar_events — ПРОДУКТОВОЕ ИСКЛЮЧЕНИЕ из company-first.
+ *
+ * Календарь является личным инструментом каждого пользователя.
+ * Каждый пользователь (owner или agent) видит и управляет только своими событиями.
+ * Это осознанное решение: общекомпанийский календарь не является целевой функцией.
+ *
+ * RLS (20260327140000_rls_contacts_calendar_events.sql):
+ *   - owner : full CRUD через auth_is_company_owner(company_id) — зарезервировано
+ *             для будущего admin-overview, сервис это не использует.
+ *   - agent : SELECT user_id = auth.uid()
+ *             INSERT/UPDATE/DELETE user_id = auth.uid() AND is_company_member
+ *
+ * JS-фильтры user_id = auth.uid() в read/write методах СООТВЕТСТВУЮТ
+ * этой product-модели и НЕ являются legacy-блокерами.
+ * Убирать их не нужно до тех пор, пока admin-overview не будет реализован в UI.
  */
 
 async function resolveCompanyId(userId) {
@@ -25,12 +28,11 @@ async function resolveCompanyId(userId) {
     .eq('status', 'active')
     .maybeSingle();
   if (company) return company.id;
+  // company_members использует agent_id (не user_id), статусного поля нет
   const { data: member } = await supabase
     .from('company_members')
     .select('company_id')
-    .eq('user_id', userId)
-    .eq('role', 'agent')
-    .eq('status', 'active')
+    .eq('agent_id', userId)
     .maybeSingle();
   return member?.company_id ?? null;
 }

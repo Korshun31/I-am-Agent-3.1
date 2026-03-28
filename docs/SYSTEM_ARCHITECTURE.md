@@ -145,3 +145,23 @@ graph TD
 ### 3. Безопасность и Доступы (RBAC)
 *   **RLS (Row Level Security):** Основной механизм защиты. База данных сама фильтрует строки, которые может видеть или менять пользователь, основываясь на его `auth.uid()` и `company_id`.
 *   **Финансовая изоляция:** Поля комиссий собственника скрыты от обычных агентов на уровне политик безопасности.
+
+### 4. Review Flow и модерация объектов
+
+*   **Отправка на проверку:** Agent создаёт или редактирует объект → создаётся запись в `property_drafts` (при edit) или напрямую в `properties` (при create) → отправляется уведомление (`property_submitted` / `edit_submitted`).
+*   **Review-панель:** Admin кликает на уведомление → `WebNotificationBell` загружает данные → открывает `WebPropertyEditPanel` в режиме `readOnly=true, reviewMode=true`. При `edit_submitted` мержит оригинальный объект с данными черновика.
+*   **Approve/Reject:** После решения вызывается `approveProperty` / `rejectProperty` (или `Draft`-варианты). При reject — новая запись в `property_rejection_history`.
+*   **Синхронизация UI:** `broadcastChange('properties')` → inter-session refresh через companyChannel. `onPropertiesChanged` callback → intra-session refresh для initiator.
+
+### 5. История отклонений (`property_rejection_history`)
+
+*   **Хранение:** Append-only таблица. Каждый reject добавляет новую строку; записи не обновляются и не удаляются.
+*   **Связь с `properties.rejection_reason`:** Это поле хранит последнюю причину (для legacy-совместимости). В UI используется как fallback если история пуста.
+*   **Refresh-механизм:** `historyRefreshKey` (local state) инкрементируется при каждом reject (из правой панели или через глобальный `refreshKey`), что гарантирует перезагрузку истории в `PropertyDetail`.
+
+---
+
+## 📚 Связанные документы
+
+- [`docs/Устав компании/`](Устав%20компании/) — база знаний проекта (правила, ADR, QA-чеклисты, инциденты)
+- [`docs/APP_MAP_WEB.md`](APP_MAP_WEB.md) — карта Web UI с матрицей ролей

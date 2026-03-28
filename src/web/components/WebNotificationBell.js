@@ -11,6 +11,7 @@ import {
   sendNotification,
 } from '../../services/notificationsService';
 import { approveProperty, approvePropertyDraft, rejectProperty, rejectPropertyDraft } from '../../services/propertiesService';
+import WebPropertyEditPanel from './WebPropertyEditPanel';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/ru';
@@ -268,7 +269,7 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
   );
 }
 
-function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
+function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff, onViewReview, onViewEditReview }) {
   const { t } = useLanguage();
   const time = dayjs(item.created_at).fromNow();
   const needsAction = ACTION_TYPES.has(item.type) && !item.action_taken;
@@ -309,13 +310,16 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
 
       {/* Кнопки действия — только для Админа, только если не выполнено */}
       {needsAction && (
-        item.type === 'edit_submitted' ? (
-          /* Для edit_submitted: только кнопка открытия DiffModal с принятием решения */
-          <TouchableOpacity style={s.diffBtn} onPress={() => onViewDiff(item)}>
+        (item.type === 'edit_submitted' || item.type === 'property_submitted') ? (
+          /* Для edit_submitted и property_submitted: pill-кнопка открытия правой review-панели */
+          <TouchableOpacity
+            style={s.diffBtn}
+            onPress={() => item.type === 'edit_submitted' ? onViewEditReview(item) : onViewReview(item)}
+          >
             <Text style={s.diffBtnText}>🔍 Посмотреть и принять решение</Text>
           </TouchableOpacity>
         ) : (
-          /* Для property_submitted / price_submitted: стандартные кнопки */
+          /* Для price_submitted: стандартные inline-кнопки */
           <>
             {!rejectMode && (
               <View style={s.actionRow}>
@@ -327,7 +331,6 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
                 </TouchableOpacity>
               </View>
             )}
-            {/* Форма причины отклонения — только для не-edit_submitted */}
             {rejectMode && (
               <View style={s.rejectForm}>
                 <TextInput
@@ -359,13 +362,16 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff }) {
   );
 }
 
-export default function WebNotificationBell({ userId }) {
+export default function WebNotificationBell({ userId, user, onPropertiesChanged }) {
   const { t } = useLanguage();
   const [unread, setUnread]         = useState(0);
   const [open, setOpen]             = useState(false);
   const [notifications, setNotifs]  = useState([]);
   const [loading, setLoading]       = useState(false);
-  const [diffModal, setDiffModal]   = useState(null); // { draft, originalProperty } или null
+  const [actionError, setActionError] = useState('');
+  const actionErrorTimerRef           = useRef(null);
+  const [diffModal, setDiffModal]     = useState(null); // { draft, originalProperty, notif } или null
+  const [reviewModal, setReviewModal] = useState(null); // { notif, property } или null
   const loadedRef = useRef(false);
   const openRef = useRef(false);
 
@@ -402,6 +408,9 @@ export default function WebNotificationBell({ userId }) {
     return () => { supabase.removeChannel(channel); };
   }, [userId, loadCount, loadAll]);
 
+  // Cleanup auto-dismiss timer on unmount
+  useEffect(() => () => clearTimeout(actionErrorTimerRef.current), []);
+
 
   const handleOpen = async () => {
     setOpen(true);
@@ -426,7 +435,6 @@ export default function WebNotificationBell({ userId }) {
   const handleApprove = async (notif) => {
     try {
       if (notif.property_id) {
-        // Ищем pending черновик для этого объекта
         const { data: draft } = await supabase
           .from('property_drafts')
           .select('id')
@@ -436,18 +444,17 @@ export default function WebNotificationBell({ userId }) {
           .maybeSingle();
 
         if (draft) {
-          // Есть черновик — применяем его (draft_data копируется в properties)
           await approvePropertyDraft(draft.id);
         } else {
-          // Нет черновика — это новый объект на модерации (create/create-unit flow)
           await approveProperty(notif.property_id);
         }
       }
+      // Помечаем только после успешной операции
       await markActionTaken(notif.id);
       setNotifs(prev => prev.map(n =>
         n.id === notif.id ? { ...n, action_taken: true } : n
       ));
-      // Уведомляем агента
+      onPropertiesChanged?.();
       if (notif.sender_id) {
         const typeMap = {
           property_submitted: 'property_approved',
@@ -464,7 +471,10 @@ export default function WebNotificationBell({ userId }) {
         });
       }
     } catch (e) {
-      console.warn('approve error', e);
+      console.error('approve error', e);
+      clearTimeout(actionErrorTimerRef.current);
+      setActionError(t('approveError'));
+      actionErrorTimerRef.current = setTimeout(() => setActionError(''), 5000);
     }
   };
 
@@ -480,17 +490,17 @@ export default function WebNotificationBell({ userId }) {
           .maybeSingle();
 
         if (draft) {
-          // Есть черновик — отклоняем его (данные в properties не меняются)
           await rejectPropertyDraft(draft.id, reason);
         } else {
-          // Нет черновика — это новый объект (create flow), отклоняем объект
           await rejectProperty(notif.property_id, reason);
         }
       }
+      // Помечаем только после успешной операции (включая запись в историю)
       await markActionTaken(notif.id);
       setNotifs(prev => prev.map(n =>
         n.id === notif.id ? { ...n, action_taken: true } : n
       ));
+      onPropertiesChanged?.();
       if (notif.sender_id) {
         const typeMap = {
           property_submitted: 'property_rejected',
@@ -507,7 +517,56 @@ export default function WebNotificationBell({ userId }) {
         });
       }
     } catch (e) {
-      console.warn('reject error', e);
+      console.error('reject error', e);
+      clearTimeout(actionErrorTimerRef.current);
+      setActionError(t('rejectError'));
+      actionErrorTimerRef.current = setTimeout(() => setActionError(''), 5000);
+    }
+  };
+
+  // Загружаем объект для просмотра и принятия решения (property_submitted)
+  const handleViewReview = async (notif) => {
+    if (!notif.property_id) return;
+    try {
+      const { data: property } = await supabase
+        .from('properties')
+        .select('*')
+        .eq('id', notif.property_id)
+        .single();
+      if (property) {
+        setOpen(false);
+        openRef.current = false;
+        setReviewModal({ notif, property });
+      }
+    } catch (e) {
+      console.warn('handleViewReview error', e);
+    }
+  };
+
+  // Загружаем черновик + оригинал и открываем правую review-панель (edit_submitted)
+  const handleViewEditReview = async (notif) => {
+    if (!notif.property_id) return;
+    try {
+      const [propRes, draftRes] = await Promise.all([
+        supabase.from('properties').select('*').eq('id', notif.property_id).single(),
+        supabase
+          .from('property_drafts')
+          .select('*')
+          .eq('property_id', notif.property_id)
+          .eq('user_id', notif.sender_id)
+          .eq('status', 'pending')
+          .maybeSingle(),
+      ]);
+      if (propRes.data) {
+        const preview = draftRes.data
+          ? { ...propRes.data, ...(draftRes.data.draft_data || {}) }
+          : propRes.data;
+        setOpen(false);
+        openRef.current = false;
+        setReviewModal({ notif, property: preview });
+      }
+    } catch (e) {
+      console.warn('handleViewEditReview error', e);
     }
   };
 
@@ -540,6 +599,8 @@ export default function WebNotificationBell({ userId }) {
   const handleClose = () => {
     setOpen(false);
     openRef.current = false;
+    setActionError('');
+    clearTimeout(actionErrorTimerRef.current);
   };
 
   return (
@@ -567,6 +628,19 @@ export default function WebNotificationBell({ userId }) {
                 </TouchableOpacity>
               </View>
 
+              {/* Ошибка действия (approve/reject) */}
+              {!!actionError && (
+                <View style={s.actionErrorBanner}>
+                  <Text style={s.actionErrorText}>{actionError}</Text>
+                  <TouchableOpacity
+                    onPress={() => { setActionError(''); clearTimeout(actionErrorTimerRef.current); }}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Text style={s.actionErrorClose}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* Список */}
               <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
                 {loading && (
@@ -586,6 +660,8 @@ export default function WebNotificationBell({ userId }) {
                     onApprove={handleApprove}
                     onReject={handleReject}
                     onViewDiff={handleViewDiff}
+                    onViewReview={handleViewReview}
+                    onViewEditReview={handleViewEditReview}
                   />
                 ))}
               </ScrollView>
@@ -595,7 +671,7 @@ export default function WebNotificationBell({ userId }) {
         </TouchableOpacity>
       </Modal>
 
-      {/* Модальное окно просмотра изменений с принятием решения */}
+      {/* Модальное окно просмотра изменений с принятием решения (edit_submitted) */}
       <DiffModal
         visible={!!diffModal}
         onClose={() => setDiffModal(null)}
@@ -608,6 +684,26 @@ export default function WebNotificationBell({ userId }) {
         onReject={(reason) => {
           if (diffModal?.notif) handleReject(diffModal.notif, reason);
           setDiffModal(null);
+        }}
+      />
+
+      {/* Правая панель просмотра нового объекта (property_submitted) — read-only + review actions */}
+      <WebPropertyEditPanel
+        visible={!!reviewModal}
+        mode="edit"
+        property={reviewModal?.property}
+        onClose={() => setReviewModal(null)}
+        onSaved={() => setReviewModal(null)}
+        user={user}
+        readOnly={true}
+        reviewMode={true}
+        onApprove={() => {
+          if (reviewModal?.notif) handleApprove(reviewModal.notif);
+          setReviewModal(null);
+        }}
+        onReject={(reason) => {
+          if (reviewModal?.notif) handleReject(reviewModal.notif, reason);
+          setReviewModal(null);
         }}
       />
     </View>
@@ -662,6 +758,20 @@ const s = StyleSheet.create({
   popupTitle: { fontSize: 16, fontWeight: '800', color: C.text },
   closeBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
   closeBtnText: { fontSize: 13, color: C.muted, fontWeight: '700' },
+
+  actionErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF5F5',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FFCDD2',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  actionErrorText: { flex: 1, fontSize: 13, color: C.danger, fontWeight: '600', lineHeight: 18 },
+  actionErrorClose: { fontSize: 14, color: C.danger, fontWeight: '700' },
 
   list: { maxHeight: 440 },
 
@@ -996,3 +1106,4 @@ const sd = StyleSheet.create({
     fontWeight: '700',
   },
 });
+

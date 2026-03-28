@@ -301,11 +301,13 @@ export async function getAgentLocationAccess(userId, companyId) {
  * Полная замена: сначала удаляем все, затем вставляем новые.
  */
 export async function setAgentLocationAccess(userId, companyId, locationIds) {
-  await supabase
+  const { error: deleteError } = await supabase
     .from('agent_location_access')
     .delete()
     .eq('user_id', userId)
     .eq('company_id', companyId);
+  if (deleteError) throw new Error(deleteError.message);
+
   if (!locationIds || locationIds.length === 0) return;
   const rows = locationIds.map(location_id => ({ user_id: userId, company_id: companyId, location_id }));
   const { error } = await supabase.from('agent_location_access').insert(rows);

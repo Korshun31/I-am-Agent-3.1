@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { useLanguage } from '../../context/LanguageContext';
 import { getTeamData, createInvitation, revokeInvitation, updateMemberPermissions, getAgentLocationAccess, setAgentLocationAccess, deactivateMember } from '../../services/companyService';
-import { getLocations } from '../../services/locationsService';
+import { getCompanyLocations } from '../../services/locationsService';
 import { broadcastChange } from '../../services/companyChannel';
 import dayjs from 'dayjs';
 
@@ -45,13 +45,15 @@ function MemberPermissionsModal({ member, companyId, visible, onClose, onSave })
   const { t } = useLanguage();
   const [permissions, setPermissions] = useState(member?.permissions || {});
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [locations, setLocations] = useState([]);
   const [assignedLocationIds, setAssignedLocationIds] = useState([]);
 
   useEffect(() => {
     if (!member) return;
     setPermissions(member.permissions || {});
-    getLocations().then(setLocations).catch(() => setLocations([]));
+    setSaveError('');
+    getCompanyLocations(companyId).then(setLocations).catch(() => setLocations([]));
     getAgentLocationAccess(member.user_id, companyId)
       .then(setAssignedLocationIds)
       .catch(() => setAssignedLocationIds([]));
@@ -69,11 +71,15 @@ function MemberPermissionsModal({ member, companyId, visible, onClose, onSave })
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError('');
     try {
       await onSave(member.member_id, permissions);
       await setAgentLocationAccess(member.user_id, companyId, assignedLocationIds);
       await broadcastChange('permissions');
       onClose();
+    } catch (e) {
+      console.error('Save permissions error:', e);
+      setSaveError(t('errorSaveSettings'));
     } finally {
       setSaving(false);
     }
@@ -143,36 +149,47 @@ function MemberPermissionsModal({ member, companyId, visible, onClose, onSave })
             </View>
 
             {/* Раздел: Локации */}
-            {locations.length > 0 && (
-              <View style={s.modalSection}>
-                <Text style={s.modalSectionTitle}>{t('permSectionLocations') || 'ЛОКАЦИИ'}</Text>
-                <Text style={s.locationHint}>{t('permLocationsHint') || 'Выберите города, в которых работает агент'}</Text>
-                {locations.map(loc => {
-                  const checked = assignedLocationIds.includes(loc.id);
-                  return (
-                    <TouchableOpacity
-                      key={loc.id}
-                      style={s.locationRow}
-                      onPress={() => toggleLocation(loc.id)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[s.locationCheckbox, checked && s.locationCheckboxChecked]}>
-                        {checked && <Text style={s.locationCheckmark}>✓</Text>}
-                      </View>
-                      <Text style={s.locationName}>{loc.displayName}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
+            <View style={s.modalSection}>
+              <Text style={s.modalSectionTitle}>{t('permSectionLocations')}</Text>
+              {locations.length === 0 ? (
+                <Text style={s.locationHint}>{t('permLocationsEmpty')}</Text>
+              ) : (
+                <>
+                  <Text style={s.locationHint}>{t('permLocationsHint')}</Text>
+                  {locations.map(loc => {
+                    const checked = assignedLocationIds.includes(loc.id);
+                    return (
+                      <TouchableOpacity
+                        key={loc.id}
+                        style={s.locationRow}
+                        onPress={() => toggleLocation(loc.id)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[s.locationCheckbox, checked && s.locationCheckboxChecked]}>
+                          {checked && <Text style={s.locationCheckmark}>✓</Text>}
+                        </View>
+                        <Text style={s.locationName}>{loc.displayName}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </>
+              )}
+            </View>
+
+            {/* Ошибка сохранения */}
+            {!!saveError && (
+              <View style={s.saveErrorWrap}>
+                <Text style={s.saveErrorText}>{saveError}</Text>
               </View>
             )}
 
             {/* Кнопки */}
             <View style={s.modalActions}>
               <TouchableOpacity style={s.modalCancelBtn} onPress={onClose}>
-                <Text style={s.modalCancelText}>{t('cancel') || 'Отмена'}</Text>
+                <Text style={s.modalCancelText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.modalSaveBtn, saving && s.btnDisabled]} onPress={handleSave} disabled={saving}>
-                <Text style={s.modalSaveText}>{saving ? '...' : (t('save') || 'Сохранить')}</Text>
+                <Text style={s.modalSaveText}>{saving ? `${t('save')}...` : t('save')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -184,12 +201,17 @@ function MemberPermissionsModal({ member, companyId, visible, onClose, onSave })
   );
 }
 
+const PERM_TAGS = [
+  { key: 'can_add_property', labelKey: 'permTagAdd' },
+  { key: 'can_edit_info', labelKey: 'permTagEdit' },
+  { key: 'can_book', labelKey: 'permTagBook' },
+];
+
 function MemberRow({ member, isCurrentUser, onPress, onDeactivate }) {
   const { t } = useLanguage();
   const initials = ((member.name || '')[0] || (member.email || '')[0] || '?').toUpperCase();
   const displayName = [member.name, member.last_name].filter(Boolean).join(' ') || member.email;
-  const roleLabel = member.role === 'owner' ? (t('roleOwner') || 'Admin') : (t('roleAgent') || 'Агент');
-  const canBook = member.permissions?.can_book;
+  const roleLabel = member.role === 'owner' ? t('roleOwner') : t('roleAgent');
 
   return (
     <TouchableOpacity style={s.memberRow} onPress={member.role !== 'owner' ? onPress : undefined} activeOpacity={member.role !== 'owner' ? 0.7 : 1}>
@@ -198,13 +220,22 @@ function MemberRow({ member, isCurrentUser, onPress, onDeactivate }) {
       </View>
       <View style={s.memberInfo}>
         <Text style={s.memberName}>
-          {displayName}{isCurrentUser ? ` (${t('you') || 'Вы'})` : ''}
+          {displayName}{isCurrentUser ? ` (${t('you')})` : ''}
         </Text>
         <Text style={s.memberEmail}>{member.email}</Text>
         {member.role !== 'owner' && (
-          <Text style={s.memberPerms}>
-            {canBook ? `✓ ${t('permCanBook') || 'Бронирования'}` : `— ${t('permCanBook') || 'Бронирования'}`}
-          </Text>
+          <View style={s.permTagsRow}>
+            {PERM_TAGS.map(({ key, labelKey }) => {
+              const active = !!member.permissions?.[key];
+              return (
+                <View key={key} style={[s.permTag, active && s.permTagActive]}>
+                  <Text style={[s.permTagText, active && s.permTagTextActive]}>
+                    {active ? '✓' : '—'} {t(labelKey)}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
         )}
       </View>
       <View style={s.memberMeta}>
@@ -221,7 +252,7 @@ function MemberRow({ member, isCurrentUser, onPress, onDeactivate }) {
             hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
             onPress={onDeactivate}
           >
-            <Text style={s.dismissBtnText}>{t('dismiss') || 'Уволить'}</Text>
+            <Text style={s.dismissBtnText}>{t('dismiss')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -235,8 +266,8 @@ function InvitationRow({ invitation, onRevoke }) {
   const [showDetails, setShowDetails] = useState(false);
 
   const statusLabel = invitation.status === 'sent'
-    ? (t('inviteStatusSent') || 'Отправлено')
-    : (t('inviteStatusPending') || 'Ожидает');
+    ? t('inviteStatusSent')
+    : t('inviteStatusPending');
 
   const handleCopy = (text, key) => {
     copyToClipboard(text);
@@ -257,10 +288,10 @@ function InvitationRow({ invitation, onRevoke }) {
         </View>
         <View style={s.invitationActions}>
           <TouchableOpacity style={s.detailsBtn} onPress={() => setShowDetails(!showDetails)}>
-            <Text style={s.detailsBtnText}>{showDetails ? '▲' : '▼'} {t('inviteDetails') || 'Детали'}</Text>
+            <Text style={s.detailsBtnText}>{showDetails ? '▲' : '▼'} {t('inviteDetails')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.revokeBtn} onPress={() => onRevoke(invitation.id)}>
-            <Text style={s.revokeBtnText}>{t('inviteRevoke') || 'Отозвать'}</Text>
+            <Text style={s.revokeBtnText}>{t('inviteRevoke')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -268,25 +299,25 @@ function InvitationRow({ invitation, onRevoke }) {
       {showDetails && (
         <View style={s.inviteDetails}>
           <View style={s.inviteDetailRow}>
-            <Text style={s.inviteDetailLabel}>{t('inviteLink') || 'Ссылка для агента:'}</Text>
+            <Text style={s.inviteDetailLabel}>{t('inviteLink')}</Text>
             <View style={s.inviteDetailValue}>
               <Text style={s.inviteLinkText} numberOfLines={1}>{inviteLink}</Text>
               <TouchableOpacity style={s.copyBtn} onPress={() => handleCopy(inviteLink, 'link')}>
-                <Text style={s.copyBtnText}>{copied === 'link' ? '✓' : t('copy') || 'Копировать'}</Text>
+                <Text style={s.copyBtnText}>{copied === 'link' ? '✓' : t('copy')}</Text>
               </TouchableOpacity>
             </View>
           </View>
           <View style={s.inviteDetailRow}>
-            <Text style={s.inviteDetailLabel}>{t('secretCode') || 'Секретный код (передайте лично):'}</Text>
+            <Text style={s.inviteDetailLabel}>{t('secretCode')}</Text>
             <View style={s.inviteDetailValue}>
               <Text style={s.secretCodeText}>{invitation.secret_code}</Text>
               <TouchableOpacity style={s.copyBtn} onPress={() => handleCopy(invitation.secret_code, 'code')}>
-                <Text style={s.copyBtnText}>{copied === 'code' ? '✓' : t('copy') || 'Копировать'}</Text>
+                <Text style={s.copyBtnText}>{copied === 'code' ? '✓' : t('copy')}</Text>
               </TouchableOpacity>
             </View>
           </View>
           <Text style={s.inviteExpiry}>
-            {t('inviteExpires') || 'Действует до:'} {dayjs(invitation.expires_at).format('DD MMM YYYY')}
+            {t('inviteExpires')} {dayjs(invitation.expires_at).format('DD MMM YYYY')}
           </Text>
         </View>
       )}
@@ -306,41 +337,68 @@ function InviteSuccessCard({ result, onClose }) {
 
   return (
     <View style={s.successCard}>
-      <Text style={s.successTitle}>✅ {t('inviteSent') || 'Приглашение создано!'}</Text>
-      <Text style={s.successSubtitle}>
-        {t('inviteSentHint') || 'Передайте агенту ссылку и секретный код отдельно (лично или через мессенджер)'}
-      </Text>
+      <Text style={s.successTitle}>✅ {t('inviteSent')}</Text>
+      <Text style={s.successSubtitle}>{t('inviteSentHint')}</Text>
 
       <View style={s.successBlock}>
-        <Text style={s.successBlockLabel}>{t('inviteLink') || 'Ссылка для агента:'}</Text>
+        <Text style={s.successBlockLabel}>{t('inviteLink')}</Text>
         <View style={s.successRow}>
           <Text style={s.successLinkText} numberOfLines={2}>{result.inviteLink}</Text>
           <TouchableOpacity
             style={[s.copyBtn, copied === 'link' && s.copyBtnSuccess]}
             onPress={() => handleCopy(result.inviteLink, 'link')}
           >
-            <Text style={s.copyBtnText}>{copied === 'link' ? `✓ ${t('copied')}` : t('copy') || 'Копировать'}</Text>
+            <Text style={s.copyBtnText}>{copied === 'link' ? `✓ ${t('copied')}` : t('copy')}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <View style={s.successBlock}>
-        <Text style={s.successBlockLabel}>{t('secretCode') || 'Секретный код (передайте лично):'}</Text>
+        <Text style={s.successBlockLabel}>{t('secretCode')}</Text>
         <View style={s.successRow}>
           <Text style={s.secretCodeBig}>{result.secretCode}</Text>
           <TouchableOpacity
             style={[s.copyBtn, copied === 'code' && s.copyBtnSuccess]}
             onPress={() => handleCopy(result.secretCode, 'code')}
           >
-            <Text style={s.copyBtnText}>{copied === 'code' ? `✓ ${t('copied')}` : t('copy') || 'Копировать'}</Text>
+            <Text style={s.copyBtnText}>{copied === 'code' ? `✓ ${t('copied')}` : t('copy')}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <TouchableOpacity style={s.closeSuccessBtn} onPress={onClose}>
-        <Text style={s.closeSuccessBtnText}>{t('close') || 'Закрыть'}</Text>
+        <Text style={s.closeSuccessBtnText}>{t('close')}</Text>
       </TouchableOpacity>
     </View>
+  );
+}
+
+function ConfirmModal({ visible, title, message, confirmLabel, onConfirm, onCancel, loading, error }) {
+  const { t } = useLanguage();
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={loading ? undefined : onCancel} statusBarTranslucent>
+      <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={loading ? undefined : onCancel}>
+        <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+          <View style={s.confirmBox}>
+            <Text style={s.confirmTitle}>{title}</Text>
+            <Text style={s.confirmMessage}>{message}</Text>
+            {!!error && <Text style={s.confirmErrorText}>{error}</Text>}
+            <View style={s.confirmActions}>
+              <TouchableOpacity style={s.confirmCancelBtn} onPress={onCancel} disabled={loading}>
+                <Text style={s.confirmCancelText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.confirmDangerBtn, loading && s.btnDisabled]}
+                onPress={onConfirm}
+                disabled={loading}
+              >
+                <Text style={s.confirmDangerBtnText}>{loading ? '...' : confirmLabel}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
   );
 }
 
@@ -355,6 +413,12 @@ export default function WebTeamSection({ companyId, currentUserId }) {
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const [inviteResult, setInviteResult] = useState(null);
+  const [revokeTarget, setRevokeTarget] = useState(null);
+  const [deactivateTarget, setDeactivateTarget] = useState(null);
+  const [revoking, setRevoking] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
+  const [revokeError, setRevokeError] = useState('');
+  const [deactivateError, setDeactivateError] = useState('');
 
   const loadTeam = useCallback(async () => {
     if (!companyId) return;
@@ -386,33 +450,44 @@ export default function WebTeamSection({ companyId, currentUserId }) {
       await loadTeam();
     } catch (e) {
       if (e?.message === 'EMAIL_EXISTS') {
-        setInviteError(t('inviteEmailExists') || 'Этот email уже зарегистрирован в системе. Попросите агента указать другой email.');
+        setInviteError(t('inviteEmailExists'));
       } else {
-        setInviteError(t('inviteError') || 'Ошибка при создании приглашения. Попробуйте ещё раз.');
+        setInviteError(t('inviteError'));
       }
     } finally {
       setInviting(false);
     }
   };
 
-  const handleRevoke = async (invitationId) => {
-    if (!window.confirm(t('inviteRevokeConfirm') || 'Отозвать приглашение?')) return;
+  const handleRevoke = async () => {
+    if (!revokeTarget) return;
+    setRevoking(true);
+    setRevokeError('');
     try {
-      await revokeInvitation(invitationId);
+      await revokeInvitation(revokeTarget);
+      setRevokeTarget(null);
       await loadTeam();
     } catch (e) {
       console.error('Revoke error:', e);
+      setRevokeError(t('inviteError'));
+    } finally {
+      setRevoking(false);
     }
   };
 
-  const handleDeactivate = async (userId) => {
-    if (!window.confirm(t('deactivateConfirm') || 'Уволить агента? Доступ к компании будет закрыт.')) return;
+  const handleDeactivate = async () => {
+    if (!deactivateTarget) return;
+    setDeactivating(true);
+    setDeactivateError('');
     try {
-      await deactivateMember(companyId, userId);
+      await deactivateMember(companyId, deactivateTarget);
+      setDeactivateTarget(null);
       await loadTeam();
     } catch (e) {
       console.error('Deactivate error:', e);
-      window.alert(t('error') || 'Ошибка при увольнении агента.');
+      setDeactivateError(t('errorSaveSettings'));
+    } finally {
+      setDeactivating(false);
     }
   };
 
@@ -432,10 +507,10 @@ export default function WebTeamSection({ companyId, currentUserId }) {
     <View style={s.root}>
       {/* Заголовок */}
       <View style={s.header}>
-        <Text style={s.title}>👥 {t('team') || 'Команда'}</Text>
+        <Text style={s.title}>👥 {t('team')}</Text>
         {!showInviteForm && !inviteResult && (
           <TouchableOpacity style={s.inviteBtn} onPress={() => setShowInviteForm(true)}>
-            <Text style={s.inviteBtnText}>+ {t('inviteAgent') || 'Пригласить'}</Text>
+            <Text style={s.inviteBtnText}>+ {t('inviteAgent')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -448,7 +523,7 @@ export default function WebTeamSection({ companyId, currentUserId }) {
       {/* Форма приглашения */}
       {showInviteForm && !inviteResult && (
         <View style={s.inviteForm}>
-          <Text style={s.inviteFormLabel}>{t('inviteEmailLabel') || 'Email агента:'}</Text>
+          <Text style={s.inviteFormLabel}>{t('inviteEmailLabel')}</Text>
           <TextInput
             style={s.inviteInput}
             value={inviteEmail}
@@ -461,10 +536,10 @@ export default function WebTeamSection({ companyId, currentUserId }) {
           {!!inviteError && <Text style={s.inviteErrorText}>{inviteError}</Text>}
           <View style={s.inviteFormActions}>
             <TouchableOpacity style={s.cancelBtn} onPress={() => { setShowInviteForm(false); setInviteEmail(''); setInviteError(''); }}>
-              <Text style={s.cancelBtnText}>{t('cancel') || 'Отмена'}</Text>
+              <Text style={s.cancelBtnText}>{t('cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[s.sendBtn, (!inviteEmail.trim() || inviting) && s.sendBtnDisabled]} onPress={handleInvite} disabled={!inviteEmail.trim() || inviting}>
-              <Text style={s.sendBtnText}>{inviting ? '...' : (t('invite') || 'Пригласить')}</Text>
+              <Text style={s.sendBtnText}>{inviting ? '...' : t('inviteAgent')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -473,14 +548,14 @@ export default function WebTeamSection({ companyId, currentUserId }) {
       {/* Список участников */}
       {members.length > 0 && (
         <View style={s.section}>
-          <Text style={s.sectionLabel}>{t('teamMembers') || 'Участники'}</Text>
+          <Text style={s.sectionLabel}>{t('teamMembers')}</Text>
           {members.map(m => (
             <MemberRow
               key={m.member_id}
               member={m}
               isCurrentUser={m.user_id === currentUserId}
               onPress={() => setSelectedMember(m)}
-              onDeactivate={m.role === 'agent' && m.user_id !== currentUserId ? () => handleDeactivate(m.user_id) : undefined}
+              onDeactivate={m.role === 'agent' && m.user_id !== currentUserId ? () => setDeactivateTarget(m.user_id) : undefined}
             />
           ))}
         </View>
@@ -489,9 +564,9 @@ export default function WebTeamSection({ companyId, currentUserId }) {
       {/* Активные приглашения */}
       {invitations.length > 0 && (
         <View style={s.section}>
-          <Text style={s.sectionLabel}>{t('teamInvitations') || 'Приглашения'}</Text>
+          <Text style={s.sectionLabel}>{t('teamInvitations')}</Text>
           {invitations.map(inv => (
-            <InvitationRow key={inv.id} invitation={inv} onRevoke={handleRevoke} />
+            <InvitationRow key={inv.id} invitation={inv} onRevoke={(id) => setRevokeTarget(id)} />
           ))}
         </View>
       )}
@@ -510,8 +585,30 @@ export default function WebTeamSection({ companyId, currentUserId }) {
       )}
 
       {members.length === 0 && invitations.length === 0 && !showInviteForm && !inviteResult && (
-        <Text style={s.emptyText}>{t('teamEmpty') || 'Команда пока пуста. Пригласите первого агента!'}</Text>
+        <Text style={s.emptyText}>{t('teamEmpty')}</Text>
       )}
+
+      <ConfirmModal
+        visible={!!revokeTarget}
+        title={t('inviteRevokeTitle')}
+        message={t('inviteRevokeMessage')}
+        confirmLabel={t('inviteRevoke')}
+        onConfirm={handleRevoke}
+        onCancel={() => { setRevokeTarget(null); setRevokeError(''); }}
+        loading={revoking}
+        error={revokeError}
+      />
+
+      <ConfirmModal
+        visible={!!deactivateTarget}
+        title={t('deactivateTitle')}
+        message={t('deactivateMessage')}
+        confirmLabel={t('dismiss')}
+        onConfirm={handleDeactivate}
+        onCancel={() => { setDeactivateTarget(null); setDeactivateError(''); }}
+        loading={deactivating}
+        error={deactivateError}
+      />
     </View>
   );
 }
@@ -589,10 +686,46 @@ const s = StyleSheet.create({
 
   emptyText: { fontSize: 13, color: C.muted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 16 },
 
-  memberPerms: { fontSize: 11, color: C.muted, marginTop: 2 },
+  permTagsRow: { flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' },
+  permTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
+  permTagActive: { backgroundColor: ACCENT + '12', borderColor: ACCENT + '35' },
+  permTagText: { fontSize: 10, fontWeight: '500', color: C.muted },
+  permTagTextActive: { color: ACCENT, fontWeight: '700' },
   memberEditHint: { fontSize: 14, color: C.muted },
   dismissBtn: { marginTop: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#FFCDD2', backgroundColor: C.dangerBg },
   dismissBtnText: { fontSize: 10, fontWeight: '700', color: C.danger },
+
+  saveErrorWrap: { paddingHorizontal: 24, paddingBottom: 4 },
+  saveErrorText: { fontSize: 13, color: C.danger, lineHeight: 19 },
+
+  // ── Confirm modal ──
+  confirmBox: {
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    padding: 28,
+    width: 380,
+    maxWidth: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+  },
+  confirmTitle: { fontSize: 17, fontWeight: '700', color: C.text, marginBottom: 8 },
+  confirmMessage: { fontSize: 14, color: C.muted, lineHeight: 21, marginBottom: 20 },
+  confirmErrorText: { fontSize: 13, color: C.danger, marginBottom: 12 },
+  confirmActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end' },
+  confirmCancelBtn: {
+    paddingHorizontal: 18, paddingVertical: 9,
+    borderRadius: 8, borderWidth: 1,
+    borderColor: C.border, backgroundColor: C.bg,
+  },
+  confirmCancelText: { fontSize: 14, fontWeight: '600', color: C.muted },
+  confirmDangerBtn: {
+    paddingHorizontal: 18, paddingVertical: 9,
+    borderRadius: 8, borderWidth: 1,
+    borderColor: '#FFCDD2', backgroundColor: C.dangerBg,
+  },
+  confirmDangerBtnText: { fontSize: 14, fontWeight: '700', color: C.danger },
 
   // ── Agent modal ──
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },

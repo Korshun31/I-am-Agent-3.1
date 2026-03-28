@@ -10,12 +10,11 @@ async function resolveCompanyId(userId) {
     .eq('status', 'active')
     .maybeSingle();
   if (company) return company.id;
+  // company_members использует agent_id (не user_id), статусного поля нет
   const { data: member } = await supabase
     .from('company_members')
     .select('company_id')
-    .eq('user_id', userId)
-    .eq('role', 'agent')
-    .eq('status', 'active')
+    .eq('agent_id', userId)
     .maybeSingle();
   return member?.company_id ?? null;
 }
@@ -24,10 +23,13 @@ export async function getLocations() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return [];
 
+  // Без фильтра user_id — RLS определяет scope:
+  //   owner   → все его locations (user_id = auth.uid())
+  //   agent   → только назначенные через agent_location_access
+  // Фильтр user_id = session.user.id блокировал агентов от видимости назначенных локаций.
   const { data, error } = await supabase
     .from('locations')
     .select('*')
-    .eq('user_id', session.user.id)
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -68,11 +70,13 @@ export async function updateLocation(id, { country, region, city }) {
   if (region !== undefined) updates.region = region;
   if (city !== undefined) updates.city = city;
 
+  // Без фильтра user_id — RLS "locations: owner full access" (user_id = auth.uid())
+  // обеспечивает ту же защиту: owner может обновлять только свои локации,
+  // агент не пройдёт RLS (у него нет UPDATE-политики).
   const { data, error } = await supabase
     .from('locations')
     .update(updates)
     .eq('id', id)
-    .eq('user_id', session.user.id)
     .select()
     .single();
 
@@ -85,11 +89,12 @@ export async function deleteLocation(id) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
+  // Без фильтра user_id — RLS "locations: owner full access" обеспечивает защиту.
+  // Агент не пройдёт RLS (нет DELETE-политики для агентов).
   const { error } = await supabase
     .from('locations')
     .delete()
-    .eq('id', id)
-    .eq('user_id', session.user.id);
+    .eq('id', id);
 
   if (error) throw new Error(error.message);
   syncIfEnabled();

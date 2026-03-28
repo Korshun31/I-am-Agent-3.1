@@ -39,7 +39,7 @@ const AMENITY_ICONS = {
   blender:         require('../../../assets/icon-amenity-blender.png'),
 };
 
-import { getProperties, createProperty, deleteProperty, approveProperty, rejectProperty, updatePropertyResponsible, getPropertyDraft } from '../../services/propertiesService';
+import { getProperties, createProperty, deleteProperty, approveProperty, rejectProperty, updatePropertyResponsible, getPropertyDraft, getPropertyRejectionHistory } from '../../services/propertiesService';
 import { getActiveTeamMembers } from '../../services/companyService';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
 import { getContacts } from '../../services/contactsService';
@@ -214,6 +214,11 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
           </View>
         )}
         {occupied && <View style={s.occupiedDot} />}
+        {(item.property_status === 'pending' || item.property_status === 'rejected') && (
+          <View style={s.pendingChip}>
+            <Text style={s.pendingChipText}>⏳</Text>
+          </View>
+        )}
       </View>
 
       {/* Body */}
@@ -250,14 +255,11 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
 
 // ─── Property Detail ──────────────────────────────────────────────────────────
 
-export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit, user, onApprove, onReject, onDelete, draftRefreshKey }) {
+export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit, user, onApprove, onReject, onDelete, draftRefreshKey, historyRefreshKey }) {
   const { t } = useLanguage();
   const TYPE_META = getTypeMeta(t);
   const AMENITY_LABELS = getAmenityLabels(t);
   const psym = getCurrencySymbol(property.currency || 'THB');
-  // Участник команды: видит чужой объект и сам не является владельцем компании
-  const isTeamMember = !!(user?.id && property.user_id && user.id !== property.user_id && user.workAs !== 'company');
-  const isAdmin = !isTeamMember;
   const isCompanyAdmin = !!(user?.workAs === 'company' && user?.companyId);
 
   // Разрешения агента
@@ -271,6 +273,8 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   const [currentResponsible, setCurrentResponsible] = useState(property.responsible_agent_id ?? null);
   const [responsiblePickerVisible, setResponsiblePickerVisible] = useState(false);
   const [pendingDraft, setPendingDraft] = useState(null);
+  const [rejectionHistory, setRejectionHistory] = useState([]);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
 
   React.useEffect(() => {
     setCurrentResponsible(property.responsible_agent_id ?? null);
@@ -286,6 +290,15 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
     if (!isAgent || !property?.id) { setPendingDraft(null); return; }
     getPropertyDraft(property.id).then(setPendingDraft).catch(() => {});
   }, [property?.id, isAgent, draftRefreshKey]);
+
+  // Загружаем историю отклонений (для rejected объектов и их авторов/админов)
+  React.useEffect(() => {
+    if (!property?.id || property.property_status === 'approved') {
+      setRejectionHistory([]);
+      return;
+    }
+    getPropertyRejectionHistory(property.id).then(setRejectionHistory).catch(() => setRejectionHistory([]));
+  }, [property?.id, property?.property_status, historyRefreshKey]);
 
   const isSubmitted = property.property_status === 'pending';
   const isRejected = property.property_status === 'rejected';
@@ -451,21 +464,48 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
             </View>
           </View>
           <View style={s.detailActions}>
-            {isSubmitted && isTeamMember && (
+            {isSubmitted && isAgent && (
               <View style={s.statusBadgePending}>
                 <Text style={s.statusBadgePendingText}>⏳ {t('propSubmitted') || 'На проверке'}</Text>
               </View>
             )}
-            {isRejected && (
-              <View style={s.statusBadgeRejected}>
-                <Text style={s.statusBadgeRejectedText}>❌ {t('propRejected') || 'Отклонено'}</Text>
+            {isRejected ? (
+              /* Rejected: badge + Edit + Delete в одну строку */
+              <View style={s.statusActionRow}>
+                <View style={s.statusBadgePending}>
+                  <Text style={s.statusBadgePendingText}>⏳ {t('propProcessing') || 'На обработке'}</Text>
+                </View>
+                <TouchableOpacity style={s.detailEditBtnOutline} onPress={onEdit}>
+                  <Image source={ICON_PENCIL} style={s.detailEditBtnIconMuted} resizeMode="contain" />
+                  <Text style={s.detailEditBtnTextMuted}>{t('edit')}</Text>
+                </TouchableOpacity>
+                {!isAgent && (
+                  <TouchableOpacity
+                    style={s.detailDeleteBtnOutline}
+                    onPress={() => setDeleteConfirmVisible(true)}
+                  >
+                    <Text style={s.detailDeleteBtnText}>🗑</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            )}
-            {!isSubmitted && (
-              <TouchableOpacity style={s.detailEditBtn} onPress={onEdit}>
-                <Image source={ICON_PENCIL} style={s.detailEditBtnIcon} resizeMode="contain" />
-                <Text style={s.detailEditBtnText}>{t('edit')}</Text>
-              </TouchableOpacity>
+            ) : (
+              !isSubmitted && (
+                /* Normal: Edit + Delete в одну строку */
+                <View style={s.statusActionRow}>
+                  <TouchableOpacity style={s.detailEditBtn} onPress={onEdit}>
+                    <Image source={ICON_PENCIL} style={s.detailEditBtnIcon} resizeMode="contain" />
+                    <Text style={s.detailEditBtnText}>{t('edit')}</Text>
+                  </TouchableOpacity>
+                  {!isAgent && (
+                    <TouchableOpacity
+                      style={s.detailDeleteBtnOutline}
+                      onPress={() => setDeleteConfirmVisible(true)}
+                    >
+                      <Text style={s.detailDeleteBtnText}>🗑</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )
             )}
           </View>
         </View>
@@ -509,7 +549,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         )}
 
         {/* ── Admin: Approve / Reject submitted property ── */}
-        {isAdmin && isSubmitted && (
+        {isCompanyAdmin && isSubmitted && (
           <View style={s.approvalBlock}>
             <Text style={s.approvalTitle}>⏳ {t('propAwaitingApproval') || 'Объект ожидает проверки'}</Text>
             <Text style={s.approvalSubtitle}>{t('propApprovalHint') || 'Проверьте данные и примите решение'}</Text>
@@ -524,24 +564,44 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
           </View>
         )}
 
-        {/* ── Admin: Delete property ── */}
-        {!isAgent && (
-          <TouchableOpacity
-            style={s.deleteBtn}
-            onPress={() => {
-              if (window.confirm(t('pdDeleteConfirm') || 'Delete this property?')) {
-                onDelete?.();
-              }
-            }}
-          >
-            <Text style={s.deleteBtnText}>🗑</Text>
-          </TouchableOpacity>
-        )}
-
-        {isRejected && property.rejection_reason ? (
+        {/* ── История отклонений ── */}
+        {isRejected && (rejectionHistory.length > 0 || !!property.rejection_reason) ? (
           <View style={s.rejectedBlock}>
-            <Text style={s.rejectedLabel}>{t('propRejectionReason') || 'Причина отклонения:'}</Text>
-            <Text style={s.rejectedReason}>{property.rejection_reason}</Text>
+            <Text style={s.rejectedLabel}>{t('propRejectionHistory') || 'История отклонений'}</Text>
+            {rejectionHistory.length > 0 ? (
+              rejectionHistory.map((entry, idx) => {
+                const isLatest = idx === 0;
+                const num = rejectionHistory.length - idx;
+                const dateStr = entry.created_at
+                  ? new Date(entry.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+                  : '';
+                return (
+                  <View key={entry.id} style={[s.rejectionHistoryItem, isLatest && s.rejectionHistoryItemLatest]}>
+                    <View style={s.rejectionHistoryRow}>
+                      <Text style={[s.rejectionHistoryNum, isLatest && s.rejectionHistoryNumLatest]}>
+                        {`#${num}`}
+                      </Text>
+                      <Text style={[s.rejectionHistoryReason, isLatest && s.rejectionHistoryReasonLatest, { flex: 1 }]}>
+                        {entry.reason || '—'}
+                      </Text>
+                    </View>
+                    {!!dateStr && (
+                      <Text style={s.rejectionHistoryDate}>{dateStr}</Text>
+                    )}
+                  </View>
+                );
+              })
+            ) : (
+              /* Legacy fallback: история пуста, но есть старый rejection_reason */
+              <View style={[s.rejectionHistoryItem, s.rejectionHistoryItemLatest]}>
+                <View style={s.rejectionHistoryRow}>
+                  <Text style={[s.rejectionHistoryNum, s.rejectionHistoryNumLatest]}>#1</Text>
+                  <Text style={[s.rejectionHistoryReason, s.rejectionHistoryReasonLatest, { flex: 1 }]}>
+                    {property.rejection_reason}
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
         ) : null}
 
@@ -822,6 +882,35 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         <View style={{ height: 40 }} />
       </View>
     </ScrollView>
+
+    {/* ── Delete Confirm Modal ── */}
+    <Modal
+      visible={deleteConfirmVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setDeleteConfirmVisible(false)}
+    >
+      <View style={s.modalOverlay}>
+        <View style={s.deleteConfirmBox}>
+          <Text style={s.deleteConfirmTitle}>{t('deletePropertyTitle')}</Text>
+          <Text style={s.deleteConfirmText}>{t('deletePropertyConfirmText')}</Text>
+          <View style={s.deleteConfirmActions}>
+            <TouchableOpacity
+              style={s.deleteConfirmCancelBtn}
+              onPress={() => setDeleteConfirmVisible(false)}
+            >
+              <Text style={s.deleteConfirmCancelText}>{t('cancel')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.deleteConfirmDeleteBtn}
+              onPress={() => { setDeleteConfirmVisible(false); onDelete?.(); }}
+            >
+              <Text style={s.deleteConfirmDeleteText}>{t('deleteAction')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
     </View>
   );
 }
@@ -980,6 +1069,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
   const [addVisible, setAddVisible] = useState(false);
   const [editPanel, setEditPanel] = useState({ visible: false, mode: 'create', property: null, parentProperty: null });
   const [draftRefreshKey, setDraftRefreshKey] = useState(0);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   const handleSelectProperty = (prop) => {
     setSelected(prop);
@@ -1013,6 +1103,17 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
       setProperties(props);
       setContacts(conts);
       setBookings(bkgs);
+      // Синхронизируем selected с актуальными данными из свежего массива
+      setSelected(prev => {
+        if (!prev) return prev;
+        const fresh = props.find(p => p.id === prev.id);
+        return fresh !== undefined ? fresh : null;
+      });
+      setPreviousSelected(prev => {
+        if (!prev) return prev;
+        const fresh = props.find(p => p.id === prev.id);
+        return fresh !== undefined ? fresh : null;
+      });
     } catch (e) {
       console.error('WebPropertiesScreen load error:', e);
     } finally {
@@ -1021,7 +1122,8 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
   }, []);
 
   useEffect(() => { load(); }, []);
-  useEffect(() => { if (refreshKey) { load(); setDraftRefreshKey(k => k + 1); } }, [refreshKey]);
+  useEffect(() => { if (refreshKey) { load(); setDraftRefreshKey(k => k + 1); setHistoryRefreshKey(k => k + 1); } }, [refreshKey]);
+
 
 
   // Auto-select property when navigating from Contacts
@@ -1219,6 +1321,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
             onAddUnit={() => openCreateUnit(selected)}
             user={user}
             draftRefreshKey={draftRefreshKey}
+            historyRefreshKey={historyRefreshKey}
             onApprove={async () => {
               await approveProperty(selected.id);
               await load();
@@ -1229,6 +1332,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
               await rejectProperty(selected.id, reason);
               await load();
               setSelected(prev => ({ ...prev, property_status: 'rejected', rejection_reason: reason }));
+              setHistoryRefreshKey(k => k + 1);
             }}
             onDelete={async () => {
               await deleteProperty(selected.id);
@@ -1412,6 +1516,15 @@ const s = StyleSheet.create({
     backgroundColor: ACCENT,
     borderWidth: 2, borderColor: C.surface,
   },
+  // Pending indicator — нижний левый угол thumbnail карточки
+  pendingChip: {
+    position: 'absolute', bottom: -4, left: -4,
+    backgroundColor: '#FFF8E1',
+    borderWidth: 1, borderColor: '#FFE082',
+    borderRadius: 7,
+    paddingHorizontal: 3, paddingVertical: 1,
+  },
+  pendingChipText: { fontSize: 10, lineHeight: 14 },
   cardBody: { flex: 1, justifyContent: 'center', paddingVertical: 10, paddingRight: 12 },
   cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cardName: { flex: 1, fontSize: 14, fontWeight: '700', color: C.text },
@@ -1557,7 +1670,27 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  detailActions: { paddingTop: 4 },
+  detailActions: { paddingTop: 4, gap: 6 },
+  // Одна горизонтальная строка для rejected badge + edit button
+  statusActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  // Edit в режиме rejected — outline, не CTA
+  detailEditBtnOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    backgroundColor: '#F8F9FA',
+  },
+  detailEditBtnIconMuted: { width: 14, height: 14, tintColor: '#6C757D' },
+  detailEditBtnTextMuted: { fontSize: 12, fontWeight: '600', color: '#6C757D' },
   responsibleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1850,9 +1983,43 @@ const s = StyleSheet.create({
   rejectBtnText: { fontSize: 14, fontWeight: '700', color: '#E53935' },
   deleteBtn: { backgroundColor: '#EB5757', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8, alignSelf: 'flex-start', marginTop: 12 },
   deleteBtnText: { color: '#fff', fontSize: 16 },
-  rejectedBlock: { backgroundColor: '#FFF5F5', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#FFCDD2', gap: 4 },
-  rejectedLabel: { fontSize: 12, fontWeight: '700', color: '#E53935' },
+  rejectedBlock: { backgroundColor: '#FFF5F5', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#FFCDD2', gap: 8 },
+  rejectedLabel: { fontSize: 11, fontWeight: '700', color: '#E53935', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
   rejectedReason: { fontSize: 13, color: '#C62828' },
+  // История отклонений — строки
+  rejectionHistoryItem: {
+    flexDirection: 'column',
+    paddingVertical: 5,
+    paddingHorizontal: 2,
+    opacity: 0.55,
+  },
+  rejectionHistoryItemLatest: { opacity: 1 },
+  // Внутренняя строка: номер + текст на одной baseline
+  rejectionHistoryRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  rejectionHistoryNum: {
+    fontSize: 11, fontWeight: '600', color: '#E57373',
+    minWidth: 22,
+  },
+  rejectionHistoryNumLatest: { color: '#C62828', fontWeight: '800' },
+  rejectionHistoryReason: { fontSize: 13, color: '#E57373', fontWeight: '500', lineHeight: 18 },
+  rejectionHistoryReasonLatest: { color: '#C62828', fontWeight: '700' },
+  rejectionHistoryDate: { fontSize: 11, color: '#EF9A9A', marginTop: 2, marginLeft: 30 },
+  // Delete button inline с Edit, muted red outline
+  detailDeleteBtnOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
+    backgroundColor: '#FFF5F5',
+  },
+  detailDeleteBtnText: { fontSize: 14, color: '#C62828' },
   statusBadgePending: { backgroundColor: '#FFF8E1', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#FFE082' },
   statusBadgePendingText: { fontSize: 12, fontWeight: '700', color: '#795548' },
   statusBadgeRejected: { backgroundColor: '#FFF5F5', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#FFCDD2' },
@@ -1922,6 +2089,33 @@ const s = StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: '800', color: C.text },
   modalClose: { padding: 4 },
   modalCloseText: { fontSize: 18, color: C.light },
+
+  // ── Delete Confirm Modal ──
+  deleteConfirmBox: {
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    padding: 28,
+    width: 380,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+  },
+  deleteConfirmTitle: { fontSize: 17, fontWeight: '700', color: C.text, marginBottom: 10 },
+  deleteConfirmText: { fontSize: 14, color: '#6C757D', lineHeight: 21, marginBottom: 24 },
+  deleteConfirmActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end' },
+  deleteConfirmCancelBtn: {
+    paddingHorizontal: 18, paddingVertical: 9,
+    borderRadius: 8, borderWidth: 1,
+    borderColor: '#E9ECEF', backgroundColor: '#F8F9FA',
+  },
+  deleteConfirmCancelText: { fontSize: 14, fontWeight: '600', color: '#6C757D' },
+  deleteConfirmDeleteBtn: {
+    paddingHorizontal: 18, paddingVertical: 9,
+    borderRadius: 8, borderWidth: 1,
+    borderColor: '#FFCDD2', backgroundColor: '#FFF5F5',
+  },
+  deleteConfirmDeleteText: { fontSize: 14, fontWeight: '600', color: '#C62828' },
 
   typeRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
   typeOption: {

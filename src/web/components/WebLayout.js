@@ -13,7 +13,7 @@ const ACCENT_LIGHT = '#B2D8DB';
  * Базовый каркас веб-версии.
  * Только структура: Сайдбар слева, контент справа.
  */
-export default function WebLayout({ children, activeTab, onTabChange, fullHeight, user }) {
+export default function WebLayout({ children, activeTab, onTabChange, fullHeight, user, onPropertiesChanged }) {
   const { t } = useLanguage();
   const menuItems = [
     { id: 'dashboard',  label: t('dashboard') },
@@ -69,7 +69,7 @@ export default function WebLayout({ children, activeTab, onTabChange, fullHeight
 
         {/* Колокольчик — внизу сайдбара */}
         <View style={styles.bellWrap}>
-          <WebNotificationBell userId={user?.id} />
+          <WebNotificationBell userId={user?.id} user={user} onPropertiesChanged={onPropertiesChanged} />
         </View>
 
         {/* Аватар и имя пользователя */}

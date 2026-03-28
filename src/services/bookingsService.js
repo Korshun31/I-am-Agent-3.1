@@ -167,15 +167,24 @@ export async function updateBooking(id, booking) {
   });
   updates.updated_at = new Date().toISOString();
 
-  const { data, error } = await supabase
-    .from('bookings')
-    .update(updates)
-    .eq('id', id)
-    .eq('user_id', session.user.id)
-    .select()
-    .single();
+  const { data: ownedCompany } = await supabase
+    .from('companies')
+    .select('id')
+    .eq('owner_id', session.user.id)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  let updateQ = supabase.from('bookings').update(updates).eq('id', id);
+  if (ownedCompany) {
+    updateQ = updateQ.eq('company_id', ownedCompany.id);
+  } else {
+    updateQ = updateQ.eq('user_id', session.user.id);
+  }
+
+  const { data, error } = await updateQ.select().single();
 
   if (error) throw new Error(error.message);
+  if (!data) throw new Error('BOOKING_UPDATE_FORBIDDEN');
   syncIfEnabled();
   broadcastChange('bookings');
   return mapBooking(data);
@@ -185,14 +194,26 @@ export async function deleteBooking(id) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
+  const { data: ownedCompany } = await supabase
+    .from('companies')
+    .select('id')
+    .eq('owner_id', session.user.id)
+    .eq('status', 'active')
+    .maybeSingle();
+
   await cancelCommissionReminders(id);
-  const { error } = await supabase
-    .from('bookings')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', session.user.id);
+
+  let deleteQ = supabase.from('bookings').delete().eq('id', id);
+  if (ownedCompany) {
+    deleteQ = deleteQ.eq('company_id', ownedCompany.id);
+  } else {
+    deleteQ = deleteQ.eq('user_id', session.user.id);
+  }
+
+  const { data: deleted, error } = await deleteQ.select('id');
 
   if (error) throw new Error(error.message);
+  if (!deleted || deleted.length === 0) throw new Error('BOOKING_DELETE_FORBIDDEN');
   syncIfEnabled();
   broadcastChange('bookings');
 }

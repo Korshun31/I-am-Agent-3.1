@@ -444,6 +444,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
   const [calendarVisible, setCalendarVisible] = useState(false);
   const [propertyBookings, setPropertyBookings] = useState([]);
   const fileInputRef                = useRef(null);
+  const prevContactIdRef            = useRef(null);
 
   // Sync contacts when prop changes
   useEffect(() => { setLocalContacts(contacts); }, [contacts]);
@@ -457,7 +458,9 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     if (visible) {
       setMounted(true);
       const selectedProp = booking ? properties.find(p => p.id === booking.propertyId) : null;
-      setForm(buildForm(booking, selectedProp));
+      const builtForm = buildForm(booking, selectedProp);
+      setForm(builtForm);
+      prevContactIdRef.current = builtForm.contactId || null; // seed ref so opening doesn't re-trigger fill
       setError('');
       Animated.parallel([
         Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }),
@@ -481,6 +484,21 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     }).catch(() => setPropertyBookings([]));
   }, [form.propertyId]);
 
+
+  // Auto-fill passportId when contactId changes (not when user edits passportId manually)
+  useEffect(() => {
+    if (form.notMyCustomer) return;
+    if (!form.contactId) {
+      prevContactIdRef.current = null;
+      return;
+    }
+    if (form.contactId === prevContactIdRef.current) return; // contactId didn't change — keep manual edits
+    prevContactIdRef.current = form.contactId;
+    const contact = localContacts.find(c => c.id === form.contactId);
+    if (contact) {
+      setForm(f => ({ ...f, passportId: contact.documentNumber || '' }));
+    }
+  }, [form.contactId, form.notMyCustomer, localContacts]);
 
   // Auto-compute total price
   useEffect(() => {
@@ -599,6 +617,8 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     } catch (e) {
       if (e.message === 'BOOKING_CONFLICT') {
         setError(t('bookingConflictError'));
+      } else if (e.message === 'BOOKING_UPDATE_FORBIDDEN') {
+        setError(t('bookingUpdateForbidden') || 'Нет прав на редактирование этого бронирования.');
       } else if (e.message === 'BOOKING_NO_COMPANY') {
         setError(t('bookingNoCompany') || 'Не удалось определить компанию объекта. Убедитесь, что объект привязан к компании.');
       } else if (e.message === 'CONTACT_NO_COMPANY') {

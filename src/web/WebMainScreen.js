@@ -159,6 +159,7 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
       onTabChange={handleTabChange}
       fullHeight={FULL_HEIGHT_TABS.has(activeTab)}
       user={user}
+      onPropertiesChanged={() => setRefreshKey(k => ({ ...k, properties: k.properties + 1 }))}
     >
       {/* Dashboard — монтируется сразу */}
       <View style={[styles.tabWrap, tabStyle('dashboard')]}>
