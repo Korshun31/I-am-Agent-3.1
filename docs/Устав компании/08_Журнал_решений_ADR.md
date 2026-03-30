@@ -91,6 +91,14 @@ useEffect(() => {
 - Пользователь видит сообщение об ошибке вместо молчаливого отказа.
 - UI не обновляется при неудаче (состояние остаётся корректным).
 
+**Примечание (обновление, pre-release delta-fix):**  
+Первоначальное решение использовало `window.alert(error.message)`. После F3 и pre-release QA это было признано несовместимым с остальным UI проекта (custom modals/banners). В рамках delta-fix перед релизом `window.alert` заменён на **inline error banner** внутри `WebNotificationBell`:
+- Появляется между header и списком уведомлений.
+- Автоматически скрывается через 5 секунд (или по кнопке ✕).
+- Не блокирует весь браузер, не ломает UX мобильного пользователя.
+
+Текущее решение: **inline banner**, `window.alert` не используется.
+
 ---
 
 ## ADR-005: Отказ от `window.dispatchEvent` для синхронизации
@@ -152,3 +160,138 @@ useEffect(() => {
 В `WebPropertyEditPanel.handleSave`: если `isCompanyAdmin && property.property_status === 'rejected'`, добавить в `updates`: `property_status: 'approved'`, `rejection_reason: ''`, и отправить `sendNotification(property.user_id, 'property_approved')`.
 
 **История в БД не удаляется** — это журнал, а не текущее состояние.
+
+---
+
+## ADR-009: Lightweight refresh как единственная модель синхронизации
+
+**Дата:** 2026-03-28  
+**Статус:** Принято и применено в релизе  
+
+**Контекст:**  
+В ходе разработки этапов F–G появилось несколько механизмов синхронизации данных: `window.dispatchEvent`, `onPropertiesChanged`, `historyRefreshKey`, `refreshKey`. Возник риск дублирования и рассинхронов.
+
+**Решение:**  
+Зафиксировать одну модель: **push-signal + fetch on demand**.
+
+Для бизнес-данных (объекты, бронирования, права, локации):
+```
+Action → broadcastChange(key) → WebMainScreen: refreshKey++ → useEffect([refreshKey]) → load()
+```
+
+Для инициатора действия (тот, кто нажал кнопку — его сессия не получает self-broadcast):
+```
+Action → onPropertiesChanged?.() → setRefreshKey(properties+1) → load()
+```
+
+Realtime-подписки (`supabase.channel().on('postgres_changes', ...)`) оставлены только для уведомлений (notification bell + browser push). Для всех остальных данных — запрещены.
+
+**Почему так:**  
+- Постоянные postgres_changes подписки на все таблицы создают нагрузку на Supabase и риск рассинхронов при reconnect.
+- Targeted refresh (only on demand) — предсказуем, легко отлаживается, не требует cleanup-логики на каждом экране.
+- Realtime для уведомлений оставлен: там важна мгновенная доставка, а объём событий минимален.
+
+**Применено в:**  
+`WebMainScreen`, `WebNotificationBell`, `WebPropertiesScreen`, `WebTeamSection`, `WebAccountScreen`
+
+**Запрещённые паттерны (финально закреплены):**  
+- ❌ `window.dispatchEvent` / `window.addEventListener` для синхронизации компонентов  
+- ❌ `setInterval` / polling для данных  
+- ❌ `postgres_changes` для бизнес-таблиц (только для `notifications`)  
+- ✅ `broadcastChange(key)` → `refreshKey` → `load()`
+---
+
+## ADR-010: Responsible-only access + Parent-driven cascade
+
+**Дата:** 2026-03-30  
+**Статус:** Принято и реализовано  
+
+**Контекст:**  
+До этого решения агент получал SELECT-доступ к объекту по двум критериям: `user_id = auth.uid()` (создатель) **или** `responsible_agent_id = auth.uid()` (назначен ответственным). При переназначении ответственного агент-создатель сохранял доступ, что нарушало принцип Company-First: данные компании были доступны агентам, потерявшим ответственность. Дополнительно: изменение ответственного на родительском резорте/кондо не каскадировалось на дочерние объекты — дети оставались на старом агенте.
+
+**Решение:**  
+1. **Доступ только по responsible_agent_id.** RLS policy `"properties: agent reads own and assigned"` заменена на `"properties: agent reads assigned"` (`responsible_agent_id = auth.uid()` без `OR user_id`). Аналогично для UPDATE. Миграция: `20260330000000_rls_properties_agent_responsible_only.sql`.  
+2. **Сервисный фильтр.** В `propertiesService.getProperties(agentId)` OR-фильтр заменён на `eq('responsible_agent_id', agentId)`.  
+3. **Каскад на дочерние объекты.** При сохранении родительского резорта/кондо через Edit Panel вызывается `updatePropertyResponsible(parentId, agentId, cascade=true)`, который обновляет все `resort_id = parentId` одним запросом.  
+4. **Блокировка ручного изменения на дочерних объектах.** В `WebPropertyEditPanel` для `isChildUnit=true` пикер ответственного заменён на readonly-метку. В `PropertyEditWizard` пикер скрыт при `isHouseInResort=true`. `buildUpdates` не включает `responsible_agent_id` для дочерних объектов.  
+5. **Наследование при создании.** Новый дочерний объект (`create-unit`) получает `responsible_agent_id = parentProperty.responsible_agent_id` автоматически.
+
+**Альтернативы:**  
+- Оставить двойной критерий (user_id OR responsible_agent_id) — отклонено: нарушает Company-First; агент-создатель не должен видеть объект после снятия ответственности.  
+- Ручное обновление каждого дочернего объекта при смене родительского ответственного — отклонено: admin error-prone, не атомарно.
+
+**Scope:**  
+- `supabase/migrations/20260330000000_rls_properties_agent_responsible_only.sql`  
+- `src/services/propertiesService.js` (getProperties)  
+- `src/web/components/WebPropertyEditPanel.js` (cascade + child lock)  
+- `src/components/PropertyEditWizard.js` (buildUpdates + picker visibility)  
+
+**Риски:**  
+- Агенты-создатели, которым ответственность была снята, потеряют доступ к ранее «своим» объектам — это ожидаемое поведение по бизнес-правилу, но требует уведомления команды.  
+- Если `responsible_agent_id` не был заполнен у части объектов (null) — агент не видит эти объекты. Решение: admin назначает ответственного через Edit Panel.
+
+**Rollback:**  
+Восстановить старую policy через миграцию с `OR user_id = auth.uid()`. Вернуть OR-фильтр в `propertiesService.getProperties`.
+
+**Verification:**  
+Smoke-test (2026-03-30): назначение агента через Edit Panel → видит родитель + все дочерние; снятие → теряет все; редактирование дочернего — пикер отсутствует.
+
+---
+
+## ADR-011: Финализация словаря ролей (`admin`/`agent`)
+
+**Дата:** 2026-03-30  
+**Статус:** Принято и зафиксировано в документации  
+
+**Контекст:**  
+В исторических документах и старых миграциях встречаются `owner` и `worker`, что создаёт риск неверной трактовки текущих правил.
+
+**Решение:**  
+Зафиксировать единственную актуальную модель ролей в `company_members`: `admin` и `agent`.  
+`owner` считать legacy-термином (соответствует `admin`), `worker` считать удалённой ролью.
+
+**SQL-подтверждение:**  
+- `company_members_role_check` допускает только `admin/agent`;  
+- `company_members_status_check` допускает только `active/inactive`.
+
+**Последствия:**  
+Новые фичи и проверки доступа должны опираться только на `admin/agent`. Исторические упоминания `owner/worker` допустимы только как архивные пометки.
+
+---
+
+## ADR-012: Web bookings — защита от `Invalid Date` + восстановление клика по свободной ячейке
+
+**Дата:** 2026-03-30  
+**Статус:** Принято и реализовано  
+
+**Проблема:**  
+В Web bookings при клике по Gantt возникал `Invalid Date`; после первичного фикса появился регресс — клик по свободной ячейке перестал открывать создание брони.
+
+**Причина:**  
+1) В `pxToDate` мог попадать невалидный `x`;  
+2) На `react-native-web` `locationX` может быть `undefined`, из-за чего guard корректно отбрасывал событие.
+
+**Решение:**  
+Оставлена строгая валидация даты и добавлен безопасный резолвер X-координаты клика (с fallback), чтобы корректно открывать create-flow по свободной ячейке.
+
+**Проверка:**  
+`Invalid Date` не появляется, клик по свободной ячейке снова открывает create, кнопка `+ Add booking` работает как раньше.
+
+---
+
+## ADR-013: Mobile bookings — корректный месяц при создании из CalendarScreen
+
+**Дата:** 2026-03-30  
+**Статус:** Принято и реализовано  
+
+**Проблема:**  
+В App при создании брони из `BookingCalendarScreen` шаг календаря открывался с начала ленты (например, январь 2025), а не с текущего/выбранного месяца.
+
+**Причина:**  
+Месяц вычислялся по локальному `locationX` без учёта горизонтального `scroll` таймлайна.
+
+**Решение:**  
+Вычисление месяца переведено на абсолютную координату (локальный X + текущий horizontal offset) с guard для невалидных индексов; при невалидном значении в модалку передаётся `initialMonth=null`.
+
+**Проверка:**  
+Тап в текущем и проскролленном месяце открывает корректный месяц; путь из `PropertyDetailScreen` не изменён.
