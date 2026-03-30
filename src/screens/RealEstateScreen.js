@@ -23,7 +23,10 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
 import { useRoute, useNavigation, useIsFocused } from '@react-navigation/native';
-import { createPropertyFull, deleteProperty } from '../services/propertiesService';
+import { createProperty, updateProperty, deleteProperty } from '../services/propertiesService';
+import { sendNotification, getUnreadCount, getTotalCount } from '../services/notificationsService';
+import { supabase } from '../services/supabase';
+import PropertyNotificationsModal from '../components/PropertyNotificationsModal';
 import AddPropertyModal from '../components/AddPropertyModal';
 import PropertyEditWizard from '../components/PropertyEditWizard';
 import FilterBottomSheet from '../components/FilterBottomSheet';
@@ -83,6 +86,12 @@ export default function RealEstateScreen({ onReady }) {
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [backTarget, setBackTarget] = useState(null);
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [totalCount, setTotalCount]   = useState(0);
+  const [notifRefreshKey, setNotifRefreshKey] = useState(0);
+  // Ref для стабильного чтения notifModalVisible внутри realtime-колбэка
+  const notifModalVisibleRef = useRef(false);
 
   // Refs so callbacks stay stable (no stale closure issues)
   const selectedPropertyRef = useRef(null);
@@ -116,6 +125,47 @@ export default function RealEstateScreen({ onReady }) {
     }
     prevVisible.current = isVisible;
   }, [isVisible]);
+
+  // Загружаем оба счётчика при каждом появлении вкладки
+  const refreshBadge = useCallback(() => {
+    getUnreadCount().then(setUnreadCount).catch(() => {});
+    getTotalCount().then(setTotalCount).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    refreshBadge();
+  }, [isVisible]);
+
+  // Синхронизируем ref с текущим значением — нужен для стабильного чтения в realtime callback
+  useEffect(() => {
+    notifModalVisibleRef.current = notifModalVisible;
+  }, [notifModalVisible]);
+
+  // Realtime ping: Supabase слушает INSERT/UPDATE/DELETE в notifications для текущего юзера.
+  // При событии — обновляем бейдж; если модалка открыта — тригерим reload списка.
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`notif-mobile-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `recipient_id=eq.${user.id}`,
+        },
+        () => {
+          refreshBadge();
+          if (notifModalVisibleRef.current) {
+            setNotifRefreshKey(k => k + 1);
+          }
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, refreshBadge]);
 
   useEffect(() => {
     if (!selectedProperty) return;
@@ -165,16 +215,52 @@ export default function RealEstateScreen({ onReady }) {
       const propertyData = isAgent
         ? { ...data, property_status: 'pending' }
         : data;
-      await createPropertyFull(propertyData);
+      const {
+        name,
+        code,
+        type,
+        location_id,
+        owner_id,
+        property_status,
+        ...detailsToUpdate
+      } = propertyData;
+
+      const created = await createProperty({
+        name: name || '',
+        code: code || '',
+        type: type || 'house',
+        location_id: location_id || null,
+        owner_id: owner_id || null,
+        property_status: property_status || 'approved',
+      });
+
+      const { responsible_agent_id, user_id, company_id, ...safeDetailsToUpdate } = detailsToUpdate;
+
+      if (created?.id && Object.keys(safeDetailsToUpdate).length > 0) {
+        await updateProperty(created.id, safeDetailsToUpdate);
+      }
+
       setWizardVisible(false);
       refreshProperties();
       if (isAgent) {
         Alert.alert(t('addProperty'), t('propSentForApproval') || 'Объект отправлен на утверждение администратору');
+        const adminId = user?.teamMembership?.adminId;
+        if (adminId && created?.id) {
+          const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email || '';
+          await sendNotification({
+            recipientId: adminId,
+            senderId: user.id,
+            type: 'property_submitted',
+            title: `${agentName} ${t('notifPropChangesMiddle')} «${created.name || created.code || ''}»`,
+            body: t('notifApprovalRequired'),
+            propertyId: created.id,
+          });
+        }
       }
     } catch (e) {
       Alert.alert(t('error'), e.message);
     }
-  }, [refreshProperties, t, user?.teamMembership]);
+  }, [refreshProperties, t, user?.teamMembership, user?.id, user?.name, user?.lastName, user?.email]);
 
   const handleDeleteProperty = useCallback((prop) => {
     Alert.alert(t('pdDeleteTitle'), t('pdDeleteConfirm'), [
@@ -199,8 +285,10 @@ export default function RealEstateScreen({ onReady }) {
     const drafts = properties.filter(p => draftStatuses.has(p.property_status));
     const approvedProperties = properties.filter(p => !p.property_status || p.property_status === 'approved');
 
-    const topLevel = approvedProperties.filter(p => !p.resort_id);
-    const children = approvedProperties.filter(p => p.resort_id);
+    // Когда включён inReview — ищем по всем объектам (включая pending/rejected)
+    const filterBase = filterValues?.inReview === true ? properties : approvedProperties;
+    const topLevel = filterBase.filter(p => !p.resort_id);
+    const children = filterBase.filter(p => p.resort_id);
     const getParent = (id) => properties.find(pr => pr.id === id);
 
     const hasActiveFilter = filterValues && (
@@ -212,7 +300,8 @@ export default function RealEstateScreen({ onReady }) {
       filterValues.priceMax != null ||
       filterValues.pets === true ||
       filterValues.longTerm === true ||
-      (filterValues.amenities?.length ?? 0) > 0
+      (filterValues.amenities?.length ?? 0) > 0 ||
+      filterValues.inReview === true
     );
 
     const q = searchQuery.trim().toLowerCase();
@@ -220,6 +309,10 @@ export default function RealEstateScreen({ onReady }) {
     const filterFn = (p, parent) => {
       if (!filterValues) return true;
       const f = filterValues;
+      // Когда включён фильтр "На проверке" — показываем только pending/rejected
+      if (f.inReview === true) {
+        return p.property_status === 'pending' || p.property_status === 'rejected';
+      }
       const cityVal = p.city ?? parent?.city;
       const districtVal = p.district ?? parent?.district;
       if (f.city && cityVal !== f.city) return false;
@@ -328,11 +421,29 @@ export default function RealEstateScreen({ onReady }) {
     <View style={styles.container}>
       <View style={styles.fixedTop}>
       <View style={styles.header}>
-        <View style={styles.headerSpacer} />
+        <View style={styles.headerActions} />
         <Text style={styles.headerTitle}>{t('realEstate')}</Text>
-        <TouchableOpacity style={[styles.filterBtn, hasActiveFilter && styles.filterBtnActive]} onPress={() => setFilterVisible(true)} activeOpacity={0.7}>
-          <Image source={require('../../assets/icon-filter.png')} style={[styles.filterIconImage, hasActiveFilter && styles.filterIconActive]} resizeMode="contain" />
-        </TouchableOpacity>
+        {/* Колокольчик уведомлений */}
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => setNotifModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.bellIcon}>🔔</Text>
+            {unreadCount > 0 ? (
+              // Новые уведомления — красный бейдж с числом непрочитанных
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            ) : totalCount > 0 ? (
+              // Только прочитанные — серый бейдж с общим числом
+              <View style={[styles.badge, styles.badgeRead]}>
+                <Text style={[styles.badgeText, styles.badgeTextRead]}>
+                  {totalCount > 9 ? '9+' : totalCount}
+                </Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
       </View>
 
       <View style={styles.toolbarRow}>
@@ -363,6 +474,18 @@ export default function RealEstateScreen({ onReady }) {
             resizeMode="contain"
           />
         </TouchableOpacity>
+        {/* Фильтр — в тулбаре, стиль как у остальных кнопок */}
+        <TouchableOpacity
+          style={[styles.toolbarBtn, hasActiveFilter && styles.filterBtnActive]}
+          activeOpacity={0.7}
+          onPress={() => setFilterVisible(true)}
+        >
+          <Image
+            source={require('../../assets/icon-filter.png')}
+            style={[styles.toolbarBtnImage, hasActiveFilter && styles.filterIconActive]}
+            resizeMode="contain"
+          />
+        </TouchableOpacity>
       </View>
       </View>
 
@@ -370,7 +493,7 @@ export default function RealEstateScreen({ onReady }) {
         <View style={styles.emptyWrap}>
           <ActivityIndicator size="large" color="#999" />
         </View>
-      ) : listToShow.length === 0 && drafts.length === 0 ? (
+      ) : listToShow.length === 0 && (hasActiveFilter || drafts.length === 0) ? (
         <View style={styles.emptyWrap}>
           <Text style={styles.emptyText}>{t('realEstateEmpty')}</Text>
         </View>
@@ -393,7 +516,7 @@ export default function RealEstateScreen({ onReady }) {
           initialNumToRender={12}
           maxToRenderPerBatch={8}
           windowSize={5}
-          ListFooterComponent={drafts.length > 0 ? (
+          ListFooterComponent={drafts.length > 0 && !hasActiveFilter ? (
             <View style={styles.draftsSection}>
               <Text style={styles.draftsSectionTitle}>{t('draftsSectionTitle')}</Text>
               {drafts.map(item => {
@@ -482,6 +605,17 @@ export default function RealEstateScreen({ onReady }) {
         cities={uniqueCities}
         districts={uniqueDistricts}
       />
+
+      <PropertyNotificationsModal
+        visible={notifModalVisible}
+        onClose={() => setNotifModalVisible(false)}
+        onBadgeUpdate={refreshBadge}
+        refreshSignal={notifRefreshKey}
+        onOpenProperty={(propertyId) => {
+          const found = properties.find(p => p.id === propertyId);
+          if (found) navigateToProperty(found);
+        }}
+      />
     </View>
   );
 }
@@ -501,8 +635,43 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 14,
   },
-  headerSpacer: {
+  headerActions: {
     width: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellIcon: {
+    fontSize: 22,
+  },
+  badge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#E53935',   // красный — новые уведомления
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeRead: {
+    backgroundColor: '#AAAAAA',   // серый — только прочитанные
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    lineHeight: 16,
+  },
+  badgeTextRead: {
+    color: '#FFFFFF',
   },
   headerTitle: {
     fontSize: 20,

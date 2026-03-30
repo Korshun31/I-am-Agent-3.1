@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
@@ -21,7 +23,8 @@ import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
 import { useAppData } from '../context/AppDataContext';
-import { getProperties, updateProperty, createPropertyFull, updateResortChildrenDistrict, updatePropertyResponsible, submitPropertyDraft, getPropertyDraft } from '../services/propertiesService';
+import { getProperties, updateProperty, createProperty, updateResortChildrenDistrict, updatePropertyResponsible, submitPropertyDraft, getPropertyDraft, getPropertyRejectionHistory, approveProperty, rejectProperty, approvePropertyDraft, rejectPropertyDraft } from '../services/propertiesService';
+import { supabase } from '../services/supabase';
 import { sendNotification } from '../services/notificationsService';
 import { getActiveTeamMembers } from '../services/companyService';
 import { deletePhotoFromStorage } from '../services/storageService';
@@ -1067,13 +1070,17 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
   // Агент видит только свои объекты — isOwnProperty всегда true для агентов
   const isTeamMember = !!(user?.teamMembership);
-  const isAdmin = !isTeamMember && !!(user?.companyId); // владелец компании
+  // Phase 1: explicit role predicate (LOCK-001). Falls back to isTeamMember.
+  const isAgentRole = user?.isAgentRole ?? isTeamMember;
+  const isAdmin = user?.workAs === 'company' && !!(user?.companyId); // web-паттерн: явная проверка company mode
   const canBook = user?.teamPermissions?.can_book;
   const canEditInfo = !isTeamMember || user?.teamPermissions?.can_edit_info;
   const canEditPrices = !isTeamMember || user?.teamPermissions?.can_edit_prices;
-  const needsApproval = isTeamMember && (!canEditInfo || !canEditPrices);
+  const needsApproval = isTeamMember && (!canEditInfo || !canEditPrices || p?.property_status === 'rejected');
+  const isApproved = !p?.property_status || p?.property_status === 'approved';
+  // Agent may delete only their own non-approved property (LOCK-001)
+  const isCreator = p?.user_id === user?.id;
   const [wizardVisible, setWizardVisible] = useState(false);
-  const [responsiblePickerVisible, setResponsiblePickerVisible] = useState(false);
   const [teamMembers, setTeamMembers] = useState([]);
   const [currentResponsible, setCurrentResponsible] = useState(p?.responsible_agent_id ?? null);
   const [addHouseWizardVisible, setAddHouseWizardVisible] = useState(false);
@@ -1099,12 +1106,142 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const [editBookingModalVisible, setEditBookingModalVisible] = useState(false);
   const [editBookingToEdit, setEditBookingToEdit] = useState(null);
   const [pendingDraft, setPendingDraft] = useState(null);
+  const [rejectionHistory, setRejectionHistory] = useState([]);
+  // Admin moderation: pending draft from any agent (different from own pendingDraft)
+  const [adminAgentDraft, setAdminAgentDraft] = useState(null);
+  const [rejectFormVisible, setRejectFormVisible] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectReasonError, setRejectReasonError] = useState(false);
+  const [moderating, setModerating] = useState(false);
 
-  // Загружаем pending-черновик агента для отображения баннера
+  // Priority-based display status — computed AFTER all useState declarations so that
+  // pendingDraft and adminAgentDraft hold their actual state values (not Babel-hoisted undefined).
+  const hasPendingDraft = Boolean(pendingDraft);
+  const hasAdminAgentDraft = isAdmin && Boolean(adminAgentDraft);
+  let displayStatus = null;
+  if (hasPendingDraft || hasAdminAgentDraft) {
+    displayStatus = 'in_review';
+  } else if (p?.property_status === 'rejected') {
+    displayStatus = 'rejected';
+  } else if (p?.property_status === 'pending') {
+    displayStatus = 'in_review';
+  }
+
+  // Загружаем pending-черновик и историю отклонений при смене объекта или обновлении списка.
+  // cancel-флаг предотвращает setState после размонтирования.
+  // Синхронизируем p с актуальными данными из AppDataContext (как web делает с selected).
   useEffect(() => {
-    if (!isTeamMember || !p?.id) { setPendingDraft(null); return; }
-    getPropertyDraft(p.id).then(setPendingDraft).catch(() => {});
-  }, [p?.id, isTeamMember, properties]);
+    let cancelled = false;
+    if (!p?.id) {
+      setPendingDraft(null);
+      setRejectionHistory([]);
+      return;
+    }
+    // Sync local property state with fresh data from AppDataContext (mirrors web's setSelected sync)
+    if (properties?.length) {
+      const fresh = properties.find(x => x.id === p.id);
+      if (fresh && fresh.property_status !== p.property_status) {
+        setP(fresh);
+      }
+    }
+    getPropertyDraft(p.id)
+      .then(draft => { if (!cancelled) setPendingDraft(draft); })
+      .catch(() => {});
+    getPropertyRejectionHistory(p.id)
+      .then(history => { if (!cancelled) setRejectionHistory(history); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [p?.id, p?.property_status, properties]);
+
+  // Admin: load any agent's pending draft for this property.
+  // Extracted into useCallback so it can be called both on screen focus (useFocusEffect)
+  // and whenever isAdmin or p?.id changes (useEffect below).
+  const loadAdminDraft = useCallback(() => {
+    if (!isAdmin || !p?.id) {
+      setAdminAgentDraft(null);
+      return undefined;
+    }
+    let cancelled = false;
+    supabase
+      .from('property_drafts')
+      .select('id, user_id')
+      .eq('property_id', p.id)
+      .eq('status', 'pending')
+      .limit(1)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.warn('[adminAgentDraft] query error:', error.message, error.code);
+          return;
+        }
+        setAdminAgentDraft(data || null);
+        if (data) {
+          setRejectFormVisible(false);
+          setRejectReason('');
+          setRejectReasonError(false);
+        }
+      })
+      .catch(e => console.warn('[adminAgentDraft] unexpected error:', e?.message));
+    return () => { cancelled = true; };
+  }, [isAdmin, p?.id]);
+
+  // Fire every time the screen gains focus (mirrors web's draftRefreshKey mechanism).
+  // Guarantees fresh data when admin navigates to the screen after agent resubmits.
+  useFocusEffect(useCallback(() => { return loadAdminDraft(); }, [loadAdminDraft]));
+
+  // Also fire when isAdmin or p?.id changes while screen is already mounted.
+  useEffect(() => { return loadAdminDraft(); }, [loadAdminDraft]);
+
+  // Re-run when AppDataContext properties refresh (triggered by broadcastChange after agent resubmit).
+  // This covers the case where admin is already on the screen when agent sends for review.
+  useEffect(() => {
+    if (isAdmin && p?.id) return loadAdminDraft();
+  }, [isAdmin, p?.id, properties, loadAdminDraft]);
+
+  // Admin realtime ping: lightweight subscription on property_drafts for this property.
+  // When the agent submits a new draft, the admin sees the status switch to in_review immediately.
+  // One targeted channel per open detail screen — minimal server load.
+  useEffect(() => {
+    if (!isAdmin || !p?.id) return;
+
+    // Realtime ping: accelerates update when property_drafts is in supabase_realtime publication.
+    // Falls back gracefully to the properties-dep useEffect above if publication is not enabled.
+    const reloadAdminDraft = () => {
+      supabase
+        .from('property_drafts')
+        .select('id, user_id')
+        .eq('property_id', p.id)
+        .eq('status', 'pending')
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => {
+          setAdminAgentDraft(data || null);
+          if (data) {
+            setRejectFormVisible(false);
+            setRejectReason('');
+            setRejectReasonError(false);
+          }
+        })
+        .catch(() => {});
+    };
+
+    const channel = supabase
+      .channel(`admin-draft-watch-${p.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'property_drafts',
+          filter: `property_id=eq.${p.id}`,
+        },
+        reloadAdminDraft,
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [isAdmin, p?.id]);
 
   const loadResortData = useCallback(async (resortId) => {
     if (!resortId) { setResort(null); return; }
@@ -1235,6 +1372,101 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     Linking.openURL(url).catch(() => Alert.alert('Error', 'Cannot open link'));
   };
 
+  // ── Admin moderation: Approve ──────────────────────────────────────────────
+  const handleAdminApprove = useCallback(() => {
+    Alert.alert(
+      t('approveConfirmTitle'),
+      t('approveConfirmMsg'),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('propApprove'),
+          onPress: async () => {
+            setModerating(true);
+            try {
+              if (adminAgentDraft) {
+                // edit_submitted flow: approve the agent's draft
+                const updated = await approvePropertyDraft(adminAgentDraft.id);
+                setP(prev => ({ ...prev, ...(updated || {}), property_status: 'approved' }));
+                setAdminAgentDraft(null);
+                setPendingDraft(null);
+                await sendNotification({
+                  recipientId: adminAgentDraft.user_id,
+                  senderId: user.id,
+                  type: 'edit_approved',
+                  title: t('changesApproved'),
+                  body: p.name,
+                  propertyId: p.id,
+                });
+              } else {
+                // property_submitted flow: approve the property directly
+                await approveProperty(p.id);
+                setP(prev => ({ ...prev, property_status: 'approved' }));
+                if (p.user_id) {
+                  await sendNotification({
+                    recipientId: p.user_id,
+                    senderId: user.id,
+                    type: 'property_approved',
+                    title: t('changesApproved'),
+                    body: p.name,
+                    propertyId: p.id,
+                  });
+                }
+              }
+              onPropertyUpdated?.();
+            } catch (e) {
+              Alert.alert(t('error') || 'Error', e.message || 'Failed to approve');
+            } finally {
+              setModerating(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [adminAgentDraft, p, user, t, onPropertyUpdated]);
+
+  // ── Admin moderation: Reject ───────────────────────────────────────────────
+  const handleAdminReject = useCallback(async () => {
+    const trimmed = rejectReason.trim();
+    if (!trimmed) {
+      setRejectReasonError(true);
+      return;
+    }
+    setModerating(true);
+    try {
+      if (adminAgentDraft) {
+        await rejectPropertyDraft(adminAgentDraft.id, trimmed);
+        setAdminAgentDraft(null);
+        setP(prev => ({ ...prev, property_status: 'rejected', rejection_reason: trimmed }));
+      } else {
+        await rejectProperty(p.id, trimmed);
+        setP(prev => ({ ...prev, property_status: 'rejected', rejection_reason: trimmed }));
+      }
+      // Refresh rejection history to include the new entry
+      getPropertyRejectionHistory(p.id).then(setRejectionHistory).catch(() => {});
+      // Notify the agent
+      const agentId = adminAgentDraft?.user_id ?? p.user_id;
+      if (agentId) {
+        await sendNotification({
+          recipientId: agentId,
+          senderId: user.id,
+          type: adminAgentDraft ? 'edit_rejected' : 'property_rejected',
+          title: t('changesRejected'),
+          body: `${t('diffReason')} ${trimmed}`,
+          propertyId: p.id,
+        });
+      }
+      setRejectFormVisible(false);
+      setRejectReason('');
+      setRejectReasonError(false);
+      onPropertyUpdated?.();
+    } catch (e) {
+      Alert.alert(t('error') || 'Error', e.message || 'Failed to reject');
+    } finally {
+      setModerating(false);
+    }
+  }, [adminAgentDraft, rejectReason, p, user, t, onPropertyUpdated]);
+
   const handleWizardSave = async (updates) => {
     try {
       const oldPhotos = Array.isArray(p.photos) ? p.photos : [];
@@ -1320,7 +1552,32 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
   const handleAddHouseSave = async (updates) => {
     try {
-      const created = await createPropertyFull({ ...updates, resort_id: p.id });
+      const fullData = { ...updates, resort_id: p.id };
+      const {
+        name,
+        code,
+        type,
+        location_id,
+        owner_id,
+        property_status,
+        ...detailsToUpdate
+      } = fullData;
+
+      const created = await createProperty({
+        name: name || '',
+        code: code || '',
+        type: type || 'house',
+        location_id: location_id || null,
+        owner_id: owner_id || null,
+        property_status: property_status || 'approved',
+      });
+
+      const { responsible_agent_id, user_id, company_id, ...safeDetailsToUpdate } = detailsToUpdate;
+
+      if (created?.id && Object.keys(safeDetailsToUpdate).length > 0) {
+        await updateProperty(created.id, safeDetailsToUpdate);
+      }
+
       setAddHouseWizardVisible(false);
       setNewHouseIdToExpand(created.id);
       setRefreshResortHousesTrigger(prev => prev + 1);
@@ -1332,7 +1589,32 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
   const handleAddApartmentSave = async (updates) => {
     try {
-      await createPropertyFull({ ...updates, resort_id: p.id });
+      const fullData = { ...updates, resort_id: p.id };
+      const {
+        name,
+        code,
+        type,
+        location_id,
+        owner_id,
+        property_status,
+        ...detailsToUpdate
+      } = fullData;
+
+      const created = await createProperty({
+        name: name || '',
+        code: code || '',
+        type: type || 'house',
+        location_id: location_id || null,
+        owner_id: owner_id || null,
+        property_status: property_status || 'approved',
+      });
+
+      const { responsible_agent_id, user_id, company_id, ...safeDetailsToUpdate } = detailsToUpdate;
+
+      if (created?.id && Object.keys(safeDetailsToUpdate).length > 0) {
+        await updateProperty(created.id, safeDetailsToUpdate);
+      }
+
       setAddApartmentWizardVisible(false);
       setRefreshApartmentsTrigger(prev => prev + 1);
       onPropertyUpdated?.();
@@ -1420,7 +1702,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const responsibleName = (!currentResponsible || currentResponsible === user?.id)
     ? companyDisplayName
     : (() => {
-        const m = teamMembers.find(tm => tm.agent_id === currentResponsible);
+        const m = teamMembers.find(tm => tm.user_id === currentResponsible);
         return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : companyDisplayName;
       })();
 
@@ -1436,8 +1718,8 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
       {/* Строка действий */}
       <View style={styles.actionsRow}>
-        {/* Удалить — скрыто для агентов всегда */}
-        {!isTeamMember && (
+        {/* Удалить — для не-агентов всегда; для agent-role только если создатель + не approved (LOCK-001) */}
+        {(!isAgentRole || (isCreator && !isApproved)) && (
           <TouchableOpacity style={styles.actionBtn} onPress={onDelete} activeOpacity={0.7}>
             <Image source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
           </TouchableOpacity>
@@ -1447,8 +1729,8 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
             <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
           </TouchableOpacity>
-          {/* Добавить бронирование / добавить дом — для агента только если есть can_book */}
-          {(!isTeamMember || canBook) && (
+          {/* Добавить бронирование / добавить дом — только для approved, для агента только если есть can_book */}
+          {isApproved && (!isTeamMember || canBook) && (
             <TouchableOpacity
               style={styles.actionBtn}
               activeOpacity={0.7}
@@ -1468,75 +1750,97 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         </View>
       </View>
 
-      {/* Пикер ответственного */}
-      <Modal
-        visible={responsiblePickerVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setResponsiblePickerVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.pickerOverlay}
-          activeOpacity={1}
-          onPress={() => setResponsiblePickerVisible(false)}
-        >
-          <View style={styles.pickerSheet}>
-            <Text style={styles.pickerTitle}>{t('propResponsiblePicker')}</Text>
-            {/* Компания */}
-            <TouchableOpacity
-              style={[styles.pickerItem, !currentResponsible && styles.pickerItemActive]}
-              onPress={async () => {
-                const isResort = p.type === 'resort' || p.type === 'condo';
-                if (isResort) {
-                  Alert.alert('Каскад', 'Применить также ко всем объектам внутри?', [
-                    { text: 'Только этот', onPress: async () => { await updatePropertyResponsible(p.id, null, false); setCurrentResponsible(null); setResponsiblePickerVisible(false); } },
-                    { text: 'Все внутри', onPress: async () => { await updatePropertyResponsible(p.id, null, true); setCurrentResponsible(null); setResponsiblePickerVisible(false); } },
-                  ]);
-                } else {
-                  await updatePropertyResponsible(p.id, null, false);
-                  setCurrentResponsible(null);
-                  setResponsiblePickerVisible(false);
-                }
-              }}
-            >
-              <Text style={[styles.pickerItemText, !currentResponsible && styles.pickerItemTextActive]}>Компания</Text>
-            </TouchableOpacity>
-            {/* Участники команды */}
-            {teamMembers.filter(m => m.role !== 'owner').map(m => {
-              const name = [m.name, m.last_name].filter(Boolean).join(' ') || m.email;
-              const isSelected = currentResponsible === m.agent_id;
-              return (
-                <TouchableOpacity
-                  key={m.agent_id}
-                  style={[styles.pickerItem, isSelected && styles.pickerItemActive]}
-                  onPress={async () => {
-                    const isResort = p.type === 'resort' || p.type === 'condo';
-                    if (isResort) {
-                      Alert.alert('Каскад', 'Применить также ко всем объектам внутри?', [
-                        { text: 'Только этот', onPress: async () => { await updatePropertyResponsible(p.id, m.agent_id, false); setCurrentResponsible(m.agent_id); setResponsiblePickerVisible(false); } },
-                        { text: 'Все внутри', onPress: async () => { await updatePropertyResponsible(p.id, m.agent_id, true); setCurrentResponsible(m.agent_id); setResponsiblePickerVisible(false); } },
-                      ]);
-                    } else {
-                      await updatePropertyResponsible(p.id, m.agent_id, false);
-                      setCurrentResponsible(m.agent_id);
-                      setResponsiblePickerVisible(false);
-                    }
-                  }}
-                >
-                  <Text style={[styles.pickerItemText, isSelected && styles.pickerItemTextActive]}>{name}</Text>
-                </TouchableOpacity>
-              );
-            })}
+      {/* ── Status block (uses pre-computed displayStatus) ── */}
+      {displayStatus && (
+        <View style={styles.statusBlockWrap}>
+          <View style={[styles.statusBadge, displayStatus === 'rejected' ? styles.statusBadgeRejected : styles.statusBadgePending]}>
+            <Text style={[styles.statusBadgeText, displayStatus === 'rejected' ? styles.statusBadgeTextRejected : styles.statusBadgeTextPending]}>
+              {displayStatus === 'rejected' ? t('propRejected') : t('filterInReview')}
+            </Text>
+            {displayStatus === 'rejected' && (
+              <Text style={styles.statusBadgeSubtitle}>{t('propRejectedSubtitle')}</Text>
+            )}
           </View>
-        </TouchableOpacity>
-      </Modal>
 
-      {/* Баннер ожидания проверки черновика */}
-      {pendingDraft && (
-        <View style={styles.draftBanner}>
-          <Text style={styles.draftBannerText}>
-            {t('propDraftSent')}
-          </Text>
+          {rejectionHistory.length > 0 && (
+            <View style={styles.rejHistoryBlock}>
+              <Text style={styles.rejHistoryTitle}>{t('propRejectionHistory')}</Text>
+              {rejectionHistory.map((item, index) => {
+                const isLatest = index === 0;
+                const num = rejectionHistory.length - index;
+                return (
+                  <View key={item.id} style={styles.rejHistoryItem}>
+                    <Text style={[styles.rejHistoryNum, isLatest && styles.rejHistoryNumLatest]}>
+                      {`#${num}`}
+                    </Text>
+                    <Text style={[styles.rejHistoryReason, isLatest && styles.rejHistoryReasonLatest]}>
+                      {item.reason}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* ── Admin moderation actions (only when admin + displayStatus = in_review) ── */}
+      {isAdmin && displayStatus === 'in_review' && (
+        <View style={styles.adminActionsWrap}>
+          {!rejectFormVisible ? (
+            <View style={styles.adminActionRow}>
+              <TouchableOpacity
+                style={[styles.adminActionBtn, styles.adminActionApprove, moderating && styles.adminActionDisabled]}
+                onPress={handleAdminApprove}
+                disabled={moderating}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.adminActionApproveText}>{t('propApprove')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.adminActionBtn, styles.adminActionReject, moderating && styles.adminActionDisabled]}
+                onPress={() => { setRejectFormVisible(true); setRejectReason(''); setRejectReasonError(false); }}
+                disabled={moderating}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.adminActionRejectText}>{t('propReject')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.rejectForm}>
+              <Text style={styles.rejectFormLabel}>{t('propRejectionReason')}</Text>
+              <TextInput
+                style={[styles.rejectFormInput, rejectReasonError && styles.rejectFormInputError]}
+                value={rejectReason}
+                onChangeText={v => { setRejectReason(v); if (rejectReasonError) setRejectReasonError(false); }}
+                placeholder={t('propRejectReasonPlaceholder')}
+                placeholderTextColor="#AAAAAA"
+                multiline
+                editable={!moderating}
+              />
+              {rejectReasonError && (
+                <Text style={styles.rejectFormErrorText}>{t('propRejectReasonRequired')}</Text>
+              )}
+              <View style={styles.adminActionRow}>
+                <TouchableOpacity
+                  style={[styles.adminActionBtn, styles.adminActionCancel]}
+                  onPress={() => { setRejectFormVisible(false); setRejectReason(''); setRejectReasonError(false); }}
+                  disabled={moderating}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.adminActionCancelText}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.adminActionBtn, styles.adminActionSubmitReject, moderating && styles.adminActionDisabled]}
+                  onPress={handleAdminReject}
+                  disabled={moderating}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.adminActionSubmitRejectText}>{t('propRejectSubmit')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       )}
 
@@ -1559,7 +1863,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
               setSelectedBookingTitle(codePart || '');
               setSelectedBookingProperty(property || null);
             }}
-            onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
+            onOpenBookingCalendar={isApproved ? (ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); } : undefined}
             hideLocation={false}
             responsibleName={isAdmin ? responsibleName : undefined}
           />
@@ -1579,7 +1883,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
               setSelectedBookingTitle(codePart || '');
               setSelectedBookingProperty(property || null);
             }}
-            onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
+            onOpenBookingCalendar={isApproved ? (ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); } : undefined}
             hideLocation={false}
             responsibleName={isAdmin ? responsibleName : undefined}
           />
@@ -1600,7 +1904,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
               setSelectedBooking(b);
               setSelectedBookingTitle(codePart || '');
             }}
-            onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
+            onOpenBookingCalendar={isApproved ? (ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); } : undefined}
             hideLocation={false}
             responsibleName={isAdmin ? responsibleName : undefined}
           />
@@ -1711,44 +2015,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 14,
     paddingHorizontal: 20,
-  },
-  pickerOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  pickerSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 16,
-    paddingBottom: 40,
-    paddingHorizontal: 20,
-  },
-  pickerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#212529',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  pickerItem: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    marginBottom: 6,
-    backgroundColor: '#F8F9FA',
-  },
-  pickerItemActive: {
-    backgroundColor: '#E8F5E9',
-  },
-  pickerItemText: {
-    fontSize: 15,
-    color: '#495057',
-  },
-  pickerItemTextActive: {
-    color: '#2E7D32',
-    fontWeight: '700',
   },
   actionsRight: {
     flexDirection: 'row',
@@ -2065,5 +2331,162 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#F57F17',
     fontWeight: '600',
+  },
+  statusBlockWrap: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    gap: 8,
+  },
+  statusBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+  },
+  statusBadgePending: {
+    backgroundColor: '#FFF8E1',
+    borderColor: '#FFE082',
+  },
+  statusBadgeRejected: {
+    backgroundColor: '#FFF5F5',
+    borderColor: '#FFCDD2',
+  },
+  statusBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  statusBadgeTextPending: {
+    color: '#F57F17',
+  },
+  statusBadgeTextRejected: {
+    color: '#C62828',
+  },
+  statusBadgeSubtitle: {
+    fontSize: 12,
+    color: '#C62828',
+    marginTop: 2,
+    fontWeight: '400',
+  },
+  rejHistoryBlock: {
+    backgroundColor: '#FAFAFA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#F0E0E0',
+    padding: 12,
+    gap: 6,
+  },
+  rejHistoryTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#999',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 4,
+  },
+  rejHistoryItem: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'flex-start',
+  },
+  rejHistoryNum: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#BBBBBB',
+    minWidth: 28,
+  },
+  rejHistoryNumLatest: {
+    color: '#C62828',
+    fontWeight: '700',
+  },
+  rejHistoryReason: {
+    flex: 1,
+    fontSize: 13,
+    color: '#AAAAAA',
+    lineHeight: 18,
+  },
+  rejHistoryReasonLatest: {
+    color: '#C62828',
+    fontWeight: '600',
+  },
+  adminActionsWrap: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+  },
+  adminActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  adminActionBtn: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  adminActionApprove: {
+    backgroundColor: '#3D7D82',
+  },
+  adminActionApproveText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  adminActionReject: {
+    backgroundColor: '#FFF0F0',
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
+  },
+  adminActionRejectText: {
+    color: '#C62828',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  adminActionCancel: {
+    backgroundColor: '#F2F2F7',
+  },
+  adminActionCancelText: {
+    color: '#555555',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  adminActionSubmitReject: {
+    backgroundColor: '#C62828',
+  },
+  adminActionSubmitRejectText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  adminActionDisabled: {
+    opacity: 0.5,
+  },
+  rejectForm: {
+    gap: 8,
+  },
+  rejectFormLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#555555',
+    marginBottom: 2,
+  },
+  rejectFormInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#1C1C1E',
+    minHeight: 72,
+    textAlignVertical: 'top',
+    backgroundColor: '#FAFAFA',
+  },
+  rejectFormInputError: {
+    borderColor: '#C62828',
+  },
+  rejectFormErrorText: {
+    fontSize: 12,
+    color: '#C62828',
+    marginTop: -4,
   },
 });

@@ -3,8 +3,10 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Switch, Animated, Modal, ActivityIndicator, Image, Platform,
 } from 'react-native';
-import { updateProperty, createPropertyFull, createProperty, submitPropertyDraft } from '../../services/propertiesService';
+import { updateProperty, createPropertyFull, createProperty, submitPropertyDraft, updatePropertyResponsible } from '../../services/propertiesService';
 import { getCompanyLocations, getLocationsForAgent, getLocationDistricts } from '../../services/locationsService';
+import { getContacts } from '../../services/contactsService';
+import { getActiveTeamMembers } from '../../services/companyService';
 import { sendNotification } from '../../services/notificationsService';
 import { supabase } from '../../services/supabase';
 import { useLanguage } from '../../context/LanguageContext';
@@ -248,6 +250,9 @@ function buildForm(property, parentProperty) {
       code_suffix: property.code_suffix || '',
       type: property.type || 'house',
       location_id: property.location_id || null,
+      owner_id: property.owner_id || null,
+      owner_id_2: property.owner_id_2 || null,
+      responsible_agent_id: property.responsible_agent_id || null,
       city: property.city || '',
       district: property.district || '',
       houses_count: property.houses_count ?? '',
@@ -297,6 +302,9 @@ function buildForm(property, parentProperty) {
     name: '', code: parentProperty?.code || '', code_suffix: '',
     type: 'house',
     location_id: parentProperty?.location_id || null,
+    owner_id: parentProperty?.owner_id || null,
+    owner_id_2: null,
+    responsible_agent_id: null,
     city: parentProperty?.city || '',
     district: parentProperty?.district || '',
     houses_count: '', floors: '',
@@ -344,8 +352,9 @@ export default function WebPropertyEditPanel({
 }) {
   const { t } = useLanguage();
 
-  // Разрешения агента
+  // Разрешения агента / роли
   const isAgent = !!user?.teamMembership;
+  const isCompanyAdmin = !isAgent && !!(user?.workAs === 'company' && user?.companyId);
   const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
   const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
   // Кнопка «Отправить на проверку» если агент не может редактировать основные данные
@@ -362,6 +371,8 @@ export default function WebPropertyEditPanel({
   const [form, setForm] = useState(() => buildForm(property, parentProperty));
   const [locations, setLocations] = useState([]);
   const [districts, setDistricts] = useState([]);
+  const [owners, setOwners] = useState([]);
+  const [panelTeamMembers, setPanelTeamMembers] = useState([]);
 
   // Load available locations based on user role
   useEffect(() => {
@@ -384,6 +395,13 @@ export default function WebPropertyEditPanel({
     getLocationDistricts(form.location_id).then(setDistricts).catch(() => setDistricts([]));
   }, [form.location_id]);
 
+  // Admin only: load owner contacts and team members for pickers
+  useEffect(() => {
+    if (!visible || !isCompanyAdmin) return;
+    getContacts('owners').then(setOwners).catch(() => setOwners([]));
+    getActiveTeamMembers(user.companyId).then(setPanelTeamMembers).catch(() => setPanelTeamMembers([]));
+  }, [visible, isCompanyAdmin, user?.companyId]);
+
   // Determine if this is a parent resort/condo (not a child unit)
   const effectiveType = mode === 'create-unit' ? (parentProperty?.type || 'house') : (property?.type || form.type);
   const isChildUnit = mode === 'create-unit' || Boolean(property?.resort_id);
@@ -396,6 +414,7 @@ export default function WebPropertyEditPanel({
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [reviewRejectMode, setReviewRejectMode] = useState(false);
   const [reviewReason, setReviewReason] = useState('');
+  const [reviewRejectError, setReviewRejectError] = useState('');
   const slideAnim    = useRef(new Animated.Value(540)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(false);
@@ -409,6 +428,7 @@ export default function WebPropertyEditPanel({
       setError('');
       setReviewRejectMode(false);
       setReviewReason('');
+      setReviewRejectError('');
       Animated.parallel([
         Animated.spring(slideAnim, {
           toValue: 0,
@@ -506,6 +526,12 @@ export default function WebPropertyEditPanel({
       photos: form.photos || [],
       video_url: form.video_url.trim() || null,
       currency: activeCurrency,
+      ...(isCompanyAdmin && !isChildUnit && { owner_id: form.owner_id || null }),
+      ...(isCompanyAdmin && isChildUnit  && { owner_id_2: form.owner_id_2 || null }),
+      // responsible_agent_id: parent resort/condo → cascade separately after save;
+      //                       child unit         → inherited, never touch here;
+      //                       standalone house   → plain field update.
+      ...(isCompanyAdmin && !isParent && !isChildUnit && { responsible_agent_id: form.responsible_agent_id || null }),
     };
 
     try {
@@ -537,6 +563,11 @@ export default function WebPropertyEditPanel({
           updates.rejection_reason = '';
         }
         saved = await updateProperty(property.id, updates);
+        // Parent resort/condo: cascade responsible to all child units
+        if (isCompanyAdmin && isParent) {
+          await updatePropertyResponsible(property.id, form.responsible_agent_id || null, true);
+          if (saved) saved = { ...saved, responsible_agent_id: form.responsible_agent_id || null };
+        }
         // Уведомить агента об одобрении после авто-принятия
         if (isCompanyAdmin && wasRejected && saved && property.user_id) {
           await sendNotification({
@@ -553,6 +584,7 @@ export default function WebPropertyEditPanel({
           ...updates,
           resort_id: parentProperty.id,
           type: parentProperty.type,
+          responsible_agent_id: parentProperty.responsible_agent_id ?? null,
           property_status: isAgent ? 'pending' : 'approved',
         });
         if (isAgent && adminId) {
@@ -726,6 +758,83 @@ export default function WebPropertyEditPanel({
           </FieldRow>
         </View>
       </View>
+
+      {/* ── Owners + Responsible — admin only ── */}
+      {isCompanyAdmin && !readOnly && (
+        <>
+          <SectionDivider title={t('propOwners')} />
+
+          {isChildUnit ? (
+            <>
+              <FieldRow label={`${t('propOwner1')} 🔒`}>
+                <View style={s.fieldInputReadonly}>
+                  <Text style={s.fieldInputReadonlyText}>
+                    {(() => {
+                      const parentOwnerId = parentProperty?.owner_id ?? property?.owner_id;
+                      const o = owners.find(c => c.id === parentOwnerId);
+                      return o ? [o.name, o.lastName].filter(Boolean).join(' ') : '—';
+                    })()}
+                  </Text>
+                  <Text style={s.fieldInputReadonlyHint}>🔒</Text>
+                </View>
+              </FieldRow>
+              <FieldRow label={t('propOwner2')}>
+                <FieldDropdown
+                  value={form.owner_id_2 || ''}
+                  options={[
+                    { value: '', label: '—' },
+                    ...owners.map(c => ({ value: c.id, label: [c.name, c.lastName].filter(Boolean).join(' ') })),
+                  ]}
+                  onChange={v => set('owner_id_2', v || null)}
+                />
+              </FieldRow>
+            </>
+          ) : (
+            <FieldRow label={t('propOwner1')}>
+              <FieldDropdown
+                value={form.owner_id || ''}
+                options={[
+                  { value: '', label: '—' },
+                  ...owners.map(c => ({ value: c.id, label: [c.name, c.lastName].filter(Boolean).join(' ') })),
+                ]}
+                onChange={v => set('owner_id', v || null)}
+              />
+            </FieldRow>
+          )}
+
+          <SectionDivider title={t('propResponsiblePicker')} />
+          {isChildUnit ? (
+            <FieldRow label={t('propResponsibleLabel')}>
+              <View style={s.fieldInputReadonly}>
+                <Text style={s.fieldInputReadonlyText}>{t('propResponsibleInherited')}</Text>
+                <Text style={s.fieldInputReadonlyHint}>🔒</Text>
+              </View>
+            </FieldRow>
+          ) : (
+            <FieldRow label={t('propResponsibleLabel')}>
+              {(() => {
+                const COMPANY_SENTINEL = '__company__';
+                const companyLabel = user?.companyInfo?.name || t('workAsCompany');
+                return (
+                  <FieldDropdown
+                    value={form.responsible_agent_id ?? COMPANY_SENTINEL}
+                    options={[
+                      { value: COMPANY_SENTINEL, label: companyLabel },
+                      ...panelTeamMembers
+                        .filter(m => m.role === 'agent')
+                        .map(m => ({
+                          value: m.user_id,
+                          label: [m.name, m.last_name].filter(Boolean).join(' ') || m.email,
+                        })),
+                    ]}
+                    onChange={v => set('responsible_agent_id', v === COMPANY_SENTINEL ? null : (v || null))}
+                  />
+                );
+              })()}
+            </FieldRow>
+          )}
+        </>
+      )}
 
       <SectionDivider title={t('propParams')} />
 
@@ -1068,19 +1177,38 @@ export default function WebPropertyEditPanel({
                     placeholder={t('diffRejectPlaceholder')}
                     placeholderTextColor={C.light}
                     value={reviewReason}
-                    onChangeText={setReviewReason}
+                    onChangeText={(v) => {
+                      setReviewReason(v);
+                      if (reviewRejectError) setReviewRejectError('');
+                    }}
                     multiline
                     numberOfLines={3}
                     autoFocus
                   />
+                  {!!reviewRejectError && (
+                    <Text style={s.reviewRejectErrorText}>{reviewRejectError}</Text>
+                  )}
                   <View style={s.footerBtns}>
                     <TouchableOpacity style={s.cancelBtn}
-                      onPress={() => { setReviewRejectMode(false); setReviewReason(''); }}>
+                      onPress={() => { setReviewRejectMode(false); setReviewReason(''); setReviewRejectError(''); }}>
                       <Text style={s.cancelBtnText}>{t('reviewBack')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[s.saveBtn, { backgroundColor: '#FFF5F5', borderColor: '#FFCDD2' }]}
-                      onPress={() => { onReject?.(reviewReason); onClose(); }}>
+                      onPress={async () => {
+                        const trimmed = (reviewReason || '').trim();
+                        if (!trimmed) {
+                          setReviewRejectError(t('propRejectReasonRequired') || 'Причина обязательна');
+                          return;
+                        }
+                        setReviewRejectError('');
+                        const ok = await onReject?.(trimmed);
+                        if (ok === false) {
+                          setReviewRejectError(t('rejectError') || t('errorSave'));
+                          return;
+                        }
+                        if (ok === true) onClose();
+                      }}>
                       <Text style={[s.saveBtnText, { color: '#C62828' }]}>{t('diffReject')}</Text>
                     </TouchableOpacity>
                   </View>
@@ -1094,7 +1222,10 @@ export default function WebPropertyEditPanel({
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[s.saveBtn, { backgroundColor: ACCENT, borderColor: ACCENT }]}
-                    onPress={() => { onApprove?.(); onClose(); }}>
+                    onPress={async () => {
+                      const ok = await onApprove?.();
+                      if (ok === true) onClose();
+                    }}>
                     <Text style={[s.saveBtnText, { color: '#FFF' }]}>{`✓ ${t('diffApprove')}`}</Text>
                   </TouchableOpacity>
                 </View>
@@ -1257,6 +1388,13 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 10,
     fontSize: 13, color: C.text,
     minHeight: 72, outlineWidth: 0, textAlignVertical: 'top',
+    marginBottom: 8,
+  },
+  reviewRejectErrorText: {
+    fontSize: 12,
+    color: '#C62828',
+    fontWeight: '600',
+    marginTop: -2,
     marginBottom: 8,
   },
 

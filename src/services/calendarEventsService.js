@@ -28,12 +28,15 @@ async function resolveCompanyId(userId) {
     .eq('status', 'active')
     .maybeSingle();
   if (company) return company.id;
-  // company_members использует agent_id (не user_id), статусного поля нет
-  const { data: member } = await supabase
+  const { data: member, error: memberErr } = await supabase
     .from('company_members')
     .select('company_id')
-    .eq('agent_id', userId)
+    .eq('user_id', userId)
     .maybeSingle();
+  if (memberErr) {
+    console.warn('[calendarEventsService] resolveCompanyId member query error:', memberErr.message);
+    return null;
+  }
   return member?.company_id ?? null;
 }
 

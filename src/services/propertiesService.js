@@ -13,7 +13,7 @@ export async function getProperties(agentId = null) {
     .limit(10000);
 
   if (agentId) {
-    q = q.or(`user_id.eq.${agentId},responsible_agent_id.eq.${agentId}`);
+    q = q.eq('responsible_agent_id', agentId);
   }
 
   const { data, error } = await q;
@@ -123,6 +123,39 @@ export async function updateProperty(id, updates) {
 export async function deleteProperty(id) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
+
+  // Defense-in-depth: only role='agent' team members cannot delete approved properties.
+  // Company owners (admin) are exempt from this restriction (LOCK-001).
+  const { data: propData } = await supabase
+    .from('properties')
+    .select('property_status')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (propData?.property_status === 'approved') {
+    const { data: memberRow } = await supabase
+      .from('company_members')
+      .select('role')
+      .eq('user_id', session.user.id)
+      .eq('role', 'agent')
+      .maybeSingle();
+    if (memberRow) {
+      throw new Error('Approved properties cannot be deleted by agents.');
+    }
+  }
+
+  // Удаляем незакрытые уведомления на модерацию, связанные с этим объектом,
+  // чтобы у админа в Bell не висели уведомления об удалённом объекте.
+  const { error: notifError } = await supabase
+    .from('notifications')
+    .delete()
+    .eq('property_id', id)
+    .in('type', ['property_submitted', 'edit_submitted', 'price_submitted'])
+    .eq('action_taken', false);
+
+  if (notifError) {
+    console.warn('[deleteProperty] failed to clean up notifications:', notifError.message);
+  }
 
   const { error } = await supabase
     .from('properties')
@@ -279,6 +312,17 @@ export async function submitPropertyDraft(propertyId, draftData) {
     .single();
 
   if (error) throw new Error(error.message);
+
+  // Reset property_status back to 'pending' so admin screens immediately show
+  // "In Review" state with approve/reject buttons — no complex adminAgentDraft query needed.
+  const { error: statusErr } = await supabase
+    .from('properties')
+    .update({ property_status: 'pending' })
+    .eq('id', propertyId);
+  if (statusErr) console.warn('[submitPropertyDraft] property_status reset failed:', statusErr.message);
+
+  // Signal admin screens to refresh
+  broadcastChange('properties');
   return data;
 }
 

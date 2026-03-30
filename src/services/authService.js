@@ -12,6 +12,8 @@ export async function signUp({ email, password, name }) {
   if (!user) throw new Error('Registration failed');
 
   const role = (email || '').toLowerCase() === 'korshun31@list.ru' ? 'admin' : 'standard';
+  // Canonical billing plan (separate from legacy role field).
+  const plan = (email || '').toLowerCase() === 'korshun31@list.ru' ? 'korshun' : 'standard';
 
   const { error: profileError } = await supabase
     .from('agents')
@@ -20,6 +22,7 @@ export async function signUp({ email, password, name }) {
       email,
       name: name || '',
       role,
+      plan,
     });
 
   if (profileError) throw new Error(profileError.message);
@@ -64,9 +67,10 @@ export async function getUserProfile(userId) {
   if (error) return {
     email: '', name: '', lastName: '', phone: '', telegram: '',
     documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '',
-    photoUri: '', role: 'standard', language: 'en',
+    photoUri: '', role: 'standard', plan: 'standard', language: 'en',
     notificationSettings: {}, selectedCurrency: 'USD',
-    locations: [], workAs: 'private', companyId: null, companyInfo: {}
+    locations: [], workAs: 'private', companyId: null, companyInfo: {},
+    teamRole: null, isAgentRole: false, isAdminRole: false,
   };
 
   // Загружаем активную компанию из таблицы companies (источник правды)
@@ -77,16 +81,23 @@ export async function getUserProfile(userId) {
     .eq('status', 'active')
     .maybeSingle();
 
-  // Проверяем: является ли пользователь участником чужой команды (роль agent)
+  // Query all company_members roles so we can derive canonical teamRole.
+  // Roles: 'agent' | 'admin' (worker removed). Backward compat: teamMembership
+  // still only populated for role='agent'.
   const { data: membershipData } = await supabase
     .from('company_members')
     .select('company_id, role, permissions')
     .eq('user_id', userId)
-    .eq('role', 'agent')
     .eq('status', 'active')
     .maybeSingle();
+
+  // Derived role boolean — source of truth for LOCK-001 guards.
+  // Roles: 'admin' | 'agent' | null. 'worker' was removed (migration 20260330000003).
+  const isAgentMember = membershipData?.role === 'agent';
+
+  // Location access is an agent-specific feature.
   let assignedLocationIds = [];
-  if (membershipData?.company_id) {
+  if (isAgentMember && membershipData?.company_id) {
     const { data: locationAccess } = await supabase
       .from('agent_location_access')
       .select('location_id')
@@ -95,7 +106,7 @@ export async function getUserProfile(userId) {
     assignedLocationIds = (locationAccess || []).map(r => r.location_id);
   }
 
-  // Получаем название компании и ID владельца (Админа) если нашли членство
+  // Fetch company info for any team member (name + admin id).
   let memberCompanyName = '';
   let memberCompanyOwnerId = null;
   if (membershipData?.company_id) {
@@ -111,8 +122,9 @@ export async function getUserProfile(userId) {
   const settings = data.settings || {};
   let role = ['standard', 'premium', 'admin'].includes(data.role) ? data.role : 'standard';
 
-  // Участник команды получает Premium (компания платит за всех)
-  if (membershipData) role = 'premium';
+  // Only agents receive the company-sponsored premium upgrade (Phase 1 compat).
+  // Worker/admin billing handled separately in Phase 2.
+  if (isAgentMember) role = 'premium';
 
   // Данные компании: из таблицы companies (если есть) или из settings как запасной вариант
   const companyInfo = companyData ? {
@@ -138,7 +150,17 @@ export async function getUserProfile(userId) {
     photoUri: data.photo_url || '',
     extraPhones: [],
     extraEmails: [],
+    // Legacy billing field (kept for backward compat; prefer user.plan in new code).
     role,
+    // ── Canonical fields ─────────────────────────────────────────────────────
+    // Billing plan: 'standard' | 'premium' | 'korshun'
+    plan: data.plan || 'standard',
+    // Team role inside company_members: 'agent' | 'admin' | null
+    teamRole: membershipData?.role ?? null,
+    // Role predicates — use these in guards instead of !!teamMembership checks.
+    isAgentRole: isAgentMember,
+    isAdminRole: !!companyData,
+    // ─────────────────────────────────────────────────────────────────────────
     language: settings.language || 'en',
     notificationSettings: settings.notificationSettings || {},
     selectedCurrency: settings.selectedCurrency || 'USD',
@@ -147,16 +169,17 @@ export async function getUserProfile(userId) {
     workAs: companyData ? 'company' : 'private',
     companyId: companyData?.id || null,
     companyInfo,
-    // Если пользователь является участником чужой команды
-    teamMembership: membershipData ? {
+    // Backward compat: teamMembership populated ONLY for role='agent'.
+    // New code should use user.teamRole directly.
+    teamMembership: isAgentMember ? {
       companyId: membershipData.company_id,
       companyName: memberCompanyName,
       role: membershipData.role,
       adminId: memberCompanyOwnerId,
       assignedLocationIds,
     } : null,
-    // Разрешения агента в команде
-    teamPermissions: membershipData?.permissions || {},
+    // Backward compat: teamPermissions populated only for agents.
+    teamPermissions: isAgentMember ? (membershipData?.permissions || {}) : {},
     web_notifications: data.web_notifications || {
       new_booking: false,
       booking_changed: false,

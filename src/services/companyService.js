@@ -71,11 +71,11 @@ export async function activateCompany(companyData = {}) {
     companyId = created.id;
   }
 
-  // Гарантируем что owner есть в company_members
+  // Гарантируем что admin (владелец) есть в company_members
   await supabase
     .from('company_members')
     .upsert(
-      { company_id: companyId, user_id: userId, role: 'owner' },
+      { company_id: companyId, user_id: userId, role: 'admin' },
       { onConflict: 'company_id,user_id' }
     );
 
@@ -128,7 +128,7 @@ export async function deactivateCompany() {
 
   if (!company) return;
 
-  // Проверяем есть ли активные агенты (не считая owner)
+  // Проверяем есть ли активные агенты (не считая admin)
   const { data: agents } = await supabase
     .from('company_members')
     .select('id')

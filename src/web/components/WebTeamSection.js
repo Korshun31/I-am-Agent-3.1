@@ -211,10 +211,10 @@ function MemberRow({ member, isCurrentUser, onPress, onDeactivate }) {
   const { t } = useLanguage();
   const initials = ((member.name || '')[0] || (member.email || '')[0] || '?').toUpperCase();
   const displayName = [member.name, member.last_name].filter(Boolean).join(' ') || member.email;
-  const roleLabel = member.role === 'owner' ? t('roleOwner') : t('roleAgent');
+  const roleLabel = member.role === 'admin' ? t('roleOwner') : t('roleAgent');
 
   return (
-    <TouchableOpacity style={s.memberRow} onPress={member.role !== 'owner' ? onPress : undefined} activeOpacity={member.role !== 'owner' ? 0.7 : 1}>
+    <TouchableOpacity style={s.memberRow} onPress={member.role !== 'admin' ? onPress : undefined} activeOpacity={member.role !== 'admin' ? 0.7 : 1}>
       <View style={s.memberAvatar}>
         <Text style={s.memberAvatarText}>{initials}</Text>
       </View>
@@ -223,7 +223,7 @@ function MemberRow({ member, isCurrentUser, onPress, onDeactivate }) {
           {displayName}{isCurrentUser ? ` (${t('you')})` : ''}
         </Text>
         <Text style={s.memberEmail}>{member.email}</Text>
-        {member.role !== 'owner' && (
+        {member.role !== 'admin' && (
           <View style={s.permTagsRow}>
             {PERM_TAGS.map(({ key, labelKey }) => {
               const active = !!member.permissions?.[key];
@@ -239,13 +239,13 @@ function MemberRow({ member, isCurrentUser, onPress, onDeactivate }) {
         )}
       </View>
       <View style={s.memberMeta}>
-        <View style={[s.roleBadge, member.role === 'owner' && s.roleBadgeOwner]}>
-          <Text style={[s.roleBadgeText, member.role === 'owner' && s.roleBadgeTextOwner]}>
+        <View style={[s.roleBadge, member.role === 'admin' && s.roleBadgeOwner]}>
+          <Text style={[s.roleBadgeText, member.role === 'admin' && s.roleBadgeTextOwner]}>
             {roleLabel}
           </Text>
         </View>
         <Text style={s.memberDate}>{dayjs(member.joined_at).format('DD MMM YYYY')}</Text>
-        {member.role !== 'owner' && <Text style={s.memberEditHint}>⚙️</Text>}
+        {member.role !== 'admin' && <Text style={s.memberEditHint}>⚙️</Text>}
         {onDeactivate && (
           <TouchableOpacity
             style={s.dismissBtn}

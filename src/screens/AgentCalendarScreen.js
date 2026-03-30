@@ -27,8 +27,11 @@ import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { eventOccursOnDate, updateCalendarEvent } from '../services/calendarEventsService';
+import { getUnreadCount, getTotalCount } from '../services/notificationsService';
+import { supabase } from '../services/supabase';
 import AddCalendarEventModal from '../components/AddCalendarEventModal';
 import AddBookingModal from '../components/AddBookingModal';
+import PropertyNotificationsModal from '../components/PropertyNotificationsModal';
 import BookingDetailScreen from './BookingDetailScreen';
 import ContactDetailScreen from './ContactDetailScreen';
 import { deleteBooking } from '../services/bookingsService';
@@ -271,6 +274,11 @@ export default function AgentCalendarScreen({ onReady }) {
   const [viewBookingDetail, setViewBookingDetail] = useState(null);
   const [editBookingDetailModalVisible, setEditBookingDetailModalVisible] = useState(false);
   const [selectedOwnerContact, setSelectedOwnerContact] = useState(null);
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [notifRefreshKey, setNotifRefreshKey] = useState(0);
+  const notifModalVisibleRef = useRef(false);
 
   // Загружаем только события календаря — properties/bookings уже есть в общем сторе
   const loadEvents = useCallback((opts = {}) => {
@@ -307,6 +315,43 @@ export default function AgentCalendarScreen({ onReady }) {
     }
     prevVisibleRef.current = isVisible;
   }, [isVisible, loadEvents]);
+
+  const refreshBadge = useCallback(() => {
+    getUnreadCount().then(setUnreadCount).catch(() => {});
+    getTotalCount().then(setTotalCount).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    notifModalVisibleRef.current = notifModalVisible;
+  }, [notifModalVisible]);
+
+  useEffect(() => {
+    if (!isVisible || !user?.id) return;
+    refreshBadge();
+  }, [isVisible, user?.id, refreshBadge]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`notif-mobile-agent-calendar-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `recipient_id=eq.${user.id}`,
+        },
+        () => {
+          refreshBadge();
+          if (notifModalVisibleRef.current) {
+            setNotifRefreshKey((k) => k + 1);
+          }
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, refreshBadge]);
 
   const toggleExpandAll = () => {
     LayoutAnimation.configureNext(DRAWER_ANIMATION);
@@ -624,10 +669,21 @@ export default function AgentCalendarScreen({ onReady }) {
           <Text style={styles.headerTitle}>{t('agentCalendarTitle')}</Text>
           <TouchableOpacity
             style={styles.headerIconBtn}
-            onPress={openAddEvent}
+            onPress={() => setNotifModalVisible(true)}
             activeOpacity={0.7}
           >
-            <Image source={require('../../assets/icon-add-calendar-event.png')} style={styles.headerIcon} resizeMode="contain" />
+            <Text style={styles.bellIcon}>🔔</Text>
+            {unreadCount > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            ) : totalCount > 0 ? (
+              <View style={[styles.badge, styles.badgeRead]}>
+                <Text style={[styles.badgeText, styles.badgeTextRead]}>
+                  {totalCount > 9 ? '9+' : totalCount}
+                </Text>
+              </View>
+            ) : null}
           </TouchableOpacity>
         </View>
       </View>
@@ -757,6 +813,18 @@ export default function AgentCalendarScreen({ onReady }) {
         })() : null}
       />
 
+      <PropertyNotificationsModal
+        visible={notifModalVisible}
+        onClose={() => setNotifModalVisible(false)}
+        onBadgeUpdate={refreshBadge}
+        refreshSignal={notifRefreshKey}
+        onOpenProperty={(propertyId) => {
+          if (!propertyId) return;
+          const target = (properties || []).find(p => p.id === propertyId);
+          if (target) navigation.navigate('RealEstate', { propertyToOpen: target });
+        }}
+      />
+
     </View>
   );
 }
@@ -791,9 +859,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerIcon: {
-    width: 26,
-    height: 26,
+  bellIcon: {
+    fontSize: 22,
+  },
+  badge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#E53935',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeRead: {
+    backgroundColor: '#AAAAAA',
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    lineHeight: 16,
+  },
+  badgeTextRead: {
+    color: '#FFFFFF',
   },
   headerTitle: {
     fontSize: 20,

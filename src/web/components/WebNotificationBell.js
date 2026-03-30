@@ -93,12 +93,14 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
   // Локальный стейт для режима ввода причины отклонения
   const [rejectMode, setRejectMode] = useState(false);
   const [reason, setReason] = useState('');
+  const [rejectError, setRejectError] = useState('');
 
   // Сброс режима при закрытии/открытии модала
   React.useEffect(() => {
     if (!visible) {
       setRejectMode(false);
       setReason('');
+      setRejectError('');
     }
   }, [visible]);
 
@@ -125,9 +127,15 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
     onClose();
   };
 
-  const handleRejectConfirm = () => {
-    onReject?.(reason);
-    onClose();
+  const handleRejectConfirm = async () => {
+    const trimmed = (reason || '').trim();
+    if (!trimmed) {
+      setRejectError(t('propRejectReasonRequired') || t('diffRejectPlaceholder') || 'Reason is required');
+      return;
+    }
+    setRejectError('');
+    const ok = await onReject?.(trimmed);
+    if (ok === true) onClose();
   };
 
   return (
@@ -242,11 +250,17 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
                     placeholder={t('diffRejectPlaceholder')}
                     placeholderTextColor="#ADB5BD"
                     value={reason}
-                    onChangeText={setReason}
+                    onChangeText={(v) => {
+                      setReason(v);
+                      if (rejectError) setRejectError('');
+                    }}
                     multiline
                     numberOfLines={3}
                     autoFocus
                   />
+                  {!!rejectError && (
+                    <Text style={sd.rejectErrorText}>{rejectError}</Text>
+                  )}
                   <View style={sd.rejectActions}>
                     <TouchableOpacity
                       style={sd.backBtn}
@@ -269,12 +283,32 @@ function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onRej
   );
 }
 
-function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff, onViewReview, onViewEditReview }) {
+function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff, onViewReview, onViewEditReview, onNavigateToProperty }) {
   const { t } = useLanguage();
   const time = dayjs(item.created_at).fromNow();
   const needsAction = ACTION_TYPES.has(item.type) && !item.action_taken;
+  const isRead = !!item.is_read;
   const [rejectMode, setRejectMode] = useState(false);
   const [reason, setReason] = useState('');
+  const [rejectError, setRejectError] = useState('');
+  const [reasonExpanded, setReasonExpanded] = useState(false);
+  const NAVIGABLE_TYPES = new Set(['property_submitted', 'edit_submitted', 'property_approved', 'edit_approved', 'property_rejected', 'edit_rejected']);
+  const REJECTED_TYPES = new Set(['property_rejected', 'edit_rejected', 'price_rejected']);
+  const normalizedBody = (item.body || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
+  const reasonPrefixes = [t('diffReason') || 'Reason:', 'Reason:', 'Причина:']
+    .map(v => String(v || '').trim())
+    .filter(Boolean);
+  const extractedReason = (() => {
+    if (!REJECTED_TYPES.has(item.type) || !normalizedBody) return '';
+    for (const prefix of reasonPrefixes) {
+      if (normalizedBody.toLowerCase().startsWith(prefix.toLowerCase())) {
+        return normalizedBody.slice(prefix.length).trim();
+      }
+    }
+    return '';
+  })();
+  const canExpandReason = extractedReason.length > 0;
+  const canNavigateToProperty = !!item.property_id && NAVIGABLE_TYPES.has(item.type);
 
   return (
     <View style={[s.item, !item.is_read && s.itemUnread]}>
@@ -283,28 +317,53 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff, onV
         <View style={s.statusDot}>
           <View style={[
             s.statusDotInner,
-            needsAction
-              ? s.statusDotPending
-              : ['property_approved', 'edit_approved', 'price_approved'].includes(item.type)
-                ? s.statusDotDone
-                : ['property_rejected', 'edit_rejected', 'price_rejected'].includes(item.type)
-                  ? s.statusDotRejected
-                  : s.statusDotInfo
+            isRead
+              ? s.statusDotRead
+              : needsAction
+                ? s.statusDotPending
+                : ['property_approved', 'edit_approved', 'price_approved'].includes(item.type)
+                  ? s.statusDotDone
+                  : ['property_rejected', 'edit_rejected', 'price_rejected'].includes(item.type)
+                    ? s.statusDotRejected
+                    : s.statusDotInfo
           ]} />
         </View>
         <View style={s.itemBody}>
-          <Text style={s.itemTitle}>
-            {(item.title || '').replace(/^[^\p{L}\p{N}]+/u, '').trim()}
-          </Text>
-          {!!item.body && (
-            <Text style={s.itemBodyText}>
-              {(item.body || '').replace(/^[^\p{L}\p{N}]+/u, '').trim()}
+          {canNavigateToProperty ? (
+            <TouchableOpacity onPress={() => onNavigateToProperty?.(item.property_id)} activeOpacity={0.7}>
+              <Text style={[s.itemTitle, s.itemTitleLink, isRead && s.itemTitleRead, isRead && s.itemTitleLinkRead]}>
+                {(item.title || '').replace(/^[^\p{L}\p{N}]+/u, '').trim()}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={[s.itemTitle, isRead && s.itemTitleRead]}>
+              {(item.title || '').replace(/^[^\p{L}\p{N}]+/u, '').trim()}
             </Text>
           )}
-          <Text style={s.itemTime}>{time}</Text>
+          {!!item.body && !(REJECTED_TYPES.has(item.type) && canExpandReason) && (
+            <Text style={[s.itemBodyText, isRead && s.itemBodyTextRead]}>
+              {normalizedBody}
+            </Text>
+          )}
+          {canExpandReason && (
+            <>
+              <TouchableOpacity onPress={() => setReasonExpanded(v => !v)} activeOpacity={0.7}>
+                <Text style={[s.reasonToggleText, s.reasonToggleTextRejected, isRead && s.reasonToggleTextRead]}>
+                  {reasonExpanded ? '▾ ' : '▸ '}
+                  {t('propRejectionReason') || 'Reason:'}
+                </Text>
+              </TouchableOpacity>
+              {reasonExpanded && (
+                <View style={[s.reasonExpandedBox, isRead && s.reasonExpandedBoxRead]}>
+                  <Text style={[s.reasonExpandedText, isRead && s.reasonExpandedTextRead]}>{extractedReason}</Text>
+                </View>
+              )}
+            </>
+          )}
+          <Text style={[s.itemTime, isRead && s.itemTimeRead]}>{time}</Text>
         </View>
         <TouchableOpacity style={s.itemDelete} onPress={() => onDelete(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={s.itemDeleteText}>✕</Text>
+          <Text style={[s.itemDeleteText, isRead && s.itemDeleteTextRead]}>✕</Text>
         </TouchableOpacity>
       </View>
 
@@ -337,14 +396,33 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff, onV
                   style={s.rejectInput}
                   placeholder={t('diffRejectPlaceholder')}
                   value={reason}
-                  onChangeText={setReason}
+                  onChangeText={(v) => {
+                    setReason(v);
+                    if (rejectError) setRejectError('');
+                  }}
                   autoFocus
                 />
+                {!!rejectError && (
+                  <Text style={s.rejectErrorText}>
+                    {t('propRejectReasonRequired') || t('diffRejectPlaceholder') || 'Reason is required'}
+                  </Text>
+                )}
                 <View style={s.rejectFormActions}>
                   <TouchableOpacity style={s.rejectCancelBtn} onPress={() => { setRejectMode(false); setReason(''); }}>
                     <Text style={s.rejectCancelText}>Назад</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={s.rejectConfirmBtn} onPress={() => onReject(item, reason)}>
+                  <TouchableOpacity
+                    style={s.rejectConfirmBtn}
+                    onPress={() => {
+                      const trimmed = (reason || '').trim();
+                      if (!trimmed) {
+                        setRejectError(t('propRejectReasonRequired') || t('diffRejectPlaceholder') || 'Reason is required');
+                        return;
+                      }
+                      setRejectError('');
+                      onReject(item, trimmed);
+                    }}
+                  >
                     <Text style={s.rejectConfirmText}>{t('diffReject')}</Text>
                   </TouchableOpacity>
                 </View>
@@ -362,7 +440,7 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff, onV
   );
 }
 
-export default function WebNotificationBell({ userId, user, onPropertiesChanged }) {
+export default function WebNotificationBell({ userId, user, onPropertiesChanged, onNavigateToProperty }) {
   const { t } = useLanguage();
   const [unread, setUnread]         = useState(0);
   const [open, setOpen]             = useState(false);
@@ -411,6 +489,12 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged 
   // Cleanup auto-dismiss timer on unmount
   useEffect(() => () => clearTimeout(actionErrorTimerRef.current), []);
 
+  const showActionError = useCallback((message) => {
+    clearTimeout(actionErrorTimerRef.current);
+    setActionError(message);
+    actionErrorTimerRef.current = setTimeout(() => setActionError(''), 5000);
+  }, []);
+
 
   const handleOpen = async () => {
     setOpen(true);
@@ -432,7 +516,7 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged 
     setNotifs(prev => prev.filter(n => n.id !== id));
   };
 
-  const handleApprove = async (notif) => {
+  const handleApprove = useCallback(async (notif) => {
     try {
       if (notif.property_id) {
         const { data: draft } = await supabase
@@ -472,13 +556,16 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged 
       }
     } catch (e) {
       console.error('approve error', e);
-      clearTimeout(actionErrorTimerRef.current);
-      setActionError(t('approveError'));
-      actionErrorTimerRef.current = setTimeout(() => setActionError(''), 5000);
+      showActionError(t('approveError'));
     }
-  };
+  }, [onPropertiesChanged, t, userId, showActionError]);
 
-  const handleReject = async (notif, reason) => {
+  const handleReject = useCallback(async (notif, reason) => {
+    const trimmed = (reason || '').trim();
+    if (!trimmed) {
+      showActionError(t('propRejectReasonRequired') || t('diffRejectPlaceholder') || 'Reason is required');
+      return false;
+    }
     try {
       if (notif.property_id) {
         const { data: draft } = await supabase
@@ -490,9 +577,9 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged 
           .maybeSingle();
 
         if (draft) {
-          await rejectPropertyDraft(draft.id, reason);
+          await rejectPropertyDraft(draft.id, trimmed);
         } else {
-          await rejectProperty(notif.property_id, reason);
+          await rejectProperty(notif.property_id, trimmed);
         }
       }
       // Помечаем только после успешной операции (включая запись в историю)
@@ -512,17 +599,17 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged 
           senderId: userId,
           type: typeMap[notif.type] || 'property_rejected',
           title: t('changesRejected'),
-          body: reason ? `${t('diffReason')} ${reason}` : notif.title,
+          body: `${t('diffReason')} ${trimmed}`,
           propertyId: notif.property_id,
         });
       }
+      return true;
     } catch (e) {
       console.error('reject error', e);
-      clearTimeout(actionErrorTimerRef.current);
-      setActionError(t('rejectError'));
-      actionErrorTimerRef.current = setTimeout(() => setActionError(''), 5000);
+      showActionError(t('rejectError'));
+      return false;
     }
-  };
+  }, [onPropertiesChanged, showActionError, t, userId]);
 
   // Загружаем объект для просмотра и принятия решения (property_submitted)
   const handleViewReview = async (notif) => {
@@ -603,6 +690,13 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged 
     clearTimeout(actionErrorTimerRef.current);
   };
 
+  const handleNavigateToPropertyFromBell = (propertyId) => {
+    if (!propertyId) return;
+    setOpen(false);
+    openRef.current = false;
+    onNavigateToProperty?.(propertyId);
+  };
+
   return (
     <View>
       <TouchableOpacity style={s.bell} onPress={handleOpen} activeOpacity={0.7}>
@@ -649,7 +743,7 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged 
                 {!loading && notifications.length === 0 && (
                   <View style={s.emptyWrap}>
                     <Text style={s.emptyIcon}>🔕</Text>
-                    <Text style={s.emptyText}>Уведомлений пока нет</Text>
+                    <Text style={s.emptyText}>{t('notifNoItems')}</Text>
                   </View>
                 )}
                 {notifications.map(n => (
@@ -662,6 +756,7 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged 
                     onViewDiff={handleViewDiff}
                     onViewReview={handleViewReview}
                     onViewEditReview={handleViewEditReview}
+                    onNavigateToProperty={handleNavigateToPropertyFromBell}
                   />
                 ))}
               </ScrollView>
@@ -681,9 +776,11 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged 
           if (diffModal?.notif) handleApprove(diffModal.notif);
           setDiffModal(null);
         }}
-        onReject={(reason) => {
-          if (diffModal?.notif) handleReject(diffModal.notif, reason);
-          setDiffModal(null);
+        onReject={async (reason) => {
+          if (!diffModal?.notif) return false;
+          const ok = await handleReject(diffModal.notif, reason);
+          if (ok === true) setDiffModal(null);
+          return ok;
         }}
       />
 
@@ -701,9 +798,16 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged 
           if (reviewModal?.notif) handleApprove(reviewModal.notif);
           setReviewModal(null);
         }}
-        onReject={(reason) => {
-          if (reviewModal?.notif) handleReject(reviewModal.notif, reason);
-          setReviewModal(null);
+        onReject={async (reason) => {
+          const trimmed = (reason || '').trim();
+          if (!trimmed) {
+            showActionError(t('propRejectReasonRequired') || t('diffRejectPlaceholder') || 'Reason is required');
+            return false;
+          }
+          if (!reviewModal?.notif) return false;
+          const ok = await handleReject(reviewModal.notif, trimmed);
+          if (ok === true) setReviewModal(null);
+          return ok;
         }}
       />
     </View>
@@ -800,12 +904,36 @@ const s = StyleSheet.create({
   statusDotDone:     { backgroundColor: '#3D7D82' },
   statusDotRejected: { backgroundColor: '#E53935' },
   statusDotInfo:     { backgroundColor: '#CED4DA' },
+  statusDotRead:     { backgroundColor: '#B0B7C3' },
   itemBody: { flex: 1, gap: 3 },
   itemTitle: { fontSize: 13, fontWeight: '600', color: C.text, lineHeight: 18 },
+  itemTitleLink: { color: '#D81B60', textDecorationLine: 'underline' },
+  itemTitleRead: { color: '#2F343A' },
+  itemTitleLinkRead: { color: '#2F343A', textDecorationColor: '#9AA1AA' },
   itemBodyText: { fontSize: 12, color: C.muted, lineHeight: 17 },
+  itemBodyTextRead: { color: '#5F6670' },
+  reasonToggleText: { fontSize: 12, color: ACCENT, fontWeight: '600', lineHeight: 17 },
+  reasonToggleTextRejected: { color: '#C62828' },
+  reasonToggleTextRead: { color: '#5F6670' },
+  reasonExpandedBox: {
+    backgroundColor: '#FFF5F5',
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  reasonExpandedBoxRead: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#D6DAE0',
+  },
+  reasonExpandedText: { fontSize: 12, color: '#C62828', lineHeight: 17 },
+  reasonExpandedTextRead: { color: '#4F5661' },
   itemTime: { fontSize: 11, color: C.muted, marginTop: 2 },
+  itemTimeRead: { color: '#7A828C' },
   itemDelete: { padding: 4 },
   itemDeleteText: { fontSize: 13, color: C.muted },
+  itemDeleteTextRead: { color: '#8A919B' },
 
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 10, marginLeft: 48 },
   // Одобрить — тиловый акцент (Primary системы, не зелёный)
@@ -817,6 +945,7 @@ const s = StyleSheet.create({
 
   rejectForm: { marginTop: 10, marginLeft: 48, gap: 8 },
   rejectInput: { borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: C.text, outlineWidth: 0 },
+  rejectErrorText: { fontSize: 12, color: C.danger, fontWeight: '600' },
   rejectFormActions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
   rejectCancelBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.border },
   rejectCancelText: { fontSize: 13, color: C.muted, fontWeight: '600' },
@@ -1073,6 +1202,13 @@ const sd = StyleSheet.create({
     minHeight: 72,
     outlineWidth: 0,
     textAlignVertical: 'top',
+  },
+  rejectErrorText: {
+    fontSize: 12,
+    color: '#C62828',
+    fontWeight: '600',
+    marginTop: -2,
+    marginBottom: 2,
   },
   rejectActions: {
     flexDirection: 'row',

@@ -39,7 +39,7 @@ const AMENITY_ICONS = {
   blender:         require('../../../assets/icon-amenity-blender.png'),
 };
 
-import { getProperties, createProperty, deleteProperty, approveProperty, rejectProperty, updatePropertyResponsible, getPropertyDraft, getPropertyRejectionHistory } from '../../services/propertiesService';
+import { getProperties, createProperty, deleteProperty, approveProperty, rejectProperty, approvePropertyDraft, rejectPropertyDraft, getPropertyDraft, getPropertyRejectionHistory } from '../../services/propertiesService';
 import { getActiveTeamMembers } from '../../services/companyService';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
 import { getContacts } from '../../services/contactsService';
@@ -264,17 +264,23 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
 
   // Разрешения агента
   const isAgent = !!user?.teamMembership;
+  // Phase 1: explicit role predicate (LOCK-001). Falls back to isAgent for
+  // screens that haven't received a fresh auth profile yet.
+  const isAgentRole = user?.isAgentRole ?? isAgent;
   const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
   const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
   const canSeeFinancials = !isAgent || user?.teamPermissions?.can_see_financials;
   const canAddUnit = !isAgent || user?.teamPermissions?.can_add_property;
+  // Agent may delete only their own non-approved property (LOCK-001)
+  const isCreator = property.user_id === user?.id;
 
   const [teamMembers, setTeamMembers] = useState([]);
   const [currentResponsible, setCurrentResponsible] = useState(property.responsible_agent_id ?? null);
-  const [responsiblePickerVisible, setResponsiblePickerVisible] = useState(false);
   const [pendingDraft, setPendingDraft] = useState(null);
   const [rejectionHistory, setRejectionHistory] = useState([]);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  // Admin: pending draft from any agent for this property (draft-aware moderation)
+  const [adminAgentDraft, setAdminAgentDraft] = useState(null);
 
   React.useEffect(() => {
     setCurrentResponsible(property.responsible_agent_id ?? null);
@@ -285,11 +291,28 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
     getActiveTeamMembers(user.companyId).then(setTeamMembers).catch(() => {});
   }, [isCompanyAdmin, user?.companyId]);
 
-  // Загружаем pending черновик агента для этого объекта
+  // Загружаем pending черновик агента для этого объекта (агентская сторона)
   React.useEffect(() => {
     if (!isAgent || !property?.id) { setPendingDraft(null); return; }
     getPropertyDraft(property.id).then(setPendingDraft).catch(() => {});
   }, [property?.id, isAgent, draftRefreshKey]);
+
+  // Admin: загружаем черновик агента (без фильтра по user_id) для draft-aware модерации.
+  // Зависит от draftRefreshKey — он растёт после broadcastChange из submitPropertyDraft.
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!isCompanyAdmin || !property?.id) { setAdminAgentDraft(null); return; }
+    supabase
+      .from('property_drafts')
+      .select('id, user_id')
+      .eq('property_id', property.id)
+      .eq('status', 'pending')
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => { if (!cancelled) setAdminAgentDraft(data || null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isCompanyAdmin, property?.id, draftRefreshKey]);
 
   // Загружаем историю отклонений (для rejected объектов и их авторов/админов)
   React.useEffect(() => {
@@ -302,6 +325,8 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
 
   const isSubmitted = property.property_status === 'pending';
   const isRejected = property.property_status === 'rejected';
+  // Priority: adminAgentDraft (or pending property) → in_review; otherwise use property_status
+  const displayStatus = (adminAgentDraft || isSubmitted) ? 'in_review' : isRejected ? 'rejected' : null;
 
   const owner1 = contacts.find(c => c.id === property.owner_id);
   const owner2 = contacts.find(c => c.id === property.owner_id_2);
@@ -373,68 +398,21 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         )}
       </View>
 
-      {/* Ответственный — только для Admin компании */}
+      {/* Ответственный — только для Admin компании (display only; edit in Edit Panel) */}
       {isCompanyAdmin && (
-        <>
-          <TouchableOpacity
-            style={s.responsibleRow}
-            onPress={() => setResponsiblePickerVisible(true)}
-            activeOpacity={0.7}
-          >
-            <Text style={s.responsibleLabel}>{t('propResponsibleLabel')}</Text>
-            <Text style={s.responsibleValue}>
-              {!currentResponsible
-                ? t('workAsCompany')
-                : currentResponsible === user?.id
-                  ? ([user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email || t('propMe'))
-                  : (() => {
-                      const m = teamMembers.find(tm => tm.agent_id === currentResponsible);
-                      return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : t('workAsCompany');
-                    })()}
-            </Text>
-            <Text style={s.responsibleChevron}>✎</Text>
-          </TouchableOpacity>
-
-          <Modal
-            visible={responsiblePickerVisible}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setResponsiblePickerVisible(false)}
-          >
-            <TouchableOpacity style={s.pickerOverlay} activeOpacity={1} onPress={() => setResponsiblePickerVisible(false)}>
-              <View style={s.pickerSheet}>
-                <Text style={s.pickerTitle}>{t('propResponsiblePicker')}</Text>
-                <TouchableOpacity
-                  style={[s.pickerItem, !currentResponsible && s.pickerItemActive]}
-                  onPress={async () => {
-                    await updatePropertyResponsible(property.id, null, (property.type === 'resort' || property.type === 'condo'));
-                    setCurrentResponsible(null);
-                    setResponsiblePickerVisible(false);
-                  }}
-                >
-                  <Text style={[s.pickerItemText, !currentResponsible && s.pickerItemTextActive]}>{t('workAsCompany')}</Text>
-                </TouchableOpacity>
-                {teamMembers.filter(m => m.role !== 'owner').map(m => {
-                  const name = [m.name, m.last_name].filter(Boolean).join(' ') || m.email;
-                  const isSelected = currentResponsible === m.agent_id;
-                  return (
-                    <TouchableOpacity
-                      key={m.agent_id}
-                      style={[s.pickerItem, isSelected && s.pickerItemActive]}
-                      onPress={async () => {
-                        await updatePropertyResponsible(property.id, m.agent_id, (property.type === 'resort' || property.type === 'condo'));
-                        setCurrentResponsible(m.agent_id);
-                        setResponsiblePickerVisible(false);
-                      }}
-                    >
-                      <Text style={[s.pickerItemText, isSelected && s.pickerItemTextActive]}>{name}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </TouchableOpacity>
-          </Modal>
-        </>
+        <View style={s.responsibleRow}>
+          <Text style={s.responsibleLabel}>{t('propResponsibleLabel')}</Text>
+          <Text style={s.responsibleValue}>
+            {(() => {
+              const companyDisplayName = user?.companyInfo?.name || t('workAsCompany');
+              if (!currentResponsible) return companyDisplayName;
+              if (currentResponsible === user?.id)
+                return [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email || t('propMe');
+              const m = teamMembers.find(tm => tm.user_id === currentResponsible);
+              return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : companyDisplayName;
+            })()}
+          </Text>
+        </View>
       )}
 
       <View style={s.detailPadding}>
@@ -464,13 +442,38 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
             </View>
           </View>
           <View style={s.detailActions}>
-            {isSubmitted && isAgent && (
-              <View style={s.statusBadgePending}>
-                <Text style={s.statusBadgePendingText}>⏳ {t('propSubmitted') || 'На проверке'}</Text>
-              </View>
-            )}
-            {isRejected ? (
-              /* Rejected: badge + Edit + Delete в одну строку */
+            {displayStatus === 'in_review' ? (
+              isCompanyAdmin ? (
+                /* Admin + in_review: badge + Approve + Reject + Delete (draft-aware) */
+                <View style={s.statusActionRow}>
+                  <View style={s.statusBadgePending}>
+                    <Text style={s.statusBadgePendingText}>⏳ {t('propSubmitted') || 'На проверке'}</Text>
+                  </View>
+                  <TouchableOpacity style={s.detailApproveBtnOutline} onPress={() => onApprove(adminAgentDraft?.id)}>
+                    <Text style={s.detailApproveBtnText}>✓ {t('propApprove') || 'Принять'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.detailRejectBtnOutline} onPress={() => onReject(adminAgentDraft?.id)}>
+                    <Text style={s.detailRejectBtnText}>✗ {t('propReject') || 'Отклонить'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.detailDeleteBtnOutline} onPress={() => setDeleteConfirmVisible(true)}>
+                    <Text style={s.detailDeleteBtnText}>🗑</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                /* Agent + in_review: badge; creator also gets delete */
+                <View style={s.statusActionRow}>
+                  <View style={s.statusBadgePending}>
+                    <Text style={s.statusBadgePendingText}>⏳ {t('propSubmitted') || 'На проверке'}</Text>
+                  </View>
+                  {isCreator && (
+                    <TouchableOpacity style={s.detailDeleteBtnOutline} onPress={() => setDeleteConfirmVisible(true)}>
+                      <Text style={s.detailDeleteBtnText}>🗑</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )
+            ) : displayStatus === 'rejected' ? (
+              /* Rejected (no pending draft): badge + Edit + Delete в одну строку */
               <View style={s.statusActionRow}>
                 <View style={s.statusBadgePending}>
                   <Text style={s.statusBadgePendingText}>⏳ {t('propProcessing') || 'На обработке'}</Text>
@@ -479,7 +482,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                   <Image source={ICON_PENCIL} style={s.detailEditBtnIconMuted} resizeMode="contain" />
                   <Text style={s.detailEditBtnTextMuted}>{t('edit')}</Text>
                 </TouchableOpacity>
-                {!isAgent && (
+                {(!isAgent || isCreator) && (
                   <TouchableOpacity
                     style={s.detailDeleteBtnOutline}
                     onPress={() => setDeleteConfirmVisible(true)}
@@ -489,80 +492,71 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                 )}
               </View>
             ) : (
-              !isSubmitted && (
-                /* Normal: Edit + Delete в одну строку */
-                <View style={s.statusActionRow}>
-                  <TouchableOpacity style={s.detailEditBtn} onPress={onEdit}>
-                    <Image source={ICON_PENCIL} style={s.detailEditBtnIcon} resizeMode="contain" />
-                    <Text style={s.detailEditBtnText}>{t('edit')}</Text>
+              /* Normal (approved): Edit + Delete в одну строку */
+              <View style={s.statusActionRow}>
+                <TouchableOpacity style={s.detailEditBtn} onPress={onEdit}>
+                  <Image source={ICON_PENCIL} style={s.detailEditBtnIcon} resizeMode="contain" />
+                  <Text style={s.detailEditBtnText}>{t('edit')}</Text>
+                </TouchableOpacity>
+                {!isAgentRole && (
+                  <TouchableOpacity
+                    style={s.detailDeleteBtnOutline}
+                    onPress={() => setDeleteConfirmVisible(true)}
+                  >
+                    <Text style={s.detailDeleteBtnText}>🗑</Text>
                   </TouchableOpacity>
-                  {!isAgent && (
-                    <TouchableOpacity
-                      style={s.detailDeleteBtnOutline}
-                      onPress={() => setDeleteConfirmVisible(true)}
-                    >
-                      <Text style={s.detailDeleteBtnText}>🗑</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )
+                )}
+              </View>
             )}
           </View>
         </View>
 
         {/* ── Key Stats ── */}
-        {(property.bedrooms != null || property.bathrooms != null || property.area != null || property.price_monthly != null || property.air_conditioners != null) && (
-          <View style={s.statsRow}>
-            {property.bedrooms != null && (
-              <View style={[s.statCard, { borderLeftColor: C.in }]}>
-                <Text style={s.statValue}>{property.bedrooms}</Text>
-                <Text style={s.statLabel}>{t('propBedrooms2')}</Text>
-              </View>
-            )}
-            {property.bathrooms != null && (
-              <View style={[s.statCard, { borderLeftColor: C.ev }]}>
-                <Text style={s.statValue}>{property.bathrooms}</Text>
-                <Text style={s.statLabel}>{t('propBathrooms')}</Text>
-              </View>
-            )}
-            {property.air_conditioners != null && (
-              <View style={[s.statCard, { borderLeftColor: C.stat1 }]}>
-                <Text style={s.statValue}>{property.air_conditioners}</Text>
-                <Text style={s.statLabel}>{t('propAirCon')}</Text>
-              </View>
-            )}
-            {property.area != null && (
-              <View style={[s.statCard, { borderLeftColor: C.muted }]}>
-                <Text style={s.statValue}>{property.area}</Text>
-                <Text style={s.statLabel}>{t('propSqm')}</Text>
-              </View>
-            )}
-            {property.price_monthly != null && (
-              <View style={[s.statCard, s.statCardAccent]}>
-                <Text style={[s.statValue, { color: ACCENT }]}>
-                  {property.price_monthly_is_from ? `${t('propFrom')} ` : ''}{Number(property.price_monthly).toLocaleString()} {getCurrencySymbol(property.currency || 'THB')}
-                </Text>
-                <Text style={[s.statLabel, { color: ACCENT }]}>{t('perMonth')}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* ── Admin: Approve / Reject submitted property ── */}
-        {isCompanyAdmin && isSubmitted && (
-          <View style={s.approvalBlock}>
-            <Text style={s.approvalTitle}>⏳ {t('propAwaitingApproval') || 'Объект ожидает проверки'}</Text>
-            <Text style={s.approvalSubtitle}>{t('propApprovalHint') || 'Проверьте данные и примите решение'}</Text>
-            <View style={s.approvalActions}>
-              <TouchableOpacity style={s.approveBtn} onPress={onApprove}>
-                <Text style={s.approveBtnText}>✓ {t('propApprove') || 'Принять'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.rejectBtn} onPress={onReject}>
-                <Text style={s.rejectBtnText}>✗ {t('propReject') || 'Отклонить'}</Text>
-              </TouchableOpacity>
+        {(() => {
+          const isParent = property.type === 'resort' || property.type === 'condo';
+          const showUnit = !isParent;
+          const hasStats =
+            (showUnit && (property.bedrooms != null || property.bathrooms != null || property.air_conditioners != null || property.area != null))
+            || property.price_monthly != null;
+          if (!hasStats) return null;
+          return (
+            <View style={s.statsRow}>
+              {showUnit && property.bedrooms != null && (
+                <View style={[s.statCard, { borderLeftColor: C.in }]}>
+                  <Text style={s.statValue}>{property.bedrooms}</Text>
+                  <Text style={s.statLabel}>{t('propBedrooms2')}</Text>
+                </View>
+              )}
+              {showUnit && property.bathrooms != null && (
+                <View style={[s.statCard, { borderLeftColor: C.ev }]}>
+                  <Text style={s.statValue}>{property.bathrooms}</Text>
+                  <Text style={s.statLabel}>{t('propBathrooms')}</Text>
+                </View>
+              )}
+              {showUnit && property.air_conditioners != null && (
+                <View style={[s.statCard, { borderLeftColor: C.stat1 }]}>
+                  <Text style={s.statValue}>{property.air_conditioners}</Text>
+                  <Text style={s.statLabel}>{t('propAirCon')}</Text>
+                </View>
+              )}
+              {showUnit && property.area != null && (
+                <View style={[s.statCard, { borderLeftColor: C.muted }]}>
+                  <Text style={s.statValue}>{property.area}</Text>
+                  <Text style={s.statLabel}>{t('propSqm')}</Text>
+                </View>
+              )}
+              {property.price_monthly != null && (
+                <View style={[s.statCard, s.statCardAccent]}>
+                  <Text style={[s.statValue, { color: ACCENT }]}>
+                    {property.price_monthly_is_from ? `${t('propFrom')} ` : ''}{Number(property.price_monthly).toLocaleString()} {getCurrencySymbol(property.currency || 'THB')}
+                  </Text>
+                  <Text style={[s.statLabel, { color: ACCENT }]}>{t('perMonth')}</Text>
+                </View>
+              )}
             </View>
-          </View>
-        )}
+          );
+        })()}
+
 
         {/* ── История отклонений ── */}
         {isRejected && (rejectionHistory.length > 0 || !!property.rejection_reason) ? (
@@ -1070,6 +1064,10 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
   const [editPanel, setEditPanel] = useState({ visible: false, mode: 'create', property: null, parentProperty: null });
   const [draftRefreshKey, setDraftRefreshKey] = useState(0);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [rejectDraftId, setRejectDraftId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectReasonError, setRejectReasonError] = useState('');
 
   const handleSelectProperty = (prop) => {
     setSelected(prop);
@@ -1146,8 +1144,18 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
   }, [initialPropertyId, loading, properties]);
 
   // ── Filter & sort list ──
-  const filtered = properties.filter(p => {
-    if (typeFilter !== 'all' && p.type !== typeFilter) return false;
+  const isInReviewTab = typeFilter === 'inReview';
+  const isFilterActive = typeFilter !== 'all' || search.trim() !== '';
+  const approvedBase = properties.filter(p => !p.property_status || p.property_status === 'approved');
+  const reviewBase = properties.filter(p => p.property_status === 'pending' || p.property_status === 'rejected');
+
+  // Таб "На проверке" — показываем pending/rejected, поиск внутри этого набора.
+  // Любой другой фильтр/поиск — только approved.
+  // Без фильтра и поиска — весь список (как раньше).
+  const listBase = isInReviewTab ? reviewBase : (isFilterActive ? approvedBase : properties);
+
+  const filtered = listBase.filter(p => {
+    if (!isInReviewTab && typeFilter !== 'all' && p.type !== typeFilter) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
       const code = (p.code + (p.code_suffix ? `-${p.code_suffix}` : '')).toLowerCase();
@@ -1162,15 +1170,73 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
     ? [...filtered.filter(p => !p.resort_id), ...filtered.filter(p => !!p.resort_id)]
     : filtered.filter(p => !p.resort_id);
 
-  const counts = { all: properties.length };
-  ['house', 'resort', 'condo'].forEach(typ => {
-    counts[typ] = properties.filter(p => p.type === typ).length;
-  });
+  // Счётчики табов — всегда стабильные, не зависят от выбранного таба или поиска
+  const counts = {
+    all: properties.length,
+    inReview: reviewBase.length,
+    house:  approvedBase.filter(p => p.type === 'house').length,
+    resort: approvedBase.filter(p => p.type === 'resort').length,
+    condo:  approvedBase.filter(p => p.type === 'condo').length,
+  };
 
   const handleSaved = () => {
     setAddVisible(false);
     setLoading(true);
     load();
+  };
+
+  const openRejectModal = (draftId) => {
+    setRejectDraftId(draftId || null);
+    setRejectReason('');
+    setRejectReasonError('');
+    setRejectModalVisible(true);
+  };
+
+  const closeRejectModal = () => {
+    setRejectModalVisible(false);
+    setRejectDraftId(null);
+    setRejectReason('');
+    setRejectReasonError('');
+  };
+
+  const handleSubmitReject = async () => {
+    const trimmedReason = (rejectReason || '').trim();
+    if (!trimmedReason) {
+      setRejectReasonError(t('propRejectReasonRequired') || t('diffRejectPlaceholder') || 'Reason is required');
+      return;
+    }
+    if (!selected?.id) return;
+    try {
+      let recipientId = selected?.user_id || null;
+      if (rejectDraftId) {
+        const { data: draftData } = await supabase
+          .from('property_drafts')
+          .select('user_id')
+          .eq('id', rejectDraftId)
+          .maybeSingle();
+        if (draftData?.user_id) recipientId = draftData.user_id;
+        await rejectPropertyDraft(rejectDraftId, trimmedReason);
+      } else {
+        await rejectProperty(selected.id, trimmedReason);
+      }
+      if (recipientId) {
+        await sendNotification({
+          recipientId,
+          senderId: user?.id,
+          type: rejectDraftId ? 'edit_rejected' : 'property_rejected',
+          title: t('changesRejected'),
+          body: `${t('diffReason')} ${trimmedReason}`,
+          propertyId: selected.id,
+        });
+      }
+      await load();
+      setSelected(prev => prev ? { ...prev, property_status: 'rejected', rejection_reason: trimmedReason } : prev);
+      setHistoryRefreshKey(k => k + 1);
+      closeRejectModal();
+    } catch (e) {
+      console.error('reject error', e);
+      setRejectReasonError(e.message || t('rejectError') || t('errorSave') || 'Failed to reject');
+    }
   };
 
   const openCreate = () => setEditPanel({ visible: true, mode: 'create', property: null, parentProperty: null });
@@ -1245,10 +1311,11 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
         {/* Type filter tabs */}
         <View style={s.filterTabs}>
           {[
-            { key: 'all',    label: `${t('all')} (${counts.all})`,                img: null },
-            { key: 'house',  label: `${t('house')} (${counts.house || 0})`,       img: ICON_TYPE_HOUSE  },
-            { key: 'resort', label: `${t('resort')} (${counts.resort || 0})`,     img: ICON_TYPE_RESORT },
-            { key: 'condo',  label: `${t('condo')} (${counts.condo || 0})`,       img: ICON_TYPE_CONDO  },
+            { key: 'all',      label: `${t('all')} (${counts.all})`,                    img: null },
+            { key: 'inReview', label: `${t('filterInReview')} (${counts.inReview || 0})`, img: null },
+            { key: 'house',    label: `${t('house')} (${counts.house || 0})`,           img: ICON_TYPE_HOUSE  },
+            { key: 'resort',   label: `${t('resort')} (${counts.resort || 0})`,         img: ICON_TYPE_RESORT },
+            { key: 'condo',    label: `${t('condo')} (${counts.condo || 0})`,           img: ICON_TYPE_CONDO  },
           ].map(tab => (
             <TouchableOpacity
               key={tab.key}
@@ -1322,17 +1389,21 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
             user={user}
             draftRefreshKey={draftRefreshKey}
             historyRefreshKey={historyRefreshKey}
-            onApprove={async () => {
-              await approveProperty(selected.id);
-              await load();
-              setSelected(prev => ({ ...prev, property_status: 'approved' }));
+            onApprove={async (draftId) => {
+              try {
+                if (draftId) {
+                  await approvePropertyDraft(draftId);
+                } else {
+                  await approveProperty(selected.id);
+                }
+                await load();
+                setSelected(prev => prev ? { ...prev, property_status: 'approved' } : prev);
+              } catch (e) {
+                console.error('approve error', e);
+              }
             }}
-            onReject={async () => {
-              const reason = window.prompt(t('propRejectPrompt')) ?? '';
-              await rejectProperty(selected.id, reason);
-              await load();
-              setSelected(prev => ({ ...prev, property_status: 'rejected', rejection_reason: reason }));
-              setHistoryRefreshKey(k => k + 1);
+            onReject={async (draftId) => {
+              openRejectModal(draftId);
             }}
             onDelete={async () => {
               await deleteProperty(selected.id);
@@ -1364,6 +1435,43 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
         userCurrency={userCurrency}
         user={user}
       />
+
+      <Modal
+        visible={rejectModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeRejectModal}
+      >
+        <View style={s.modalOverlay}>
+          <View style={s.rejectModalBox}>
+            <Text style={s.rejectModalTitle}>{t('propReject') || 'Reject'}</Text>
+            <Text style={s.rejectModalSubtitle}>{t('propRejectReasonPlaceholder') || t('diffRejectPlaceholder') || 'Please provide rejection reason'}</Text>
+            <TextInput
+              style={[s.rejectModalInput, !!rejectReasonError && s.rejectModalInputError]}
+              value={rejectReason}
+              onChangeText={(v) => {
+                setRejectReason(v);
+                if (rejectReasonError) setRejectReasonError('');
+              }}
+              placeholder={t('propRejectReasonPlaceholder') || t('diffRejectPlaceholder') || 'Reason'}
+              placeholderTextColor={C.light}
+              multiline
+              autoFocus
+            />
+            {!!rejectReasonError && (
+              <Text style={s.rejectModalErrorText}>{rejectReasonError}</Text>
+            )}
+            <View style={s.rejectModalActions}>
+              <TouchableOpacity style={s.rejectModalCancelBtn} onPress={closeRejectModal}>
+                <Text style={s.rejectModalCancelText}>{t('cancel') || 'Cancel'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.rejectModalSubmitBtn} onPress={handleSubmitReject}>
+                <Text style={s.rejectModalSubmitText}>{t('propRejectSubmit') || 'Send reject'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1691,6 +1799,24 @@ const s = StyleSheet.create({
   },
   detailEditBtnIconMuted: { width: 14, height: 14, tintColor: '#6C757D' },
   detailEditBtnTextMuted: { fontSize: 12, fontWeight: '600', color: '#6C757D' },
+  detailApproveBtnOutline: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A5D6A7',
+    backgroundColor: '#F1F8F2',
+  },
+  detailApproveBtnText: { fontSize: 12, fontWeight: '600', color: '#2E7D32' },
+  detailRejectBtnOutline: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
+    backgroundColor: '#F8F9FA',
+  },
+  detailRejectBtnText: { fontSize: 12, fontWeight: '600', color: '#C62828' },
   responsibleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2116,6 +2242,80 @@ const s = StyleSheet.create({
     borderColor: '#FFCDD2', backgroundColor: '#FFF5F5',
   },
   deleteConfirmDeleteText: { fontSize: 14, fontWeight: '600', color: '#C62828' },
+  rejectModalBox: {
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    padding: 24,
+    width: 420,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+  },
+  rejectModalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: C.text,
+    marginBottom: 6,
+  },
+  rejectModalSubtitle: {
+    fontSize: 13,
+    color: C.muted,
+    marginBottom: 12,
+  },
+  rejectModalInput: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: C.text,
+    minHeight: 86,
+    textAlignVertical: 'top',
+    outlineStyle: 'none',
+    marginBottom: 8,
+  },
+  rejectModalInputError: {
+    borderColor: '#C62828',
+  },
+  rejectModalErrorText: {
+    fontSize: 12,
+    color: '#C62828',
+    marginBottom: 10,
+    fontWeight: '600',
+  },
+  rejectModalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'flex-end',
+  },
+  rejectModalCancelBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    backgroundColor: '#F8F9FA',
+  },
+  rejectModalCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6C757D',
+  },
+  rejectModalSubmitBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
+    backgroundColor: '#FFF5F5',
+  },
+  rejectModalSubmitText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#C62828',
+  },
 
   typeRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
   typeOption: {

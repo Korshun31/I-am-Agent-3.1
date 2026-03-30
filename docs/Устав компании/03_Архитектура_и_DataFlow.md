@@ -59,6 +59,18 @@ Data Layer (Supabase / PostgreSQL)
 
 ---
 
+## UI Contract: Mobile top area parity
+
+Для mobile-экранов с навигацией по вкладкам фиксируется единый UI-контракт верхней зоны:
+
+- `Header block`: title centered + bell right (одинаковые размеры/позиции/бейджи уведомлений).
+- `Toolbar block`: search left + action icons right (допускается разное количество иконок).
+- Контент экрана (списки/календари/сетки) начинается ниже этих двух блоков.
+
+Это контракт визуальной консистентности (UX-level), не меняющий data flow и backend-логику.
+
+---
+
 ## Notification Review Flow
 
 ```
@@ -105,3 +117,25 @@ WebPropertyEditPanel.handleSave (mode='edit')
     → updateProperty(property.id, updates)
     → sendNotification(property.user_id, type='property_approved')
 ```
+
+---
+
+## Текущий режим после релиза (2026-03-28)
+
+**Что работает сейчас:**
+
+| Тип данных | Механизм обновления |
+|---|---|
+| Объекты, статусы, история | `broadcastChange` → `refreshKey` → `load()` |
+| Инициатор действия (своя сессия) | `onPropertiesChanged()` → `setRefreshKey` → `load()` |
+| Уведомления (bell + browser) | Realtime `postgres_changes` на таблицу `notifications` |
+| Права и локации агента | `broadcastChange('permissions')` → `setUser(freshUser)` |
+| История отклонений | `historyRefreshKey` (локальный) + `refreshKey` (глобальный) |
+
+**Нет постоянной слежки за БД.** Каждый экран обновляется только тогда, когда получает сигнал от конкретного действия (approve / reject / save / permissions change).
+
+**Realtime подписки** существуют ровно в двух местах:
+1. `WebNotificationBell` — подписка на `notifications` для мгновенной доставки уведомлений.
+2. Browser push notifications — отдельный канал, не влияет на бизнес-данные.
+
+Всё остальное — targeted fetch по сигналу. Это решение зафиксировано в ADR-009.

@@ -18,6 +18,19 @@ const C = {
 
 const DAYS_SHORT = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
+function sanitizeISODate(dateStr) {
+  if (typeof dateStr !== 'string') return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const d = dayjs(dateStr);
+  if (!d.isValid()) return null;
+  return d.format('YYYY-MM-DD') === dateStr ? dateStr : null;
+}
+
+function formatSafeDate(dateStr, format) {
+  const safe = sanitizeISODate(dateStr);
+  return safe ? dayjs(safe).format(format) : '—';
+}
+
 // Строим множество занятых дней [checkIn, checkOut)
 function buildOccupiedSet(bookedRanges) {
   const set = new Set();
@@ -56,14 +69,16 @@ export default function WebBookingCalendarPicker({
   const { t } = useLanguage();
 
   const today = dayjs().startOf('day');
+  const safeCheckIn = sanitizeISODate(checkIn);
+  const safeCheckOut = sanitizeISODate(checkOut);
   const [viewMonth, setViewMonth] = useState(() => {
-    const base = checkIn ? dayjs(checkIn) : today;
+    const base = safeCheckIn ? dayjs(safeCheckIn) : today;
     return base.startOf('month');
   });
   const [selecting, setSelecting] = useState(null); // 'in' | 'out' | null
   const [hoverDate, setHoverDate] = useState(null);
-  const [tempIn, setTempIn] = useState(checkIn || null);
-  const [tempOut, setTempOut] = useState(checkOut || null);
+  const [tempIn, setTempIn] = useState(safeCheckIn);
+  const [tempOut, setTempOut] = useState(safeCheckOut);
   const [rangeError, setRangeError] = useState(false);
 
   const occupiedSet = useMemo(() => buildOccupiedSet(bookedRanges), [bookedRanges]);
@@ -71,18 +86,18 @@ export default function WebBookingCalendarPicker({
   // Синхронизируем при открытии
   useEffect(() => {
     if (visible) {
-      setTempIn(checkIn || null);
-      setTempOut(checkOut || null);
+      setTempIn(safeCheckIn);
+      setTempOut(safeCheckOut);
       setSelecting(null);
       setHoverDate(null);
       setRangeError(false);
-      const base = checkIn ? dayjs(checkIn) : today;
+      const base = safeCheckIn ? dayjs(safeCheckIn) : today;
       setViewMonth(base.startOf('month'));
     }
-  }, [visible]);
+  }, [visible, safeCheckIn, safeCheckOut]);
 
-  const prevMonth = () => setViewMonth(m => m.subtract(1, 'month'));
-  const nextMonth = () => setViewMonth(m => m.add(1, 'month'));
+  const prevMonth = () => setViewMonth(m => (m?.isValid?.() ? m : today).subtract(1, 'month'));
+  const nextMonth = () => setViewMonth(m => (m?.isValid?.() ? m : today).add(1, 'month'));
 
   const handleDayPress = (dateStr) => {
     const d = dayjs(dateStr);
@@ -131,6 +146,7 @@ export default function WebBookingCalendarPicker({
 
   // Строим сетку дней для текущего месяца
   const calendarDays = useMemo(() => {
+    if (!viewMonth?.isValid?.()) return [];
     const firstDay = viewMonth.startOf('month');
     // Понедельник = 0 в нашей сетке (dayjs: 0=Sun, 1=Mon, ..., 6=Sat)
     const startOffset = (firstDay.day() + 6) % 7; // сдвиг чтобы неделя с Пн
@@ -197,7 +213,7 @@ export default function WebBookingCalendarPicker({
               >
                 <Text style={s.dateChipLabel}>{t('checkIn') || 'Check-in'}</Text>
                 <Text style={[s.dateChipValue, !tempIn && s.dateChipPlaceholder]}>
-                  {tempIn ? dayjs(tempIn).format(t('dateFormat') || 'DD.MM.YYYY') : '—'}
+                  {formatSafeDate(tempIn, t('dateFormat') || 'DD.MM.YYYY')}
                 </Text>
               </TouchableOpacity>
               <Text style={s.dateArrow}>→</Text>
@@ -207,7 +223,7 @@ export default function WebBookingCalendarPicker({
               >
                 <Text style={s.dateChipLabel}>{t('checkOut') || 'Check-out'}</Text>
                 <Text style={[s.dateChipValue, !tempOut && s.dateChipPlaceholder]}>
-                  {tempOut ? dayjs(tempOut).format(t('dateFormat') || 'DD.MM.YYYY') : '—'}
+                  {formatSafeDate(tempOut, t('dateFormat') || 'DD.MM.YYYY')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -235,7 +251,7 @@ export default function WebBookingCalendarPicker({
                 <Text style={s.monthNavArrow}>‹</Text>
               </TouchableOpacity>
               <Text style={s.monthTitle}>
-                {viewMonth.format('MMMM YYYY')}
+                {viewMonth?.isValid?.() ? viewMonth.format('MMMM YYYY') : today.format('MMMM YYYY')}
               </Text>
               <TouchableOpacity style={s.monthNavBtn} onPress={nextMonth}>
                 <Text style={s.monthNavArrow}>›</Text>

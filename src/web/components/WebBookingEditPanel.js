@@ -37,6 +37,14 @@ const TYPE_COLOR = {
 
 function toStr(v) { return v != null ? String(v) : ''; }
 
+function sanitizeISODate(dateStr) {
+  if (typeof dateStr !== 'string') return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const d = dayjs(dateStr);
+  if (!d.isValid()) return null;
+  return d.format('YYYY-MM-DD') === dateStr ? dateStr : null;
+}
+
 function buildForm(booking, property) {
   if (booking) {
     return {
@@ -44,8 +52,8 @@ function buildForm(booking, property) {
       contactId:              booking.contactId  || '',
       notMyCustomer:          !!booking.notMyCustomer,
       passportId:             booking.passportId || '',
-      checkIn:                booking.checkIn    || '',
-      checkOut:               booking.checkOut   || '',
+      checkIn:                sanitizeISODate(booking.checkIn) || '',
+      checkOut:               sanitizeISODate(booking.checkOut) || '',
       checkInTime:            booking.checkInTime || '14:00',
       checkOutTime:           booking.checkOutTime || '12:00',
       priceMonthly:           toStr(booking.priceMonthly),
@@ -639,6 +647,8 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
 
   const title = mode === 'edit' ? t('bkEditTitle') : t('bkNewTitle');
   const nights = nightsLabel(form.checkIn, form.checkOut, t);
+  const safeCalendarCheckIn = sanitizeISODate(form.checkIn);
+  const safeCalendarCheckOut = sanitizeISODate(form.checkOut);
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose}>
@@ -731,15 +741,15 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
               <View style={s.row2}>
                 <Field label={t('checkIn')} required half>
                   <TouchableOpacity style={s.dateBtn} onPress={() => setCalendarVisible(true)}>
-                    <Text style={form.checkIn ? s.dateBtnText : s.dateBtnPlaceholder}>
-                      {form.checkIn ? dayjs(form.checkIn).format(t('dateFormat')) : t('datePlaceholder')}
+                    <Text style={safeCalendarCheckIn ? s.dateBtnText : s.dateBtnPlaceholder}>
+                      {safeCalendarCheckIn ? dayjs(safeCalendarCheckIn).format(t('dateFormat')) : t('datePlaceholder')}
                     </Text>
                   </TouchableOpacity>
                 </Field>
                 <Field label={t('checkOut')} required half>
                   <TouchableOpacity style={s.dateBtn} onPress={() => setCalendarVisible(true)}>
-                    <Text style={form.checkOut ? s.dateBtnText : s.dateBtnPlaceholder}>
-                      {form.checkOut ? dayjs(form.checkOut).format(t('dateFormat')) : t('datePlaceholder')}
+                    <Text style={safeCalendarCheckOut ? s.dateBtnText : s.dateBtnPlaceholder}>
+                      {safeCalendarCheckOut ? dayjs(safeCalendarCheckOut).format(t('dateFormat')) : t('datePlaceholder')}
                     </Text>
                   </TouchableOpacity>
                 </Field>
@@ -764,8 +774,8 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
             <WebBookingCalendarPicker
               visible={calendarVisible}
               onClose={() => setCalendarVisible(false)}
-              checkIn={form.checkIn}
-              checkOut={form.checkOut}
+              checkIn={safeCalendarCheckIn}
+              checkOut={safeCalendarCheckOut}
               onSelect={(ci, co) => {
                 set('checkIn', ci);
                 set('checkOut', co);

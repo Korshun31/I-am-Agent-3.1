@@ -180,7 +180,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
   const companyDisplayName = currentUser?.companyInfo?.name || t('workAsCompany');
   const getResponsibleDisplay = (agentId) => {
     if (!agentId || agentId === currentUser?.id) return companyDisplayName;
-    const m = (teamMembers || []).find(tm => tm.agent_id === agentId);
+    const m = (teamMembers || []).find(tm => tm.user_id === agentId);
     return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : companyDisplayName;
   };
   const responsibleDisplay = getResponsibleDisplay(data.responsible_agent_id);
@@ -331,8 +331,8 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
         </View>
       )}
 
-      {/* Ответственный — только для Admin */}
-      {isAdmin && (
+      {/* Ответственный — только для Admin, и только на родительских/отдельных объектах */}
+      {isAdmin && !isHouseInResort && (
         <View style={s.fieldWrap}>
           <Text style={s.fieldLabel}>{t('propResponsiblePicker')}</Text>
           <TouchableOpacity
@@ -477,20 +477,20 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
               </View>
               <ScrollView style={s.ownerPickerScroll} contentContainerStyle={s.ownerPickerScrollContent} showsVerticalScrollIndicator>
                 {/* Компания (без агента) */}
-                {[{ agent_id: null, name: companyDisplayName, is_company: true },
-                  ...(teamMembers || []).filter(m => m.role !== 'owner')
+                {[{ user_id: null, name: companyDisplayName, is_company: true },
+                  ...(teamMembers || []).filter(m => m.role === 'agent')
                 ].map((item) => {
                   const isSelected = item.is_company
                     ? (!tempResponsible || tempResponsible === currentUser?.id)
-                    : tempResponsible === item.agent_id;
+                    : tempResponsible === item.user_id;
                   const displayName = item.is_company
                     ? companyDisplayName
                     : ([item.name, item.last_name].filter(Boolean).join(' ') || item.email || '—');
                   return (
                     <TouchableOpacity
-                      key={item.agent_id ?? 'company'}
+                      key={item.user_id ?? 'company'}
                       style={[s.ownerPickerItem, isSelected && s.responsibleItemActive]}
-                      onPress={() => setTempResponsible(item.is_company ? null : item.agent_id)}
+                      onPress={() => setTempResponsible(item.is_company ? null : item.user_id)}
                       activeOpacity={0.7}
                     >
                       <View style={s.responsibleCheckbox}>
@@ -922,7 +922,9 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
     location_id: data.location_id || null,
     owner_id: data.owner_id || null,
     owner_id_2: data.owner_id_2 || null,
-    responsible_agent_id: data.responsible_agent_id ?? null,
+    // Child units (house in resort / apartment in condo) inherit responsible from parent via cascade.
+    // Never overwrite it from the child edit form.
+    ...(!isHouseInResort && { responsible_agent_id: data.responsible_agent_id ?? null }),
     district,
     google_maps_link: data.google_maps_link.trim(),
     address: data.address.trim(),

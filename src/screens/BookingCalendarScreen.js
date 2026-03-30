@@ -11,6 +11,7 @@ import {
   Pressable,
   Dimensions,
   Alert,
+  TextInput,
 } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -25,8 +26,11 @@ import { useIsFocused } from '@react-navigation/native';
 import { deleteProperty } from '../services/propertiesService';
 import { deleteBooking } from '../services/bookingsService';
 import { cancelBookingReminders } from '../services/bookingRemindersService';
+import { getUnreadCount, getTotalCount } from '../services/notificationsService';
+import { supabase } from '../services/supabase';
 import FilterBottomSheet from '../components/FilterBottomSheet';
 import AddBookingModal from '../components/AddBookingModal';
+import PropertyNotificationsModal from '../components/PropertyNotificationsModal';
 import BookingDetailScreen from './BookingDetailScreen';
 import ContactDetailScreen from './ContactDetailScreen';
 import PropertyDetailScreen from './PropertyDetailScreen';
@@ -153,14 +157,22 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const [preloadedContact, setPreloadedContact] = useState(null);
   const [selectedOwnerContact, setSelectedOwnerContact] = useState(null);
   const [selectedPropertyForDetail, setSelectedPropertyForDetail] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [notifRefreshKey, setNotifRefreshKey] = useState(0);
   const leftScrollRef = useRef(null);
   const rightScrollRef = useRef(null);
   const rightVerticalRef = useRef(null);
+  const timelineScrollXRef = useRef(0);
   const scrollSyncRef = useRef(false);
   const prevVisibleRef = useRef(false);
+  const notifModalVisibleRef = useRef(false);
 
-  const topLevel = properties.filter(p => !p.resort_id);
-  const children = properties.filter(p => p.resort_id);
+  const approvedProperties = properties.filter(p => !p.property_status || p.property_status === 'approved');
+  const topLevel = approvedProperties.filter(p => !p.resort_id);
+  const children = approvedProperties.filter(p => p.resort_id);
   const getParent = (id) => properties.find(pr => pr.id === id);
 
   const filterFn = useCallback((p, parent) => {
@@ -220,6 +232,16 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       const codeB = (b._parentCode ? b._parentCode + ' ' : '') + (b.code_suffix ?? b.code ?? '');
       return compareByCodeOrName({ code: codeA, name: a.name }, { code: codeB, name: b.name });
     });
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter((u) => {
+        const parentCodePart = u._parentCode ? `${u._parentCode} ` : '';
+        const codeSuffixPart = u.code_suffix ? ` (${u.code_suffix})` : '';
+        const codeDisplay = `${parentCodePart}${u.code || ''}${codeSuffixPart}`.toLowerCase();
+        const unitName = (u.name || '').toLowerCase();
+        return unitName.includes(q) || codeDisplay.includes(q);
+      });
+    }
     if (propertyIdsFilter && propertyIdsFilter.length > 0) {
       const idSet = new Set(propertyIdsFilter);
       list = list.filter((u) => idSet.has(u.id));
@@ -249,7 +271,44 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       uniqueDistricts: [...new Set(allDistricts)].sort(),
       hasActiveFilter: hasActive,
     };
-  }, [topLevel, children, getParent, filterFn, filterValues, propertyIdsFilter]);
+  }, [topLevel, children, getParent, filterFn, filterValues, propertyIdsFilter, searchQuery]);
+
+  const refreshBadge = useCallback(() => {
+    getUnreadCount().then(setUnreadCount).catch(() => {});
+    getTotalCount().then(setTotalCount).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    notifModalVisibleRef.current = notifModalVisible;
+  }, [notifModalVisible]);
+
+  useEffect(() => {
+    if (!effectiveVisible || !user?.id) return;
+    refreshBadge();
+  }, [effectiveVisible, user?.id, refreshBadge]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`notif-mobile-bookings-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `recipient_id=eq.${user.id}`,
+        },
+        () => {
+          refreshBadge();
+          if (notifModalVisibleRef.current) {
+            setNotifRefreshKey((k) => k + 1);
+          }
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, refreshBadge]);
 
   const loadData = useCallback(async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
@@ -398,8 +457,14 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const handleAddPress = useCallback((property, monthKey) => {
     setSelectedProperty(property);
     setSelectedBooking(null);
-    if (monthKey) {
+    const isValidMonthKey = typeof monthKey === 'string' && /^\d{4}-\d{2}$/.test(monthKey);
+    if (isValidMonthKey) {
       const [y, m] = monthKey.split('-').map(Number);
+      if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) {
+        setInitialMonth(null);
+        setAddModalVisible(true);
+        return;
+      }
       setInitialMonth({ year: y, month: m - 1 });
     } else {
       setInitialMonth(null);
@@ -508,14 +573,50 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       {!embeddedInModal && (
         <View style={styles.fixedTop}>
           <View style={styles.header}>
-            <View style={styles.headerSpacer} />
+            <View style={styles.headerActions} />
             <Text style={styles.headerTitle}>{t('bookingCalendar')}</Text>
             <TouchableOpacity
-              style={[styles.filterBtn, hasActiveFilter && styles.filterBtnActive]}
-              onPress={() => setFilterVisible(true)}
+              style={styles.headerBtn}
+              onPress={() => setNotifModalVisible(true)}
               activeOpacity={0.7}
             >
-              <Image source={require('../../assets/icon-filter.png')} style={[styles.filterIcon, hasActiveFilter && styles.filterIconActive]} resizeMode="contain" />
+              <Text style={styles.bellIcon}>🔔</Text>
+              {unreadCount > 0 ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              ) : totalCount > 0 ? (
+                <View style={[styles.badge, styles.badgeRead]}>
+                  <Text style={[styles.badgeText, styles.badgeTextRead]}>
+                    {totalCount > 9 ? '9+' : totalCount}
+                  </Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          </View>
+          <View style={styles.toolbarRow}>
+            <View style={styles.searchWrap}>
+              <Text style={styles.searchIcon}>🔍</Text>
+              <TextInput
+                style={styles.searchInput}
+                placeholder={t('search')}
+                placeholderTextColor="#999"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            <TouchableOpacity
+              style={[styles.toolbarBtn, hasActiveFilter && styles.filterBtnActive]}
+              activeOpacity={0.7}
+              onPress={() => setFilterVisible(true)}
+            >
+              <Image
+                source={require('../../assets/icon-filter.png')}
+                style={[styles.toolbarBtnImage, hasActiveFilter && styles.filterIconActive]}
+                resizeMode="contain"
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -570,6 +671,11 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               horizontal
               showsHorizontalScrollIndicator={true}
               contentContainerStyle={{ width: NUM_MONTHS * MONTH_WIDTH }}
+              onScroll={(e) => {
+                const x = e?.nativeEvent?.contentOffset?.x;
+                timelineScrollXRef.current = Number.isFinite(x) ? x : 0;
+              }}
+              scrollEventThrottle={16}
             >
               <View style={{ width: NUM_MONTHS * MONTH_WIDTH, flexDirection: 'column' }}>
                 <View style={styles.monthsHeader}>
@@ -641,6 +747,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                           getOwnerLabel={getOwnerLabel}
                           globalColorMap={globalColorMap}
                           truncateLabel={truncateLabel}
+                          timelineScrollXRef={timelineScrollXRef}
                           onCellPress={canAddBooking ? handleAddPress : undefined}
                           onBookingPress={handleBookingPress}
                           ownerLabels={{ full: t('ownerCustomer'), mid: t('ownerCustomerShort'), min: t('ownerCustomerMin') }}
@@ -684,6 +791,18 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         onSaved={() => { setAddModalVisible(false); setSelectedProperty(null); setInitialMonth(null); handleSaved(); }}
         property={selectedProperty}
         initialMonth={initialMonth}
+      />
+
+      <PropertyNotificationsModal
+        visible={notifModalVisible}
+        onClose={() => setNotifModalVisible(false)}
+        onBadgeUpdate={refreshBadge}
+        refreshSignal={notifRefreshKey}
+        onOpenProperty={(propertyId) => {
+          if (!propertyId) return;
+          const target = properties.find(p => p.id === propertyId);
+          if (target) setSelectedPropertyForDetail(target);
+        }}
       />
 
     </View>
@@ -838,6 +957,7 @@ const CalendarRow = React.memo(function CalendarRow({
   getOwnerLabel,
   globalColorMap,
   truncateLabel,
+  timelineScrollXRef,
   onCellPress,
   onBookingPress,
   ownerLabels,
@@ -857,6 +977,15 @@ const CalendarRow = React.memo(function CalendarRow({
 
   const rowWidth = months.length * monthWidth;
 
+  const resolveAbsolutePressX = (e) => {
+    const localX = e?.nativeEvent?.locationX;
+    const scrollX = timelineScrollXRef?.current;
+    if (!Number.isFinite(localX) || !Number.isFinite(scrollX)) return null;
+    const absoluteX = localX + scrollX;
+    if (!Number.isFinite(absoluteX)) return null;
+    return absoluteX;
+  };
+
   const dateToPx = (d) => {
     const idx = months.findIndex(m => m.year === d.year() && m.month === d.month());
     if (idx >= 0) {
@@ -875,9 +1004,17 @@ const CalendarRow = React.memo(function CalendarRow({
       <Pressable
         style={{ flexDirection: 'row', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         onPress={onCellPress ? (e) => {
-          const x = e.nativeEvent.locationX;
-          const monthIdx = Math.min(Math.floor(x / monthWidth), months.length - 1);
-          if (monthIdx >= 0) onCellPress(unit, months[monthIdx].key);
+          const x = resolveAbsolutePressX(e);
+          if (!Number.isFinite(x) || !Number.isFinite(monthWidth) || monthWidth <= 0 || months.length === 0) {
+            onCellPress(unit, null);
+            return;
+          }
+          const monthIdx = Math.floor(x / monthWidth);
+          if (!Number.isInteger(monthIdx) || monthIdx < 0 || monthIdx >= months.length) {
+            onCellPress(unit, null);
+            return;
+          }
+          onCellPress(unit, months[monthIdx].key);
         } : undefined}
       >
         {months.map((m) => {
@@ -1015,17 +1152,89 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 14,
   },
-  headerSpacer: { width: 36 },
+  headerActions: {
+    width: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: COLORS.title,
   },
-  filterBtn: {
+  headerBtn: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  bellIcon: {
+    fontSize: 22,
+  },
+  badge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#E53935',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    lineHeight: 16,
+  },
+  badgeRead: {
+    backgroundColor: '#AAAAAA',
+  },
+  badgeTextRead: {
+    color: '#FFFFFF',
+  },
+  toolbarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+    gap: 10,
+  },
+  searchWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245,242,235,0.9)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0D8CC',
+    paddingHorizontal: 12,
+    height: 40,
+  },
+  searchIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.title,
+    paddingVertical: 0,
+  },
+  toolbarBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(245,242,235,0.9)',
+    borderWidth: 1,
+    borderColor: '#E0D8CC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toolbarBtnImage: {
+    width: 26,
+    height: 26,
   },
   filterBtnActive: {
     shadowColor: '#5DB87A',
@@ -1034,7 +1243,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  filterIcon: { width: 24, height: 24 },
   filterIconActive: {
     shadowColor: '#5DB87A',
     shadowOffset: { width: 0, height: 0 },
