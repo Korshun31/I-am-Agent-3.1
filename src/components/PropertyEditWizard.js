@@ -188,6 +188,8 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
     return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : companyDisplayName;
   };
   const responsibleDisplay = getResponsibleDisplay(data.responsible_agent_id);
+  const parentOwnerDisplay = (owners || []).find(o => o.id === parentResort?.owner_id)?.name || '';
+  const inheritedResponsibleDisplay = getResponsibleDisplay(parentResort?.responsible_agent_id ?? null);
 
   return (
     <>
@@ -196,34 +198,42 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
       {/* City picker */}
       <View style={s.fieldWrap}>
         <Text style={s.fieldLabel}>{t('pdCity')}</Text>
-        <TouchableOpacity
-          style={s.pickerBtn}
-          onPress={() => { closeAllPickers('city'); setCityOpen(!cityOpen); }}
-          activeOpacity={0.7}
-        >
-          <Text style={[s.pickerBtnText, !data.city && s.pickerBtnPlaceholder]}>
-            {data.city || t('wizSelectCity')}
-          </Text>
-          <Text style={s.pickerArrow}>{cityOpen ? '▲' : '▼'}</Text>
-        </TouchableOpacity>
-        {cityOpen && (
-          <View style={s.pickerDropdown}>
-            {locations.length === 0 ? (
-              <Text style={s.pickerEmpty}>{t('wizNoLocations')}</Text>
-            ) : (
-              locations.map(loc => (
-                <TouchableOpacity
-                  key={loc.id}
-                  style={[s.pickerItem, data.location_id === loc.id && s.pickerItemActive]}
-                  onPress={() => handleSelectLocation(loc)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[s.pickerItemCity, data.location_id === loc.id && s.pickerItemCityActive]}>{loc.city}</Text>
-                  <Text style={s.pickerItemSub}>{[loc.country, loc.region].filter(Boolean).join(' / ')}</Text>
-                </TouchableOpacity>
-              ))
-            )}
+        {isHouseInResort && parentResort ? (
+          <View style={[s.pickerBtn, { opacity: 0.9 }]}>
+            <Text style={s.pickerBtnText}>{parentResort.city || '—'}</Text>
           </View>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={s.pickerBtn}
+              onPress={() => { closeAllPickers('city'); setCityOpen(!cityOpen); }}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.pickerBtnText, !data.city && s.pickerBtnPlaceholder]}>
+                {data.city || t('wizSelectCity')}
+              </Text>
+              <Text style={s.pickerArrow}>{cityOpen ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+            {cityOpen && (
+              <View style={s.pickerDropdown}>
+                {locations.length === 0 ? (
+                  <Text style={s.pickerEmpty}>{t('wizNoLocations')}</Text>
+                ) : (
+                  locations.map(loc => (
+                    <TouchableOpacity
+                      key={loc.id}
+                      style={[s.pickerItem, data.location_id === loc.id && s.pickerItemActive]}
+                      onPress={() => handleSelectLocation(loc)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[s.pickerItemCity, data.location_id === loc.id && s.pickerItemCityActive]}>{loc.city}</Text>
+                      <Text style={s.pickerItemSub}>{[loc.country, loc.region].filter(Boolean).join(' / ')}</Text>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+            )}
+          </>
         )}
       </View>
 
@@ -307,16 +317,22 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
       {/* Owner picker */}
       <View style={s.fieldWrap}>
         <Text style={s.fieldLabel}>{t('wizOwner')}</Text>
-        <TouchableOpacity
-          style={s.pickerBtn}
-          onPress={openOwnerPicker}
-          activeOpacity={0.7}
-        >
-          <Text style={[s.pickerBtnText, !ownerDisplay && s.pickerBtnPlaceholder]}>
-            {ownerDisplay || t('wizSelectOwner')}
-          </Text>
-          <Text style={s.pickerArrow}>▽</Text>
-        </TouchableOpacity>
+        {isHouseInResort && parentResort ? (
+          <View style={[s.pickerBtn, { opacity: 0.9 }]}>
+            <Text style={s.pickerBtnText}>{parentOwnerDisplay || ownerDisplay || '—'}</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={s.pickerBtn}
+            onPress={openOwnerPicker}
+            activeOpacity={0.7}
+          >
+            <Text style={[s.pickerBtnText, !ownerDisplay && s.pickerBtnPlaceholder]}>
+              {ownerDisplay || t('wizSelectOwner')}
+            </Text>
+            <Text style={s.pickerArrow}>▽</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {isHouseInResort && (
@@ -335,7 +351,15 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
         </View>
       )}
 
-      {/* Ответственный — только для Admin, и только на родительских/отдельных объектах */}
+      {/* Ответственный — для child только inherited readonly; для parent/standalone editable picker */}
+      {isAdmin && isHouseInResort && (
+        <View style={s.fieldWrap}>
+          <Text style={s.fieldLabel}>{t('propResponsiblePicker')}</Text>
+          <View style={[s.pickerBtn, { opacity: 0.9 }]}>
+            <Text style={s.pickerBtnText}>{inheritedResponsibleDisplay || companyDisplayName}</Text>
+          </View>
+        </View>
+      )}
       {isAdmin && !isHouseInResort && (
         <View style={s.fieldWrap}>
           <Text style={s.fieldLabel}>{t('propResponsiblePicker')}</Text>
@@ -996,15 +1020,17 @@ function toNum(val) {
 
 function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = 'THB') {
   const isHouseInResort = Boolean(property?.resort_id);
+  const parentCity = (parentResort?.city || '').trim();
   const district = isHouseInResort && parentResort ? (parentResort.district || '').trim() : (data.district || '').trim();
+  const ownerId = isHouseInResort && parentResort ? (parentResort.owner_id || null) : (data.owner_id || null);
   return {
     name: data.name.trim(),
     code: data.code.trim(),
     code_suffix: (data.code_suffix || '').trim(),
     type: property?.type || 'house',
-    city: data.city.trim(),
+    city: isHouseInResort && parentResort ? parentCity : data.city.trim(),
     location_id: data.location_id || null,
-    owner_id: data.owner_id || null,
+    owner_id: ownerId,
     owner_id_2: data.owner_id_2 || null,
     // Child units (house in resort / apartment in condo) inherit responsible from parent via cascade.
     // Never overwrite it from the child edit form.

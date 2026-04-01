@@ -23,7 +23,7 @@ import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
 import { useAppData } from '../context/AppDataContext';
-import { getProperties, updateProperty, createProperty, updateResortChildrenDistrict, updatePropertyResponsible, submitPropertyDraft, getPropertyDraft, getPropertyRejectionHistory, approveProperty, rejectProperty, approvePropertyDraft, rejectPropertyDraft } from '../services/propertiesService';
+import { getProperties, updateProperty, createProperty, deleteProperty, updateResortChildrenDistrict, updatePropertyResponsible, submitPropertyDraft, getPropertyDraft, getPropertyRejectionHistory, approveProperty, rejectProperty, approvePropertyDraft, rejectPropertyDraft } from '../services/propertiesService';
 import { supabase } from '../services/supabase';
 import { sendNotification } from '../services/notificationsService';
 import { getActiveTeamMembers } from '../services/companyService';
@@ -132,7 +132,7 @@ function PriceRow({ icon, iconSource, label, value, prefix }) {
   );
 }
 
-function ResortHouseItem({ item, expanded, onToggle, resortCode, onPress }) {
+function ResortHouseItem({ item, expanded, onToggle, resortCode, onPress, t }) {
   const arrowAnim = useState(() => new Animated.Value(0))[0];
 
   useEffect(() => {
@@ -149,9 +149,18 @@ function ResortHouseItem({ item, expanded, onToggle, resortCode, onPress }) {
   });
 
   const codeDisplay = (resortCode != null ? resortCode : item.code) + (item.code_suffix ? ` (${item.code_suffix})` : '');
+  const isPending = item.property_status === 'pending';
+  const isRejected = item.property_status === 'rejected';
+  const isInReview = isPending || isRejected;
 
   return (
-    <View style={[styles.resortHouseCard, { backgroundColor: '#FFF9C4', borderColor: '#FFD54F' }]}>
+    <View
+      style={
+        isInReview
+          ? [styles.resortHouseCard, styles.childCardInReview, { borderLeftColor: '#A8E6A3' }]
+          : [styles.resortHouseCard, { backgroundColor: 'rgba(168,230,163,0.7)', borderColor: '#A8E6A3' }]
+      }
+    >
       <View style={styles.resortHouseRow}>
         <TouchableOpacity
           style={styles.resortHouseMainArea}
@@ -159,10 +168,17 @@ function ResortHouseItem({ item, expanded, onToggle, resortCode, onPress }) {
           activeOpacity={onPress ? 0.7 : 1}
           disabled={!onPress}
         >
-          <Image source={require('../../assets/icon-property-house.png')} style={styles.resortHouseIcon} resizeMode="contain" />
+          <Image source={require('../../assets/icon-property-resort.png')} style={styles.resortHouseIcon} resizeMode="contain" />
           <Text style={styles.resortHouseName} numberOfLines={1}>{item.name}</Text>
           <Text style={styles.resortHouseCode}>{codeDisplay}</Text>
         </TouchableOpacity>
+        {isInReview && (
+          <View style={[styles.childStatusBadge, isRejected ? styles.childStatusBadgeRejected : styles.childStatusBadgePending]}>
+            <Text style={[styles.childStatusBadgeText, isRejected ? styles.childStatusBadgeTextRejected : styles.childStatusBadgeTextPending]}>
+              {isPending ? t('statusPending') : t('statusRejected')}
+            </Text>
+          </View>
+        )}
         <TouchableOpacity onPress={onToggle} activeOpacity={0.5} style={styles.resortHouseExpandBtn}>
           <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
             <Image source={require('../../assets/icon-arrow-down.png')} style={styles.resortHouseArrow} resizeMode="contain" />
@@ -823,6 +839,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
             expanded={expandedHouseIds.has(h.id)}
             onToggle={() => toggleHouseExpand(h.id)}
             onPress={onHousePress ? () => onHousePress(h) : undefined}
+            t={t}
           />
         ))
       ) : (
@@ -839,7 +856,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
   );
 }
 
-function CondoApartmentItem({ item, expanded, onToggle, onPress }) {
+function CondoApartmentItem({ item, expanded, onToggle, onPress, t }) {
   const arrowAnim = useState(() => new Animated.Value(0))[0];
 
   useEffect(() => {
@@ -856,9 +873,18 @@ function CondoApartmentItem({ item, expanded, onToggle, onPress }) {
   });
 
   const codeDisplay = (item.code_suffix ? `${item.code || ''} (${item.code_suffix})` : item.code) || '';
+  const isPending = item.property_status === 'pending';
+  const isRejected = item.property_status === 'rejected';
+  const isInReview = isPending || isRejected;
 
   return (
-    <View style={[styles.resortHouseCard, { backgroundColor: '#BBDEFB', borderColor: '#64B5F6' }]}>
+    <View
+      style={
+        isInReview
+          ? [styles.resortHouseCard, styles.childCardInReview, { borderLeftColor: '#64B5F6' }]
+          : [styles.resortHouseCard, { backgroundColor: '#BBDEFB', borderColor: '#64B5F6' }]
+      }
+    >
       <View style={styles.resortHouseRow}>
         <TouchableOpacity
           style={styles.resortHouseMainArea}
@@ -870,6 +896,13 @@ function CondoApartmentItem({ item, expanded, onToggle, onPress }) {
           <Text style={styles.resortHouseName} numberOfLines={1}>{item.name}</Text>
           <Text style={styles.resortHouseCode}>{codeDisplay}</Text>
         </TouchableOpacity>
+        {isInReview && (
+          <View style={[styles.childStatusBadge, isRejected ? styles.childStatusBadgeRejected : styles.childStatusBadgePending]}>
+            <Text style={[styles.childStatusBadgeText, isRejected ? styles.childStatusBadgeTextRejected : styles.childStatusBadgeTextPending]}>
+              {isPending ? t('statusPending') : t('statusRejected')}
+            </Text>
+          </View>
+        )}
         <TouchableOpacity onPress={onToggle} activeOpacity={0.5} style={styles.resortHouseExpandBtn}>
           <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
             <Image source={require('../../assets/icon-arrow-down.png')} style={styles.resortHouseArrow} resizeMode="contain" />
@@ -1050,6 +1083,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
             expanded={expandedIds.has(a.id)}
             onToggle={() => toggleExpand(a.id)}
             onPress={onApartmentPress ? () => onApartmentPress(a) : undefined}
+            t={t}
           />
         ))
       ) : (
@@ -1068,6 +1102,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
 
 export default function PropertyDetailScreen({ property, onBack, onDelete, onPropertyUpdated, onSelectProperty, user }) {
   const { t } = useLanguage();
+  const { refreshBookings, properties } = useAppData();
   const [p, setP] = useState(property);
 
   // Агент видит только свои объекты — isOwnProperty всегда true для агентов
@@ -1075,11 +1110,16 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   // Phase 1: explicit role predicate (LOCK-001). Falls back to isTeamMember.
   const isAgentRole = user?.isAgentRole ?? isTeamMember;
   const isAdmin = user?.workAs === 'company' && !!(user?.companyId); // web-паттерн: явная проверка company mode
+  const isAdminRole = user?.isAdminRole ?? (!user?.teamMembership && !!user?.companyId);
   const canBook = user?.teamPermissions?.can_book;
   const canEditInfo = !isTeamMember || user?.teamPermissions?.can_edit_info;
   const canEditPrices = !isTeamMember || user?.teamPermissions?.can_edit_prices;
   const needsApproval = isTeamMember && (!canEditInfo || !canEditPrices || p?.property_status === 'rejected');
   const isApproved = !p?.property_status || p?.property_status === 'approved';
+  const isParentContainer = (p?.type === 'resort' || p?.type === 'condo') && !p?.resort_id;
+  const propertiesList = Array.isArray(properties) ? properties : [];
+  const hasApprovedChildren = propertiesList.some((child) => child.resort_id === p?.id && child.property_status === 'approved');
+  const needsSecondDeleteConfirm = isAdminRole && isParentContainer && hasApprovedChildren;
   // Agent may delete only their own non-approved property (LOCK-001)
   const isCreator = p?.user_id === user?.id;
   const [wizardVisible, setWizardVisible] = useState(false);
@@ -1099,7 +1139,6 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const [showOwner, setShowOwner] = useState(false);
   const [showOwner2, setShowOwner2] = useState(false);
   const [resort, setResort] = useState(null);
-  const { refreshBookings, properties } = useAppData();
   const [refreshBookingsTrigger, setRefreshBookingsTrigger] = useState(0);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [selectedBookingTitle, setSelectedBookingTitle] = useState('');
@@ -1374,6 +1413,50 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     Linking.openURL(url).catch(() => Alert.alert('Error', 'Cannot open link'));
   };
 
+  const handleDirectDelete = useCallback(async () => {
+    try {
+      await deleteProperty(p.id);
+      onPropertyUpdated?.();
+      onBack?.();
+    } catch (e) {
+      Alert.alert(t('error') || 'Error', e.message || 'Failed to delete');
+    }
+  }, [p?.id, onPropertyUpdated, onBack, t]);
+
+  const handleDeletePress = useCallback(() => {
+    if (!needsSecondDeleteConfirm) {
+      onDelete?.();
+      return;
+    }
+    Alert.alert(
+      t('deletePropertyTitle'),
+      t('pdDeleteConfirm'),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('deleteAction'),
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              t('deleteContainerWithUnitsTitle'),
+              t('deleteContainerWithUnitsText'),
+              [
+                { text: t('cancel'), style: 'cancel' },
+                {
+                  text: t('deleteAction'),
+                  style: 'destructive',
+                  onPress: async () => {
+                    await handleDirectDelete();
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  }, [needsSecondDeleteConfirm, onDelete, t, handleDirectDelete]);
+
   // ── Admin moderation: Approve ──────────────────────────────────────────────
   const handleAdminApprove = useCallback(() => {
     Alert.alert(
@@ -1534,6 +1617,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     city: p.city || '',
     location_id: p.location_id || null,
     owner_id: p.owner_id || null,
+    responsible_agent_id: p.responsible_agent_id ?? null,
     district: p.district || '',
     google_maps_link: p.google_maps_link || '',
     address: p.address || '',
@@ -1547,6 +1631,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     city: p.city || '',
     location_id: p.location_id || null,
     owner_id: p.owner_id || null,
+    responsible_agent_id: p.responsible_agent_id ?? null,
     district: p.district || '',
     google_maps_link: p.google_maps_link || '',
     address: p.address || '',
@@ -1554,12 +1639,21 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
   const handleAddHouseSave = async (updates) => {
     try {
-      const fullData = { ...updates, resort_id: p.id };
+      const fullData = {
+        ...updates,
+        resort_id: p.id,
+        city: p.city || '',
+        district: p.district || '',
+        owner_id: p.owner_id || null,
+        responsible_agent_id: p.responsible_agent_id ?? null,
+        location_id: p.location_id || null,
+      };
       const {
         name,
         code,
         location_id,
         owner_id,
+        responsible_agent_id,
         property_status,
         ...detailsToUpdate
       } = fullData;
@@ -1570,10 +1664,17 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         type: 'resort_house',
         location_id: location_id || null,
         owner_id: owner_id || null,
+        responsible_agent_id: responsible_agent_id ?? null,
         property_status: property_status || (isTeamMember ? 'pending' : 'approved'),
       });
 
-      const { responsible_agent_id, user_id, company_id, ...safeDetailsToUpdate } = detailsToUpdate;
+      if (created?.id) {
+        await updateProperty(created.id, {
+          responsible_agent_id: p.responsible_agent_id ?? null,
+        });
+      }
+
+      const { user_id, company_id, ...safeDetailsToUpdate } = detailsToUpdate;
 
       if (created?.id && Object.keys(safeDetailsToUpdate).length > 0) {
         await updateProperty(created.id, safeDetailsToUpdate);
@@ -1605,12 +1706,21 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
   const handleAddApartmentSave = async (updates) => {
     try {
-      const fullData = { ...updates, resort_id: p.id };
+      const fullData = {
+        ...updates,
+        resort_id: p.id,
+        city: p.city || '',
+        district: p.district || '',
+        owner_id: p.owner_id || null,
+        responsible_agent_id: p.responsible_agent_id ?? null,
+        location_id: p.location_id || null,
+      };
       const {
         name,
         code,
         location_id,
         owner_id,
+        responsible_agent_id,
         property_status,
         ...detailsToUpdate
       } = fullData;
@@ -1621,10 +1731,17 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         type: 'condo_apartment',
         location_id: location_id || null,
         owner_id: owner_id || null,
+        responsible_agent_id: responsible_agent_id ?? null,
         property_status: property_status || (isTeamMember ? 'pending' : 'approved'),
       });
 
-      const { responsible_agent_id, user_id, company_id, ...safeDetailsToUpdate } = detailsToUpdate;
+      if (created?.id) {
+        await updateProperty(created.id, {
+          responsible_agent_id: p.responsible_agent_id ?? null,
+        });
+      }
+
+      const { user_id, company_id, ...safeDetailsToUpdate } = detailsToUpdate;
 
       if (created?.id && Object.keys(safeDetailsToUpdate).length > 0) {
         await updateProperty(created.id, safeDetailsToUpdate);
@@ -1750,7 +1867,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       <View style={styles.actionsRow}>
         {/* Удалить — для не-агентов всегда; для agent-role только если создатель + не approved (LOCK-001) */}
         {(!isAgentRole || (isCreator && !isApproved)) && (
-          <TouchableOpacity style={styles.actionBtn} onPress={onDelete} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.actionBtn} onPress={handleDeletePress} activeOpacity={0.7}>
             <Image source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
           </TouchableOpacity>
         )}
@@ -2294,6 +2411,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     overflow: 'hidden',
   },
+  childCardInReview: {
+    backgroundColor: '#ECECE7',
+    borderColor: '#9FA6AD',
+    borderWidth: 1.5,
+    borderStyle: 'solid',
+    borderLeftWidth: 5,
+  },
   resortHouseRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2322,6 +2446,31 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#D81B60',
     marginRight: 10,
+  },
+  childStatusBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  childStatusBadgePending: {
+    backgroundColor: '#FFF8E1',
+    borderColor: '#FFE082',
+  },
+  childStatusBadgeRejected: {
+    backgroundColor: '#FFF5F5',
+    borderColor: '#FFCDD2',
+  },
+  childStatusBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  childStatusBadgeTextPending: {
+    color: '#F57F17',
+  },
+  childStatusBadgeTextRejected: {
+    color: '#C62828',
   },
   resortHouseExpandBtn: {
     paddingVertical: 6,

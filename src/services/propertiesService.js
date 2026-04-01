@@ -49,11 +49,38 @@ async function resolveAgentCompanyId(userId) {
   }
 }
 
+async function isActiveAgentMember(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('company_members')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('role', 'agent')
+      .eq('status', 'active')
+      .maybeSingle();
+    if (error) {
+      console.warn('isActiveAgentMember: query error', error.message);
+      return false;
+    }
+    return !!data;
+  } catch (e) {
+    console.warn('isActiveAgentMember: unexpected error', e.message);
+    return false;
+  }
+}
+
+async function resolveCreatePropertyStatus(userId, requestedStatus) {
+  const agentMember = await isActiveAgentMember(userId);
+  if (agentMember) return 'pending';
+  return requestedStatus || 'approved';
+}
+
 export async function createProperty({ name, code, type, location_id, owner_id, property_status, company_id }) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
   const effectiveCompanyId = company_id ?? await resolveAgentCompanyId(session.user.id);
+  const effectivePropertyStatus = await resolveCreatePropertyStatus(session.user.id, property_status);
 
   const { data, error } = await supabase
     .from('properties')
@@ -65,7 +92,7 @@ export async function createProperty({ name, code, type, location_id, owner_id, 
       type: type || 'house',
       location_id: location_id || null,
       owner_id: owner_id || null,
-      property_status: property_status || 'approved',
+      property_status: effectivePropertyStatus,
       company_id: effectiveCompanyId,
     })
     .select()
@@ -83,12 +110,13 @@ export async function createPropertyFull(updates) {
   if (!session?.user) throw new Error('Not authenticated');
 
   const effectiveCompanyId = updates.company_id ?? await resolveAgentCompanyId(session.user.id);
+  const effectivePropertyStatus = await resolveCreatePropertyStatus(session.user.id, updates.property_status);
 
   const row = {
     user_id: session.user.id,
     responsible_agent_id: updates.responsible_agent_id ?? session.user.id,
-    property_status: updates.property_status || 'approved',
     ...updates,
+    property_status: effectivePropertyStatus,
     company_id: effectiveCompanyId,
   };
 

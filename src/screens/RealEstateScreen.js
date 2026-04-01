@@ -530,7 +530,17 @@ export default function RealEstateScreen({ onReady }) {
             <View style={styles.draftsSection}>
               <Text style={styles.draftsSectionTitle}>{t('draftsSectionTitle')}</Text>
               {drafts.map(item => {
-                const typeColor = item.type === 'resort' ? '#81C784' : item.type === 'condo' ? '#64B5F6' : '#FFD54F';
+                const visualType = item.type === 'resort_house'
+                  ? 'resort'
+                  : item.type === 'condo_apartment'
+                    ? 'condo'
+                    : item.type;
+                const typeColor = visualType === 'resort' ? '#81C784' : visualType === 'condo' ? '#64B5F6' : '#FFD54F';
+                const typeIcon = visualType === 'resort'
+                  ? require('../../assets/icon-property-resort.png')
+                  : visualType === 'condo'
+                    ? require('../../assets/icon-property-condo.png')
+                    : require('../../assets/icon-property-house.png');
                 return (
                   <TouchableOpacity
                     key={item.id}
@@ -539,7 +549,10 @@ export default function RealEstateScreen({ onReady }) {
                     activeOpacity={0.7}
                   >
                     <View style={styles.draftCardInfo}>
-                      <Text style={styles.draftCardName} numberOfLines={1}>{item.name || '—'}</Text>
+                      <View style={styles.draftCardMainRow}>
+                        <Image source={typeIcon} style={styles.draftCardTypeIcon} resizeMode="contain" />
+                        <Text style={styles.draftCardName} numberOfLines={1}>{item.name || '—'}</Text>
+                      </View>
                       {!!item.code && <Text style={styles.draftCardCode}>{item.code}</Text>}
                     </View>
                     <View style={[
@@ -802,6 +815,15 @@ const styles = StyleSheet.create({
   draftCardInfo: {
     flex: 1,
     gap: 2,
+  },
+  draftCardMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  draftCardTypeIcon: {
+    width: 18,
+    height: 18,
   },
   draftCardName: {
     fontSize: 14,

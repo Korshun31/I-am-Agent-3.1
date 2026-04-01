@@ -66,7 +66,7 @@ function getUnitTypeForParent(parentType) {
 }
 
 const UNIT_DETAIL_FIELDS = [
-  'bedrooms', 'bathrooms', 'area',
+  'bedrooms', 'bathrooms', 'area', 'floor_number',
   'air_conditioners', 'internet_speed',
   'price_monthly', 'booking_deposit', 'save_deposit',
   'commission', 'owner_commission_one_time', 'owner_commission_monthly',
@@ -335,6 +335,7 @@ function buildForm(property, parentProperty) {
       bedrooms: property.bedrooms ?? '',
       bathrooms: property.bathrooms ?? '',
       area: property.area ?? '',
+      floor_number: property.floor_number ?? '',
       beach_distance: property.beach_distance ?? '',
       market_distance: property.market_distance ?? '',
       google_maps_link: property.google_maps_link || '',
@@ -381,7 +382,7 @@ function buildForm(property, parentProperty) {
     city: parentProperty?.city || '',
     district: parentProperty?.district || '',
     houses_count: '', floors: '',
-    bedrooms: '', bathrooms: '', area: '',
+    bedrooms: '', bathrooms: '', area: '', floor_number: '',
     beach_distance: parentProperty?.beach_distance ?? '',
     market_distance: parentProperty?.market_distance ?? '',
     google_maps_link: '', website_url: '',
@@ -479,6 +480,8 @@ export default function WebPropertyEditPanel({
   const effectiveType = mode === 'create-unit' ? (parentProperty?.type || 'house') : (property?.type || form.type);
   const isChildUnit = mode === 'create-unit' || Boolean(property?.resort_id);
   const isParent = !isChildUnit && (effectiveType === 'resort' || effectiveType === 'condo');
+  const isCondoApartment = (mode === 'create-unit' && parentProperty?.type === 'condo')
+    || (mode === 'edit' && property?.type === 'condo_apartment');
   const visibleTabs = isParent
     ? TABS.filter(t => t.key === 'main' || t.key === 'photos')
     : TABS;
@@ -574,6 +577,7 @@ export default function WebPropertyEditPanel({
       bedrooms: numOrNull(form.bedrooms),
       bathrooms: numOrNull(form.bathrooms),
       area: numOrNull(form.area),
+      ...(isCondoApartment && { floor_number: numOrNull(form.floor_number) }),
       beach_distance: numOrNull(form.beach_distance),
       market_distance: numOrNull(form.market_distance),
       google_maps_link: form.google_maps_link.trim() || '',
@@ -938,6 +942,13 @@ export default function WebPropertyEditPanel({
       {!isParent && (
         <>
           <View style={s.row3}>
+            {isCondoApartment && (
+              <View style={{ flex: 1 }}>
+                <FieldRow label={t('propFloorNumber')}>
+                  <FieldInput value={form.floor_number} onChangeText={v => set('floor_number', v)} placeholder="3" numeric readOnly={readOnly} />
+                </FieldRow>
+              </View>
+            )}
             <View style={{ flex: 1 }}>
               <FieldRow label={t('propBedrooms3')}>
                 <FieldInput value={form.bedrooms} onChangeText={v => set('bedrooms', v)} placeholder="2" numeric readOnly={readOnly} />

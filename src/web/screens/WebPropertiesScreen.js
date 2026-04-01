@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../services/supabase';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, ActivityIndicator, FlatList, Image, Linking, Modal,
+  TextInput, ActivityIndicator, FlatList, Image, Linking, Modal, Platform, Alert,
 } from 'react-native';
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
@@ -283,6 +283,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   const AMENITY_LABELS = getAmenityLabels(t);
   const psym = getCurrencySymbol(property.currency || 'THB');
   const isCompanyAdmin = !!(user?.workAs === 'company' && user?.companyId);
+  const isAdminRole = user?.isAdminRole ?? (!user?.teamMembership && !!user?.companyId);
 
   // Разрешения агента
   const isAgent = !!user?.teamMembership;
@@ -301,6 +302,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   const [pendingDraft, setPendingDraft] = useState(null);
   const [rejectionHistory, setRejectionHistory] = useState([]);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleteCascadeConfirmVisible, setDeleteCascadeConfirmVisible] = useState(false);
   // Admin: pending draft from any agent for this property (draft-aware moderation)
   const [adminAgentDraft, setAdminAgentDraft] = useState(null);
 
@@ -354,6 +356,9 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   const owner2 = contacts.find(c => c.id === property.owner_id_2);
   const parent = allProperties.find(p => p.id === property.resort_id);
   const children = allProperties.filter(p => p.resort_id === property.id);
+  const isParentContainer = (property.type === 'resort' || property.type === 'condo') && !property.resort_id;
+  const hasApprovedChildren = children.some((child) => child.property_status === 'approved');
+  const needsSecondDeleteConfirm = isAdminRole && isParentContainer && hasApprovedChildren;
   const occupied = isOccupiedNow(bookings, property.id);
   const code = property.code + (property.code_suffix ? `-${property.code_suffix}` : '');
   const effectiveType = property.resort_id && parent ? parent.type : property.type;
@@ -538,11 +543,17 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
           const isParent = property.type === 'resort' || property.type === 'condo';
           const showUnit = !isParent;
           const hasStats =
-            (showUnit && (property.bedrooms != null || property.bathrooms != null || property.air_conditioners != null || property.area != null))
+            (showUnit && (property.bedrooms != null || property.bathrooms != null || property.air_conditioners != null || property.area != null || (property.type === 'condo_apartment' && property.floor_number != null)))
             || property.price_monthly != null;
           if (!hasStats) return null;
           return (
             <View style={s.statsRow}>
+              {showUnit && property.type === 'condo_apartment' && property.floor_number != null && (
+                <View style={[s.statCard, { borderLeftColor: C.stat2 }]}>
+                  <Text style={s.statValue}>{property.floor_number}</Text>
+                  <Text style={s.statLabel}>{t('propFloorNumber')}</Text>
+                </View>
+              )}
               {showUnit && property.bedrooms != null && (
                 <View style={[s.statCard, { borderLeftColor: C.in }]}>
                   <Text style={s.statValue}>{property.bedrooms}</Text>
@@ -805,6 +816,9 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
               {children.map(child => {
                 const childMeta = TYPE_META[getTypeMetaKey(child.type)] || TYPE_META.house;
                 const childCode = child.code + (child.code_suffix ? `-${child.code_suffix}` : '');
+                const isPending = child.property_status === 'pending';
+                const isRejected = child.property_status === 'rejected';
+                const isInReview = isPending || isRejected;
                 const activeBooking = getActiveBooking(bookings, child.id);
                 const childOccupied = !!activeBooking;
                 const checkOutLabel = activeBooking
@@ -824,20 +838,40 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                     {/* Photo */}
                     <View style={s.childCardPhoto}>
                       {hasPhoto ? (
-                        <Image source={{ uri: child.photos[0] }} style={s.childCardImg} resizeMode="cover" />
+                        <Image
+                          source={{ uri: child.photos[0] }}
+                          style={[
+                            s.childCardImg,
+                            isInReview && s.childCardImgMuted,
+                            Platform.OS === 'web' && isInReview && s.childMediaGrayWeb,
+                          ]}
+                          resizeMode="cover"
+                        />
                       ) : (
                         <View style={[s.childCardImgPlaceholder, { backgroundColor: childMeta.bg }]}>
                           {childMeta.img
-                            ? <Image source={childMeta.img} style={s.childCardImgIcon2} resizeMode="contain" />
-                            : <Text style={s.childCardImgIcon}>{childMeta.icon}</Text>}
+                            ? (
+                              <Image
+                                source={childMeta.img}
+                                style={[
+                                  s.childCardImgIcon2,
+                                  isInReview && s.childCardImgIconMuted,
+                                  Platform.OS === 'web' && isInReview && s.childMediaGrayWeb,
+                                ]}
+                                resizeMode="contain"
+                              />
+                            )
+                            : <Text style={[s.childCardImgIcon, isInReview && s.childCardImgIconMuted]}>{childMeta.icon}</Text>}
                         </View>
                       )}
+                      {isInReview && <View pointerEvents="none" style={s.childCardPhotoOverlay} />}
                     </View>
 
                     {/* Info */}
                     <View style={s.childCardInfo}>
                       {/* Top row: name + code + status */}
                       <View style={s.childCardTopRow}>
+                        {isInReview && <Text style={s.childInReviewMark}>⏳</Text>}
                         <Text style={s.childCardTitle} numberOfLines={1}>{child.name}</Text>
                         <View style={s.childCodeChip}>
                           <Text style={s.childCodeChipText}>{childCode}</Text>
@@ -919,7 +953,45 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
             </TouchableOpacity>
             <TouchableOpacity
               style={s.deleteConfirmDeleteBtn}
-              onPress={() => { setDeleteConfirmVisible(false); onDelete?.(); }}
+              onPress={() => {
+                if (!needsSecondDeleteConfirm) {
+                  setDeleteConfirmVisible(false);
+                  onDelete?.();
+                  return;
+                }
+                setDeleteConfirmVisible(false);
+                setDeleteCascadeConfirmVisible(true);
+              }}
+            >
+              <Text style={s.deleteConfirmDeleteText}>{t('deleteAction')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+    <Modal
+      visible={deleteCascadeConfirmVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setDeleteCascadeConfirmVisible(false)}
+    >
+      <View style={s.modalOverlay}>
+        <View style={s.deleteConfirmBox}>
+          <Text style={s.deleteConfirmTitle}>{t('deleteContainerWithUnitsTitle')}</Text>
+          <Text style={s.deleteConfirmText}>{t('deleteContainerWithUnitsText')}</Text>
+          <View style={s.deleteConfirmActions}>
+            <TouchableOpacity
+              style={s.deleteConfirmCancelBtn}
+              onPress={() => setDeleteCascadeConfirmVisible(false)}
+            >
+              <Text style={s.deleteConfirmCancelText}>{t('cancel')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.deleteConfirmDeleteBtn}
+              onPress={() => {
+                setDeleteCascadeConfirmVisible(false);
+                onDelete?.();
+              }}
             >
               <Text style={s.deleteConfirmDeleteText}>{t('deleteAction')}</Text>
             </TouchableOpacity>
@@ -1193,10 +1265,14 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
     return true;
   });
 
-  // В поиске показываем все (включая юниты), без поиска — только верхний уровень
+  // В поиске показываем все (включая юниты).
+  // Для In review также всегда показываем и верхний уровень, и юниты даже без поиска.
+  // Для остальных табов без поиска оставляем только верхний уровень.
   const sorted = search.trim()
     ? [...filtered.filter(p => !p.resort_id), ...filtered.filter(p => !!p.resort_id)]
-    : filtered.filter(p => !p.resort_id);
+    : (isInReviewTab
+      ? [...filtered.filter(p => !p.resort_id), ...filtered.filter(p => !!p.resort_id)]
+      : filtered.filter(p => !p.resort_id));
 
   // Счётчики табов — всегда стабильные, не зависят от выбранного таба или поиска
   const counts = {
@@ -1434,9 +1510,14 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
               openRejectModal(draftId);
             }}
             onDelete={async () => {
-              await deleteProperty(selected.id);
-              setSelected(null);
-              setProperties(prev => prev.filter(p => p.id !== selected.id));
+              try {
+                await deleteProperty(selected.id);
+                await load();
+                setSelected(null);
+                setPreviousSelected(null);
+              } catch (e) {
+                Alert.alert(t('error') || 'Error', e.message || t('errorSave') || 'Failed to delete');
+              }
             }}
           />
         ) : (
@@ -2018,14 +2099,26 @@ const s = StyleSheet.create({
     width: 100,
     height: 80,
     flexShrink: 0,
+    position: 'relative',
   },
   childCardImg: { width: '100%', height: '100%' },
+  childCardImgMuted: { opacity: 0.8 },
+  childCardPhotoOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(236,236,236,0.28)',
+  },
   childCardImgPlaceholder: {
     width: '100%', height: '100%',
     alignItems: 'center', justifyContent: 'center',
   },
   childCardImgIcon: { fontSize: 32 },
   childCardImgIcon2: { width: 44, height: 44 },
+  childCardImgIconMuted: { opacity: 0.6 },
+  childMediaGrayWeb: { filter: 'grayscale(100%)' },
 
   // Info block — center
   childCardInfo: {
@@ -2052,6 +2145,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 7, paddingVertical: 2,
   },
   childCodeChipText: { fontSize: 11, fontWeight: '700', color: C.muted },
+  childInReviewMark: { fontSize: 15, lineHeight: 16 },
   childStatusPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 3,
