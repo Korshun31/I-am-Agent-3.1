@@ -65,6 +65,8 @@ const BLOCK_COLORS = {
   condo:  { bg: '#BBDEFB', border: '#64B5F6' },
 };
 
+const BOOKABLE_UNIT_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
+
 const AMENITY_KEYS = [
   'swimming_pool', 'gym', 'parking', 'internet', 'tv', 'washing_machine',
   'dishwasher', 'fridge', 'stove', 'oven', 'hood', 'microwave',
@@ -1525,7 +1527,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   };
 
   const draftHouseInResort = {
-    type: 'house',
+    type: 'resort_house',
     resort_id: p.id,
     name: '',
     code: p.code || '',
@@ -1538,7 +1540,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   };
 
   const draftApartmentInCondo = {
-    type: 'house',
+    type: 'condo_apartment',
     resort_id: p.id,
     name: '',
     code: p.code || '',
@@ -1556,7 +1558,6 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       const {
         name,
         code,
-        type,
         location_id,
         owner_id,
         property_status,
@@ -1566,16 +1567,31 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       const created = await createProperty({
         name: name || '',
         code: code || '',
-        type: type || 'house',
+        type: 'resort_house',
         location_id: location_id || null,
         owner_id: owner_id || null,
-        property_status: property_status || 'approved',
+        property_status: property_status || (isTeamMember ? 'pending' : 'approved'),
       });
 
       const { responsible_agent_id, user_id, company_id, ...safeDetailsToUpdate } = detailsToUpdate;
 
       if (created?.id && Object.keys(safeDetailsToUpdate).length > 0) {
         await updateProperty(created.id, safeDetailsToUpdate);
+      }
+
+      if (isTeamMember && created?.id) {
+        const adminId = user?.teamMembership?.adminId;
+        if (adminId) {
+          const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email;
+          await sendNotification({
+            recipientId: adminId,
+            senderId: user?.id,
+            type: 'property_submitted',
+            title: `🏠 ${agentName} ${t('notifAddedPropertyTo')} ${p.name}`,
+            body: `${t('notifLabelProperty')} ${name || ''} · ${t('notifLabelCode')} ${code || ''}`,
+            propertyId: created.id,
+          });
+        }
       }
 
       setAddHouseWizardVisible(false);
@@ -1593,7 +1609,6 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       const {
         name,
         code,
-        type,
         location_id,
         owner_id,
         property_status,
@@ -1603,16 +1618,31 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       const created = await createProperty({
         name: name || '',
         code: code || '',
-        type: type || 'house',
+        type: 'condo_apartment',
         location_id: location_id || null,
         owner_id: owner_id || null,
-        property_status: property_status || 'approved',
+        property_status: property_status || (isTeamMember ? 'pending' : 'approved'),
       });
 
       const { responsible_agent_id, user_id, company_id, ...safeDetailsToUpdate } = detailsToUpdate;
 
       if (created?.id && Object.keys(safeDetailsToUpdate).length > 0) {
         await updateProperty(created.id, safeDetailsToUpdate);
+      }
+
+      if (isTeamMember && created?.id) {
+        const adminId = user?.teamMembership?.adminId;
+        if (adminId) {
+          const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email;
+          await sendNotification({
+            recipientId: adminId,
+            senderId: user?.id,
+            type: 'property_submitted',
+            title: `🏠 ${agentName} ${t('notifAddedPropertyTo')} ${p.name}`,
+            body: `${t('notifLabelProperty')} ${name || ''} · ${t('notifLabelCode')} ${code || ''}`,
+            propertyId: created.id,
+          });
+        }
       }
 
       setAddApartmentWizardVisible(false);
@@ -1737,7 +1767,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
               onPress={() => {
                 if (p.type === 'resort') setAddHouseWizardVisible(true);
                 else if (p.type === 'condo') setAddApartmentWizardVisible(true);
-                else if (p.type === 'house') setAddBookingVisible(true);
+                else if (BOOKABLE_UNIT_TYPES.has(p.type)) setAddBookingVisible(true);
               }}
             >
               {(p.type === 'resort' || p.type === 'condo') ? (
@@ -1947,7 +1977,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           onSave={handleAddApartmentSave}
         />
       )}
-      {p.type === 'house' && (
+      {BOOKABLE_UNIT_TYPES.has(p.type) && (
         <AddBookingModal
           visible={addBookingVisible}
           property={p}

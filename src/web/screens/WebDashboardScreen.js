@@ -18,6 +18,8 @@ const ICON_WHATSAPP = require('../../../assets/icon-contact-whatsapp.png');
 
 dayjs.extend(isBetween);
 
+const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
+
 // ─── Новая палитра ──────────────────────────────────────
 const CLR = {
   // Нижний ряд (Блоки)
@@ -117,7 +119,7 @@ export default function WebDashboardScreen({ user, refreshKey }) {
       let resortHousesCount = 0;
       let apartmentsCount = 0;
       countableProperties.forEach(p => {
-        if (p.type === 'house') {
+        if (HOUSE_LIKE_TYPES.has(p.type)) {
           if (!p.resort_id) standaloneHouses++;
           else {
             const parent = properties.find(parentProp => parentProp.id === p.resort_id);
@@ -168,7 +170,7 @@ export default function WebDashboardScreen({ user, refreshKey }) {
         let companyHouses = 0, companyResorts = 0, companyCondos = 0;
         let myHouses = 0, myResorts = 0, myCondos = 0;
         properties.forEach(p => {
-          if (p.type !== 'house') return;
+          if (!HOUSE_LIKE_TYPES.has(p.type)) return;
           const isMine = p.responsible_agent_id === user?.id;
           const parent = p.resort_id ? propsMapStats[p.resort_id] : null;
           if (!p.resort_id) {

@@ -26,11 +26,18 @@ const TYPE_COLOR = {
   house:  { border: '#C2920E', bg: '#FFFBEB', text: '#92680A', pill: '#FEF3C7', label: 'Дом' },
   resort: { border: '#16A34A', bg: '#F0FDF4', text: '#15803D', pill: '#DCFCE7', label: 'Резорт' },
   condo:  { border: '#2563EB', bg: '#EFF6FF', text: '#1D4ED8', pill: '#DBEAFE', label: 'Кондо' },
+  resort_house: { border: '#16A34A', bg: '#F0FDF4', text: '#15803D', pill: '#DCFCE7', label: 'Дом в резорте' },
+  condo_apartment: { border: '#2563EB', bg: '#EFF6FF', text: '#1D4ED8', pill: '#DBEAFE', label: 'Апартаменты' },
 };
+
+const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
 
 function getEffectiveType(prop) {
   if (!prop) return 'house';
-  if (prop.type === 'house' && prop.parentType) return prop.parentType;
+  // Respect explicit unit types first; fallback to parent type only for legacy records.
+  if (prop.type === 'resort_house' || prop.type === 'condo_apartment') return prop.type;
+  if (prop.type === 'house' && prop.parentType === 'resort') return 'resort_house';
+  if (prop.type === 'house' && prop.parentType === 'condo') return 'condo_apartment';
   return prop.type || 'house';
 }
 

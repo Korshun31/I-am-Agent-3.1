@@ -57,6 +57,15 @@ Data Layer (Supabase / PostgreSQL)
   └── auth.users
 ```
 
+### Data Contract: owner commission flags
+
+- Для owner-комиссий канонический формат: `value + is_percent`.
+- Поля:
+  - `owner_commission_one_time`, `owner_commission_one_time_is_percent`
+  - `owner_commission_monthly`, `owner_commission_monthly_is_percent`
+- Legacy-флаги `owner_commission_*_is_from` не используются в коде и подлежат удалению на уровне схемы.
+- Это правило не затрагивает другие `*_is_from` поля (`price_monthly_is_from`, `booking_deposit_is_from`, `save_deposit_is_from`, `commission_is_from`).
+
 ---
 
 ## UI Contract: Mobile top area parity

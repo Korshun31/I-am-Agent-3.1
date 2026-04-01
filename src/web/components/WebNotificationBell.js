@@ -71,8 +71,8 @@ const DIFF_SKIP_FIELDS = new Set([
   'photos', 'amenities', 'currency', 'code', 'code_suffix', 'type',
   'location_id', 'resort_id', 'owner_id', 'owner_id_2',
   'price_monthly_is_from', 'booking_deposit_is_from', 'save_deposit_is_from',
-  'commission_is_from', 'owner_commission_one_time_is_from',
-  'owner_commission_one_time_is_percent', 'owner_commission_monthly_is_from',
+  'commission_is_from',
+  'owner_commission_one_time_is_percent',
   'owner_commission_monthly_is_percent', 'water_price_type',
 ]);
 
@@ -594,11 +594,12 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged,
           edit_submitted: 'edit_rejected',
           price_submitted: 'price_rejected',
         };
+        const contextTitle = (notif.title || '').trim();
         await sendNotification({
           recipientId: notif.sender_id,
           senderId: userId,
           type: typeMap[notif.type] || 'property_rejected',
-          title: t('changesRejected'),
+          title: contextTitle ? `${t('changesRejected')} · ${contextTitle}` : t('changesRejected'),
           body: `${t('diffReason')} ${trimmed}`,
           propertyId: notif.property_id,
         });

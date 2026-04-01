@@ -22,6 +22,8 @@ const COLORS = {
   backArrow: '#5DB8D4',
 };
 
+const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
+
 export default function StatisticsScreen({ onBack }) {
   const { t, language } = useLanguage();
   const [propertyStats, setPropertyStats] = useState({
@@ -39,11 +41,11 @@ export default function StatisticsScreen({ onBack }) {
     try {
       const all = await getProperties();
       const getParent = (id) => all.find((p) => p.id === id);
-      const standaloneHouses = all.filter((p) => p.type === 'house' && !p.resort_id).length;
+      const standaloneHouses = all.filter((p) => HOUSE_LIKE_TYPES.has(p.type) && !p.resort_id).length;
       const resortCount = all.filter((p) => p.type === 'resort' && !p.resort_id).length;
-      const resortHouses = all.filter((p) => p.type === 'house' && p.resort_id && getParent(p.resort_id)?.type === 'resort').length;
+      const resortHouses = all.filter((p) => HOUSE_LIKE_TYPES.has(p.type) && p.resort_id && getParent(p.resort_id)?.type === 'resort').length;
       const condoCount = all.filter((p) => p.type === 'condo' && !p.resort_id).length;
-      const condoApartments = all.filter((p) => p.type === 'house' && p.resort_id && getParent(p.resort_id)?.type === 'condo').length;
+      const condoApartments = all.filter((p) => HOUSE_LIKE_TYPES.has(p.type) && p.resort_id && getParent(p.resort_id)?.type === 'condo').length;
       setPropertyStats({
         standaloneHouses,
         resortCount,

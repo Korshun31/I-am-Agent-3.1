@@ -48,6 +48,10 @@ const AMENITY_KEYS = [
   'kettle', 'toaster', 'coffee_machine', 'multi_cooker', 'blender',
 ];
 
+function isHouseLikeType(type) {
+  return type === 'house' || type === 'resort_house' || type === 'condo_apartment';
+}
+
 function Field({ label, value, onChangeText, placeholder, keyboardType, multiline }) {
   return (
     <View style={s.fieldWrap}>
@@ -523,11 +527,11 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
 
 function StepCharacteristics({ data, setData, t, propertyType, resortId, parentResort }) {
   const isHouseInResort = Boolean(resortId);
-  const isApartment = isHouseInResort && parentResort?.type === 'condo';
+  const isApartment = isHouseInResort && (parentResort?.type === 'condo' || propertyType === 'condo_apartment');
 
   return (
     <>
-      {propertyType === 'house' && (
+      {isHouseLikeType(propertyType) && (
         <>
           <Field label={t('propBedrooms')} value={data.bedrooms} onChangeText={v => setData(d => ({ ...d, bedrooms: v }))} keyboardType="numeric" />
           <Field label={t('pdBathrooms')} value={data.bathrooms} onChangeText={v => setData(d => ({ ...d, bathrooms: v }))} keyboardType="numeric" />
@@ -555,11 +559,8 @@ function StepDescription({ data, setData, t }) {
   );
 }
 
-function StepComments({ data, setData, t, property }) {
-  const showWebsite = property && (
-    property.type === 'house' ||
-    (property.type === 'condo' && property.resort_id)
-  );
+function StepComments({ data, setData, t, propertyType }) {
+  const showWebsite = isHouseLikeType(propertyType);
   return (
     <>
       {showWebsite && (
@@ -737,7 +738,7 @@ function StepAmenities({ data, setData, t }) {
 function StepAdditional({ data, setData, t, propertyType }) {
   return (
     <>
-      {propertyType === 'house' && (
+      {isHouseLikeType(propertyType) && (
         <>
           <Field label={t('pdAirCon')} value={data.air_conditioners} onChangeText={v => setData(d => ({ ...d, air_conditioners: v }))} keyboardType="numeric" />
           <Field label={`${t('pdInternetSpeed')} (${t('pdInternetSpeedUnit')})`} value={data.internet_speed} onChangeText={v => setData(d => ({ ...d, internet_speed: v }))} placeholder="300" keyboardType="numeric" />
@@ -797,12 +798,90 @@ function StepPricing({ data, setData, t, sym }) {
     { key: 'fixed', label: t('pdFixed') },
   ];
   const lbl = (key) => `${t(key)} ${sym}`;
+  const monthlyBase = toNum(data.price_monthly);
+  const calcOwnerCommission = (value) => {
+    const n = toNum(value);
+    if (n == null || monthlyBase == null) return '—';
+    return String(Math.round((monthlyBase * n) / 100));
+  };
   return (
     <>
       <PriceFieldWithFrom label={lbl('pdPriceMonthly')} value={data.price_monthly} onChangeText={v => setData(d => ({ ...d, price_monthly: v }))} isFrom={!!data.price_monthly_is_from} dataKey="price_monthly_is_from" setData={setData} t={t} />
       <PriceFieldWithFrom label={lbl('pdBookingDeposit')} value={data.booking_deposit} onChangeText={v => setData(d => ({ ...d, booking_deposit: v }))} isFrom={!!data.booking_deposit_is_from} dataKey="booking_deposit_is_from" setData={setData} t={t} />
       <PriceFieldWithFrom label={lbl('pdSaveDeposit')} value={data.save_deposit} onChangeText={v => setData(d => ({ ...d, save_deposit: v }))} isFrom={!!data.save_deposit_is_from} dataKey="save_deposit_is_from" setData={setData} t={t} />
       <PriceFieldWithFrom label={lbl('pdCommission')} value={data.commission} onChangeText={v => setData(d => ({ ...d, commission: v }))} isFrom={!!data.commission_is_from} dataKey="commission_is_from" setData={setData} t={t} />
+      <View style={s.fieldWrap}>
+        <Text style={s.fieldLabel}>{t('pdOwnerCommOnce')}</Text>
+        <View style={s.ownerCommInputRow}>
+          <TextInput
+            style={[s.input, s.ownerCommInput]}
+            value={data.owner_commission_one_time}
+            onChangeText={v => setData(d => ({ ...d, owner_commission_one_time: v }))}
+            keyboardType="numeric"
+            placeholderTextColor="#999"
+            returnKeyType="done"
+          />
+          <View style={s.ownerCommModeRow}>
+            <TouchableOpacity
+              style={[s.ownerCommModeBtn, !data.owner_commission_one_time_is_percent && s.ownerCommModeBtnActive]}
+              onPress={() => setData(d => ({ ...d, owner_commission_one_time_is_percent: false }))}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.ownerCommModeBtnText, !data.owner_commission_one_time_is_percent && s.ownerCommModeBtnTextActive]}>
+                {sym}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.ownerCommModeBtn, data.owner_commission_one_time_is_percent && s.ownerCommModeBtnActive]}
+              onPress={() => setData(d => ({ ...d, owner_commission_one_time_is_percent: true }))}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.ownerCommModeBtnText, data.owner_commission_one_time_is_percent && s.ownerCommModeBtnTextActive]}>%</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        {data.owner_commission_one_time_is_percent && (
+          <Text style={s.ownerCommCalcText}>
+            {`${t('pdPriceMonthly')}: ${data.price_monthly || '—'} ${sym}  |  ${t('pdOwnerCommOnce')}: ${calcOwnerCommission(data.owner_commission_one_time)} ${sym}`}
+          </Text>
+        )}
+      </View>
+      <View style={s.fieldWrap}>
+        <Text style={s.fieldLabel}>{t('pdOwnerCommMonthly')}</Text>
+        <View style={s.ownerCommInputRow}>
+          <TextInput
+            style={[s.input, s.ownerCommInput]}
+            value={data.owner_commission_monthly}
+            onChangeText={v => setData(d => ({ ...d, owner_commission_monthly: v }))}
+            keyboardType="numeric"
+            placeholderTextColor="#999"
+            returnKeyType="done"
+          />
+          <View style={s.ownerCommModeRow}>
+            <TouchableOpacity
+              style={[s.ownerCommModeBtn, !data.owner_commission_monthly_is_percent && s.ownerCommModeBtnActive]}
+              onPress={() => setData(d => ({ ...d, owner_commission_monthly_is_percent: false }))}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.ownerCommModeBtnText, !data.owner_commission_monthly_is_percent && s.ownerCommModeBtnTextActive]}>
+                {sym}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.ownerCommModeBtn, data.owner_commission_monthly_is_percent && s.ownerCommModeBtnActive]}
+              onPress={() => setData(d => ({ ...d, owner_commission_monthly_is_percent: true }))}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.ownerCommModeBtnText, data.owner_commission_monthly_is_percent && s.ownerCommModeBtnTextActive]}>%</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        {data.owner_commission_monthly_is_percent && (
+          <Text style={s.ownerCommCalcText}>
+            {`${t('pdPriceMonthly')}: ${data.price_monthly || '—'} ${sym}  |  ${t('pdOwnerCommMonthly')}: ${calcOwnerCommission(data.owner_commission_monthly)} ${sym}`}
+          </Text>
+        )}
+      </View>
       <Field label={lbl('pdElectricity')} value={data.electricity_price} onChangeText={v => setData(d => ({ ...d, electricity_price: v }))} keyboardType="numeric" />
       <View style={s.fieldWrap}>
         <Text style={s.fieldLabel}>{lbl('pdWater')}</Text>
@@ -835,11 +914,11 @@ function getStepsForType(type) {
     { key: 'desc', titleKey: 'wizStepDesc' },
     { key: 'media', titleKey: 'wizStepMedia' },
   ];
-  if (type === 'house') {
+  if (isHouseLikeType(type)) {
     base.push({ key: 'amenities', titleKey: 'wizStepAmenities' });
     base.push({ key: 'additional', titleKey: 'wizStepAdditional' });
   }
-  if (type === 'house') {
+  if (isHouseLikeType(type)) {
     base.push({ key: 'pricing', titleKey: 'wizStepPricing' });
   }
   base.push({ key: 'comments', titleKey: 'wizStepComments' });
@@ -895,6 +974,10 @@ function buildInitialData(p, parentResort) {
     save_deposit_is_from: !!p.save_deposit_is_from,
     commission: toStr(p.commission),
     commission_is_from: !!p.commission_is_from,
+    owner_commission_one_time: toStr(p.owner_commission_one_time),
+    owner_commission_one_time_is_percent: !!p.owner_commission_one_time_is_percent,
+    owner_commission_monthly: toStr(p.owner_commission_monthly),
+    owner_commission_monthly_is_percent: !!p.owner_commission_monthly_is_percent,
     electricity_price: toStr(p.electricity_price),
     water_price: toStr(p.water_price),
     water_price_type: p.water_price_type || '',
@@ -918,6 +1001,7 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
     name: data.name.trim(),
     code: data.code.trim(),
     code_suffix: (data.code_suffix || '').trim(),
+    type: property?.type || 'house',
     city: data.city.trim(),
     location_id: data.location_id || null,
     owner_id: data.owner_id || null,
@@ -954,6 +1038,10 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
     save_deposit_is_from: !!data.save_deposit_is_from,
     commission: toNum(data.commission),
     commission_is_from: !!data.commission_is_from,
+    owner_commission_one_time: toNum(data.owner_commission_one_time),
+    owner_commission_one_time_is_percent: !!data.owner_commission_one_time_is_percent,
+    owner_commission_monthly: toNum(data.owner_commission_monthly),
+    owner_commission_monthly_is_percent: !!data.owner_commission_monthly_is_percent,
     electricity_price: toNum(data.electricity_price),
     water_price: toNum(data.water_price),
     water_price_type: data.water_price_type,
@@ -1071,6 +1159,16 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       Alert.alert(t('error'), t('enterPropertyName'));
       return;
     }
+    if (mode === 'create') {
+      if (!(data.city || '').trim()) {
+        Alert.alert(t('error'), `${t('fieldRequired')}: ${t('city')}`);
+        return;
+      }
+      if (!(data.district || '').trim()) {
+        Alert.alert(t('error'), `${t('fieldRequired')}: ${t('propDistrict')}`);
+        return;
+      }
+    }
     setSaving(true);
     try {
       const photos = data.photos || [];
@@ -1132,7 +1230,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       case 'amenities': return <StepAmenities data={data} setData={setData} t={t} />;
       case 'additional': return <StepAdditional data={data} setData={setData} t={t} propertyType={propertyType} />;
       case 'pricing': return <StepPricing data={data} setData={setData} t={t} sym={sym} />;
-      case 'comments': return <StepComments data={data} setData={setData} t={t} property={property} />;
+      case 'comments': return <StepComments data={data} setData={setData} t={t} propertyType={propertyType} />;
       default: return null;
     }
   };
@@ -1316,6 +1414,27 @@ const s = StyleSheet.create({
   waterTypeBtnActive: { backgroundColor: '#E3F2FD', borderColor: '#64B5F6' },
   waterTypeBtnText: { fontSize: 11, color: '#999', fontWeight: '600' },
   waterTypeBtnTextActive: { color: '#1976D2' },
+  ownerCommInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  ownerCommInput: { flex: 1 },
+  ownerCommModeRow: {
+    width: 84,
+    flexDirection: 'row',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D5D5D0',
+    overflow: 'hidden',
+    backgroundColor: '#EDEDEB',
+  },
+  ownerCommModeBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ownerCommModeBtnActive: { backgroundColor: '#E3F2FD', borderColor: '#64B5F6' },
+  ownerCommModeBtnText: { fontSize: 12, color: '#999', fontWeight: '700' },
+  ownerCommModeBtnTextActive: { color: '#1976D2' },
+  ownerCommCalcText: { marginTop: 8, fontSize: 12, color: '#6B6B6B' },
 
   navRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

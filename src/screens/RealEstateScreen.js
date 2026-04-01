@@ -65,6 +65,8 @@ const COLORS = {
   searchBorder: '#E0D8CC',
 };
 
+const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
+
 export default function RealEstateScreen({ onReady }) {
   const { user } = useUser();
   const route = useRoute();
@@ -82,6 +84,7 @@ export default function RealEstateScreen({ onReady }) {
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [newPropertyType, setNewPropertyType] = useState('house');
   const [wizardVisible, setWizardVisible] = useState(false);
+  const [openWizardQueued, setOpenWizardQueued] = useState(false);
   const [allExpanded, setAllExpanded] = useState(false);
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [selectedProperty, setSelectedProperty] = useState(null);
@@ -125,6 +128,13 @@ export default function RealEstateScreen({ onReady }) {
     }
     prevVisible.current = isVisible;
   }, [isVisible]);
+
+  // Open create wizard only after selected type state is applied.
+  useEffect(() => {
+    if (!openWizardQueued) return;
+    setWizardVisible(true);
+    setOpenWizardQueued(false);
+  }, [openWizardQueued, newPropertyType]);
 
   // Загружаем оба счётчика при каждом появлении вкладки
   const refreshBadge = useCallback(() => {
@@ -320,7 +330,7 @@ export default function RealEstateScreen({ onReady }) {
       const unitParentType = parent?.type;
       if (f.types?.length > 0) {
         const matches = f.types.some(tp => {
-          if (tp === 'house') return !p.resort_id && p.type === 'house';
+          if (tp === 'house') return !p.resort_id && HOUSE_LIKE_TYPES.has(p.type);
           if (tp === 'resort') return unitParentType === 'resort';
           if (tp === 'condo') return unitParentType === 'condo';
           return false;
@@ -355,7 +365,7 @@ export default function RealEstateScreen({ onReady }) {
     let list;
     if (hasActiveFilter) {
       const flatUnits = [];
-      topLevel.filter(p => p.type === 'house').forEach(p => {
+      topLevel.filter(p => HOUSE_LIKE_TYPES.has(p.type)).forEach(p => {
         if (filterFn(p, null) && searchMatch(p, null))
           flatUnits.push({ ...p, _parentName: null, _parentType: null });
       });
@@ -585,7 +595,7 @@ export default function RealEstateScreen({ onReady }) {
         onClose={() => setAddModalVisible(false)}
         onTypeSelected={(type) => {
           setNewPropertyType(type);
-          setWizardVisible(true);
+          setOpenWizardQueued(true);
         }}
       />
 

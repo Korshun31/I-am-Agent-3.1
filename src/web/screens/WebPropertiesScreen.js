@@ -87,6 +87,8 @@ const C = {
   accentBg: TEAL_BG,
 };
 
+const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
+
 // TYPE_META and AMENITY_LABELS are built via getTypeMeta(t) / getAmenityLabels(t) functions
 // to support i18n. Static fallback kept for non-translated contexts.
 function getTypeMeta(t) {
@@ -94,6 +96,22 @@ function getTypeMeta(t) {
     house:  { label: t('house'),  color: C.house,  bg: C.houseBg,  stripe: C.houseStripe,  icon: '🏠', img: ICON_TYPE_HOUSE  },
     resort: { label: t('resort'), color: C.resort, bg: C.resortBg, stripe: C.resortStripe, icon: '🏨', img: ICON_TYPE_RESORT },
     condo:  { label: t('condo'),  color: C.condo,  bg: C.condoBg,  stripe: C.condoStripe,  icon: '🏢', img: ICON_TYPE_CONDO  },
+    resort_house: {
+      label: t('resortHouse') || 'Дом в резорте',
+      color: C.resort,
+      bg: C.resortBg,
+      stripe: C.resortStripe,
+      icon: '🏨',
+      img: ICON_TYPE_RESORT,
+    },
+    condo_apartment: {
+      label: t('condoApartment') || t('filterTypeCondo') || 'Апартаменты',
+      color: C.condo,
+      bg: C.condoBg,
+      stripe: C.condoStripe,
+      icon: '🏢',
+      img: ICON_TYPE_CONDO,
+    },
   };
 }
 
@@ -106,6 +124,10 @@ function getAmenityLabels(t) {
     kettle: t('amenity_kettle'), toaster: t('amenity_toaster'), coffee_machine: t('amenity_coffee_machine'),
     multi_cooker: t('amenity_multi_cooker'), blender: t('amenity_blender'),
   };
+}
+
+function getTypeMetaKey(type) {
+  return type;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -138,7 +160,7 @@ function getActiveBooking(bookings, propertyId) {
 function TypeBadge({ type, small }) {
   const { t } = useLanguage();
   const TYPE_META = getTypeMeta(t);
-  const m = TYPE_META[type];
+  const m = TYPE_META[getTypeMetaKey(type)];
   if (!m) return null;
   return (
     <View style={[s.typeBadge, { backgroundColor: m.bg, borderColor: m.stripe }, small && s.typeBadgeSmall]}>
@@ -189,7 +211,7 @@ function InfoRow({ label, value, highlight }) {
 function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
   const { t } = useLanguage();
   const TYPE_META = getTypeMeta(t);
-  const meta = TYPE_META[item.type] || TYPE_META.house;
+  const meta = TYPE_META[getTypeMetaKey(item.type)] || TYPE_META.house;
   const hasPhoto = item.photos?.length > 0;
   const code = item.code + (item.code_suffix ? `-${item.code_suffix}` : '');
 
@@ -781,7 +803,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
           >
             <View style={s.childGrid}>
               {children.map(child => {
-                const childMeta = TYPE_META[child.type] || TYPE_META.house;
+                const childMeta = TYPE_META[getTypeMetaKey(child.type)] || TYPE_META.house;
                 const childCode = child.code + (child.code_suffix ? `-${child.code_suffix}` : '');
                 const activeBooking = getActiveBooking(bookings, child.id);
                 const childOccupied = !!activeBooking;
@@ -1155,7 +1177,13 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
   const listBase = isInReviewTab ? reviewBase : (isFilterActive ? approvedBase : properties);
 
   const filtered = listBase.filter(p => {
-    if (!isInReviewTab && typeFilter !== 'all' && p.type !== typeFilter) return false;
+    if (!isInReviewTab && typeFilter !== 'all') {
+      if (typeFilter === 'house') {
+        if (!HOUSE_LIKE_TYPES.has(p.type)) return false;
+      } else if (p.type !== typeFilter) {
+        return false;
+      }
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       const code = (p.code + (p.code_suffix ? `-${p.code_suffix}` : '')).toLowerCase();
@@ -1174,7 +1202,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
   const counts = {
     all: properties.length,
     inReview: reviewBase.length,
-    house:  approvedBase.filter(p => p.type === 'house').length,
+    house:  approvedBase.filter(p => HOUSE_LIKE_TYPES.has(p.type)).length,
     resort: approvedBase.filter(p => p.type === 'resort').length,
     condo:  approvedBase.filter(p => p.type === 'condo').length,
   };

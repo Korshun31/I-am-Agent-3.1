@@ -44,6 +44,7 @@ const MIN_COL_WIDTH = 60;
 const MAX_COL_WIDTH = 105;
 const MONTH_WIDTH = 100; // 83 + 20%
 const NUM_MONTHS = 36;
+const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
 // Цвета полосок бронирований моих клиентов: красный, оранжевый, жёлтый, зелёный, голубой, синий, фиолетовый
 const PASTEL_COLORS = [
   '#E57373', '#FF8A65', '#FFB74D', '#FFD54F',
@@ -185,7 +186,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     const unitParentType = parent?.type;
     if (f.types?.length > 0) {
       const matches = f.types.some(typ => {
-        if (typ === 'house') return !p.resort_id && p.type === 'house';
+        if (typ === 'house') return !p.resort_id && HOUSE_LIKE_TYPES.has(p.type);
         if (typ === 'resort') return unitParentType === 'resort';
         if (typ === 'condo') return unitParentType === 'condo';
         return false;
@@ -212,7 +213,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
 
   const { listToShow, uniqueCities, uniqueDistricts, hasActiveFilter } = React.useMemo(() => {
     const units = [];
-    topLevel.filter(p => p.type === 'house').forEach(p => {
+    topLevel.filter(p => HOUSE_LIKE_TYPES.has(p.type)).forEach(p => {
       if (filterFn(p, null)) {
         units.push({ ...p, _parentName: null, _parentCode: p.code });
       }

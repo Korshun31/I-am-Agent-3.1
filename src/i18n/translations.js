@@ -193,7 +193,10 @@ export const translations = {
     pdPhotos: 'Photos',
     propName: 'Name',
     propCode: 'Code',
+    additionalCode: 'Additional code',
     propType: 'Property type',
+    resortHouse: 'House in resort',
+    condoApartment: 'Apartment',
     city: 'City',
     // Property edit panel tabs
     tabMain: 'Main',
@@ -1088,7 +1091,10 @@ export const translations = {
     pdPhotos: 'รูปภาพ',
     propName: 'ชื่อ',
     propCode: 'รหัส',
+    additionalCode: 'รหัสเพิ่มเติม',
     propType: 'ประเภทอสังหาริมทรัพย์',
+    resortHouse: 'บ้านในรีสอร์ต',
+    condoApartment: 'อพาร์ตเมนต์',
     city: 'เมือง',
     // Property edit panel tabs
     tabMain: 'หลัก',
@@ -1967,7 +1973,10 @@ export const translations = {
     pdPhotos: 'Фотографии',
     propName: 'Название',
     propCode: 'Код',
+    additionalCode: 'Дополнительный код',
     propType: 'Тип объекта',
+    resortHouse: 'Дом в резорте',
+    condoApartment: 'Апартаменты',
     city: 'Город',
     // Property edit panel tabs
     tabMain: 'Основное',

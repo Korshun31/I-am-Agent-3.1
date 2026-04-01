@@ -29,6 +29,7 @@ const C = {
 const MONTH_W = 130;   // px per month column
 const ROW_H   = 48;    // px per property row
 const LEFT_W  = 130;   // px for left property name column
+const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
 
 const BOOKING_COLORS = [
   '#4FC3F7','#81C784','#FFB74D','#BA68C8',
@@ -602,7 +603,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
       // Only bookable units: standalone houses + all child units (houses in resorts, apartments in condos)
       // Child units can have type 'house', 'resort', or 'condo' in DB depending on parent type
       const bookable = pr
-        .filter(p => p.resort_id || p.type === 'house')
+        .filter(p => p.resort_id || HOUSE_LIKE_TYPES.has(p.type))
         .map(p => {
           if (p.resort_id) {
             const parent = parentMap[p.resort_id];

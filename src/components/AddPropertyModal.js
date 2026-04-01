@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -28,11 +28,20 @@ export default function AddPropertyModal({ visible, onClose, onTypeSelected }) {
   const { t } = useLanguage();
   const [type, setType] = useState('house');
 
+  useEffect(() => {
+    if (visible) {
+      setType('house');
+    }
+  }, [visible]);
+
   if (!visible) return null;
 
   const handleSelect = (selectedType) => {
     setType(selectedType);
-    onTypeSelected?.(selectedType);
+  };
+
+  const handleNext = () => {
+    onTypeSelected?.(type);
     onClose?.();
   };
 
@@ -80,6 +89,9 @@ export default function AddPropertyModal({ visible, onClose, onTypeSelected }) {
                   </TouchableOpacity>
                 ))}
               </View>
+              <TouchableOpacity style={styles.nextBtn} onPress={handleNext} activeOpacity={0.8}>
+                <Text style={styles.nextBtnText}>{t('next') || 'Next'}</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Pressable>
@@ -191,6 +203,19 @@ const styles = StyleSheet.create({
   },
   typeBtnLabelActive: {
     color: '#2C2C2C',
+    fontWeight: '700',
+  },
+  nextBtn: {
+    marginTop: 16,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#3D7D82',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '700',
   },
 });

@@ -20,6 +20,8 @@ export const TYPE_ICONS = {
   condo:  require('../../assets/icon-property-condo.png'),
 };
 
+const UNIT_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
+
 function PropertyItem({ item, expanded, onToggle, onPress, t }) {
   const arrowAnim = useState(() => new Animated.Value(0))[0];
 
@@ -89,7 +91,7 @@ function PropertyItem({ item, expanded, onToggle, onPress, t }) {
                   {item.houses_count != null ? `${item.houses_count}  pc` : '—'}
                 </Text>
               </View>
-            ) : item.type === 'house' ? (
+            ) : UNIT_TYPES.has(item.type) ? (
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>{t('propBedrooms')}</Text>
                 <Text style={styles.detailColon}>:</Text>

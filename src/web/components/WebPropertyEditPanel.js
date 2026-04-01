@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Switch, Animated, Modal, ActivityIndicator, Image, Platform,
@@ -58,6 +58,81 @@ function getAmenityKeys(t) {
     { key: 'multi_cooker',    label: t('amenity_multi_cooker'),    icon: require('../../../assets/icon-amenity-multi_cooker.png') },
     { key: 'blender',         label: t('amenity_blender'),         icon: require('../../../assets/icon-amenity-blender.png') },
   ];
+}
+
+function getUnitTypeForParent(parentType) {
+  if (parentType === 'condo') return 'condo_apartment';
+  return 'resort_house';
+}
+
+const UNIT_DETAIL_FIELDS = [
+  'bedrooms', 'bathrooms', 'area',
+  'air_conditioners', 'internet_speed',
+  'price_monthly', 'booking_deposit', 'save_deposit',
+  'commission', 'owner_commission_one_time', 'owner_commission_monthly',
+  'electricity_price', 'water_price', 'gas_price',
+  'internet_price', 'cleaning_price', 'exit_cleaning_price',
+];
+
+const UNIT_DETAIL_FLAGS = [
+  'price_monthly_is_from', 'booking_deposit_is_from', 'save_deposit_is_from',
+  'commission_is_from',
+  'owner_commission_one_time_is_percent',
+  'owner_commission_monthly_is_percent',
+  'pets_allowed', 'long_term_booking',
+];
+
+function resetTypeSpecificFields(nextType, prevForm) {
+  const next = { ...prevForm, type: nextType };
+
+  // Parent types must not keep house-like values from previous selection.
+  if (nextType === 'resort' || nextType === 'condo') {
+    for (const key of UNIT_DETAIL_FIELDS) next[key] = '';
+    for (const key of UNIT_DETAIL_FLAGS) next[key] = null;
+    next.amenities = {};
+    next.water_price_type = 'fixed';
+  }
+
+  // House should not keep parent-only counters.
+  if (nextType === 'house') {
+    next.houses_count = '';
+    next.floors = '';
+  }
+
+  // Resort and condo do not use additional unit suffix at create stage.
+  if (nextType !== 'house') {
+    next.code_suffix = '';
+  }
+
+  // Keep only the relevant parent counter for each parent type.
+  if (nextType === 'resort') next.floors = '';
+  if (nextType === 'condo') next.houses_count = '';
+
+  return next;
+}
+
+function sanitizeUpdatesByType(type, updates) {
+  const next = { ...updates };
+  if (type === 'resort' || type === 'condo') {
+    for (const key of UNIT_DETAIL_FIELDS) next[key] = null;
+    next.price_monthly_is_from = false;
+    next.booking_deposit_is_from = false;
+    next.save_deposit_is_from = false;
+    next.commission_is_from = false;
+    next.owner_commission_one_time_is_percent = false;
+    next.owner_commission_monthly_is_percent = false;
+    next.pets_allowed = null;
+    next.long_term_booking = null;
+    next.amenities = {};
+    next.water_price_type = 'fixed';
+  }
+  if (type === 'house') {
+    next.houses_count = null;
+    next.floors = null;
+  }
+  if (type === 'resort') next.floors = null;
+  if (type === 'condo') next.houses_count = null;
+  return next;
 }
 
 // ─── Small form components ────────────────────────────────────────────────────
@@ -275,10 +350,8 @@ function buildForm(property, parentProperty) {
       commission: property.commission ?? '',
       commission_is_from: property.commission_is_from ?? false,
       owner_commission_one_time: property.owner_commission_one_time ?? '',
-      owner_commission_one_time_is_from: property.owner_commission_one_time_is_from ?? false,
       owner_commission_one_time_is_percent: property.owner_commission_one_time_is_percent ?? false,
       owner_commission_monthly: property.owner_commission_monthly ?? '',
-      owner_commission_monthly_is_from: property.owner_commission_monthly_is_from ?? false,
       owner_commission_monthly_is_percent: property.owner_commission_monthly_is_percent ?? false,
       electricity_price: property.electricity_price ?? '',
       water_price: property.water_price ?? '',
@@ -317,8 +390,8 @@ function buildForm(property, parentProperty) {
     booking_deposit: '', booking_deposit_is_from: false,
     save_deposit: '', save_deposit_is_from: false,
     commission: '', commission_is_from: false,
-    owner_commission_one_time: '', owner_commission_one_time_is_from: false, owner_commission_one_time_is_percent: false,
-    owner_commission_monthly: '', owner_commission_monthly_is_from: false, owner_commission_monthly_is_percent: false,
+    owner_commission_one_time: '', owner_commission_one_time_is_percent: false,
+    owner_commission_monthly: '', owner_commission_monthly_is_percent: false,
     electricity_price: parentProperty?.electricity_price ?? '',
     water_price: parentProperty?.water_price ?? '',
     water_price_type: parentProperty?.water_price_type || 'fixed',
@@ -357,8 +430,8 @@ export default function WebPropertyEditPanel({
   const isCompanyAdmin = !isAgent && !!(user?.workAs === 'company' && user?.companyId);
   const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
   const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
-  // Кнопка «Отправить на проверку» если агент не может редактировать основные данные
-  const needsApproval = isAgent && !canEditInfo;
+  // Agent edit flow must always re-submit rejected properties through draft moderation.
+  const needsApproval = isAgent && (!canEditInfo || property?.property_status === 'rejected');
 
   // In edit mode use the currency stored on the property; in create mode use the user's selected currency
   const activeCurrency = (mode === 'edit' && property?.currency) ? property.currency : (userCurrency || 'THB');
@@ -462,6 +535,13 @@ export default function WebPropertyEditPanel({
 
   const set = readOnly ? () => {} : (key, val) => setForm(f => ({ ...f, [key]: val }));
   const setAmenity = readOnly ? () => {} : (key, val) => setForm(f => ({ ...f, amenities: { ...f.amenities, [key]: val } }));
+  const handleTypeChange = useCallback((nextType) => {
+    setForm((prev) => {
+      if (mode !== 'create') return prev;
+      if (!nextType || prev.type === nextType) return prev;
+      return resetTypeSpecificFields(nextType, prev);
+    });
+  }, [mode]);
 
   const numOrNull = val => {
     if (val === '' || val == null) return null;
@@ -470,22 +550,25 @@ export default function WebPropertyEditPanel({
   };
 
   const handleSave = async () => {
+    const selectedLoc = locations.find(l => l.id === form.location_id);
+    const cityValue = (selectedLoc?.city || form.city || '').trim();
+    const districtValue = (form.district || '').trim();
+
     if (!form.name.trim()) { setError(t('fieldRequired') + ': ' + t('propName')); setTab('main'); return; }
-    if (!form.code.trim()) { setError(t('fieldRequired') + ': ' + t('propCode')); setTab('main'); return; }
-    if (!isChildUnit && !form.location_id) { setError(t('fieldRequired') + ': ' + t('city')); setTab('main'); return; }
+    if (!cityValue) { setError(t('fieldRequired') + ': ' + t('city')); setTab('main'); return; }
+    if (!districtValue) { setError(t('fieldRequired') + ': ' + t('filterDistrict')); setTab('main'); return; }
     setSaving(true);
     setError('');
 
-    const selectedLoc = locations.find(l => l.id === form.location_id);
-
-    const updates = {
+    const targetType = mode === 'edit' ? (property?.type || form.type) : form.type;
+    let updates = {
       name: form.name.trim(),
       code: form.code.trim().toUpperCase(),
       code_suffix: form.code_suffix.trim() || null,
-      type: form.type,
+      type: targetType,
       location_id: form.location_id || null,
-      city: selectedLoc?.city || form.city.trim() || null,
-      district: form.district || null,
+      city: cityValue || null,
+      district: districtValue || null,
       houses_count: numOrNull(form.houses_count),
       floors: numOrNull(form.floors),
       bedrooms: numOrNull(form.bedrooms),
@@ -506,10 +589,8 @@ export default function WebPropertyEditPanel({
       commission: numOrNull(form.commission),
       commission_is_from: form.commission_is_from,
       owner_commission_one_time: numOrNull(form.owner_commission_one_time),
-      owner_commission_one_time_is_from: form.owner_commission_one_time_is_from,
       owner_commission_one_time_is_percent: form.owner_commission_one_time_is_percent,
       owner_commission_monthly: numOrNull(form.owner_commission_monthly),
-      owner_commission_monthly_is_from: form.owner_commission_monthly_is_from,
       owner_commission_monthly_is_percent: form.owner_commission_monthly_is_percent,
       electricity_price: numOrNull(form.electricity_price),
       water_price: numOrNull(form.water_price),
@@ -533,6 +614,7 @@ export default function WebPropertyEditPanel({
       //                       standalone house   → plain field update.
       ...(isCompanyAdmin && !isParent && !isChildUnit && { responsible_agent_id: form.responsible_agent_id || null }),
     };
+    updates = sanitizeUpdatesByType(targetType, updates);
 
     try {
       let saved;
@@ -580,10 +662,11 @@ export default function WebPropertyEditPanel({
           });
         }
       } else if (mode === 'create-unit') {
+        const unitType = getUnitTypeForParent(parentProperty?.type);
         saved = await createPropertyFull({
           ...updates,
           resort_id: parentProperty.id,
-          type: parentProperty.type,
+          type: unitType,
           responsible_agent_id: parentProperty.responsible_agent_id ?? null,
           property_status: isAgent ? 'pending' : 'approved',
         });
@@ -683,8 +766,8 @@ export default function WebPropertyEditPanel({
 
       <View style={s.row2}>
         <View style={{ flex: 1 }}>
-          <FieldRow label={t('propCode')} required={!readOnly && !(mode === 'edit' && property?.resort_id)}>
-            {!readOnly && mode === 'edit' && property?.resort_id ? (
+          <FieldRow label={t('propCode')}>
+            {!readOnly && isChildUnit ? (
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{form.code}</Text>
                 <Text style={s.fieldInputReadonlyHint}>🔒</Text>
@@ -694,19 +777,21 @@ export default function WebPropertyEditPanel({
             )}
           </FieldRow>
         </View>
-        <View style={{ flex: 1 }}>
-          <FieldRow label={t('codeSuffix')}>
-            <FieldInput value={form.code_suffix} onChangeText={v => set('code_suffix', v)} placeholder="A, B, 32…" readOnly={readOnly} />
-          </FieldRow>
-        </View>
+        {isChildUnit && (
+          <View style={{ flex: 1 }}>
+            <FieldRow label={t('additionalCode') || t('codeSuffix')}>
+              <FieldInput value={form.code_suffix} onChangeText={v => set('code_suffix', v)} placeholder="A, B, 32…" readOnly={readOnly} />
+            </FieldRow>
+          </View>
+        )}
       </View>
 
       {mode !== 'create-unit' && !(mode === 'edit' && property?.resort_id) && (
         <FieldRow label={t('propType')}>
           <FieldSelect
             value={form.type}
-            onChange={v => set('type', v)}
-            readOnly={readOnly}
+            onChange={handleTypeChange}
+            readOnly={readOnly || mode === 'edit'}
             options={[
               { value: 'house',  label: `🏠 ${t('house')}` },
               { value: 'resort', label: `🏨 ${t('resort')}` },
@@ -718,7 +803,7 @@ export default function WebPropertyEditPanel({
 
       <View style={s.row2}>
         <View style={{ flex: 1 }}>
-          <FieldRow label={t('city')} required={!readOnly && !isChildUnit}>
+          <FieldRow label={t('city')} required={!readOnly}>
             {isChildUnit ? (
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{form.city || '—'}</Text>
@@ -739,7 +824,7 @@ export default function WebPropertyEditPanel({
           </FieldRow>
         </View>
         <View style={{ flex: 1 }}>
-          <FieldRow label={t('filterDistrict')}>
+          <FieldRow label={t('filterDistrict')} required={!readOnly}>
             {isChildUnit ? (
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{form.district || '—'}</Text>
