@@ -11,6 +11,7 @@ import { getCommissionDateAmounts } from '../../services/commissionRemindersServ
 import { supabase } from '../../services/supabase';
 import WebCalendarStrip from '../components/WebCalendarStrip';
 import WebAddCalendarEventModal from '../components/WebAddCalendarEventModal';
+import WebDashboardObjectsDonut from '../components/WebDashboardObjectsDonut';
 
 const ICON_PHONE    = require('../../../assets/icon-contact-phone.png');
 const ICON_TELEGRAM = require('../../../assets/icon-contact-telegram.png');
@@ -19,6 +20,74 @@ const ICON_WHATSAPP = require('../../../assets/icon-contact-whatsapp.png');
 dayjs.extend(isBetween);
 
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
+
+function buildPropertiesMap(properties) {
+  const m = {};
+  (properties || []).forEach((p) => { m[p.id] = p; });
+  return m;
+}
+
+function isRentableUnit(p) {
+  return !!(p && HOUSE_LIKE_TYPES.has(p.type));
+}
+
+function effectivePropertyStatus(p) {
+  const s = p?.property_status;
+  if (s == null || s === '') return 'approved';
+  return s;
+}
+
+/** @returns {'houses'|'resortHouses'|'apartments'|null} */
+function categoryKeyRentable(p, propsMap) {
+  if (!isRentableUnit(p)) return null;
+  if (!p.resort_id) return 'houses';
+  const parent = propsMap[p.resort_id];
+  if (parent?.type === 'resort') return 'resortHouses';
+  if (parent?.type === 'condo') return 'apartments';
+  return null;
+}
+
+function isApprovedEffective(p) {
+  return effectivePropertyStatus(p) === 'approved';
+}
+
+function isPendingOrRejected(p) {
+  const s = p?.property_status;
+  return s === 'pending' || s === 'rejected';
+}
+
+function approvedBreakdown(properties, propsMap, filterFn) {
+  let houses = 0;
+  let resortHouses = 0;
+  let apartments = 0;
+  (properties || []).forEach((p) => {
+    if (filterFn && !filterFn(p)) return;
+    const key = categoryKeyRentable(p, propsMap);
+    if (!key) return;
+    if (!isApprovedEffective(p)) return;
+    if (key === 'houses') houses += 1;
+    else if (key === 'resortHouses') resortHouses += 1;
+    else apartments += 1;
+  });
+  return {
+    houses,
+    resortHouses,
+    apartments,
+    total: houses + resortHouses + apartments,
+  };
+}
+
+function countPendingReview(properties, propsMap, filterFn) {
+  let n = 0;
+  (properties || []).forEach((p) => {
+    if (filterFn && !filterFn(p)) return;
+    const key = categoryKeyRentable(p, propsMap);
+    if (!key) return;
+    if (!isPendingOrRejected(p)) return;
+    n += 1;
+  });
+  return n;
+}
 
 // ─── Новая палитра ──────────────────────────────────────
 const CLR = {
@@ -50,7 +119,7 @@ export default function WebDashboardScreen({ user, refreshKey }) {
   const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
-    total: 0, houses: 0, resortHouses: 0, apartments: 0,
+    total: 0, houses: 0, resortHouses: 0, apartments: 0, pendingReview: 0,
     occupied: 0, myClients: 0, otherClients: 0,
     upcoming: 0, thisMonth: 0, later: 0
   });
@@ -106,28 +175,13 @@ export default function WebDashboardScreen({ user, refreshKey }) {
       const now = dayjs();
       const endOfMonth = now.endOf('month');
       const isTeamMemberStats = !!(user?.teamMembership);
-      const propsMapStats = {};
-      properties.forEach(p => { propsMapStats[p.id] = p; });
+      const propsMapStats = buildPropertiesMap(properties);
 
-      // Для агента: только свои объекты (по responsible_agent_id)
-      const countableProperties = isTeamMemberStats
-        ? properties.filter(p => p.responsible_agent_id === user.id)
-        : properties;
-
-      // 1. Статистика по типам (только своих объектов для агента)
-      let standaloneHouses = 0;
-      let resortHousesCount = 0;
-      let apartmentsCount = 0;
-      countableProperties.forEach(p => {
-        if (HOUSE_LIKE_TYPES.has(p.type)) {
-          if (!p.resort_id) standaloneHouses++;
-          else {
-            const parent = properties.find(parentProp => parentProp.id === p.resort_id);
-            if (parent?.type === 'condo') apartmentsCount++;
-            else resortHousesCount++;
-          }
-        }
-      });
+      const statsObjectFilter = isTeamMemberStats
+        ? (p) => p.responsible_agent_id === user.id
+        : null;
+      const approvedForStats = approvedBreakdown(properties, propsMapStats, statsObjectFilter);
+      const pendingReviewForStats = countPendingReview(properties, propsMapStats, statsObjectFilter);
 
       // 2. Статистика занятости (для агента: только свои бронирования)
       let myClientsCount = 0;
@@ -151,10 +205,11 @@ export default function WebDashboardScreen({ user, refreshKey }) {
       const thisMonthCount = upcomingBookings.filter(b => dayjs(b.checkIn).isBefore(endOfMonth)).length;
 
       setStats({
-        total: standaloneHouses + resortHousesCount + apartmentsCount,
-        houses: standaloneHouses,
-        resortHouses: resortHousesCount,
-        apartments: apartmentsCount,
+        total: approvedForStats.total,
+        houses: approvedForStats.houses,
+        resortHouses: approvedForStats.resortHouses,
+        apartments: approvedForStats.apartments,
+        pendingReview: pendingReviewForStats,
         occupied: occupiedCount,
         myClients: myClientsCount,
         otherClients: otherClientsCount,
@@ -165,22 +220,10 @@ export default function WebDashboardScreen({ user, refreshKey }) {
 
       // Доп. статистика для участников команды (агентов)
       if (isTeamMemberStats) {
-        // Объекты — считаем только сдаваемые единицы (type='house')
-        // Резорты и Кондо как контейнеры НЕ считаем
-        let companyHouses = 0, companyResorts = 0, companyCondos = 0;
-        let myHouses = 0, myResorts = 0, myCondos = 0;
-        properties.forEach(p => {
-          if (!HOUSE_LIKE_TYPES.has(p.type)) return;
-          const isMine = p.responsible_agent_id === user?.id;
-          const parent = p.resort_id ? propsMapStats[p.resort_id] : null;
-          if (!p.resort_id) {
-            companyHouses++; if (isMine) myHouses++;
-          } else if (parent?.type === 'condo') {
-            companyCondos++; if (isMine) myCondos++;
-          } else {
-            companyResorts++; if (isMine) myResorts++;
-          }
-        });
+        const companyBd = approvedBreakdown(properties, propsMapStats, null);
+        const myBd = approvedBreakdown(properties, propsMapStats, (p) => p.responsible_agent_id === user?.id);
+        const companyPendingReview = countPendingReview(properties, propsMapStats, null);
+        const myPendingReview = countPendingReview(properties, propsMapStats, (p) => p.responsible_agent_id === user?.id);
 
         // Бронирования (активные сейчас)
         let companyAgencyActive = 0, companyOwnerActive = 0, myAgencyActive = 0;
@@ -218,10 +261,16 @@ export default function WebDashboardScreen({ user, refreshKey }) {
         }).length;
 
         setAgentStats({
-          companyTotal: companyHouses + companyResorts + companyCondos,
-          companyHouses, companyResorts, companyCondos,
-          myTotal: myHouses + myResorts + myCondos,
-          myHouses, myResorts, myCondos,
+          companyTotal: companyBd.total,
+          companyHouses: companyBd.houses,
+          companyResorts: companyBd.resortHouses,
+          companyCondos: companyBd.apartments,
+          myTotal: myBd.total,
+          myHouses: myBd.houses,
+          myResorts: myBd.resortHouses,
+          myCondos: myBd.apartments,
+          companyPendingReview,
+          myPendingReview,
           companyAgencyActive, companyOwnerActive, myAgencyActive,
           companyTotalActive: companyAgencyActive + companyOwnerActive,
           companyUpcoming: companyUpcomingCount,
@@ -428,50 +477,82 @@ export default function WebDashboardScreen({ user, refreshKey }) {
       <Text style={styles.welcome}>{t('dashboardTitle')}</Text>
       
       <View style={styles.statsRow}>
-        {/* ОБЪЕКТОВ */}
-        <View style={[styles.statCard, { borderLeftColor: CLR.stat1 }]}>
-          <View>
-            <Text style={styles.statLabel}>{t('dashboardObjects').toUpperCase()}</Text>
-            {agentStats ? (
-              <>
-                <View style={styles.agentStatRow}>
-                  <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.companyTotal}</Text>
-                  <Text style={styles.agentStatSep}> / </Text>
-                  <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{agentStats.myTotal}</Text>
-                </View>
-                <View style={styles.agentStatLabels}>
-                  <Text style={styles.agentStatLabelGray}>{t('dashboardStatCompany')}</Text>
-                  <Text style={styles.agentStatLabelGray}> / </Text>
-                  <Text style={[styles.agentStatLabelColored, { color: CLR.stat1Text }]}>{t('dashboardStatMine')}</Text>
-                </View>
-              </>
-            ) : (
-              <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{stats.total}</Text>
-            )}
-          </View>
+        {/* ОБЪЕКТОВ — одобренные сдаваемые единицы; на утверждении отдельно; donut только по одобренным */}
+        <View style={[styles.statCard, styles.statCardObjects, { borderLeftColor: CLR.stat1 }]}>
+          <View style={styles.objectsWidgetRow}>
+            <View style={styles.objectsWidgetLeft}>
+              <Text style={styles.statLabel}>{t('dashboardMyObjects').toUpperCase()}</Text>
+              {agentStats ? (
+                <>
+                  <View style={styles.agentStatRow}>
+                    <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.companyTotal}</Text>
+                    <Text style={styles.agentStatSep}> / </Text>
+                    <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{agentStats.myTotal}</Text>
+                  </View>
+                  <View style={styles.agentStatLabels}>
+                    <Text style={styles.agentStatLabelGray}>{t('dashboardStatCompany')}</Text>
+                    <Text style={styles.agentStatLabelGray}> / </Text>
+                    <Text style={[styles.agentStatLabelColored, { color: CLR.stat1Text }]}>{t('dashboardStatMine')}</Text>
+                  </View>
+                  <Text style={styles.pendingReviewLine}>
+                    {t('dashboardPendingApproval')}
+                    :{' '}
+                    <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyPendingReview}</Text>
+                    <Text style={{ color: '#CED4DA' }}>{' / '}</Text>
+                    <Text style={[styles.pendingReviewNum, { color: CLR.stat1Text }]}>{agentStats.myPendingReview}</Text>
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{stats.total}</Text>
+                  <Text style={styles.pendingReviewLine}>
+                    {t('dashboardPendingApproval')}
+                    :{' '}
+                    <Text style={styles.pendingReviewNum}>{stats.pendingReview}</Text>
+                  </Text>
+                </>
+              )}
 
-          {agentStats ? (
-            <View style={[styles.subStats, { flexWrap: 'wrap' }]}>
-              {[
-                { label: t('house'),  co: agentStats.companyHouses,  my: agentStats.myHouses  },
-                { label: t('resort'), co: agentStats.companyResorts, my: agentStats.myResorts },
-                { label: t('condo'),  co: agentStats.companyCondos,  my: agentStats.myCondos  },
-              ].map(({ label, co, my }) => (
-                <Text key={label} style={styles.subStatText}>
-                  {label}{': '}
-                  <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{co}</Text>
-                  <Text style={{ color: '#CED4DA' }}>{' / '}</Text>
-                  <Text style={[styles.subStatValue, { color: CLR.stat1Text }]}>{my}</Text>
-                </Text>
-              ))}
+              {agentStats ? (
+                <View style={[styles.subStats, { flexWrap: 'wrap', marginTop: 10 }]}>
+                  {[
+                    { label: t('dashboardBreakdownHouses'), co: agentStats.companyHouses, my: agentStats.myHouses },
+                    { label: t('dashboardBreakdownResortHouses'), co: agentStats.companyResorts, my: agentStats.myResorts },
+                    { label: t('dashboardBreakdownApartments'), co: agentStats.companyCondos, my: agentStats.myCondos },
+                  ].map(({ label, co, my }) => (
+                    <Text key={label} style={styles.subStatText}>
+                      {label}
+                      {': '}
+                      <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{co}</Text>
+                      <Text style={{ color: '#CED4DA' }}>{' / '}</Text>
+                      <Text style={[styles.subStatValue, { color: CLR.stat1Text }]}>{my}</Text>
+                    </Text>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.subStats}>
+                  <Text style={styles.subStatText}>
+                    {t('dashboardBreakdownHouses')}: <Text style={styles.subStatValue}>{stats.houses}</Text>
+                  </Text>
+                  <Text style={styles.subStatText}>
+                    {t('dashboardBreakdownResortHouses')}: <Text style={styles.subStatValue}>{stats.resortHouses}</Text>
+                  </Text>
+                  <Text style={styles.subStatText}>
+                    {t('dashboardBreakdownApartments')}: <Text style={styles.subStatValue}>{stats.apartments}</Text>
+                  </Text>
+                </View>
+              )}
             </View>
-          ) : (
-            <View style={styles.subStats}>
-              <Text style={styles.subStatText}>{t('house')}: <Text style={styles.subStatValue}>{stats.houses}</Text></Text>
-              <Text style={styles.subStatText}>{t('resort')}: <Text style={styles.subStatValue}>{stats.resortHouses}</Text></Text>
-              <Text style={styles.subStatText}>{t('condo')}: <Text style={styles.subStatValue}>{stats.apartments}</Text></Text>
-            </View>
-          )}
+            <WebDashboardObjectsDonut
+              houses={agentStats ? agentStats.myHouses : stats.houses}
+              resortHouses={agentStats ? agentStats.myResorts : stats.resortHouses}
+              apartments={agentStats ? agentStats.myCondos : stats.apartments}
+              labelHouses={t('dashboardBreakdownHouses')}
+              labelResortHouses={t('dashboardBreakdownResortHouses')}
+              labelApartments={t('dashboardBreakdownApartments')}
+              emptyLabel={t('dashboardObjectsDonutEmpty')}
+            />
+          </View>
         </View>
 
         {/* БРОНИРОВАНИЙ */}
@@ -691,6 +772,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     minHeight: 140,
     ...Platform.select({ web: { boxShadow: '0 2px 8px rgba(0,0,0,0.04)' } }),
+  },
+  statCardObjects: {
+    minHeight: 168,
+    justifyContent: 'flex-start',
+  },
+  objectsWidgetRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    width: '100%',
+  },
+  objectsWidgetLeft: {
+    flex: 1,
+    minWidth: 0,
+  },
+  pendingReviewLine: {
+    fontSize: 11,
+    color: '#868E96',
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  pendingReviewNum: {
+    fontWeight: '800',
+    color: '#212529',
   },
   statLabel: { fontSize: 11, fontWeight: '800', color: '#ADB5BD', marginBottom: 6, letterSpacing: 0.5 },
   statValue: { fontSize: 28, fontWeight: '800', color: '#212529' },

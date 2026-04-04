@@ -37,7 +37,7 @@
   `id, company_id, agent_id, role (owner/agent), status (invited/pending/active), joined_at`
 - Таблица `company_invitations`:
   `id, company_id, email, invite_token (ссылка), secret_code, status (sent/pending/accepted/revoked), created_at, expires_at`
-- В `properties`: добавить `company_id`, `responsible_agent_id`, `property_status (draft/pending/approved/rejected)`, `rejection_reason`, `submitted_by`
+- В `properties`: добавить `company_id`, `responsible_agent_id`, `property_status (pending/approved/rejected)` — черновики правок по объекту хранятся в таблице `property_drafts`, не в статусе строки, `rejection_reason`, `submitted_by`
 - В `resorts`: добавить `company_id`, `responsible_agent_id`
 - Обновить RLS политики под новые роли
 
