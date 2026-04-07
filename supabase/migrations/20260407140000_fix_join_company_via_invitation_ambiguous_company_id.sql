@@ -2,10 +2,12 @@
 -- join_company_via_invitation was maintained outside repo / had unqualified company_id in JOIN.
 -- This version uses only qualified columns and matches invite by token + auth user email.
 
+-- NOTE: Do NOT name RETURNS TABLE columns company_id / company_name — in plpgsql they become
+-- variables and shadow real table columns, so ON CONFLICT (company_id, user_id) becomes ambiguous.
 CREATE OR REPLACE FUNCTION public.join_company_via_invitation(p_token UUID)
 RETURNS TABLE (
-  company_id UUID,
-  company_name TEXT
+  joined_company_id   UUID,
+  joined_company_name TEXT
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -39,7 +41,7 @@ BEGIN
     RAISE EXCEPTION 'No accepted invitation for this token and user';
   END IF;
 
-  INSERT INTO public.company_members (company_id, user_id, role, status)
+  INSERT INTO public.company_members AS cm (company_id, user_id, role, status)
   VALUES (v_cid, v_uid, 'agent', 'active')
   ON CONFLICT (company_id, user_id)
   DO UPDATE SET

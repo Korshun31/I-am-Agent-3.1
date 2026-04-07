@@ -322,5 +322,8 @@ export async function joinCompanyViaInvitation(token) {
   const { data, error } = await supabase.rpc('join_company_via_invitation', { p_token: token });
   if (error) throw new Error(error.message);
   const row = Array.isArray(data) ? data[0] : data;
-  return row ? { companyId: row.company_id, companyName: row.company_name } : null;
+  // RPC returns joined_company_id / joined_company_name (avoids plpgsql OUT-param shadowing company_id)
+  const cid = row?.joined_company_id ?? row?.company_id;
+  const cname = row?.joined_company_name ?? row?.company_name;
+  return row && (cid != null || cname != null) ? { companyId: cid, companyName: cname } : null;
 }
