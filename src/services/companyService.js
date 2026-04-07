@@ -321,5 +321,6 @@ export async function setAgentLocationAccess(userId, companyId, locationIds) {
 export async function joinCompanyViaInvitation(token) {
   const { data, error } = await supabase.rpc('join_company_via_invitation', { p_token: token });
   if (error) throw new Error(error.message);
-  return data;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row ? { companyId: row.company_id, companyName: row.company_name } : null;
 }

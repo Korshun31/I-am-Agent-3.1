@@ -11,7 +11,6 @@ import { getCommissionDateAmounts } from '../../services/commissionRemindersServ
 import { supabase } from '../../services/supabase';
 import WebCalendarStrip from '../components/WebCalendarStrip';
 import WebAddCalendarEventModal from '../components/WebAddCalendarEventModal';
-import WebDashboardObjectsDonut from '../components/WebDashboardObjectsDonut';
 
 const ICON_PHONE    = require('../../../assets/icon-contact-phone.png');
 const ICON_TELEGRAM = require('../../../assets/icon-contact-telegram.png');
@@ -476,83 +475,73 @@ export default function WebDashboardScreen({ user, refreshKey }) {
     >
       <Text style={styles.welcome}>{t('dashboardTitle')}</Text>
       
+      <View style={styles.columnsGrid}>
       <View style={styles.statsRow}>
         {/* ОБЪЕКТОВ — одобренные сдаваемые единицы; на утверждении отдельно; donut только по одобренным */}
-        <View style={[styles.statCard, styles.statCardObjects, { borderLeftColor: CLR.stat1 }]}>
-          <View style={styles.objectsWidgetRow}>
-            <View style={styles.objectsWidgetLeft}>
-              <Text style={styles.statLabel}>{t('dashboardMyObjects').toUpperCase()}</Text>
-              {agentStats ? (
-                <>
-                  <View style={styles.agentStatRow}>
-                    <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.companyTotal}</Text>
-                    <Text style={styles.agentStatSep}> / </Text>
-                    <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{agentStats.myTotal}</Text>
-                  </View>
-                  <View style={styles.agentStatLabels}>
-                    <Text style={styles.agentStatLabelGray}>{t('dashboardStatCompany')}</Text>
-                    <Text style={styles.agentStatLabelGray}> / </Text>
-                    <Text style={[styles.agentStatLabelColored, { color: CLR.stat1Text }]}>{t('dashboardStatMine')}</Text>
-                  </View>
-                  <Text style={styles.pendingReviewLine}>
-                    {t('dashboardPendingApproval')}
-                    :{' '}
-                    <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyPendingReview}</Text>
-                    <Text style={{ color: '#CED4DA' }}>{' / '}</Text>
-                    <Text style={[styles.pendingReviewNum, { color: CLR.stat1Text }]}>{agentStats.myPendingReview}</Text>
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{stats.total}</Text>
-                  <Text style={styles.pendingReviewLine}>
-                    {t('dashboardPendingApproval')}
-                    :{' '}
-                    <Text style={styles.pendingReviewNum}>{stats.pendingReview}</Text>
-                  </Text>
-                </>
-              )}
-
-              {agentStats ? (
-                <View style={[styles.subStats, { flexWrap: 'wrap', marginTop: 10 }]}>
-                  {[
-                    { label: t('dashboardBreakdownHouses'), co: agentStats.companyHouses, my: agentStats.myHouses },
-                    { label: t('dashboardBreakdownResortHouses'), co: agentStats.companyResorts, my: agentStats.myResorts },
-                    { label: t('dashboardBreakdownApartments'), co: agentStats.companyCondos, my: agentStats.myCondos },
-                  ].map(({ label, co, my }) => (
-                    <Text key={label} style={styles.subStatText}>
-                      {label}
-                      {': '}
-                      <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{co}</Text>
-                      <Text style={{ color: '#CED4DA' }}>{' / '}</Text>
-                      <Text style={[styles.subStatValue, { color: CLR.stat1Text }]}>{my}</Text>
-                    </Text>
-                  ))}
+        <View style={[styles.statCard, { borderLeftColor: CLR.stat1 }]}>
+          <View>
+            <Text style={styles.statLabel}>{t('dashboardMyObjects').toUpperCase()}</Text>
+            {agentStats ? (
+              <>
+                <View style={styles.agentStatRow}>
+                  <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.companyTotal}</Text>
+                  <Text style={styles.agentStatSep}> / </Text>
+                  <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{agentStats.myTotal}</Text>
                 </View>
-              ) : (
-                <View style={styles.subStats}>
-                  <Text style={styles.subStatText}>
-                    {t('dashboardBreakdownHouses')}: <Text style={styles.subStatValue}>{stats.houses}</Text>
-                  </Text>
-                  <Text style={styles.subStatText}>
-                    {t('dashboardBreakdownResortHouses')}: <Text style={styles.subStatValue}>{stats.resortHouses}</Text>
-                  </Text>
-                  <Text style={styles.subStatText}>
-                    {t('dashboardBreakdownApartments')}: <Text style={styles.subStatValue}>{stats.apartments}</Text>
-                  </Text>
+                <View style={styles.agentStatLabels}>
+                  <Text style={styles.agentStatLabelGray}>{t('dashboardStatCompany')}</Text>
+                  <Text style={styles.agentStatLabelGray}> / </Text>
+                  <Text style={[styles.agentStatLabelColored, { color: CLR.stat1Text }]}>{t('dashboardStatMine')}</Text>
                 </View>
-              )}
-            </View>
-            <WebDashboardObjectsDonut
-              houses={agentStats ? agentStats.myHouses : stats.houses}
-              resortHouses={agentStats ? agentStats.myResorts : stats.resortHouses}
-              apartments={agentStats ? agentStats.myCondos : stats.apartments}
-              labelHouses={t('dashboardBreakdownHouses')}
-              labelResortHouses={t('dashboardBreakdownResortHouses')}
-              labelApartments={t('dashboardBreakdownApartments')}
-              emptyLabel={t('dashboardObjectsDonutEmpty')}
-            />
+                <Text style={styles.pendingReviewLine}>
+                  {t('dashboardPendingApproval')}
+                  :{' '}
+                  <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyPendingReview}</Text>
+                  <Text style={{ color: '#CED4DA' }}>{' / '}</Text>
+                  <Text style={[styles.pendingReviewNum, { color: CLR.stat1Text }]}>{agentStats.myPendingReview}</Text>
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{stats.total}</Text>
+                <Text style={styles.pendingReviewLine}>
+                  {t('dashboardPendingApproval')}
+                  :{' '}
+                  <Text style={styles.pendingReviewNum}>{stats.pendingReview}</Text>
+                </Text>
+              </>
+            )}
           </View>
+
+          {agentStats ? (
+            <View style={[styles.subStats, { flexWrap: 'wrap', marginTop: 10 }]}>
+              {[
+                { label: t('dashboardBreakdownHouses'), co: agentStats.companyHouses, my: agentStats.myHouses },
+                { label: t('dashboardBreakdownResortHouses'), co: agentStats.companyResorts, my: agentStats.myResorts },
+                { label: t('dashboardBreakdownApartments'), co: agentStats.companyCondos, my: agentStats.myCondos },
+              ].map(({ label, co, my }) => (
+                <Text key={label} style={styles.subStatText}>
+                  {label}
+                  {': '}
+                  <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{co}</Text>
+                  <Text style={{ color: '#CED4DA' }}>{' / '}</Text>
+                  <Text style={[styles.subStatValue, { color: CLR.stat1Text }]}>{my}</Text>
+                </Text>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.subStats}>
+              <Text style={styles.subStatText}>
+                {t('dashboardBreakdownHouses')}: <Text style={styles.subStatValue}>{stats.houses}</Text>
+              </Text>
+              <Text style={styles.subStatText}>
+                {t('dashboardBreakdownResortHouses')}: <Text style={styles.subStatValue}>{stats.resortHouses}</Text>
+              </Text>
+              <Text style={styles.subStatText}>
+                {t('dashboardBreakdownApartments')}: <Text style={styles.subStatValue}>{stats.apartments}</Text>
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* БРОНИРОВАНИЙ */}
@@ -626,11 +615,13 @@ export default function WebDashboardScreen({ user, refreshKey }) {
         </View>
       </View>
 
-      <WebCalendarStrip 
-        selectedDate={selectedDate} 
-        onDateSelect={handleDateSelect}
-        user={user}
-      />
+      <View style={styles.calendarGridSpan}>
+        <WebCalendarStrip
+          selectedDate={selectedDate}
+          onDateSelect={handleDateSelect}
+          user={user}
+        />
+      </View>
 
       <View style={styles.mainContentRow}>
         <View style={styles.agendaContainer}>
@@ -744,6 +735,7 @@ export default function WebDashboardScreen({ user, refreshKey }) {
         </View>
 
       </View>
+      </View>{/* columnsGrid */}
 
       <WebAddCalendarEventModal
         visible={eventModalVisible}
@@ -761,7 +753,13 @@ const styles = StyleSheet.create({
   containerContent: { ...Platform.select({ web: { paddingRight: 40 } }) },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 100 },
   welcome: { fontSize: 24, fontWeight: '700', color: '#212529', marginBottom: 30 },
-  statsRow: { flexDirection: 'row', gap: 20, marginBottom: 30 },
+  columnsGrid: {
+    ...Platform.select({ web: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', columnGap: '20px', rowGap: '20px', overflowX: 'auto' } }),
+  },
+  calendarGridSpan: {
+    ...Platform.select({ web: { gridColumn: '1 / -1' } }),
+  },
+  statsRow: { flexDirection: 'row', gap: 20, marginBottom: 30, ...Platform.select({ web: { display: 'contents' } }) },
   statCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -800,8 +798,8 @@ const styles = StyleSheet.create({
   },
   statLabel: { fontSize: 11, fontWeight: '800', color: '#ADB5BD', marginBottom: 6, letterSpacing: 0.5 },
   statValue: { fontSize: 28, fontWeight: '800', color: '#212529' },
-  subStats: { flexDirection: 'row', marginTop: 12, gap: 12, borderTopWidth: 1, borderTopColor: '#F8F9FA', paddingTop: 8 },
-  subStatText: { fontSize: 11, color: '#868E96', fontWeight: '500' },
+  subStats: { flexDirection: 'row', flexWrap: 'nowrap', marginTop: 12, gap: 12, borderTopWidth: 1, borderTopColor: '#F8F9FA', paddingTop: 8 },
+  subStatText: { fontSize: 11, color: '#868E96', fontWeight: '500', flexShrink: 0, ...Platform.select({ web: { whiteSpace: 'nowrap' } }) },
   subStatValue: { color: '#212529', fontWeight: '700' },
   // Agent stat card styles
   agentStatRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 2 },
@@ -815,11 +813,11 @@ const styles = StyleSheet.create({
   agentSubLabel: { fontSize: 10, fontWeight: '600' },
   agentSubLabelGray: { fontSize: 10, fontWeight: '500', color: '#ADB5BD' },
   
-  mainContentRow: { flexDirection: 'column', gap: 20 },
-  agendaContainer: { width: '100%' },
+  mainContentRow: { flexDirection: 'column', gap: 20, ...Platform.select({ web: { display: 'contents' } }) },
+  agendaContainer: { width: '100%', ...Platform.select({ web: { display: 'contents' } }) },
 
-  agendaRow: { flexDirection: 'row', gap: 20, alignItems: 'stretch' },
-  upcomingRow: { flexDirection: 'row', gap: 20, marginTop: 16 },
+  agendaRow: { flexDirection: 'row', gap: 20, alignItems: 'stretch', ...Platform.select({ web: { display: 'contents' } }) },
+  upcomingRow: { flexDirection: 'row', gap: 20, marginTop: 16, ...Platform.select({ web: { gridColumn: '1 / -1' } }) },
   agendaColumn: { flex: 1, flexDirection: 'column' },
   sectionCard: {
     flex: 1,
