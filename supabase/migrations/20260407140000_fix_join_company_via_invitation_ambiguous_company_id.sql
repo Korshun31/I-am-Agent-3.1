@@ -4,6 +4,12 @@
 
 -- NOTE: Do NOT name RETURNS TABLE columns company_id / company_name — in plpgsql they become
 -- variables and shadow real table columns, so ON CONFLICT (company_id, user_id) becomes ambiguous.
+--
+-- Changing OUT parameter names changes the function's return type; CREATE OR REPLACE alone fails
+-- with 42P13 — must DROP first.
+
+DROP FUNCTION IF EXISTS public.join_company_via_invitation(uuid);
+
 CREATE OR REPLACE FUNCTION public.join_company_via_invitation(p_token UUID)
 RETURNS TABLE (
   joined_company_id   UUID,
