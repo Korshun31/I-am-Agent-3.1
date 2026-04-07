@@ -12,9 +12,11 @@ export async function signUp({ email, password, name }) {
   if (!user) throw new Error('Registration failed');
 
   const role = (email || '').toLowerCase() === 'korshun31@list.ru' ? 'admin' : 'standard';
-  // Canonical billing plan (separate from legacy role field).
-  const plan = (email || '').toLowerCase() === 'korshun31@list.ru' ? 'korshun' : 'standard';
+  const isOwnerEmail = (email || '').toLowerCase() === 'korshun31@list.ru';
 
+  // Insert without `plan`: column is added by migration 20260330000002; if migration was not
+  // applied to remote DB, including `plan` breaks PostgREST ("schema cache" error).
+  // When `plan` exists, DEFAULT 'standard' applies; owner gets an optional update below.
   const { error: profileError } = await supabase
     .from('agents')
     .insert({
@@ -22,10 +24,19 @@ export async function signUp({ email, password, name }) {
       email,
       name: name || '',
       role,
-      plan,
     });
 
   if (profileError) throw new Error(profileError.message);
+
+  if (isOwnerEmail) {
+    const { error: planErr } = await supabase
+      .from('agents')
+      .update({ plan: 'korshun' })
+      .eq('id', user.id);
+    if (planErr?.message && !planErr.message.includes("'plan'")) {
+      console.warn('[authService] agents.plan update failed:', planErr.message);
+    }
+  }
 
   await supabase
     .from('agents')
