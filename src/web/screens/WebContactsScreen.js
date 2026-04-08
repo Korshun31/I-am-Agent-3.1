@@ -6,7 +6,7 @@ import {
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 
-import { getContacts, getContactsByIds, deleteContact } from '../../services/contactsService';
+import { getContacts, getContactsByIds, getMyContacts, deleteContact } from '../../services/contactsService';
 import { getBookings } from '../../services/bookingsService';
 import { getProperties } from '../../services/propertiesService';
 import WebContactEditPanel from '../components/WebContactEditPanel';
@@ -550,6 +550,20 @@ export default function WebContactsScreen({ onNavigateToProperty, user, refreshK
           )];
           allClients = clientIds.length > 0 ? await getContactsByIds(clientIds) : [];
         } catch {}
+        // Свои контакты — созданные агентом напрямую (owners и clients)
+        const myContacts = await getMyContacts();
+
+        // Убираем дубликаты (если один контакт — и собственник и клиент)
+        const seen = new Set();
+        const all = [...allOwners, ...allClients, ...myContacts].filter(c => {
+          if (seen.has(c.id)) return false;
+          seen.add(c.id);
+          return true;
+        }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'));
+
+        setAllContacts(all);
+        setAllProperties(props);
+        return;
       } else {
         // Админ: загружаем всё
         [allClients, allOwners, props] = await Promise.all([

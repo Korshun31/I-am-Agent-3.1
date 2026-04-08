@@ -150,6 +150,28 @@ export async function getContacts(type) {
   return (data || []).map(mapContact);
 }
 
+export async function getMyContacts(type) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return [];
+
+  let q = supabase
+    .from('contacts')
+    .select('*')
+    .eq('user_id', session.user.id)
+    .order('name', { ascending: true })
+    .limit(10000);
+
+  if (type) q = q.eq('type', type);
+  const { data, error } = await q;
+
+  if (error) {
+    console.error('getMyContacts error:', error.message);
+    return [];
+  }
+
+  return (data || []).map(mapContact);
+}
+
 export async function getContactsByIds(ids) {
   if (!ids || ids.length === 0) return [];
   const { data: { session } } = await supabase.auth.getSession();
