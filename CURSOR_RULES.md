@@ -108,7 +108,7 @@ Data Layer: Supabase PostgreSQL + RLS
 
 ### Известные проблемы (технический долг)
 - TD-010: WebPropertyDetailPanel.js — TYPE_COLOR константа захардкожена на русском. Заменить label на t() внутри компонента
-- TD-011: Язык не применяется при первом запуске на вебе — LanguageContext читает из AsyncStorage но WebAccountScreen показывает из user объекта
+- TD-011: ✅ ЗАКРЫТ — язык хранится в agents.settings.web_language (веб) и agents.settings.app_language (мобайл). Синхронизация при запуске через App.js (2026-04-08)
 - TD-012: WebPropertyDetailPanel.js, WebSettingsModal.js — несколько хардкод строк не через t()
 
 ---
