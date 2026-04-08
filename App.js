@@ -18,7 +18,7 @@ if (Platform.OS !== 'web') {
     });
   } catch {}
 }
-import { LanguageProvider } from './src/context/LanguageContext';
+import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import { UserProvider, useUser } from './src/context/UserContext';
 import { AppDataProvider, useAppData } from './src/context/AppDataContext';
 import Preloader from './src/screens/Preloader';
@@ -39,6 +39,7 @@ function AppMainLoader({ onLogout }) {
 
 function AppContent() {
   const { user, updateUser, resetUser, handleUserUpdate } = useUser();
+  const { setLanguage } = useLanguage();
   const [screen, setScreen] = useState('preloader');
   const [inviteToken, setInviteToken] = useState(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -54,6 +55,7 @@ function AppContent() {
         const userData = await getCurrentUser();
         if (userData) {
           updateUser(userData);
+          if (userData.language) setLanguage(userData.language);
           setScreen('main');
         } else {
           setScreen('login');
