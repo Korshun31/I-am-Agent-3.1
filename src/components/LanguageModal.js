@@ -18,9 +18,9 @@ const COLORS = {
 };
 
 const LANGUAGES = [
-  { id: 'en', labelKey: 'english' },
-  { id: 'th', labelKey: 'thailand' },
-  { id: 'ru', labelKey: 'russian' },
+  { id: 'en', label: 'English' },
+  { id: 'th', label: 'ภาษาไทย' },
+  { id: 'ru', label: 'Русский' },
 ];
 
 /**
@@ -71,7 +71,7 @@ export default function LanguageModal({ visible, onClose, selectedLanguage = '',
                   <View style={[styles.checkbox, selected === lang.id && styles.checkboxChecked]}>
                     {selected === lang.id ? <Text style={styles.checkmark}>✓</Text> : null}
                   </View>
-                  <Text style={styles.optionLabel}>{t(lang.labelKey)}</Text>
+                  <Text style={styles.optionLabel}>{lang.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
