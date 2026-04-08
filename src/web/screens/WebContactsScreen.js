@@ -288,7 +288,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
 
   // Разрешения агента
   const isAgent = !!user?.teamMembership;
-  const canManage = !isAgent || !!user?.teamPermissions?.can_book;
+  const canEdit = !isAgent || contact?.user_id === user?.id;
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -347,7 +347,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
           </View>
         </View>
         <View style={s.detailHeaderActions}>
-          {canManage && (
+          {canEdit && (
             <TouchableOpacity style={s.editBtn} onPress={onEdit} activeOpacity={0.7}>
               <Image source={require('../../../assets/icon-type-pencil.png')} style={s.editBtnIcon} resizeMode="contain" />
               <Text style={s.editBtnText}>{t('edit')}</Text>
@@ -657,7 +657,6 @@ export default function WebContactsScreen({ onNavigateToProperty, user, refreshK
 
   // ── Filtered list ──
   const isAgent = !!user?.teamMembership;
-  const canManage = !isAgent || !!user?.teamPermissions?.can_book;
 
   const q = search.trim().toLowerCase();
   const filtered = allContacts.filter(c => {
@@ -688,11 +687,9 @@ export default function WebContactsScreen({ onNavigateToProperty, user, refreshK
             <Text style={s.leftTitle}>{t('contactsTitle')}</Text>
             <Text style={s.leftSubtitle}>{counts.all} {t('contactsTitle').toLowerCase()}</Text>
           </View>
-          {canManage && (
-            <TouchableOpacity style={s.addBtn} onPress={openCreate} activeOpacity={0.8}>
-              <Text style={s.addBtnText}>+ {t('contactsAddBtn')}</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity style={s.addBtn} onPress={openCreate} activeOpacity={0.8}>
+            <Text style={s.addBtnText}>+ {t('contactsAddBtn')}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Search */}

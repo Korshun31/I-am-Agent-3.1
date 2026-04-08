@@ -98,6 +98,8 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
   const { t } = useLanguage();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [currentContact, setCurrentContact] = useState(contact);
+  const isAgent = !!user?.teamMembership;
+  const isOwnContact = !isAgent || currentContact?.user_id === user?.id;
   const [bookings, setBookings] = useState([]);
   const [properties, setProperties] = useState([]);
   const [selectedBooking, setSelectedBooking] = useState(null);
@@ -376,9 +378,11 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
         <View style={styles.card}>
           <View style={styles.cardTitleRow}>
             <Text style={styles.cardTitle}>{t('contacts')}</Text>
-            <TouchableOpacity onPress={() => setEditModalVisible(true)} style={styles.editBtn} activeOpacity={0.8}>
-              <Image source={require('../../assets/pencil-icon.png')} style={styles.editIcon} resizeMode="contain" />
-            </TouchableOpacity>
+            {isOwnContact && (
+              <TouchableOpacity onPress={() => setEditModalVisible(true)} style={styles.editBtn} activeOpacity={0.8}>
+                <Image source={require('../../assets/pencil-icon.png')} style={styles.editIcon} resizeMode="contain" />
+              </TouchableOpacity>
+            )}
           </View>
 
           <InfoRow
@@ -522,9 +526,11 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
           </View>
         ) : null}
 
-        <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.7}>
-          <Text style={styles.deleteBtnText}>{t('deleteContactTitle')}</Text>
-        </TouchableOpacity>
+        {!isAgent && (
+          <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.7}>
+            <Text style={styles.deleteBtnText}>{t('deleteContactTitle')}</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>

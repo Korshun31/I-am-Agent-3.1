@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import Constants from 'expo-constants';
+import { useUser } from '../context/UserContext';
 import { useLanguage } from '../context/LanguageContext';
 import AddContactModal from '../components/AddContactModal';
 import ContactDetailScreen from './ContactDetailScreen';
@@ -68,6 +69,7 @@ const BOTTOM_TAB_OFFSET_DOWN = 25; // дополнительное смещен�
 
 export default function ContactsScreen({ onBack }) {
   const { t } = useLanguage();
+  const { user } = useUser();
   const [sidebarTabIndex, setSidebarTabIndex] = useState(1);
   const activeTab = SIDEBAR_TABS[sidebarTabIndex]?.key ?? 'clients';
   const [searchQuery, setSearchQuery] = useState('');
@@ -140,6 +142,7 @@ export default function ContactsScreen({ onBack }) {
           setContacts(prev => prev.filter(c => c.id !== id));
           setSelectedContact(null);
         }}
+        user={user}
       />
     );
   }
