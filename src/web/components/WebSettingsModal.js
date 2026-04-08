@@ -14,9 +14,9 @@ const C = {
 };
 
 const LANGUAGES = [
-  { id: 'ru', label: 'Russian', icon: '🇷🇺' },
+  { id: 'ru', label: 'Русский', icon: '🇷🇺' },
   { id: 'en', label: 'English', icon: '🇺🇸' },
-  { id: 'th', label: 'Thai', icon: '🇹🇭' },
+  { id: 'th', label: 'ภาษาไทย', icon: '🇹🇭' },
 ];
 
 const CURRENCIES = [
