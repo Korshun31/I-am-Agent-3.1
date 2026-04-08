@@ -47,7 +47,8 @@
         {
           "sounds": []
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "extra": {
       "eas": {
