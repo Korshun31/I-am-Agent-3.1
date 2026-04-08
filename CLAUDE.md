@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**I am Agent** is a cross-platform real estate CRM for agents and companies. It runs as:
+**I am Agent** is a cross-platform real estate CRM for real estate rental entrepreneurs and their teams. It runs as:
 - **Mobile**: Expo SDK 54 (React Native) — iOS, Android
 - **Web**: React (via React Native Web) — deployed to Vercel
 - **Backend**: Supabase (PostgreSQL + Auth + Realtime + Storage)
@@ -46,7 +46,7 @@ No test runner is configured. Verification is done via `scripts/verify-build.js`
 All Supabase logic lives in `src/services/`. Key services:
 - `supabase.js` — Supabase client init
 - `authService.js` — sign in/up, session load, full user profile resolution
-- `propertiesService.js` — CRUD; auto-sets `property_status: 'pending'` for agents, `'approved'` for owners
+- `propertiesService.js` — CRUD; auto-sets `property_status: 'pending'` for users, `'approved'` for owners
 - `bookingsService.js` — booking CRUD with overlap detection and commission calculation
 - `companyService.js` — company lifecycle, invitations, team member management
 - `contactsService.js`, `calendarEventsService.js`, `locationsService.js`

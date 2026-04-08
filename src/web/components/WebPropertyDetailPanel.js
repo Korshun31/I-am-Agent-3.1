@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import dayjs from 'dayjs';
 import { getContactById } from '../../services/contactsService';
+import { useLanguage } from '../../context/LanguageContext';
 
 const ICON_PHONE    = require('../../../assets/icon-contact-phone.png');
 const ICON_WHATSAPP = require('../../../assets/icon-contact-whatsapp.png');
@@ -23,11 +24,11 @@ const C = {
 };
 
 const TYPE_COLOR = {
-  house:  { border: '#C2920E', bg: '#FFFBEB', text: '#92680A', pill: '#FEF3C7', label: 'Дом' },
-  resort: { border: '#16A34A', bg: '#F0FDF4', text: '#15803D', pill: '#DCFCE7', label: 'Резорт' },
-  condo:  { border: '#2563EB', bg: '#EFF6FF', text: '#1D4ED8', pill: '#DBEAFE', label: 'Кондо' },
-  resort_house: { border: '#16A34A', bg: '#F0FDF4', text: '#15803D', pill: '#DCFCE7', label: 'Дом в резорте' },
-  condo_apartment: { border: '#2563EB', bg: '#EFF6FF', text: '#1D4ED8', pill: '#DBEAFE', label: 'Апартаменты' },
+  house:           { border: '#C2920E', bg: '#FFFBEB', text: '#92680A', pill: '#FEF3C7' },
+  resort:          { border: '#16A34A', bg: '#F0FDF4', text: '#15803D', pill: '#DCFCE7' },
+  condo:           { border: '#2563EB', bg: '#EFF6FF', text: '#1D4ED8', pill: '#DBEAFE' },
+  resort_house:    { border: '#16A34A', bg: '#F0FDF4', text: '#15803D', pill: '#DCFCE7' },
+  condo_apartment: { border: '#2563EB', bg: '#EFF6FF', text: '#1D4ED8', pill: '#DBEAFE' },
 };
 
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
@@ -49,6 +50,7 @@ function fmt(n) {
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
 export default function WebPropertyDetailPanel({ visible, property, bookings = [], onClose, user }) {
+  const { t } = useLanguage();
   const slideAnim    = useRef(new Animated.Value(500)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const mountedRef   = useRef(false);
@@ -82,6 +84,8 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
   if (!visible && !mountedRef.current) return null;
 
   const tc   = property ? (TYPE_COLOR[getEffectiveType(property)] || TYPE_COLOR.house) : TYPE_COLOR.house;
+  const TYPE_KEY_MAP = { resort_house: 'resortHouse', condo_apartment: 'condoApartment' };
+  const typeKey = TYPE_KEY_MAP[getEffectiveType(property)] ?? getEffectiveType(property);
   const code = property ? (property.code + (property.code_suffix ? ` (${property.code_suffix})` : '')) : '—';
 
   // Upcoming & current bookings for this property
@@ -105,7 +109,7 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
           <View style={st.headerContent}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <View style={[st.typePill, { backgroundColor: tc.pill }]}>
-                <Text style={[st.typePillText, { color: tc.text }]}>{tc.label}</Text>
+                <Text style={[st.typePillText, { color: tc.text }]}>{t(typeKey)}</Text>
               </View>
               <Text style={[st.codeText, { color: tc.text }]}>{code}</Text>
             </View>
