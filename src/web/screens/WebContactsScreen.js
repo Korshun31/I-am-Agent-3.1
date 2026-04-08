@@ -288,7 +288,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
 
   // Разрешения агента
   const isAgent = !!user?.teamMembership;
-  const canEdit = !isAgent || contact?.user_id === user?.id;
+  const canEdit = !isAgent || contact?.userId === user?.id;
 
   const handleDelete = async () => {
     setDeleting(true);

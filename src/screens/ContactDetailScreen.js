@@ -99,7 +99,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [currentContact, setCurrentContact] = useState(contact);
   const isAgent = !!user?.teamMembership;
-  const isOwnContact = !isAgent || currentContact?.user_id === user?.id;
+  const isOwnContact = !isAgent || currentContact?.userId === user?.id;
   const [bookings, setBookings] = useState([]);
   const [properties, setProperties] = useState([]);
   const [selectedBooking, setSelectedBooking] = useState(null);

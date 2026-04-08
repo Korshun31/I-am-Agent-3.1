@@ -287,6 +287,7 @@ function mapContact(row) {
   const extraWhatsapps = Array.isArray(row.extra_whatsapps) ? row.extra_whatsapps : (row.whatsapp ? [row.whatsapp] : []);
   return {
     id: row.id,
+    userId: row.user_id,
     type: row.type,
     name: row.name || '',
     lastName: row.last_name || '',
