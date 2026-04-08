@@ -834,6 +834,7 @@ export default function WebContactsScreen({ onNavigateToProperty, user, refreshK
         contact={editContact}
         onClose={() => setEditPanelVisible(false)}
         onSaved={handleSaved}
+        lockType={editMode === 'edit' ? editContact?.type : undefined}
       />
     </View>
   );
