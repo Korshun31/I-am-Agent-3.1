@@ -198,7 +198,7 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
       setSelectedCurrency(curr);
     }).catch(() => {});
     loadLocations();
-  }, [email, setLanguage]);
+  }, [email]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveAgentSettings = async (updates) => {
     try {
