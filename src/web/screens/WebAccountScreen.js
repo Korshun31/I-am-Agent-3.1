@@ -386,7 +386,7 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
             >
               <Text style={s.settingLabel}>{t('language')}</Text>
               <Text style={[s.settingValue, { color: ACCENT }]}>
-                {user?.language === 'ru' ? t('langNameRu') : user?.language === 'th' ? t('langNameTh') : t('langNameEn')}
+                {user?.web_language === 'ru' ? t('langNameRu') : user?.web_language === 'th' ? t('langNameTh') : t('langNameEn')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity 

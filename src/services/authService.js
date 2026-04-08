@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { Platform } from 'react-native';
 
 export async function signUp({ email, password, name }) {
   const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -172,7 +173,9 @@ export async function getUserProfile(userId) {
     isAgentRole: isAgentMember,
     isAdminRole: !!companyData,
     // ─────────────────────────────────────────────────────────────────────────
-    language: settings.language || 'en',
+    language: Platform.OS === 'web'
+      ? (settings.web_language || 'en')
+      : (settings.app_language || 'en'),
     notificationSettings: settings.notificationSettings || {},
     selectedCurrency: settings.selectedCurrency || 'USD',
     locations: Array.isArray(settings.locations) ? settings.locations : [],
@@ -214,7 +217,7 @@ export async function updateUserProfile(updates) {
   if (updates.photoUri !== undefined) dbUpdates.photo_url = updates.photoUri;
   if (updates.web_notifications !== undefined) dbUpdates.web_notifications = updates.web_notifications;
 
-  const settingsKeys = ['language', 'notificationSettings', 'selectedCurrency', 'locations', 'workAs', 'companyInfo'];
+  const settingsKeys = ['language', 'web_language', 'app_language', 'notificationSettings', 'selectedCurrency', 'locations', 'workAs', 'companyInfo'];
   const hasSettingsUpdate = settingsKeys.some(k => updates[k] !== undefined);
 
   if (hasSettingsUpdate) {

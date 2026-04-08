@@ -53,7 +53,7 @@ export default function WebSettingsModal({ visible, type, user, onClose, onSaved
   const handleSelect = async (value) => {
     setSaving(true);
     try {
-      const updates = type === 'language' ? { language: value } : { selectedCurrency: value };
+      const updates = type === 'language' ? { web_language: value } : { selectedCurrency: value };
       const updated = await updateUserProfile(updates);
       if (type === 'language') {
         setLanguage(value);
