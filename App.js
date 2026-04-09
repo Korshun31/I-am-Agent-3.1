@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, TouchableWithoutFeedback, Keyboard, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { NavigationContainer } from '@react-navigation/native';
@@ -105,40 +105,44 @@ function AppContent() {
   return (
     <>
       <StatusBar style="dark" />
-      {Platform.OS === 'web' && inviteToken ? (
-        <WebInviteAcceptScreen
-          token={inviteToken}
-          onComplete={handleInviteComplete}
-          onCancel={handleInviteCancel}
-        />
-      ) : (
-        <>
-          {(screen === 'login' || (screen === 'preloader' && Platform.OS === 'web')) && (
-            <Login
-              onSignUp={() => setScreen('registration')}
-              onLogin={(userData) => { updateUser(userData); setScreen('main'); }}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false} disabled={Platform.OS === 'web'}>
+        <View style={{ flex: 1 }}>
+          {Platform.OS === 'web' && inviteToken ? (
+            <WebInviteAcceptScreen
+              token={inviteToken}
+              onComplete={handleInviteComplete}
+              onCancel={handleInviteCancel}
             />
+          ) : (
+            <>
+              {(screen === 'login' || (screen === 'preloader' && Platform.OS === 'web')) && (
+                <Login
+                  onSignUp={() => setScreen('registration')}
+                  onLogin={(userData) => { updateUser(userData); setScreen('main'); }}
+                />
+              )}
+              {screen === 'registration' && (
+                <Registration
+                  onBack={() => setScreen('login')}
+                  onSuccess={(userData) => { updateUser(userData); setScreen('main'); }}
+                />
+              )}
+              {screen === 'preloader' && Platform.OS !== 'web' && (
+                <Preloader />
+              )}
+              {screen === 'main' && (
+                Platform.OS === 'web' ? (
+                  <WebMainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
+                ) : (
+                  <AppDataProvider user={user}>
+                    <AppMainLoader onLogout={handleLogout} />
+                  </AppDataProvider>
+                )
+              )}
+            </>
           )}
-          {screen === 'registration' && (
-            <Registration
-              onBack={() => setScreen('login')}
-              onSuccess={(userData) => { updateUser(userData); setScreen('main'); }}
-            />
-          )}
-          {screen === 'preloader' && Platform.OS !== 'web' && (
-            <Preloader />
-          )}
-          {screen === 'main' && (
-            Platform.OS === 'web' ? (
-              <WebMainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
-            ) : (
-              <AppDataProvider user={user}>
-                <AppMainLoader onLogout={handleLogout} />
-              </AppDataProvider>
-            )
-          )}
-        </>
-      )}
+        </View>
+      </TouchableWithoutFeedback>
     </>
   );
 }
