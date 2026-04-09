@@ -15,6 +15,7 @@ import {
   Dimensions,
   StatusBar,
   ActivityIndicator,
+  Image as RNImage,
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as MediaLibrary from 'expo-media-library';
@@ -168,7 +169,7 @@ function ResortHouseItem({ item, expanded, onToggle, resortCode, onPress, t }) {
           activeOpacity={onPress ? 0.7 : 1}
           disabled={!onPress}
         >
-          <Image source={require('../../assets/icon-property-resort.png')} style={styles.resortHouseIcon} resizeMode="contain" />
+          <RNImage source={require('../../assets/icon-property-resort.png')} style={styles.resortHouseIcon} resizeMode="contain" />
           <Text style={styles.resortHouseName} numberOfLines={1}>{item.name}</Text>
           <Text style={styles.resortHouseCode}>{codeDisplay}</Text>
         </TouchableOpacity>
@@ -181,7 +182,7 @@ function ResortHouseItem({ item, expanded, onToggle, resortCode, onPress, t }) {
         )}
         <TouchableOpacity onPress={onToggle} activeOpacity={0.5} style={styles.resortHouseExpandBtn}>
           <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
-            <Image source={require('../../assets/icon-arrow-down.png')} style={styles.resortHouseArrow} resizeMode="contain" />
+            <RNImage source={require('../../assets/icon-arrow-down.png')} style={styles.resortHouseArrow} resizeMode="contain" />
           </Animated.View>
         </TouchableOpacity>
       </View>
@@ -296,7 +297,7 @@ function PhotoGalleryModal({ visible, photos, initialIndex, onClose, onDeletePho
           }}
           activeOpacity={0.7}
         >
-          <Image source={require('../../assets/trash-icon.png')} style={galleryStyles.deleteBtnIcon} resizeMode="contain" />
+          <RNImage source={require('../../assets/trash-icon.png')} style={galleryStyles.deleteBtnIcon} resizeMode="contain" />
         </TouchableOpacity>
 
         <FlatList
@@ -408,7 +409,7 @@ function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
   return (
     <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
       <View style={styles.sectionTitleRow}>
-        <Image source={require('../../assets/icon-photo.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+        <RNImage source={require('../../assets/icon-photo.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
         <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdPhoto')}</Text>
       </View>
       {photos.length > 0 ? (
@@ -426,7 +427,7 @@ function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
         />
       ) : (<Text style={styles.emptyMedia}>{t('pdNoPhotos')}</Text>)}
       <View style={[styles.sectionTitleRow, { marginTop: 12 }]}>
-        <Image source={require('../../assets/icon-video.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+        <RNImage source={require('../../assets/icon-video.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
         <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdVideo')}</Text>
       </View>
       {videos.length > 0 ? (
@@ -561,7 +562,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
       {p.description ? (
         <View style={styles.descriptionBlock}>
           <View style={styles.sectionTitleRow}>
-            <Image source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <RNImage source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
             <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdDescription')}</Text>
           </View>
           <Text style={styles.descriptionText}>{p.description}</Text>
@@ -571,12 +572,12 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
       <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
         <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
             <View style={styles.sectionTitleLeft}>
-              <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+              <RNImage source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
             </View>
             {onOpenBookingCalendar && (
               <TouchableOpacity onPress={() => onOpenBookingCalendar([p.id], resort ? codeDisplay : (p.name || p.code || ''))} style={styles.calendarLinkRow} activeOpacity={0.7}>
-                <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
+                <RNImage source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
               </TouchableOpacity>
             )}
           </View>
@@ -591,7 +592,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
                 onPress={onBookingPress ? () => onBookingPress(b, codePart, p) : undefined}
                 activeOpacity={onBookingPress ? 0.7 : 1}
               >
-                <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
+                <RNImage source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{codePart}</Text>
                 <Text style={styles.bookingItemDates}>
                   {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
@@ -606,7 +607,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
 
       <SectionBlock color="rgba(248,187,208,0.4)" border="#F48FB1">
         <View style={styles.sectionTitleRow}>
-          <Image source={require('../../assets/icon-amenities.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+          <RNImage source={require('../../assets/icon-amenities.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdAmenities')}</Text>
         </View>
         <View style={styles.amenitiesGrid}>
@@ -776,12 +777,12 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
       <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
         <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
             <View style={styles.sectionTitleLeft}>
-              <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+              <RNImage source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
             </View>
             {onOpenBookingCalendar && (
               <TouchableOpacity onPress={() => onOpenBookingCalendar(resortHouses.map((h) => h.id), p.name || p.code || '')} style={styles.calendarLinkRow} activeOpacity={0.7}>
-                <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
+                <RNImage source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
               </TouchableOpacity>
             )}
           </View>
@@ -795,7 +796,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
                 onPress={onBookingPress ? () => onBookingPress(b, b._codePart, house) : undefined}
                 activeOpacity={onBookingPress ? 0.7 : 1}
               >
-                <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
+                <RNImage source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{b._codePart}</Text>
                 <Text style={styles.bookingItemDates}>
                   {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
@@ -811,7 +812,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
       {p.description ? (
         <View style={styles.descriptionBlock}>
           <View style={styles.sectionTitleRow}>
-            <Image source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <RNImage source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
             <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdDescription')}</Text>
           </View>
           <Text style={styles.descriptionText}>{p.description}</Text>
@@ -821,7 +822,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
       {/* Houses toolbar */}
       <View style={[styles.housesToolbar, { justifyContent: 'flex-end' }]}>
         <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={toggleAllHouses}>
-          <Image
+          <RNImage
             source={allHousesExpanded ? require('../../assets/icon-folder-open.png') : require('../../assets/icon-folder-closed.png')}
             style={styles.housesToolbarIcon}
             resizeMode="contain"
@@ -892,7 +893,7 @@ function CondoApartmentItem({ item, expanded, onToggle, onPress, t }) {
           activeOpacity={onPress ? 0.7 : 1}
           disabled={!onPress}
         >
-          <Image source={require('../../assets/icon-property-condo.png')} style={styles.resortHouseIcon} resizeMode="contain" />
+          <RNImage source={require('../../assets/icon-property-condo.png')} style={styles.resortHouseIcon} resizeMode="contain" />
           <Text style={styles.resortHouseName} numberOfLines={1}>{item.name}</Text>
           <Text style={styles.resortHouseCode}>{codeDisplay}</Text>
         </TouchableOpacity>
@@ -905,7 +906,7 @@ function CondoApartmentItem({ item, expanded, onToggle, onPress, t }) {
         )}
         <TouchableOpacity onPress={onToggle} activeOpacity={0.5} style={styles.resortHouseExpandBtn}>
           <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
-            <Image source={require('../../assets/icon-arrow-down.png')} style={styles.resortHouseArrow} resizeMode="contain" />
+            <RNImage source={require('../../assets/icon-arrow-down.png')} style={styles.resortHouseArrow} resizeMode="contain" />
           </Animated.View>
         </TouchableOpacity>
       </View>
@@ -1023,12 +1024,12 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
       <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
         <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
             <View style={styles.sectionTitleLeft}>
-              <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+              <RNImage source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
             </View>
             {onOpenBookingCalendar && (
               <TouchableOpacity onPress={() => onOpenBookingCalendar(apartments.map((a) => a.id), p.name || p.code || '')} style={styles.calendarLinkRow} activeOpacity={0.7}>
-                <Image source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
+                <RNImage source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
               </TouchableOpacity>
             )}
           </View>
@@ -1042,7 +1043,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
                 onPress={onBookingPress ? () => onBookingPress(b, b._codePart, apt) : undefined}
                 activeOpacity={onBookingPress ? 0.7 : 1}
               >
-                <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
+                <RNImage source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{b._codePart}</Text>
                 <Text style={styles.bookingItemDates}>
                   {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
@@ -1058,7 +1059,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
       {p.description ? (
         <View style={styles.descriptionBlock}>
           <View style={styles.sectionTitleRow}>
-            <Image source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <RNImage source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
             <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdDescription')}</Text>
           </View>
           <Text style={styles.descriptionText}>{p.description}</Text>
@@ -1067,7 +1068,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
 
       <View style={[styles.housesToolbar, { justifyContent: 'flex-end' }]}>
         <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={toggleAll}>
-          <Image
+          <RNImage
             source={allExpanded ? require('../../assets/icon-folder-open.png') : require('../../assets/icon-folder-closed.png')}
             style={styles.housesToolbarIcon}
             resizeMode="contain"
@@ -1868,13 +1869,13 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         {/* Удалить — для не-агентов всегда; для agent-role только если создатель + не approved (LOCK-001) */}
         {(!isAgentRole || (isCreator && !isApproved)) && (
           <TouchableOpacity style={styles.actionBtn} onPress={handleDeletePress} activeOpacity={0.7}>
-            <Image source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
+            <RNImage source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
           </TouchableOpacity>
         )}
         <View style={[styles.actionsRight, isTeamMember && { flex: 1, justifyContent: 'flex-end' }]}>
           {/* Редактировать */}
           <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
-            <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
+            <RNImage source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
           </TouchableOpacity>
           {/* Добавить бронирование / добавить дом — только для approved, для агента только если есть can_book */}
           {isApproved && (!isTeamMember || canBook) && (
@@ -1888,9 +1889,9 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
               }}
             >
               {(p.type === 'resort' || p.type === 'condo') ? (
-                <Image source={require('../../assets/icon-add-property.png')} style={styles.actionIconLg} resizeMode="contain" />
+                <RNImage source={require('../../assets/icon-add-property.png')} style={styles.actionIconLg} resizeMode="contain" />
               ) : (
-                <Image source={require('../../assets/icon-add-booking.png')} style={styles.actionIconLg} resizeMode="contain" />
+                <RNImage source={require('../../assets/icon-add-booking.png')} style={styles.actionIconLg} resizeMode="contain" />
               )}
             </TouchableOpacity>
           )}

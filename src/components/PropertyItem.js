@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
+  Image as RNImage,
 } from 'react-native';
 import { Image } from 'expo-image';
 
@@ -64,7 +65,7 @@ function PropertyItem({ item, expanded, onToggle, onPress, t }) {
         <Text style={styles.propertyCode}>{codeDisplay}</Text>
         <TouchableOpacity onPress={handleToggle} activeOpacity={0.5} style={styles.expandBtn}>
           <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
-            <Image source={require('../../assets/icon-arrow-down.png')} style={styles.expandArrowImage} resizeMode="contain" />
+            <RNImage source={require('../../assets/icon-arrow-down.png')} style={styles.expandArrowImage} resizeMode="contain" />
           </Animated.View>
         </TouchableOpacity>
       </View>
@@ -74,7 +75,7 @@ function PropertyItem({ item, expanded, onToggle, onPress, t }) {
             <Image source={{ uri: item.photos[0] }} style={styles.expandedPhoto} cachePolicy="disk" />
           ) : (
             <View style={[styles.expandedPhoto, styles.expandedPhotoPlaceholder]}>
-              <Image source={require('../../assets/icon-photo.png')} style={styles.expandedPhotoPlaceholderIcon} resizeMode="contain" />
+              <RNImage source={require('../../assets/icon-photo.png')} style={styles.expandedPhotoPlaceholderIcon} resizeMode="contain" />
             </View>
           )}
           <View style={styles.expandedDetails}>

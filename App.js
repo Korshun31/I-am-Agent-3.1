@@ -68,7 +68,7 @@ function AppContent() {
             const properties = await getProperties();
             setPreloaderProgress(30);
             const allPhotos = properties
-              .flatMap(p => p.photos || [])
+              .map(p => p.photos?.[0])
               .filter(uri => typeof uri === 'string' && uri.startsWith('http'));
             const total = allPhotos.length;
             if (total > 0) {

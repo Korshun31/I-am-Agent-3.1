@@ -16,6 +16,7 @@ import {
   ActivityIndicator,
   InteractionManager,
   Pressable,
+  Image as RNImage,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
@@ -675,7 +676,7 @@ function StepMedia({ data, setData, t, maxPhotos }) {
   return (
     <>
       <View style={s.mediaSectionTitleRow}>
-        <Image source={require('../../assets/icon-photo.png')} style={s.mediaSectionTitleIcon} resizeMode="contain" />
+        <RNImage source={require('../../assets/icon-photo.png')} style={s.mediaSectionTitleIcon} resizeMode="contain" />
         <Text style={s.mediaSectionTitle}>{t('pdPhoto')}</Text>
       </View>
       <View style={s.mediaGrid}>
@@ -705,7 +706,7 @@ function StepMedia({ data, setData, t, maxPhotos }) {
       )}
 
       <View style={[s.mediaSectionTitleRow, { marginTop: 20 }]}>
-        <Image source={require('../../assets/icon-video.png')} style={s.mediaSectionTitleIcon} resizeMode="contain" />
+        <RNImage source={require('../../assets/icon-video.png')} style={s.mediaSectionTitleIcon} resizeMode="contain" />
         <Text style={s.mediaSectionTitle}>{t('pdVideo')}</Text>
       </View>
       {videos.map((url, i) => (
