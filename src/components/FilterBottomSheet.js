@@ -20,11 +20,7 @@ const CITY_LIST_MAX_HEIGHT = 280;
 import { BlurView } from 'expo-blur';
 import { useLanguage } from '../context/LanguageContext';
 
-const AMENITY_KEYS = [
-  'swimming_pool', 'gym', 'parking', 'internet', 'tv', 'washing_machine',
-  'dishwasher', 'fridge', 'stove', 'oven', 'hood', 'microwave',
-  'kettle', 'toaster', 'coffee_machine', 'multi_cooker', 'blender',
-];
+const AMENITY_KEYS = ['swimming_pool', 'gym', 'parking', 'washing_machine'];
 
 const TYPE_BLOCKS = [
   { key: 'resort', color: '#C8E6C9', borderColor: '#81C784', icon: require('../../assets/icon-property-resort.png') },

@@ -44,7 +44,7 @@ const COL_PADDING = 13;
 const MIN_COL_WIDTH = 60;
 const MAX_COL_WIDTH = 105;
 const MONTH_WIDTH = 100; // 83 + 20%
-const NUM_MONTHS = 36;
+const NUM_MONTHS = 16;
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
 // Цвета полосок бронирований моих клиентов: красный, оранжевый, жёлтый, зелёный, голубой, синий, фиолетовый
 const PASTEL_COLORS = [
@@ -290,6 +290,15 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     if (!effectiveVisible || !user?.id) return;
     refreshBadge();
   }, [effectiveVisible, user?.id, refreshBadge]);
+
+  const hasOpenedFilterOnce = useRef(false);
+
+  useEffect(() => {
+    if (effectiveVisible && !hasOpenedFilterOnce.current) {
+      hasOpenedFilterOnce.current = true;
+      setFilterVisible(true);
+    }
+  }, [effectiveVisible]);
 
   useEffect(() => {
     if (!user?.id) return;
