@@ -29,6 +29,8 @@ import WebMainScreen from './src/web/WebMainScreen';
 import { getCurrentUser, signOut } from './src/services/authService';
 import { supabase } from './src/services/supabase';
 import WebInviteAcceptScreen from './src/web/screens/WebInviteAcceptScreen';
+import { Image } from 'expo-image';
+import { getProperties } from './src/services/propertiesService';
 
 function AppMainLoader({ onLogout }) {
   const { isLoaded, loadingProgress } = useAppData();
@@ -41,6 +43,8 @@ function AppContent() {
   const { user, updateUser, resetUser, handleUserUpdate } = useUser();
   const { setLanguage } = useLanguage();
   const [screen, setScreen] = useState('preloader');
+  const [preloaderProgress, setPreloaderProgress] = useState(0);
+  const [preloaderStatus, setPreloaderStatus] = useState('Checking session...');
   const [inviteToken, setInviteToken] = useState(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -51,11 +55,38 @@ function AppContent() {
 
   useEffect(() => {
     async function checkSession() {
+      setPreloaderStatus('Checking session...');
+      setPreloaderProgress(0);
       try {
         const userData = await getCurrentUser();
         if (userData) {
           updateUser(userData);
           if (userData.language) setLanguage(userData.language);
+          setPreloaderProgress(10);
+          setPreloaderStatus('Loading data...');
+          try {
+            const properties = await getProperties();
+            setPreloaderProgress(30);
+            const allPhotos = properties
+              .flatMap(p => p.photos || [])
+              .filter(uri => typeof uri === 'string' && uri.startsWith('http'));
+            const total = allPhotos.length;
+            if (total > 0) {
+              let loaded = 0;
+              const chunkSize = 5;
+              for (let i = 0; i < allPhotos.length; i += chunkSize) {
+                const chunk = allPhotos.slice(i, i + chunkSize);
+                await Promise.all(chunk.map(async (uri) => {
+                  try { await Image.prefetch(uri); } catch {}
+                  loaded++;
+                  setPreloaderProgress(30 + Math.round((loaded / total) * 70));
+                  setPreloaderStatus(`Loading photos... ${loaded} of ${total}`);
+                }));
+              }
+            } else {
+              setPreloaderProgress(100);
+            }
+          } catch {}
           setScreen('main');
         } else {
           setScreen('login');
@@ -65,12 +96,7 @@ function AppContent() {
       }
     }
 
-    if (Platform.OS === 'web') {
-      checkSession();
-    } else {
-      const timer = setTimeout(checkSession, 2500);
-      return () => clearTimeout(timer);
-    }
+    checkSession();
   }, []);
 
   // Auto sign-out when Supabase refresh token becomes invalid
@@ -131,7 +157,9 @@ function AppContent() {
               onSuccess={(userData) => { updateUser(userData); setScreen('main'); }}
             />
           )}
-          {screen === 'preloader' && Platform.OS !== 'web' && <Preloader />}
+          {screen === 'preloader' && Platform.OS !== 'web' && (
+            <Preloader progress={preloaderProgress} statusText={preloaderStatus} />
+          )}
           {screen === 'main' && (
             Platform.OS === 'web' ? (
               <WebMainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
