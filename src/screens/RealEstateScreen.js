@@ -191,9 +191,9 @@ export default function RealEstateScreen({ onReady }) {
 
   const drawerAnimation = {
     duration: 150,
-    create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
-    update: { type: LayoutAnimation.Types.easeInEaseOut },
-    delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+    create: { type: LayoutAnimation.Types.linear, property: LayoutAnimation.Properties.opacity },
+    update: { type: LayoutAnimation.Types.linear },
+    delete: { type: LayoutAnimation.Types.linear, property: LayoutAnimation.Properties.opacity },
   };
 
   const toggleExpandAll = useCallback(() => {
