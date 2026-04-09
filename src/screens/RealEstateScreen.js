@@ -403,6 +403,10 @@ export default function RealEstateScreen({ onReady }) {
 
   const allExpanded = expandedIds.size > 0 && listToShow.every(p => expandedIds.has(p.id));
 
+  useEffect(() => {
+    if (!hasActiveFilter) setExpandedIds(new Set());
+  }, [hasActiveFilter]);
+
   const expandTimersRef = useRef([]);
 
   const toggleExpandAll = useCallback(() => {

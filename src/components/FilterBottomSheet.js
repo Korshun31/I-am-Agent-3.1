@@ -165,6 +165,8 @@ export default function FilterBottomSheet({
     setLongTerm(null);
     setSelectedAmenities(new Set());
     setInReview(false);
+    onApply?.(null);
+    onClose?.();
   };
 
   const handleApply = () => {
