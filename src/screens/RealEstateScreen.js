@@ -196,18 +196,33 @@ export default function RealEstateScreen({ onReady }) {
     delete: { type: LayoutAnimation.Types.linear, property: LayoutAnimation.Properties.opacity },
   };
 
+  const expandTimersRef = useRef([]);
+
   const toggleExpandAll = useCallback(() => {
-    LayoutAnimation.configureNext(drawerAnimation);
-    setAllExpanded(prev => {
-      if (!prev) {
-        setExpandedIds(new Set(listToShow.map(p => p.id)));
-        return true;
-      } else {
-        setExpandedIds(new Set());
-        return false;
+    expandTimersRef.current.forEach(t => clearTimeout(t));
+    expandTimersRef.current = [];
+    if (!allExpanded) {
+      setAllExpanded(true);
+      const ids = listToShow.map(p => p.id);
+      const chunkSize = 5;
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        const t = setTimeout(() => {
+          LayoutAnimation.configureNext(drawerAnimation);
+          setExpandedIds(prev => {
+            const next = new Set(prev);
+            chunk.forEach(id => next.add(id));
+            return next;
+          });
+        }, (i / chunkSize) * 50);
+        expandTimersRef.current.push(t);
       }
-    });
-  }, [listToShow]);
+    } else {
+      LayoutAnimation.configureNext(drawerAnimation);
+      setExpandedIds(new Set());
+      setAllExpanded(false);
+    }
+  }, [listToShow, allExpanded]);
 
   const toggleItemExpand = useCallback((id) => {
     LayoutAnimation.configureNext(drawerAnimation);
