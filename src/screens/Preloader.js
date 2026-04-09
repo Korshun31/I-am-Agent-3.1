@@ -69,7 +69,7 @@ export default function Preloader({ progress }) {
           <View style={[styles.progressBar, { width: `${progress}%` }]} />
         </View>
       ) : (
-        <Text style={styles.loadingText}>{statusText || 'Loading...'}</Text>
+        <Text style={styles.loadingText}>{'Loading...'}</Text>
       )}
     </View>
   );
