@@ -12,12 +12,12 @@ import {
   Keyboard,
   Animated,
   Alert,
-  Image,
   Dimensions,
   ActivityIndicator,
   InteractionManager,
   Pressable,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -681,7 +681,7 @@ function StepMedia({ data, setData, t, maxPhotos }) {
       <View style={s.mediaGrid}>
         {photos.map((uri, i) => (
           <View key={i} style={s.mediaThumbWrap}>
-            <Image source={{ uri }} style={s.mediaThumb} resizeMode="cover" />
+            <Image source={{ uri }} style={s.mediaThumb} contentFit="cover" cachePolicy="disk" />
             <TouchableOpacity style={s.mediaRemoveBtn} onPress={() => removePhoto(i)} activeOpacity={0.7}>
               <Text style={s.mediaRemoveText}>✕</Text>
             </TouchableOpacity>

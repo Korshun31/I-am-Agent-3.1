@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Image,
   Linking,
   FlatList,
   Animated,
@@ -17,6 +16,7 @@ import {
   StatusBar,
   ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
@@ -311,7 +311,7 @@ function PhotoGalleryModal({ visible, photos, initialIndex, onClose, onDeletePho
           viewabilityConfig={viewabilityConfig}
           renderItem={({ item }) => (
             <View style={galleryStyles.page}>
-              <Image source={{ uri: item }} style={galleryStyles.fullImage} resizeMode="contain" />
+              <Image source={{ uri: item }} style={galleryStyles.fullImage} contentFit="contain" cachePolicy="disk" />
             </View>
           )}
         />
@@ -419,7 +419,7 @@ function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
           keyExtractor={(_, i) => `photo-${i}`}
           renderItem={({ item, index }) => (
             <TouchableOpacity onPress={() => onPhotoPress(index)} activeOpacity={0.85}>
-              <Image source={{ uri: item }} style={styles.mediaThumb} resizeMode="cover" />
+              <Image source={{ uri: item }} style={styles.mediaThumb} contentFit="cover" cachePolicy="disk" />
             </TouchableOpacity>
           )}
           style={styles.mediaList}
@@ -441,7 +441,7 @@ function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
               <TouchableOpacity onPress={() => onVideoPress(item)} activeOpacity={0.7}>
                 <View style={[styles.mediaThumb, styles.videoThumb]}>
                   {thumbUri ? (
-                    <Image source={{ uri: thumbUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                    <Image source={{ uri: thumbUri }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="disk" />
                   ) : null}
                   <View style={styles.videoPlayOverlay}>
                     <Text style={styles.videoPlayIcon}>▶</Text>
