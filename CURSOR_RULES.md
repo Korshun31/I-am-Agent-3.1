@@ -315,6 +315,8 @@ TD-005: TODO разрешения не применены в UI
 TD-006: owner_commission_*_is_from поля в properties — legacy флаги
 Что сделать: удалить поля из схемы после проверки
 
+TD-013: PropertyEditWizard.js — модальное окно не поднимается над клавиатурой при вводе в числовые поля. Нужен KeyboardAvoidingView внутри модалки.
+
 ### Низкий — бэклог
 
 TD-007: properties не имеет updated_at — добавить колонку
