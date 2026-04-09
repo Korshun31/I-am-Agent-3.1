@@ -62,6 +62,7 @@ export default function MainNavigator({ onLogout, onUserUpdate }) {
   return (
     <Tab.Navigator
       lazy={true}
+      detachInactiveScreens={false}
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
