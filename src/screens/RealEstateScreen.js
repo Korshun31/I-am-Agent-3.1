@@ -190,7 +190,7 @@ export default function RealEstateScreen({ onReady }) {
   }, [properties]);
 
   const drawerAnimation = {
-    duration: 300,
+    duration: 150,
     create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
     update: { type: LayoutAnimation.Types.easeInEaseOut },
     delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
