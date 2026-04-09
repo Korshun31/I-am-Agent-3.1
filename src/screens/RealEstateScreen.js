@@ -195,30 +195,6 @@ export default function RealEstateScreen({ onReady }) {
     delete: { type: LayoutAnimation.Types.linear, property: LayoutAnimation.Properties.opacity },
   };
 
-  const expandTimersRef = useRef([]);
-
-  const toggleExpandAll = useCallback(() => {
-    expandTimersRef.current.forEach(t => clearTimeout(t));
-    expandTimersRef.current = [];
-    if (!allExpanded) {
-      const ids = listToShow.map(p => p.id);
-      const chunkSize = 5;
-      for (let i = 0; i < ids.length; i += chunkSize) {
-        const chunk = ids.slice(i, i + chunkSize);
-        const t = setTimeout(() => {
-          setExpandedIds(prev => {
-            const next = new Set(prev);
-            chunk.forEach(id => next.add(id));
-            return next;
-          });
-        }, (i / chunkSize) * 50);
-        expandTimersRef.current.push(t);
-      }
-    } else {
-      LayoutAnimation.configureNext(drawerAnimation);
-      setExpandedIds(new Set());
-    }
-  }, [listToShow, allExpanded]);
 
   const toggleItemExpand = useCallback((id) => {
     LayoutAnimation.configureNext(drawerAnimation);
@@ -426,6 +402,31 @@ export default function RealEstateScreen({ onReady }) {
   }, [properties, searchQuery, filterValues]);
 
   const allExpanded = expandedIds.size > 0 && listToShow.every(p => expandedIds.has(p.id));
+
+  const expandTimersRef = useRef([]);
+
+  const toggleExpandAll = useCallback(() => {
+    expandTimersRef.current.forEach(t => clearTimeout(t));
+    expandTimersRef.current = [];
+    if (!allExpanded) {
+      const ids = listToShow.map(p => p.id);
+      const chunkSize = 5;
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        const t = setTimeout(() => {
+          setExpandedIds(prev => {
+            const next = new Set(prev);
+            chunk.forEach(id => next.add(id));
+            return next;
+          });
+        }, (i / chunkSize) * 50);
+        expandTimersRef.current.push(t);
+      }
+    } else {
+      LayoutAnimation.configureNext(drawerAnimation);
+      setExpandedIds(new Set());
+    }
+  }, [listToShow, allExpanded]);
 
   if (selectedProperty) {
     return (
