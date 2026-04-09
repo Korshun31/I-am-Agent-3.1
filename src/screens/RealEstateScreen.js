@@ -208,7 +208,6 @@ export default function RealEstateScreen({ onReady }) {
       for (let i = 0; i < ids.length; i += chunkSize) {
         const chunk = ids.slice(i, i + chunkSize);
         const t = setTimeout(() => {
-          LayoutAnimation.configureNext(drawerAnimation);
           setExpandedIds(prev => {
             const next = new Set(prev);
             chunk.forEach(id => next.add(id));
