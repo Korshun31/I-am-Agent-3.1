@@ -12,6 +12,7 @@ import {
   Dimensions,
   Alert,
   TextInput,
+  unstable_batchedUpdates,
 } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -134,6 +135,7 @@ function getOwnerLabel(width, labels) {
 }
 
 export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose, onReady, readOnly = false } = {}) {
+  console.log('[BookingCalendar] render', Date.now());
   const { user } = useUser();
   const isFocused = useIsFocused();
   const effectiveVisible = embeddedInModal ? isVisible : isFocused;
@@ -284,6 +286,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   }, [notifModalVisible]);
 
   useEffect(() => {
+    console.log('[BookingCalendar] effectiveVisible changed:', effectiveVisible, Date.now());
     if (!effectiveVisible || !user?.id) return;
     refreshBadge();
   }, [effectiveVisible, user?.id, refreshBadge]);
@@ -324,14 +327,16 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
 
   useEffect(() => {
     if (prevVisibleRef.current && !effectiveVisible) {
-      setSelectedProperty(null);
-      setSelectedBooking(null);
-      setSelectedOwnerContact(null);
-      setSelectedPropertyForDetail(null);
-      setPreloadedProperty(null);
-      setPreloadedContact(null);
-      setAddModalVisible(false);
-      setEditModalVisible(false);
+      unstable_batchedUpdates(() => {
+        setSelectedProperty(null);
+        setSelectedBooking(null);
+        setSelectedOwnerContact(null);
+        setSelectedPropertyForDetail(null);
+        setPreloadedProperty(null);
+        setPreloadedContact(null);
+        setAddModalVisible(false);
+        setEditModalVisible(false);
+      });
     }
     prevVisibleRef.current = effectiveVisible;
   }, [effectiveVisible]);
