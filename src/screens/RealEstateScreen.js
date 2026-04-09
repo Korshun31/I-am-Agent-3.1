@@ -479,16 +479,18 @@ export default function RealEstateScreen({ onReady }) {
             <Image source={require('../../assets/icon-add-property.png')} style={styles.toolbarBtnImage} resizeMode="contain" />
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.toolbarBtn} activeOpacity={0.7} onPress={toggleExpandAll}>
-          <Image
-            source={allExpanded
-              ? require('../../assets/icon-folder-open.png')
-              : require('../../assets/icon-folder-closed.png')
-            }
-            style={styles.toolbarBtnImage}
-            resizeMode="contain"
-          />
-        </TouchableOpacity>
+        {hasActiveFilter && (
+          <TouchableOpacity style={styles.toolbarBtn} activeOpacity={0.7} onPress={toggleExpandAll}>
+            <Image
+              source={allExpanded
+                ? require('../../assets/icon-folder-open.png')
+                : require('../../assets/icon-folder-closed.png')
+              }
+              style={styles.toolbarBtnImage}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        )}
         {/* Фильтр — в тулбаре, стиль как у остальных кнопок */}
         <TouchableOpacity
           style={[styles.toolbarBtn, hasActiveFilter && styles.filterBtnActive]}
