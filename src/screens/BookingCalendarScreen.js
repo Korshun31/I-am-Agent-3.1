@@ -179,7 +179,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const getParent = (id) => properties.find(pr => pr.id === id);
 
   const filterFn = useCallback((p, parent) => {
-    if (!filterValues) return true;
+    if (!filterValues) return false;
     const f = filterValues;
     const cityVal = p.city ?? parent?.city;
     const districtVal = p.district ?? parent?.district;
@@ -381,7 +381,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const months = React.useMemo(() => {
     const loc = language === 'ru' ? 'ru' : language === 'th' ? 'th' : 'en';
     const arr = [];
-    for (let i = -12; i <= 23; i++) {
+    for (let i = -3; i < NUM_MONTHS - 3; i++) {
       const d = dayjs().year(year).month(0).add(i, 'month').locale(loc);
       const raw = d.format('MMMM');
       arr.push({
