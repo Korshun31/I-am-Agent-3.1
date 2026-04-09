@@ -85,7 +85,6 @@ export default function RealEstateScreen({ onReady }) {
   const [newPropertyType, setNewPropertyType] = useState('house');
   const [wizardVisible, setWizardVisible] = useState(false);
   const [openWizardQueued, setOpenWizardQueued] = useState(false);
-  const [allExpanded, setAllExpanded] = useState(false);
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [backTarget, setBackTarget] = useState(null);
@@ -202,7 +201,6 @@ export default function RealEstateScreen({ onReady }) {
     expandTimersRef.current.forEach(t => clearTimeout(t));
     expandTimersRef.current = [];
     if (!allExpanded) {
-      setAllExpanded(true);
       const ids = listToShow.map(p => p.id);
       const chunkSize = 5;
       for (let i = 0; i < ids.length; i += chunkSize) {
@@ -219,7 +217,6 @@ export default function RealEstateScreen({ onReady }) {
     } else {
       LayoutAnimation.configureNext(drawerAnimation);
       setExpandedIds(new Set());
-      setAllExpanded(false);
     }
   }, [listToShow, allExpanded]);
 
@@ -427,6 +424,8 @@ export default function RealEstateScreen({ onReady }) {
       hasActiveFilter: Boolean(hasActiveFilter),
     };
   }, [properties, searchQuery, filterValues]);
+
+  const allExpanded = expandedIds.size > 0 && listToShow.every(p => expandedIds.has(p.id));
 
   if (selectedProperty) {
     return (
