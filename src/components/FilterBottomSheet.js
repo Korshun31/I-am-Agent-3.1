@@ -193,7 +193,7 @@ export default function FilterBottomSheet({
         {Platform.OS === 'web' ? (
           <View style={[StyleSheet.absoluteFill, s.backdropWeb]} />
         ) : (
-          <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.3)' }]} />
         )}
         <Pressable style={s.boxWrap} onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}>
           <View style={s.box}>
