@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import Logo, { COLORS } from '../components/Logo';
-import { signIn } from '../services/authService';
+import { signIn, signInWithGoogle } from '../services/authService';
 
 // Тени в стиле макета: выраженные drop shadow, «слоистость»
 const inputShadow = {
@@ -41,6 +41,14 @@ export default function Login({ onSignUp, onLogin }) {
   const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      Alert.alert(t('error'), e.message);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -118,7 +126,7 @@ export default function Login({ onSignUp, onLogin }) {
 
           <Text style={styles.orText}>{t('orSignIn')}</Text>
           <View style={styles.socialRow}>
-            <TouchableOpacity style={[styles.socialBtn, inputShadow]} activeOpacity={0.8}>
+            <TouchableOpacity style={[styles.socialBtn, inputShadow]} activeOpacity={0.8} onPress={handleGoogleLogin}>
               <Text style={styles.socialIconGoogle}>G</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -126,9 +134,6 @@ export default function Login({ onSignUp, onLogin }) {
               activeOpacity={0.8}
             >
               <Text style={styles.socialIconFacebook}>f</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.socialBtn, inputShadow]} activeOpacity={0.8}>
-              <Text style={styles.socialIconApple}>{'\uF8FF'}</Text>
             </TouchableOpacity>
           </View>
         </View>
