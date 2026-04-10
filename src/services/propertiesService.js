@@ -397,7 +397,7 @@ export async function getPendingDraftsForAdmin(companyId) {
     .select(`
       *,
       properties!inner(name, code, company_id),
-      agents:user_id(id, name, last_name, email)
+      users_profile:user_id(id, name, last_name, email)
     `)
     .eq('properties.company_id', companyId)
     .eq('status', 'pending')
@@ -421,8 +421,8 @@ export async function getPendingDraftsForAdmin(companyId) {
     },
     propertyName: row.properties?.name || '',
     propertyCode: row.properties?.code || '',
-    agentName: [row.agents?.name, row.agents?.last_name]
-               .filter(Boolean).join(' ') || row.agents?.email || '',
+    agentName: [row.users_profile?.name, row.users_profile?.last_name]
+               .filter(Boolean).join(' ') || row.users_profile?.email || '',
   }));
 }
 

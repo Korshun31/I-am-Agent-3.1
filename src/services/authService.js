@@ -19,7 +19,7 @@ export async function signUp({ email, password, name }) {
   // applied to remote DB, including `plan` breaks PostgREST ("schema cache" error).
   // When `plan` exists, DEFAULT 'standard' applies; owner gets an optional update below.
   const { error: profileError } = await supabase
-    .from('agents')
+    .from('users_profile')
     .insert({
       id: user.id,
       email,
@@ -31,7 +31,7 @@ export async function signUp({ email, password, name }) {
 
   if (isOwnerEmail) {
     const { error: planErr } = await supabase
-      .from('agents')
+      .from('users_profile')
       .update({ plan: 'korshun' })
       .eq('id', user.id);
     if (planErr?.message && !planErr.message.includes("'plan'")) {
@@ -40,7 +40,7 @@ export async function signUp({ email, password, name }) {
   }
 
   await supabase
-    .from('agents')
+    .from('users_profile')
     .update({ settings: { language: 'en', selectedCurrency: 'USD' } })
     .eq('id', user.id);
 
@@ -71,7 +71,7 @@ export async function getCurrentUser() {
 
 export async function getUserProfile(userId) {
   const { data, error } = await supabase
-    .from('agents')
+    .from('users_profile')
     .select('*')
     .eq('id', userId)
     .single();
@@ -222,7 +222,7 @@ export async function updateUserProfile(updates) {
 
   if (hasSettingsUpdate) {
     const { data: current } = await supabase
-      .from('agents')
+      .from('users_profile')
       .select('settings')
       .eq('id', session.user.id)
       .single();
@@ -236,7 +236,7 @@ export async function updateUserProfile(updates) {
   }
 
   const { error } = await supabase
-    .from('agents')
+    .from('users_profile')
     .update(dbUpdates)
     .eq('id', session.user.id);
 

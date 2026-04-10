@@ -28,7 +28,7 @@ BEGIN
     a.photo_url,
     cm.permissions
   FROM company_members cm
-  JOIN agents a ON a.id = cm.user_id
+  JOIN users_profile a ON a.id = cm.user_id
   WHERE cm.company_id = p_company_id
   ORDER BY cm.joined_at ASC;
 END;
