@@ -128,7 +128,7 @@ export default function Registration({ onBack, onSuccess }) {
             </View>
             <TextInput
               style={[styles.inputSticker, { backgroundColor: COLORS.regConfirmBg }, fieldShadow]}
-              placeholder="Qwer5678"
+              placeholder={t('confirmPasswordPlaceholder')}
               placeholderTextColor="#888"
               value={passwordConfirm}
               onChangeText={setPasswordConfirm}
