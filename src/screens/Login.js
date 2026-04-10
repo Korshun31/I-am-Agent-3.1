@@ -132,8 +132,8 @@ export default function Login({ onSignUp, onLogin }) {
             <Text style={styles.loginButtonText}>{t('login')}</Text>
           </TouchableOpacity>
 
-          <Text style={styles.orText}>{t('orSignIn')}</Text>
-          <View style={styles.socialRow}>
+          {/* <Text style={styles.orText}>{t('orSignIn')}</Text> */}
+          {/* <View style={styles.socialRow}>
             <TouchableOpacity style={[styles.socialBtn, inputShadow]} activeOpacity={0.8} onPress={handleGoogleLogin}>
               <Text style={styles.socialIconGoogle}>G</Text>
             </TouchableOpacity>
@@ -144,7 +144,7 @@ export default function Login({ onSignUp, onLogin }) {
             >
               <Text style={styles.socialIconFacebook}>f</Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
         </View>
 
         <View style={styles.signUpRow}>
