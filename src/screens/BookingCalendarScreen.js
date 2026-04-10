@@ -179,7 +179,8 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const getParent = (id) => properties.find(pr => pr.id === id);
 
   const filterFn = useCallback((p, parent) => {
-    if (!filterValues) return false;
+    if (!filterValues && !searchQuery) return false;
+    if (!filterValues) return true;
     const f = filterValues;
     const cityVal = p.city ?? parent?.city;
     const districtVal = p.district ?? parent?.district;
