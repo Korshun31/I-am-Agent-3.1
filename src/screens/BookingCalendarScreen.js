@@ -42,7 +42,7 @@ const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 const BOTTOM_NAV_PADDING = 88;
 const ROW_HEIGHT = 45;
 const CHAR_WIDTH = 8;
-const COL_PADDING = 13;
+const COL_PADDING = 20;
 const MIN_COL_WIDTH = 100;
 const MAX_COL_WIDTH = 150;
 const MONTH_WIDTH = 100; // 83 + 20%
@@ -398,7 +398,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       maxLen = Math.max(maxLen, String(codeDisplay).length);
     });
     const w = maxLen * CHAR_WIDTH + COL_PADDING;
-    return Math.max(MIN_COL_WIDTH, Math.min(MAX_COL_WIDTH, w));
+    return Math.max(MIN_COL_WIDTH, w);
   }, [listToShow, getParent]);
 
   const months = React.useMemo(() => {
@@ -1389,7 +1389,7 @@ const styles = StyleSheet.create({
   propertyRow: {
     height: ROW_HEIGHT,
     justifyContent: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderRightWidth: 1,
     borderColor: 'rgba(0,0,0,0.08)',
