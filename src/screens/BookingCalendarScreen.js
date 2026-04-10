@@ -14,6 +14,7 @@ import {
   Alert,
   TextInput,
   unstable_batchedUpdates,
+  Keyboard,
 } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
