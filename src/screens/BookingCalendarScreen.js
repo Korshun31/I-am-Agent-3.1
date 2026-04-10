@@ -643,6 +643,11 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                 autoCapitalize="none"
                 autoCorrect={false}
               />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={styles.searchClear}>✕</Text>
+                </TouchableOpacity>
+              )}
             </View>
             <TouchableOpacity
               style={[styles.toolbarBtn, hasActiveFilter && styles.filterBtnActive]}
@@ -1260,6 +1265,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.title,
     paddingVertical: 0,
+  },
+  searchClear: {
+    fontSize: 14,
+    color: '#999',
+    paddingLeft: 6,
   },
   toolbarBtn: {
     width: 40,
