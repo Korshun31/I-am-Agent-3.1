@@ -8,7 +8,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import Logo, { COLORS } from '../components/Logo';
 import { useLanguage } from '../context/LanguageContext';
@@ -41,6 +40,7 @@ export default function Registration({ onBack, onSuccess }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [regError, setRegError] = useState('');
 
   return (
     <KeyboardAvoidingView
@@ -141,22 +141,23 @@ export default function Registration({ onBack, onSuccess }) {
             activeOpacity={0.8}
             disabled={loading}
             onPress={async () => {
+              setRegError('');
               const em = (email || '').trim();
               const pw = password || '';
               if (!em) {
-                Alert.alert(t('error'), t('enterEmail'));
+                setRegError(t('enterEmail'));
                 return;
               }
               if (!pw) {
-                Alert.alert(t('error'), t('enterPassword'));
+                setRegError(t('enterPassword'));
                 return;
               }
               if (pw.length < 6) {
-                Alert.alert(t('error'), t('passwordTooShort'));
+                setRegError(t('passwordTooShort'));
                 return;
               }
               if (pw !== passwordConfirm) {
-                Alert.alert(t('error'), t('passwordsMismatch'));
+                setRegError(t('passwordsMismatch'));
                 return;
               }
               setLoading(true);
@@ -164,7 +165,7 @@ export default function Registration({ onBack, onSuccess }) {
                 const userData = await signUp({ email: em, password: pw, name: (name || '').trim() });
                 onSuccess?.(userData);
               } catch (err) {
-                Alert.alert(t('error'), err?.message || t('saveFailed'));
+                setRegError(err?.message || t('saveFailed'));
               } finally {
                 setLoading(false);
               }
@@ -172,6 +173,10 @@ export default function Registration({ onBack, onSuccess }) {
           >
             <Text style={styles.submitButtonText}>{loading ? t('saving') : t('createAccountBtn')}</Text>
           </TouchableOpacity>
+
+          {regError ? (
+            <Text style={styles.regError}>{regError}</Text>
+          ) : null}
 
           <TouchableOpacity style={styles.backWrap} onPress={onBack} activeOpacity={0.7}>
             <Text style={styles.backLink}>{t('back')}</Text>
@@ -283,6 +288,13 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 17,
     fontWeight: '700',
+  },
+  regError: {
+    color: '#C62828',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: -16,
+    marginBottom: 16,
   },
   backWrap: {
     alignSelf: 'flex-start',
