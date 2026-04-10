@@ -560,7 +560,7 @@ export const translations = {
     noAccount: "Don't have an account?",
     signUp: 'Sign up',
     // Registration
-    createAccount: 'Create Agent Account',
+    createAccount: 'Create Account',
     createAccountBtn: 'Create account',
     saving: 'Saving…',
     // Alerts
@@ -1464,7 +1464,7 @@ export const translations = {
     orSignIn: 'หรือเข้าสู่ด้วย',
     noAccount: 'ยังไม่มีบัญชี?',
     signUp: 'สมัครสมาชิก',
-    createAccount: 'สร้างบัญชีตัวแทน',
+    createAccount: 'สร้างบัญชี',
     createAccountBtn: 'สร้างบัญชี',
     saving: 'กำลังบันทึก…',
     error: 'ข้อผิดพลาด',
@@ -2358,7 +2358,7 @@ export const translations = {
     orSignIn: 'или войти через',
     noAccount: 'Нет аккаунта?',
     signUp: 'Регистрация',
-    createAccount: 'Создать аккаунт агента',
+    createAccount: 'Создать аккаунт',
     createAccountBtn: 'Создать аккаунт',
     saving: 'Сохранение…',
     error: 'Ошибка',
