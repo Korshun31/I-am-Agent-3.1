@@ -41,6 +41,7 @@ export default function Login({ onSignUp, onLogin }) {
   const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
 
   const handleGoogleLogin = async () => {
     try {
@@ -106,14 +107,15 @@ export default function Login({ onSignUp, onLogin }) {
             style={[styles.loginButton, buttonShadow]}
             activeOpacity={0.8}
             onPress={async () => {
+              setLoginError('');
               const em = (email || '').trim();
               const pw = password || '';
               if (!em) {
-                Alert.alert(t('error'), t('enterEmail'));
+                setLoginError(t('enterEmail'));
                 return;
               }
               if (!pw) {
-                Alert.alert(t('error'), t('enterPassword'));
+                setLoginError(t('enterPassword'));
                 return;
               }
               try {
@@ -122,9 +124,9 @@ export default function Login({ onSignUp, onLogin }) {
               } catch (err) {
                 const msg = err?.message || '';
                 if (msg.includes('Invalid login credentials')) {
-                  Alert.alert(t('error'), t('wrongPassword'));
+                  setLoginError(t('wrongPassword'));
                 } else {
-                  Alert.alert(t('error'), msg || t('saveFailed'));
+                  setLoginError(msg || t('saveFailed'));
                 }
               }
             }}
@@ -146,6 +148,10 @@ export default function Login({ onSignUp, onLogin }) {
             </TouchableOpacity>
           </View> */}
         </View>
+
+        {loginError ? (
+          <Text style={styles.loginError}>{loginError}</Text>
+        ) : null}
 
         <View style={styles.signUpRow}>
           <Text style={styles.signUpPrompt}>{t('noAccount')}</Text>
@@ -290,6 +296,13 @@ const styles = StyleSheet.create({
   signUpPrompt: {
     fontSize: 15,
     color: COLORS.subtitle,
+  },
+  loginError: {
+    color: '#C62828',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: -16,
+    marginBottom: 16,
   },
   signUpLink: {
     fontSize: 15,
