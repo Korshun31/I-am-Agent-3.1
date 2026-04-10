@@ -152,7 +152,7 @@ export default function Registration({ onBack, onSuccess }) {
                 return;
               }
               if (pw.length < 6) {
-                Alert.alert(t('error'), t('passwordTooShort') || 'Password must be at least 6 characters');
+                Alert.alert(t('error'), t('passwordTooShort'));
                 return;
               }
               if (pw !== passwordConfirm) {
