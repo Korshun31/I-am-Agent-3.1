@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import {
   View,
@@ -42,6 +42,26 @@ export default function Login({ onSignUp, onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const passwordRef = useRef(null);
+
+  const handleLogin = async () => {
+    setLoginError('');
+    const em = (email || '').trim();
+    const pw = password || '';
+    if (!em) { setLoginError(t('enterEmail')); return; }
+    if (!pw) { setLoginError(t('enterPassword')); return; }
+    try {
+      const userData = await signIn({ email: em, password: pw });
+      onLogin?.(userData);
+    } catch (err) {
+      const msg = err?.message || '';
+      if (msg.includes('Invalid login credentials')) {
+        setLoginError(t('wrongPassword'));
+      } else {
+        setLoginError(msg || t('saveFailed'));
+      }
+    }
+  };
 
   const handleGoogleLogin = async () => {
     try {
@@ -87,6 +107,8 @@ export default function Login({ onSignUp, onLogin }) {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
             />
           </View>
           <View style={styles.fieldWrap}>
@@ -94,42 +116,22 @@ export default function Login({ onSignUp, onLogin }) {
               <Text style={styles.labelBannerText}>{t('password')}</Text>
             </View>
             <TextInput
+              ref={passwordRef}
               style={[styles.input, styles.inputPassword, inputShadow]}
               placeholder="••••••••"
               placeholderTextColor="#777"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
+              returnKeyType="done"
+              onSubmitEditing={handleLogin}
             />
           </View>
 
           <TouchableOpacity
             style={[styles.loginButton, buttonShadow]}
             activeOpacity={0.8}
-            onPress={async () => {
-              setLoginError('');
-              const em = (email || '').trim();
-              const pw = password || '';
-              if (!em) {
-                setLoginError(t('enterEmail'));
-                return;
-              }
-              if (!pw) {
-                setLoginError(t('enterPassword'));
-                return;
-              }
-              try {
-                const userData = await signIn({ email: em, password: pw });
-                onLogin?.(userData);
-              } catch (err) {
-                const msg = err?.message || '';
-                if (msg.includes('Invalid login credentials')) {
-                  setLoginError(t('wrongPassword'));
-                } else {
-                  setLoginError(msg || t('saveFailed'));
-                }
-              }
-            }}
+            onPress={handleLogin}
           >
             <Text style={styles.loginButtonText}>{t('login')}</Text>
           </TouchableOpacity>

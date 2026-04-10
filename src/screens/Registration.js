@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -41,6 +41,28 @@ export default function Registration({ onBack, onSuccess }) {
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [regError, setRegError] = useState('');
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+  const confirmRef = useRef(null);
+
+  const handleRegister = async () => {
+    setRegError('');
+    const em = (email || '').trim();
+    const pw = password || '';
+    if (!em) { setRegError(t('enterEmail')); return; }
+    if (!pw) { setRegError(t('enterPassword')); return; }
+    if (pw.length < 6) { setRegError(t('passwordTooShort')); return; }
+    if (pw !== passwordConfirm) { setRegError(t('passwordsMismatch')); return; }
+    setLoading(true);
+    try {
+      const userData = await signUp({ email: em, password: pw, name: (name || '').trim() });
+      onSuccess?.(userData);
+    } catch (err) {
+      setRegError(err?.message || t('saveFailed'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -69,6 +91,8 @@ export default function Registration({ onBack, onSuccess }) {
               value={name}
               onChangeText={setName}
               autoCapitalize="words"
+              returnKeyType="next"
+              onSubmitEditing={() => emailRef.current?.focus()}
             />
           </View>
 
@@ -78,6 +102,7 @@ export default function Registration({ onBack, onSuccess }) {
               <Text style={styles.labelText}>{t('email')}</Text>
             </View>
             <TextInput
+              ref={emailRef}
               style={[styles.inputSticker, { backgroundColor: COLORS.regEmailBg }, fieldShadow]}
               placeholder="Test@test.com"
               placeholderTextColor="#888"
@@ -85,6 +110,8 @@ export default function Registration({ onBack, onSuccess }) {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
             />
           </View>
 
@@ -103,12 +130,15 @@ export default function Registration({ onBack, onSuccess }) {
               </TouchableOpacity>
             </View>
             <TextInput
+              ref={passwordRef}
               style={[styles.inputSticker, { backgroundColor: COLORS.regPasswordBg }, fieldShadow]}
               placeholder="••••••••"
               placeholderTextColor="#888"
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
+              returnKeyType="next"
+              onSubmitEditing={() => confirmRef.current?.focus()}
             />
           </View>
 
@@ -127,12 +157,15 @@ export default function Registration({ onBack, onSuccess }) {
               </TouchableOpacity>
             </View>
             <TextInput
+              ref={confirmRef}
               style={[styles.inputSticker, { backgroundColor: COLORS.regConfirmBg }, fieldShadow]}
               placeholder={t('confirmPasswordPlaceholder')}
               placeholderTextColor="#888"
               value={passwordConfirm}
               onChangeText={setPasswordConfirm}
               secureTextEntry={!showPasswordConfirm}
+              returnKeyType="done"
+              onSubmitEditing={handleRegister}
             />
           </View>
 
@@ -140,36 +173,7 @@ export default function Registration({ onBack, onSuccess }) {
             style={[styles.submitButton, buttonShadow]}
             activeOpacity={0.8}
             disabled={loading}
-            onPress={async () => {
-              setRegError('');
-              const em = (email || '').trim();
-              const pw = password || '';
-              if (!em) {
-                setRegError(t('enterEmail'));
-                return;
-              }
-              if (!pw) {
-                setRegError(t('enterPassword'));
-                return;
-              }
-              if (pw.length < 6) {
-                setRegError(t('passwordTooShort'));
-                return;
-              }
-              if (pw !== passwordConfirm) {
-                setRegError(t('passwordsMismatch'));
-                return;
-              }
-              setLoading(true);
-              try {
-                const userData = await signUp({ email: em, password: pw, name: (name || '').trim() });
-                onSuccess?.(userData);
-              } catch (err) {
-                setRegError(err?.message || t('saveFailed'));
-              } finally {
-                setLoading(false);
-              }
-            }}
+            onPress={handleRegister}
           >
             <Text style={styles.submitButtonText}>{loading ? t('saving') : t('createAccountBtn')}</Text>
           </TouchableOpacity>
