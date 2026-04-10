@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   ScrollView,
   Image,
@@ -658,9 +659,11 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       )}
 
       {listToShow.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyText}>{t('calendarNoProperties')}</Text>
-        </View>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyText}>{t('calendarNoProperties')}</Text>
+          </View>
+        </TouchableWithoutFeedback>
       ) : (
         <View style={styles.calendarWrap}>
           <View style={styles.calendarRow}>
