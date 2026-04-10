@@ -506,6 +506,17 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     if (selectedBooking) hasOpenedDetailRef.current = true;
   }, [selectedBooking, initialScrollX]);
 
+  useEffect(() => {
+    if (!selectedPropertyForDetail && rightScrollRef.current) {
+      setTimeout(() => {
+        const targetX = timelineScrollXRef.current > 0
+          ? timelineScrollXRef.current
+          : initialScrollX;
+        rightScrollRef.current?.scrollTo({ x: targetX, animated: false });
+      }, 50);
+    }
+  }, [selectedPropertyForDetail]);
+
   const handleAddPress = useCallback((property, monthKey) => {
     setSelectedProperty(property);
     setSelectedBooking(null);
