@@ -122,6 +122,7 @@ export default function Registration({ onBack, onSuccess }) {
               <TouchableOpacity
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 onPress={() => setShowPassword(!showPassword)}
+                tabIndex={-1}
               >
                 <View style={styles.eyeWrap}>
                   <Text style={styles.eyeIcon}>{'\u{1F441}'}</Text>
@@ -149,6 +150,7 @@ export default function Registration({ onBack, onSuccess }) {
               <TouchableOpacity
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 onPress={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                tabIndex={-1}
               >
                 <View style={styles.eyeWrap}>
                   <Text style={styles.eyeIcon}>{'\u{1F441}'}</Text>
