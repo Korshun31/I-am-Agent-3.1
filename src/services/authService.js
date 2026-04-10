@@ -335,3 +335,50 @@ export async function signInWithGoogle() {
     }
   }
 }
+
+export async function signInWithFacebook() {
+  if (Platform.OS === 'web') {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'facebook',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    if (error) throw error;
+  } else {
+    const redirectUrl = makeRedirectUri({
+      scheme: 'iamagent',
+      path: 'auth/callback',
+    });
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'facebook',
+      options: {
+        redirectTo: redirectUrl,
+        skipBrowserRedirect: true,
+      },
+    });
+
+    if (error) throw error;
+
+    const result = await WebBrowser.openAuthSessionAsync(
+      data?.url,
+      redirectUrl
+    );
+
+    if (result.type === 'success') {
+      const url = result.url;
+      const params = new URLSearchParams(url.split('#')[1] || url.split('?')[1]);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+
+      if (accessToken) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (sessionError) throw sessionError;
+      }
+    }
+  }
+}

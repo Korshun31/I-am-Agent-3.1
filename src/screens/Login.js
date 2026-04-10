@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import Logo, { COLORS } from '../components/Logo';
-import { signIn, signInWithGoogle } from '../services/authService';
+import { signIn, signInWithGoogle, signInWithFacebook } from '../services/authService';
 
 // Тени в стиле макета: выраженные drop shadow, «слоистость»
 const inputShadow = {
@@ -45,6 +45,14 @@ export default function Login({ onSignUp, onLogin }) {
   const handleGoogleLogin = async () => {
     try {
       await signInWithGoogle();
+    } catch (e) {
+      Alert.alert(t('error'), e.message);
+    }
+  };
+
+  const handleFacebookLogin = async () => {
+    try {
+      await signInWithFacebook();
     } catch (e) {
       Alert.alert(t('error'), e.message);
     }
@@ -132,6 +140,7 @@ export default function Login({ onSignUp, onLogin }) {
             <TouchableOpacity
               style={[styles.socialBtn, styles.socialBtnFacebook, inputShadow]}
               activeOpacity={0.8}
+              onPress={handleFacebookLogin}
             >
               <Text style={styles.socialIconFacebook}>f</Text>
             </TouchableOpacity>
@@ -270,11 +279,6 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: '700',
     color: '#FFF',
-  },
-  socialIconApple: {
-    fontSize: 26,
-    color: '#000',
-    fontWeight: '600',
   },
   signUpRow: {
     flexDirection: 'row',
