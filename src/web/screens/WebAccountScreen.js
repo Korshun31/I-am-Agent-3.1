@@ -170,7 +170,7 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
   };
 
   const handleSwitchToCompany = async () => {
-    if (!['premium', 'admin'].includes(user?.role)) {
+    if (!['premium', 'korshun'].includes(user?.plan)) {
       alert(t('premiumRequiredAlert'));
       return;
     }
@@ -231,7 +231,6 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
           <View>
             <Text style={s.userName}>{displayName}</Text>
             <View style={s.roleBadge}>
-              <Text style={s.roleText}>{user?.role?.toUpperCase() || 'STANDARD'}</Text>
             </View>
           </View>
         </View>

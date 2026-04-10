@@ -127,7 +127,7 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
   }, [visible, user.name, user.lastName, user.documentNumber, user.phone, user.extraPhones, user.extraEmails, user.telegram, user.whatsapp, user.photoUri, user.workAs, user.companyInfo]);
 
   const handleSave = async () => {
-    const isPremium = ['premium', 'admin'].includes(user?.role);
+    const isPremium = ['premium', 'korshun'].includes(user?.plan);
 
     // Если выбрана компания но нет Premium — блокируем
     if (workAs === 'company' && !isPremium) {
