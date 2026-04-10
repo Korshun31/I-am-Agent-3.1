@@ -179,8 +179,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const getParent = (id) => properties.find(pr => pr.id === id);
 
   const filterFn = useCallback((p, parent) => {
-    if (!filterValues && !searchQuery) return false;
-    if (!filterValues) return true;
+    if (!filterValues) return false;
     const f = filterValues;
     const cityVal = p.city ?? parent?.city;
     const districtVal = p.district ?? parent?.district;
@@ -215,28 +214,34 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   }, [filterValues]);
 
   const { listToShow, uniqueCities, uniqueDistricts, hasActiveFilter } = React.useMemo(() => {
-    const units = [];
-    topLevel.filter(p => HOUSE_LIKE_TYPES.has(p.type)).forEach(p => {
-      if (filterFn(p, null)) {
+    const q = searchQuery.trim().toLowerCase();
+
+    let units = [];
+    if (!filterValues && q) {
+      // Только поиск, без фильтра — берём все объекты
+      topLevel.filter(p => HOUSE_LIKE_TYPES.has(p.type)).forEach(p => {
         units.push({ ...p, _parentName: null, _parentCode: p.code });
-      }
-    });
-    children.forEach(p => {
-      const parent = getParent(p.resort_id);
-      if (filterFn(p, parent)) {
-        units.push({
-          ...p,
-          _parentName: parent?.name || '',
-          _parentCode: parent?.code || '',
-        });
-      }
-    });
+      });
+      children.forEach(p => {
+        const parent = getParent(p.resort_id);
+        units.push({ ...p, _parentName: parent?.name || '', _parentCode: parent?.code || '' });
+      });
+    } else {
+      // Фильтр активен — применяем filterFn
+      topLevel.filter(p => HOUSE_LIKE_TYPES.has(p.type)).forEach(p => {
+        if (filterFn(p, null)) units.push({ ...p, _parentName: null, _parentCode: p.code });
+      });
+      children.forEach(p => {
+        const parent = getParent(p.resort_id);
+        if (filterFn(p, parent)) units.push({ ...p, _parentName: parent?.name || '', _parentCode: parent?.code || '' });
+      });
+    }
+
     let list = [...units].sort((a, b) => {
       const codeA = (a._parentCode ? a._parentCode + ' ' : '') + (a.code_suffix ?? a.code ?? '');
       const codeB = (b._parentCode ? b._parentCode + ' ' : '') + (b.code_suffix ?? b.code ?? '');
       return compareByCodeOrName({ code: codeA, name: a.name }, { code: codeB, name: b.name });
     });
-    const q = searchQuery.trim().toLowerCase();
     if (q) {
       list = list.filter((u) => {
         const parentCodePart = u._parentCode ? `${u._parentCode} ` : '';
