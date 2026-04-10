@@ -439,7 +439,13 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
             <View style={s.planRow}>
               <View style={s.planInfo}>
                 <Text style={s.planLabel}>{t('currentPlan') || 'Текущий план'}</Text>
-                <Text style={s.planName}>{user?.role === 'admin' ? t('admin') || 'Администратор' : 'Premium'}</Text>
+                <Text style={s.planName}>{user?.isAgentRole
+                  ? t('teamMember') || 'Team Member'
+                  : user?.plan === 'korshun'
+                  ? 'Korshun'
+                  : user?.plan === 'premium'
+                  ? t('premium') || 'Premium'
+                  : t('standard') || 'Standard'}</Text>
               </View>
               <View style={s.planBadge}>
                 <Text style={s.planBadgeText}>{t('active') || 'АКТИВЕН'}</Text>
