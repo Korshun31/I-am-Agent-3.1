@@ -517,6 +517,17 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     }
   }, [selectedPropertyForDetail]);
 
+  useEffect(() => {
+    if (listToShow.length > 0 && rightScrollRef.current) {
+      setTimeout(() => {
+        const targetX = timelineScrollXRef.current > 0
+          ? timelineScrollXRef.current
+          : initialScrollX;
+        rightScrollRef.current?.scrollTo({ x: targetX, animated: false });
+      }, 100);
+    }
+  }, [listToShow.length]);
+
   const handleAddPress = useCallback((property, monthKey) => {
     setSelectedProperty(property);
     setSelectedBooking(null);
