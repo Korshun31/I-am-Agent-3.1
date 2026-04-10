@@ -513,7 +513,7 @@ export default function RealEstateScreen({ onReady }) {
             <Image source={require('../../assets/icon-add-property.png')} style={styles.toolbarBtnImage} resizeMode="contain" />
           </TouchableOpacity>
         )}
-        {hasActiveFilter && (
+        {(hasActiveFilter || searchQuery.length > 0) && (
           <TouchableOpacity style={styles.toolbarBtn} activeOpacity={0.7} onPress={toggleExpandAll}>
             <Image
               source={allExpanded
