@@ -41,7 +41,7 @@ import PropertyDetailScreen from './PropertyDetailScreen';
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 const BOTTOM_NAV_PADDING = 88;
 const ROW_HEIGHT = 45;
-const CHAR_WIDTH = 8;
+const CHAR_WIDTH = 7;
 const COL_PADDING = 20;
 const MIN_COL_WIDTH = 100;
 const MAX_COL_WIDTH = 150;
