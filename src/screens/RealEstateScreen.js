@@ -75,7 +75,7 @@ export default function RealEstateScreen({ onReady }) {
   const isVisible = useIsFocused();
   const propertyToOpen = route.params?.propertyToOpen ?? null;
   const { t } = useLanguage();
-  const { properties, propertiesLoading: loading, refreshProperties } = useAppData();
+  const { properties, propertiesLoading: loading, refreshProperties, contacts } = useAppData();
   const canAdd = !user?.teamMembership || user?.teamPermissions?.can_add_property;
 
   useEffect(() => { onReady?.(); }, []);
@@ -348,7 +348,14 @@ export default function RealEstateScreen({ onReady }) {
       (p.name || '').toLowerCase().includes(q) ||
       (p.code || '').toLowerCase().includes(q) ||
       (p.code_suffix || '').toLowerCase().includes(q) ||
-      (parent?.name || '').toLowerCase().includes(q)
+      (parent?.name || '').toLowerCase().includes(q) ||
+      (() => {
+        const owner = p.owner_id ? contacts.find(c => c.id === p.owner_id) : null;
+        const owner2 = p.owner_id_2 ? contacts.find(c => c.id === p.owner_id_2) : null;
+        const ownerName = `${owner?.name || ''} ${owner?.lastName || ''}`.trim().toLowerCase();
+        const owner2Name = `${owner2?.name || ''} ${owner2?.lastName || ''}`.trim().toLowerCase();
+        return ownerName.includes(q) || owner2Name.includes(q);
+      })()
     );
 
     let list;
@@ -378,7 +385,14 @@ export default function RealEstateScreen({ onReady }) {
       const searchFiltered = q
         ? topLevel.filter(p =>
             (p.name || '').toLowerCase().includes(q) ||
-            (p.code || '').toLowerCase().includes(q)
+            (p.code || '').toLowerCase().includes(q) ||
+            (() => {
+              const owner = p.owner_id ? contacts.find(c => c.id === p.owner_id) : null;
+              const owner2 = p.owner_id_2 ? contacts.find(c => c.id === p.owner_id_2) : null;
+              const ownerName = `${owner?.name || ''} ${owner?.lastName || ''}`.trim().toLowerCase();
+              const owner2Name = `${owner2?.name || ''} ${owner2?.lastName || ''}`.trim().toLowerCase();
+              return ownerName.includes(q) || owner2Name.includes(q);
+            })()
           )
         : topLevel;
       list = [...searchFiltered].sort((a, b) => compareByCodeOrName(a, b));
