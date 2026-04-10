@@ -162,6 +162,8 @@ export default function Registration({ onBack, onSuccess }) {
               setLoading(true);
               try {
                 const userData = await signUp({ email: em, password: pw, name: (name || '').trim() });
+                console.log('[Registration] signUp result:', userData);
+                console.log('[Registration] onSuccess exists:', !!onSuccess);
                 onSuccess?.(userData);
               } catch (err) {
                 Alert.alert(t('error'), err?.message || t('saveFailed'));

@@ -31,6 +31,18 @@
 
 **Файлы:** `src/web/screens/WebAccountScreen.js`, `src/services/companyService.js`, `src/constants/roleFeatures.js`
 
+### P1-005: Полная чистка устаревшего термина "agent" везде кроме роли
+
+**Описание:** Найти и исправить ВСЕ места где слово "agent/agents" используется не по назначению — не как роль в команде (company_members.role = 'agent'). Это включает: названия constraint'ов в БД (agents_pkey, agents_email_key), комментарии в коде, переменные, названия функций, документацию, переводы, SQL миграции.
+
+**Scope:**
+- БД: constraint'ы, индексы, политики RLS с устаревшими именами
+- Код: переменные, комментарии, функции
+- Документация: все файлы в docs/
+- Переводы: `src/i18n/translations.js`
+
+**Важно:** Не трогать `company_members.role = 'agent'` — это правильное использование термина.
+
 ---
 
 ## Приоритет: Средний

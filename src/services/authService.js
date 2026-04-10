@@ -20,12 +20,12 @@ export async function signUp({ email, password, name }) {
   // When `plan` exists, DEFAULT 'standard' applies; owner gets an optional update below.
   const { error: profileError } = await supabase
     .from('users_profile')
-    .insert({
+    .upsert({
       id: user.id,
       email,
       name: name || '',
       role,
-    });
+    }, { onConflict: 'id' });
 
   if (profileError) throw new Error(profileError.message);
 
