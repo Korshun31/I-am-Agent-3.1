@@ -422,9 +422,9 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     const curMonth = dayjs().month();
     const idx = months.findIndex(m => m.year === curYear && m.month === curMonth);
     if (idx < 0) return 0;
-    // Текущий месяц сразу после первой колонки (не по центру)
-    return Math.max(0, idx * MONTH_WIDTH - SCREEN_WIDTH / 2 + MONTH_WIDTH / 2);
-  }, [months]);
+    const visibleWidth = SCREEN_WIDTH - leftColWidth;
+    return Math.max(0, idx * MONTH_WIDTH - visibleWidth / 2 + MONTH_WIDTH / 2);
+  }, [months, leftColWidth]);
 
   useEffect(() => {
     if (timelineScrollXRef.current === 0) {
