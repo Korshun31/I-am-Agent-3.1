@@ -486,7 +486,10 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
           hasScrolledOnceRef.current = true;
           rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
         } else {
-          rightScrollRef.current?.scrollTo({ x: timelineScrollXRef.current, animated: false });
+          const targetX = timelineScrollXRef.current > 0
+            ? timelineScrollXRef.current
+            : initialScrollX;
+          rightScrollRef.current?.scrollTo({ x: targetX, animated: false });
         }
       }, 50);
     }
