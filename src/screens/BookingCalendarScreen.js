@@ -173,6 +173,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const timelineScrollXRef = useRef(0);
   const scrollSyncRef = useRef(false);
   const prevVisibleRef = useRef(false);
+  const hasScrolledOnceRef = useRef(false);
   const notifModalVisibleRef = useRef(false);
 
   const approvedProperties = properties.filter(p => !p.property_status || p.property_status === 'approved');
@@ -475,7 +476,12 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   useEffect(() => {
     if (effectiveVisible && rightScrollRef.current) {
       setTimeout(() => {
-        rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
+        if (!hasScrolledOnceRef.current) {
+          hasScrolledOnceRef.current = true;
+          rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
+        } else {
+          rightScrollRef.current?.scrollTo({ x: timelineScrollXRef.current, animated: false });
+        }
       }, 50);
     }
   }, [effectiveVisible, initialScrollX]);
