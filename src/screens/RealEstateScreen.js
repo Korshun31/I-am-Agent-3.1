@@ -68,7 +68,6 @@ const COLORS = {
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
 
 export default function RealEstateScreen({ onReady }) {
-  console.log('[RealEstate] render', Date.now());
   const { user } = useUser();
   const route = useRoute();
   const navigation = useNavigation();
@@ -122,7 +121,6 @@ export default function RealEstateScreen({ onReady }) {
 
   const prevVisible = useRef(false);
   useEffect(() => {
-    console.log('[RealEstate] isVisible changed:', isVisible, Date.now());
     if (prevVisible.current && !isVisible) {
       setSelectedProperty(null);
       setBackTarget(null);

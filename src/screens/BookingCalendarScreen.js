@@ -137,7 +137,6 @@ function getOwnerLabel(width, labels) {
 }
 
 export default function BookingCalendarScreen({ isVisible = true, propertyIdsFilter = null, embeddedInModal = false, onClose, onReady, readOnly = false } = {}) {
-  console.log('[BookingCalendar] render', Date.now());
   const { user } = useUser();
   const isFocused = useIsFocused();
   const effectiveVisible = embeddedInModal ? isVisible : isFocused;
@@ -309,7 +308,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   }, [notifModalVisible]);
 
   useEffect(() => {
-    console.log('[BookingCalendar] effectiveVisible changed:', effectiveVisible, Date.now());
     if (!effectiveVisible || !user?.id) return;
     refreshBadge();
   }, [effectiveVisible, user?.id, refreshBadge]);

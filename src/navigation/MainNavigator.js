@@ -20,7 +20,6 @@ function CustomTabBar({ state, navigation }) {
         activeTab={state.index}
         onSelect={(index) => {
           const route = state.routes[index];
-          console.log('[TabBar] tab pressed:', route.name, Date.now());
           navigation.jumpTo(route.name);
         }}
       />
