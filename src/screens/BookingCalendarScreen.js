@@ -43,7 +43,7 @@ const BOTTOM_NAV_PADDING = 88;
 const ROW_HEIGHT = 45;
 const CHAR_WIDTH = 8;
 const COL_PADDING = 13;
-const MIN_COL_WIDTH = 60;
+const MIN_COL_WIDTH = 100;
 const MAX_COL_WIDTH = 105;
 const MONTH_WIDTH = 100; // 83 + 20%
 const NUM_MONTHS = 16;
@@ -422,9 +422,8 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     const curMonth = dayjs().month();
     const idx = months.findIndex(m => m.year === curYear && m.month === curMonth);
     if (idx < 0) return 0;
-    const visibleWidth = SCREEN_WIDTH - leftColWidth;
-    return Math.max(0, idx * MONTH_WIDTH - visibleWidth / 2 + MONTH_WIDTH / 2);
-  }, [months, leftColWidth]);
+    return Math.max(0, idx * MONTH_WIDTH - SCREEN_WIDTH / 2 + MONTH_WIDTH / 2);
+  }, [months]);
 
   useEffect(() => {
     if (timelineScrollXRef.current === 0) {
