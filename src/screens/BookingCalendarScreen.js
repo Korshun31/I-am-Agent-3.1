@@ -243,7 +243,21 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         const codeSuffixPart = u.code_suffix ? ` (${u.code_suffix})` : '';
         const codeDisplay = `${parentCodePart}${u.code || ''}${codeSuffixPart}`.toLowerCase();
         const unitName = (u.name || '').toLowerCase();
-        return unitName.includes(q) || codeDisplay.includes(q);
+
+        // Поиск по коду родителя (резорт/кондо) — показать всех детей
+        const parentCode = (u._parentCode || '').toLowerCase();
+
+        // Поиск по собственнику
+        const owner = u.owner_id ? contacts.find(c => c.id === u.owner_id) : null;
+        const owner2 = u.owner_id_2 ? contacts.find(c => c.id === u.owner_id_2) : null;
+        const ownerName = `${owner?.name || ''} ${owner?.lastName || ''}`.trim().toLowerCase();
+        const owner2Name = `${owner2?.name || ''} ${owner2?.lastName || ''}`.trim().toLowerCase();
+
+        return unitName.includes(q) ||
+               codeDisplay.includes(q) ||
+               parentCode.includes(q) ||
+               ownerName.includes(q) ||
+               owner2Name.includes(q);
       });
     }
     if (propertyIdsFilter && propertyIdsFilter.length > 0) {
