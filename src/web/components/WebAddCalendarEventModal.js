@@ -32,6 +32,8 @@ const REMINDER_OPTIONS = [
   { value: 60, key: 'agentCalendarReminder1h' },
   { value: 120, key: 'agentCalendarReminder2h' },
   { value: 1440, key: 'agentCalendarReminder1d' },
+  { value: 10080, key: 'agentCalendarReminder1w' },
+  { value: 43200, key: 'agentCalendarReminder1mo' },
 ];
 
 const CALENDAR_COLORS = [
