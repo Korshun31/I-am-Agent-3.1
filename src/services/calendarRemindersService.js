@@ -72,9 +72,11 @@ export async function scheduleReminder(eventId, eventDate, eventTime, reminderMi
 
   await ensureChannel(settings);
 
-  const trigger = Platform.OS === 'android'
-    ? { date: triggerDate, channelId: NOTIFICATION_CHANNEL_ID }
-    : triggerDate;
+  const trigger = {
+    type: Notifications.SchedulableTriggerInputTypes.DATE,
+    date: triggerDate,
+    ...(Platform.OS === 'android' && { channelId: NOTIFICATION_CHANNEL_ID }),
+  };
 
   const identifier = reminderIdentifier(eventId, reminderMinutes);
 
