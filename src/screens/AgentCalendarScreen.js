@@ -264,7 +264,6 @@ export default function AgentCalendarScreen({ onReady }) {
 
   useEffect(() => { onReady?.(); }, []);
   const [selectedDate, setSelectedDate] = useState(() => formatDateYMD(new Date()));
-  const [customEvents, setCustomEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addEventVisible, setAddEventVisible] = useState(false);
   const [addBookingVisible, setAddBookingVisible] = useState(false);
@@ -280,13 +279,6 @@ export default function AgentCalendarScreen({ onReady }) {
   const [notifRefreshKey, setNotifRefreshKey] = useState(0);
   const notifModalVisibleRef = useRef(false);
 
-  // Загружаем только события календаря — properties/bookings уже есть в общем сторе
-  const loadEvents = useCallback((opts = {}) => {
-    if (!opts.silent) setLoading(true);
-    setCustomEvents(calendarEvents);
-    if (!opts.silent) setLoading(false);
-  }, [calendarEvents]);
-
   // Полное обновление (после мутаций): события + общий стор
   const loadData = useCallback(async (opts = {}) => {
     if (!opts.silent) setLoading(true);
@@ -296,17 +288,16 @@ export default function AgentCalendarScreen({ onReady }) {
         refreshProperties(),
         refreshBookings(),
       ]);
-      setCustomEvents(calendarEvents);
     } catch {}
     if (!opts.silent) setLoading(false);
-  }, [refreshCalendarEvents, refreshProperties, refreshBookings, calendarEvents]);
+  }, [refreshCalendarEvents, refreshProperties, refreshBookings]);
 
   const hasLoadedRef = useRef(false); // загружаем только один раз при первом открытии
   const prevVisibleRef = useRef(false);
   useEffect(() => {
     if (isVisible && !hasLoadedRef.current) {
       hasLoadedRef.current = true;
-      loadEvents(); // только события — properties уже в AppDataContext
+      setLoading(false);
     }
     if (prevVisibleRef.current && !isVisible) {
       setSelectedOwnerContact(null);
@@ -314,7 +305,7 @@ export default function AgentCalendarScreen({ onReady }) {
       setEditBookingDetailModalVisible(false);
     }
     prevVisibleRef.current = isVisible;
-  }, [isVisible, loadEvents]);
+  }, [isVisible]);
 
   const refreshBadge = useCallback(() => {
     getUnreadCount().then(setUnreadCount).catch(() => {});
@@ -509,7 +500,7 @@ export default function AgentCalendarScreen({ onReady }) {
       }
     });
 
-    (customEvents || []).forEach(e => {
+    (calendarEvents || []).forEach(e => {
       if (eventOccursOnDate(e, selectedDate)) {
         list.push({
           key: `c-${e.id}-${selectedDate}`,
@@ -525,7 +516,7 @@ export default function AgentCalendarScreen({ onReady }) {
       return (timeA || '').localeCompare(timeB || '');
     });
     return list;
-  }, [selectedDate, bookings, customEvents, properties]);
+  }, [selectedDate, bookings, calendarEvents, properties]);
 
   const dayEvents = mergedDayEvents;
 
@@ -559,7 +550,7 @@ export default function AgentCalendarScreen({ onReady }) {
       }
     });
 
-    (customEvents || []).forEach((e) => {
+    (calendarEvents || []).forEach((e) => {
       if (e.repeatType) {
         const start = e.eventDate ? dayjs(e.eventDate) : null;
         if (!start?.isValid()) return;
@@ -578,7 +569,7 @@ export default function AgentCalendarScreen({ onReady }) {
     });
 
     return counts;
-  }, [bookings, customEvents, properties, user]);
+  }, [bookings, calendarEvents, properties, user]);
 
   if (selectedOwnerContact) {
     return (
