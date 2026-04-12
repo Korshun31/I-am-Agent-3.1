@@ -391,6 +391,9 @@ TD-028: deactivate_member (DB function) использует DELETE вместо
 TD-034: signUp() перезаписывает settings из триггера handle_new_user полной перезаписью вместо merge
 Что сделать: перенести default settings (language, currency) в триггер, убрать update settings из signUp
 
+TD-041: OAuth flow (Google/Facebook) не проверяет pending-приглашения при первом входе нового пользователя
+Что сделать: после первого OAuth-входа проверять check_pending_invitation(email), показывать модалку "Компания X вас пригласила" с выбором принять/отклонить. Не критично пока OAuth кнопки скрыты (AU-OAUTH-2)
+
 TD-035: getUserProfile() делает 4-5 последовательных запросов к БД при каждом логине
 Что сделать: создать RPC-функцию get_full_user_profile с LEFT JOIN — ускорение в 3-5 раз
 
