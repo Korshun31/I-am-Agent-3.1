@@ -318,6 +318,12 @@ TD-002: ✅ ЗАКРЫТ — company_id добавлен в contacts, RLS нас
 
 TD-003: ✅ ЗАКРЫТ — CONTEXT_FOR_AI.md очищен от устаревших планов (2026-04-08)
 
+TD-015: Нет верификации email при регистрации — пользователь попадает в main screen без подтверждения email
+Что сделать: включить email confirmations в Supabase Dashboard, добавить экран "Проверьте почту" после signUp, не пускать в main до email_confirmed_at != null
+
+TD-017: DB-триггер handle_new_user() (создаёт profile + workspace + company_member) существует в live-базе, но отсутствует в файлах миграций
+Что сделать: создать миграцию supabase/migrations/YYYYMMDD_handle_new_user_trigger.sql с телом функции и триггера
+
 ### Средний — при ближайшей возможности
 
 TD-004: Дублирующиеся ключи переводов: ownerCommissionOneTime vs bookingOwnerCommOnce
@@ -331,11 +337,26 @@ TD-006: owner_commission_*_is_from поля в properties — legacy флаги
 
 TD-013: PropertyEditWizard.js — модальное окно не поднимается над клавиатурой при вводе в числовые поля. Нужен KeyboardAvoidingView внутри модалки.
 
+TD-014: Нет flow "Забыл пароль" на экране Login
+Что сделать: добавить ссылку "Забыл пароль" → экран ввода email → supabase.auth.resetPasswordForEmail() → magic link
+
+TD-016: Нет блокировки одноразовых email-адресов при регистрации
+Что сделать: добавить проверку домена email через npm-пакет disposable-email-domains при отправке формы регистрации
+
+TD-018: Хардкод email korshun31@list.ru в authService.signUp() назначает plan='korshun'
+Что сделать: удалить хардкод из signUp(), назначать план через Supabase Dashboard (SQL Editor)
+
+TD-020: UserContext.handleUserUpdate() не обрабатывает системные поля (teamRole, isAgentRole, isAdminRole, plan, teamPermissions)
+Что сделать: расширить handleUserUpdate для прокидывания всех полей из getUserProfile, либо заменить на единый updateUser
+
 ### Низкий — бэклог
 
 TD-007: properties не имеет updated_at — добавить колонку
 TD-008: Backfill property_rejection_history для legacy объектов
 TD-009: Разрешения can_moderate_properties для старшего агента
+
+TD-019: Web — Login мелькает вместо Preloader при восстановлении сессии
+Что сделать: показывать Preloader (лого + spinner) на web во время checkSession, как на mobile
 
 ---
 
