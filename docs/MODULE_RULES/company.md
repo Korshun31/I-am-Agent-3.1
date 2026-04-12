@@ -174,18 +174,24 @@ EXISTING_USER_CONFIRM / EXISTING_USER_LOGIN) подлежит удалению. 
 
 ### Деактивация участника (CO-DEACT-MEMBER)
 
-**CO-DEACT-MEMBER-1.** `deactivate_member` (DB function) выполняет три действия атомарно:
-1. Удаляет запись из `company_members`
-2. Удаляет доступ к локациям (`agent_location_access`)
-3. Снимает `responsible_agent_id` с объектов компании (→ NULL)
+**CO-DEACT-MEMBER-1.** При деактивации агента выполняются следующие действия атомарно:
+1. `company_members` → status = `'inactive'` (soft-delete, запись сохраняется для истории)
+2. Email в `auth.users` и `users_profile` подменяется на системный (например `deactivated_{timestamp}_{hash}@system.internal`) — **освобождает** email для повторного использования
+3. Аккаунт **блокируется** — вход невозможен ни по паролю, ни по OAuth
+4. Удаляется доступ к локациям (`agent_location_access`)
+5. Снимается `responsible_agent_id` с объектов компании (→ NULL, объекты переходят "к компании")
 
 **CO-DEACT-MEMBER-2.** Деактивируется только role='agent'. Admin (владелец) не может быть деактивирован.
 
-**CO-DEACT-MEMBER-3.** `auth.users` запись не удаляется. Пользователь остаётся в системе.
+**CO-DEACT-MEMBER-3.** Старый ID агента **сохраняется** в системе. Все исторические записи (бронирования, объекты, контакты созданные этим агентом) остаются привязанными к его ID. История не теряется.
 
-**CO-DEACT-MEMBER-4.** *(TD-028)* `deactivate_member` использует DELETE вместо soft-delete. Рекомендуется заменить на `UPDATE status
- = 'inactive'` — колонка `status` в `company_members` уже существует. Это сохранит историю членства и позволит быстро восстановить
-агента.
+**CO-DEACT-MEMBER-4.** Освобождённый email может быть использован для:
+- Новой самостоятельной регистрации (новый ID, новый workspace)
+- Нового приглашения в любую компанию (новый ID, роль agent)
+
+Старый и новый аккаунты не связаны между собой — это разные пользователи с разными ID.
+
+**CO-DEACT-MEMBER-5.** *(TD-042)* Текущая реализация `deactivate_member` (DB function) не выполняет soft-delete и не освобождает email. Нужно переписать функцию согласно CO-DEACT-MEMBER-1.
 
 ### Получение команды (CO-TEAM)
 
@@ -215,7 +221,7 @@ EXISTING_USER_CONFIRM / EXISTING_USER_LOGIN) подлежит удалению. 
 
 | Модуль | Связь |
 |---|---|
-| **Auth & Session** | Триггер `handle_new_user` создаёт workspace. `getUserProfile` собирает membership. `signUp`/`signIn` используются в invite flow. |
+| **Auth & Session** | Триггер `handle_new_user` **условно** создаёт workspace (только при самостоятельной регистрации). `getUserProfile` собирает membership. `signUp`/`signIn` используются в invite flow. |
 | **Properties** | `responsible_agent_id` привязывает объект к агенту. При деактивации — сбрасывается. `auto_set_property_company` (trigger) привязывает property к company. `getActiveTeamMembers()` используется для выбора ответственного в PropertyEditWizard. |
 | **Bookings** | Видимость броней зависит от membership и `company_id`. |
 | **Contacts** | Видимость контактов зависит от `can_manage_clients` permission. |
@@ -233,7 +239,8 @@ EXISTING_USER_CONFIRM / EXISTING_USER_LOGIN) подлежит удалению. 
 | **TD-025** | `auto_set_property_company` trigger + function не в миграциях | Критический |
 | **TD-026** | Удалить dormant flow логина существующего пользователя из WebInviteAcceptScreen, заменить на блокировку | Средний |
 | **TD-027** | Нет rate limiting на verify_invitation_secret — код перебирается | Критический |
-| **TD-028** | deactivate_member делает DELETE вместо soft-delete (UPDATE status) | Средний |
+| **TD-028** | ~~deactivate_member делает DELETE вместо soft-delete~~ → **объединён с TD-042** | — |
 | **TD-029** | Нет валидации имени компании (пустое имя, спецсимволы, длина) | Низкий |
 | **TD-030** | Нет аудит-лога действий с командой | Низкий |
 | **TD-040** | Экран регистрации не проверяет pending-приглашения. Нужна DB-функция `check_pending_invitation`, модальное окно выбора, уведомления админу при принятии/отклонении, модификация триггера `handle_new_user` для условного создания workspace | Критический |
+| **TD-042** | `deactivate_member` не выполняет: soft-delete (status='inactive'), подмену email (освобождение для повторного использования), блокировку аккаунта. Нужно переписать DB-функцию целиком | Критический |
