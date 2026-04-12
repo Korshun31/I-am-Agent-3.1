@@ -348,6 +348,9 @@ TD-033: OAuth mobile использует implicit flow (access_token в URL) в
 TD-038: Нет возможности удалить аккаунт — нарушение Apple App Store Guidelines, GDPR, PDPA (Таиланд)
 Что сделать: добавить "Удалить аккаунт" в настройки → подтверждение → каскадное удаление через Supabase Edge Function
 
+TD-040: Регистрация не проверяет pending-приглашения — возможен dual-membership (agent + admin одновременно)
+Что сделать: (1) модифицировать триггер handle_new_user — если есть accepted invitation для email, создавать только users_profile без workspace/admin, (2) добавить DB-функцию check_pending_invitation(email), (3) добавить модальное окно в Registration.js с выбором "принять/отклонить приглашение", (4) при принятии — ввод 6-значного кода + регистрация как agent, (5) при отклонении — удаление приглашения + уведомление админу + обычная регистрация, (6) уведомления админу при принятии/отклонении/превышении попыток
+
 ### Средний — при ближайшей возможности
 
 TD-004: Дублирующиеся ключи переводов: ownerCommissionOneTime vs bookingOwnerCommOnce
