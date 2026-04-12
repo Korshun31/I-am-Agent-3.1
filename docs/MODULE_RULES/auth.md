@@ -77,6 +77,14 @@ CONFLICT DO NOTHING, signUp использует upsert), но является 
 
 **AU-REG-9.** Ошибки регистрации отображаются inline (не Alert) под кнопкой Submit.
 
+**AU-REG-10.** *(TD-031)* Требования к паролю слишком слабые — только >= 6 символов. Индустриальный стандарт (OWASP/NIST): минимум 8
+ символов + проверка по списку самых популярных паролей (top-100: "123456", "password", "qwerty"). Не требовать
+спецсимволы/заглавные — это устаревшая практика.
+
+**AU-REG-11.** *(TD-034)* signUp() перезаписывает settings триггера: `update({ settings: { language: 'en', selectedCurrency: 'USD' }
+ })` — это полная перезапись, не merge. Если триггер `handle_new_user` в будущем будет устанавливать settings — signUp их затрёт.
+Рекомендация: перенести default settings в триггер, убрать из signUp.
+
 ### Логин по email/паролю (AU-LOGIN)
 
 **AU-LOGIN-1.** Для входа требуются: email (обязательно), пароль (обязательно).
@@ -86,6 +94,12 @@ CONFLICT DO NOTHING, signUp использует upsert), но является 
 **AU-LOGIN-3.** При успешном логине: `signInWithPassword()` → `getUserProfile()` → `updateUser()` → main screen.
 
 **AU-LOGIN-4.** Клавиатурная навигация: Enter на поле email → фокус на пароль. Enter на поле пароль → submit формы.
+
+**AU-LOGIN-5.** *(TD-032)* Нет защиты от brute force. Можно пробовать неограниченное количество паролей. Рекомендация: после 5
+неудачных попыток — временная блокировка (15-30 минут) или CAPTCHA. Как минимум — экспоненциальная задержка на клиенте.
+
+**AU-LOGIN-6.** *(TD-039)* Login.js не показывает индикатор загрузки при нажатии кнопки входа (в отличие от Registration.js, где
+loading state есть). Пользователь может нажать повторно. Добавить `loading` state + `disabled={loading}` + спиннер.
 
 ### OAuth (AU-OAUTH)
 
@@ -101,6 +115,12 @@ CONFLICT DO NOTHING, signUp использует upsert), но является 
 
 **AU-OAUTH-5.** При OAuth-авторизации DB-триггер `handle_new_user()` автоматически создаёт profile + workspace + membership (так же
 как при email-регистрации).
+
+**AU-OAUTH-6.** *(TD-033)* Mobile OAuth использует implicit flow (access_token в URL фрагменте) — устаревший и менее безопасный
+подход. Supabase поддерживает PKCE flow (`flowType: 'pkce'` в конфигурации клиента). Рекомендация: переключить на PKCE.
+
+**AU-OAUTH-7.** *(TD-036)* `signInWithGoogle` и `signInWithFacebook` — почти идентичные функции (~45 строк каждая), отличаются
+только названием провайдера. Рекомендация: объединить в `signInWithOAuthProvider(provider, options)`.
 
 ### Восстановление сессии (AU-SESSION)
 
@@ -165,6 +185,10 @@ screen.
 **Планируемое направление**: переход к permission-based access control, где роль определяет набор дефолтных permissions, а все
 проверки в коде идут через `user.teamPermissions.*`, а не через `user.isXxxRole`.
 
+**AU-PROFILE-7.** *(TD-035)* `getUserProfile()` делает 4-5 последовательных запросов к БД (users_profile, companies,
+company_members, agent_location_access, companies повторно). Это замедляет каждый логин и восстановление сессии. Рекомендация:
+создать RPC-функцию `get_full_user_profile(p_user_id UUID)` с LEFT JOIN'ами — ускорение в 3-5 раз.
+
 ### Редактирование профиля (AU-EDIT)
 
 **AU-EDIT-1.** `updateUserProfile()` обновляет `users_profile` + `settings` (JSONB). Settings обновляются через merge (читается
@@ -178,6 +202,9 @@ screen.
 
 **AU-LOGOUT-2.** Logout не очищает локальный кэш приложения (AsyncStorage, expo-image cache и т.д.). При повторном входе данные
 загрузятся быстрее.
+
+**AU-LOGOUT-3.** *(TD-037)* Нет функции "Выйти со всех устройств". Supabase поддерживает `signOut({ scope: 'global' })`.
+Рекомендация: добавить кнопку в настройках аккаунта.
 
 ### UserContext (AU-CTX)
 
@@ -193,6 +220,13 @@ screen.
 UserContext через `handleUserUpdate`. Требуется доработка.
 
 **AU-CTX-4.** `resetUser()` — сброс к `initialUser`. Используется при logout и при TOKEN_REFRESHED_ERROR.
+
+### Удаление аккаунта (AU-DELETE)
+
+**AU-DELETE-1.** *(TD-038, критический)* Пользователь не может удалить свой аккаунт. Это нарушает: Apple App Store Review Guidelines
+ (обязательное требование для публикации), GDPR (Европа), PDPA (Таиланд — целевой рынок). Необходимо добавить кнопку "Удалить
+аккаунт" → подтверждение → каскадное удаление данных. Реализация: через Supabase Edge Function или admin API
+(`supabase.auth.admin.deleteUser()`).
 
 ## Терминология
 
@@ -230,3 +264,12 @@ UserContext через `handleUserUpdate`. Требуется доработка
 | **TD-018** | Хардкод email `korshun31@list.ru` в signUp() — убрать, назначать план через DB | Средний |
 | **TD-019** | Web: Login мелькает вместо Preloader при восстановлении сессии | Низкий |
 | **TD-020** | `handleUserUpdate` не обрабатывает системные поля (teamRole, plan и т.д.) | Средний |
+| **TD-031** | Слабые требования к паролю (6 символов, нет проверки популярных) | Критический |
+| **TD-032** | Нет защиты от brute force при логине | Критический |
+| **TD-033** | OAuth mobile — implicit flow вместо PKCE | Критический |
+| **TD-034** | signUp перезаписывает settings триггера (не merge) | Средний |
+| **TD-035** | getUserProfile — 5 последовательных запросов вместо 1 RPC | Средний |
+| **TD-036** | signInWithGoogle/Facebook — дублирование кода (~90 строк) | Низкий |
+| **TD-037** | Нет "Выйти со всех устройств" | Средний |
+| **TD-038** | Нет удаления аккаунта (требование App Store, GDPR, PDPA) | Критический |
+| **TD-039** | Login.js — нет индикатора загрузки на кнопке входа | Низкий |
