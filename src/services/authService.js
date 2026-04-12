@@ -245,12 +245,6 @@ export async function updateUserProfile(updates) {
   return getUserProfile(session.user.id);
 }
 
-export function onAuthStateChange(callback) {
-  return supabase.auth.onAuthStateChange((_event, session) => {
-    callback(session);
-  });
-}
-
 /** Returns true if user signed up with email/password (can change password). */
 export async function canChangePassword() {
   const { data: { user } } = await supabase.auth.getUser();
