@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>I am Agent — Модуль 2: Компания и команда</title>
+<style>
+  @page { margin: 2cm; size: A4; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.7; color: #2C2C2C; max-width: 800px; margin: 0 auto; padding: 40px 30px; }
+
+  .header { display: flex; align-items: center; gap: 12px; padding-bottom: 16px; border-bottom: 3px solid #3D7D82; margin-bottom: 32px; }
+  .header-icon { font-size: 32px; }
+  .header h1 { font-size: 24px; font-weight: 800; color: #3D7D82; }
+  .header .subtitle { font-size: 13px; color: #999; }
+
+  h2 { font-size: 20px; font-weight: 700; color: #3D7D82; margin: 36px 0 16px; padding-bottom: 8px; border-bottom: 2px solid #EAF4F5; }
+  p { margin-bottom: 12px; }
+
+  .rule { margin: 14px 0; padding: 12px 16px; border-radius: 8px; break-inside: avoid; }
+  .rule-ok { background: #E8F5E9; border-left: 4px solid #4CAF50; }
+  .rule-warn { background: #FFF8E1; border-left: 4px solid #FFC107; }
+  .rule-danger { background: #FFEBEE; border-left: 4px solid #E53935; }
+  .rule-tip { background: #E3F2FD; border-left: 4px solid #2196F3; }
+  .rule-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .rule-icon { font-size: 16px; flex-shrink: 0; }
+  .rule-id { font-size: 12px; font-weight: 700; color: #999; background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px; }
+  .rule-body { font-size: 13.5px; line-height: 1.6; }
+
+  .section-intro { background: #F8F9FA; border-radius: 8px; padding: 16px 20px; margin: 16px 0 24px; font-size: 14px; }
+
+  .permissions-table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 13.5px; }
+  .permissions-table th { background: #3D7D82; color: #fff; font-weight: 600; text-align: left; padding: 8px 12px; }
+  .permissions-table td { padding: 8px 12px; border-bottom: 1px solid #E9ECEF; }
+  .permissions-table tr:nth-child(even) { background: #F8F9FA; }
+
+  .td-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+  .td-table th { background: #3D7D82; color: #fff; font-weight: 600; text-align: left; padding: 8px 12px; }
+  .td-table td { padding: 8px 12px; border-bottom: 1px solid #E9ECEF; vertical-align: top; }
+  .td-table tr:nth-child(even) { background: #F8F9FA; }
+  .priority-critical { color: #E53935; font-weight: 700; }
+  .priority-medium { color: #E65100; font-weight: 600; }
+  .priority-low { color: #6C757D; }
+
+  .flow { background: #F8F9FA; border: 1px solid #E9ECEF; border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
+  .flow h4 { font-size: 14px; color: #3D7D82; margin-bottom: 10px; }
+  .flow ol { padding-left: 20px; }
+  .flow li { margin-bottom: 6px; font-size: 13.5px; }
+
+  .footer { text-align: center; margin-top: 60px; padding-top: 20px; border-top: 1px solid #E9ECEF; font-size: 12px; color: #999; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-icon">👥</span>
+  <div>
+    <h1>Модуль 2: Компания и команда</h1>
+    <span class="subtitle">I am Agent — Кодекс v2.0</span>
+  </div>
+</div>
+
+<div class="section-intro">
+  <strong>Что делает этот модуль:</strong> позволяет перейти из режима «частный предприниматель» в режим «компания» — дать workspace название и логотип, пригласить сотрудников, управлять их правами.
+</div>
+
+<!-- ============================================== -->
+<h2>2.1 Workspace и компания</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">При регистрации каждому создаётся невидимый <strong>workspace</strong> — контейнер для данных. Когда пользователь решает работать как компания — workspace получает «вывеску»: название, логотип, контакты. Технически это одна и та же запись, просто с заполненными полями.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Переключение в режим «компания» доступно <strong>только на тарифе Premium или Korshun</strong>. Для Standard — предложение обновить тариф.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body"><strong>Название компании</strong> — обязательное. Остальное (телефон, email, логотип, Telegram, WhatsApp, Instagram, часы работы) — по желанию.</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-029</span></div>
+  <div class="rule-body">Нет проверки названия — можно создать с пустым именем или спецсимволами. Нужно: от 2 до 100 символов.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>2.2 Деактивация компании</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Деактивация <strong>запрещена</strong> если в команде есть активные агенты. Сначала — убрать всех агентов.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">При деактивации: приглашения отзываются, компания переходит в «неактивна». <strong>Данные не удаляются</strong> — можно вернуться в любой момент.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>2.3 Приглашение сотрудника</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body"><strong>Двойная проверка безопасности:</strong> для вступления нужны ссылка (токен) и 6-значный код. Одной ссылки недостаточно.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Нельзя пригласить email который <strong>уже зарегистрирован</strong> в системе. Один email = один аккаунт.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Приглашение действительно <strong>7 дней</strong>.</div>
+</div>
+
+<div class="rule rule-danger">
+  <div class="rule-header"><span class="rule-icon">🔴</span><span class="rule-id">TD-027</span></div>
+  <div class="rule-body">Нет ограничения на попытки ввода кода — можно перебрать за минуты. Нужно: максимум 5 попыток, потом приглашение отзывается.<br><br><em>Не реализовано.</em></div>
+</div>
+
+<!-- ============================================== -->
+<h2>2.4 Принятие приглашения</h2>
+
+<div class="flow">
+  <h4>Путь A — через ссылку:</h4>
+  <ol>
+    <li>Открывает ссылку → вводит 6-значный код</li>
+    <li>Если email уже в системе → «Используйте другой email»</li>
+    <li>Если email свободен → заполняет имя, пароль → регистрируется как агент</li>
+    <li>Админу приходит уведомление «принял приглашение»</li>
+  </ol>
+</div>
+
+<div class="flow">
+  <h4>Путь B — через обычную регистрацию:</h4>
+  <ol>
+    <li>Заполняет форму, нажимает «Создать аккаунт»</li>
+    <li>Если на этот email есть приглашение → модальное окно: «Компания X вас пригласила. Принять / Отклонить»</li>
+    <li><strong>Принять</strong> → ввод кода → регистрация как агент</li>
+    <li><strong>Отклонить</strong> → приглашение отменяется → обычная регистрация</li>
+    <li>Админу уведомление в обоих случаях</li>
+  </ol>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">При вступлении пользователь <strong>всегда</strong> получает роль агент. Нельзя присоединиться как админ.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body"><strong>Один email = один аккаунт.</strong> Нельзя быть и владельцем workspace, и агентом в чужой команде одновременно.</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-021</span></div>
+  <div class="rule-body">Принятие приглашения работает <strong>только на вебе</strong>. На мобильном экрана нет.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>2.5 Права агента</h2>
+
+<div class="section-intro">Два типа ограничений: <strong>переключатели</strong> (админ настраивает) и <strong>жёсткие правила</strong> (нельзя изменить).</div>
+
+<h3>Настраиваемые переключатели</h3>
+
+<table class="permissions-table">
+  <tr><th>Разрешение</th><th>Что даёт агенту</th></tr>
+  <tr><td><strong>Добавлять объекты</strong></td><td>Создаёт новые объекты (идут на проверку админу)</td></tr>
+  <tr><td><strong>Редактировать информацию</strong></td><td>Меняет описание, фото, удобства объекта напрямую</td></tr>
+  <tr><td><strong>Редактировать цены</strong></td><td>Меняет стоимость аренды, депозиты, комиссии напрямую</td></tr>
+  <tr><td><strong>Бронировать</strong></td><td>Создаёт бронирования для клиентов</td></tr>
+  <tr><td><strong>Удалять бронирования</strong></td><td>Удаляет бронирования</td></tr>
+</table>
+
+<h3>Жёсткие правила (нельзя изменить)</h3>
+
+<p>Агент <strong>никогда</strong> не может:</p>
+<p>— Одобрять или отклонять объекты<br>
+— Видеть или менять ответственного за объект/бронирование<br>
+— Удалить одобренный объект<br>
+— Редактировать/удалять чужие бронирования<br>
+— Управлять локациями (только читать + добавлять районы)<br>
+— Приглашать или удалять членов команды<br>
+— Менять права других агентов<br>
+— Видеть чужие объекты и бронирования</p>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-005</span></div>
+  <div class="rule-body">Переключатели определены, но <strong>не везде проверяются</strong> в интерфейсе. Агент иногда видит кнопки которые не должен видеть.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>2.6 Удаление агента из команды</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">При удалении агента:
+    <ol style="margin-top: 8px; padding-left: 20px;">
+      <li>Запись помечается как «неактивна» (история сохраняется)</li>
+      <li>Email подменяется на системный — <strong>освобождается</strong> для нового аккаунта</li>
+      <li>Аккаунт <strong>блокируется</strong> — вход невозможен</li>
+      <li>Снимается доступ к локациям</li>
+      <li>Объекты переходят «к компании» (ответственный обнуляется)</li>
+      <li>Бронирования переходят «к компании»</li>
+    </ol>
+  </div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Аккаунт <strong>не удаляется</strong> из системы. ID сохраняется — вся история (кто что создал) остаётся.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Освобождённый email можно использовать для новой регистрации или нового приглашения — с новым ID.</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-042</span></div>
+  <div class="rule-body">Текущая реализация просто удаляет запись вместо пометки «неактивна» и не освобождает email. Нужно переписать.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>2.7 Управление командой на разных платформах</h2>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-022</span></div>
+  <div class="rule-body">Управление командой работает <strong>только на вебе</strong>. В мобильном приложении можно только переключить режим и заполнить данные компании. Раздел «Команда» отсутствует.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>2.8 Безопасность</h2>
+
+<div class="rule rule-danger">
+  <div class="rule-header"><span class="rule-icon">🔴</span></div>
+  <div class="rule-body">Подтверждение email (из модуля 1, TD-015) <strong>критично для приглашений</strong>. Без подтверждения злоумышленник может зарегистрироваться с чужим email и принять чужое приглашение.</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-030</span></div>
+  <div class="rule-body">Нет журнала действий с командой: кто кого пригласил, кто принял, кто был удалён. При спорах — нет доказательств.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>Список известных проблем</h2>
+
+<table class="td-table">
+  <tr><th style="width: 60px;">Номер</th><th>Описание</th><th style="width: 90px;">Приоритет</th></tr>
+  <tr><td>TD-005</td><td>Переключатели прав не везде проверяются в интерфейсе</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-021</td><td>Принятие приглашения только на вебе</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-022</td><td>Нет мобильного интерфейса управления командой</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-023</td><td>Функция проверки email не в файлах проекта</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-024</td><td>Функция удаления агента не в файлах проекта</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-025</td><td>Функция привязки объекта к компании не в файлах проекта</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-026</td><td>Устаревший сценарий логина при приглашении — удалить</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-027</td><td>Нет ограничения на попытки ввода кода приглашения</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-029</td><td>Нет проверки названия компании</td><td class="priority-low">Низкий</td></tr>
+  <tr><td>TD-030</td><td>Нет журнала действий с командой</td><td class="priority-low">Низкий</td></tr>
+  <tr><td>TD-040</td><td>Регистрация не проверяет приглашения</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-042</td><td>Деактивация агента — переписать (soft-delete, email, блокировка)</td><td class="priority-critical">Критич.</td></tr>
+</table>
+
+<div class="footer">
+  I am Agent CRM — Модуль 2: Компания и команда — Кодекс v2.0 — Апрель 2026
+</div>
+
+</body>
+</html>

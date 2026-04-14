@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>I am Agent — Модуль 3: Объекты недвижимости</title>
+<style>
+  @page { margin: 2cm; size: A4; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.7; color: #2C2C2C; max-width: 800px; margin: 0 auto; padding: 40px 30px; }
+  .header { display: flex; align-items: center; gap: 12px; padding-bottom: 16px; border-bottom: 3px solid #3D7D82; margin-bottom: 32px; }
+  .header-icon { font-size: 32px; }
+  .header h1 { font-size: 24px; font-weight: 800; color: #3D7D82; }
+  .header .subtitle { font-size: 13px; color: #999; }
+  h2 { font-size: 20px; font-weight: 700; color: #3D7D82; margin: 36px 0 16px; padding-bottom: 8px; border-bottom: 2px solid #EAF4F5; }
+  h3 { font-size: 16px; font-weight: 700; color: #2C2C2C; margin: 24px 0 12px; }
+  p { margin-bottom: 12px; }
+  .rule { margin: 14px 0; padding: 12px 16px; border-radius: 8px; break-inside: avoid; }
+  .rule-ok { background: #E8F5E9; border-left: 4px solid #4CAF50; }
+  .rule-warn { background: #FFF8E1; border-left: 4px solid #FFC107; }
+  .rule-danger { background: #FFEBEE; border-left: 4px solid #E53935; }
+  .rule-tip { background: #E3F2FD; border-left: 4px solid #2196F3; }
+  .rule-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .rule-icon { font-size: 16px; flex-shrink: 0; }
+  .rule-id { font-size: 12px; font-weight: 700; color: #999; background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px; }
+  .rule-body { font-size: 13.5px; line-height: 1.6; }
+  .section-intro { background: #F8F9FA; border-radius: 8px; padding: 16px 20px; margin: 16px 0 24px; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 13.5px; }
+  th { background: #3D7D82; color: #fff; font-weight: 600; text-align: left; padding: 8px 12px; }
+  td { padding: 8px 12px; border-bottom: 1px solid #E9ECEF; vertical-align: top; }
+  tr:nth-child(even) { background: #F8F9FA; }
+  .td-table { font-size: 13px; }
+  .td-table td:first-child { font-weight: 600; white-space: nowrap; }
+  .priority-critical { color: #E53935; font-weight: 700; }
+  .priority-medium { color: #E65100; font-weight: 600; }
+  .priority-low { color: #6C757D; }
+  .footer { text-align: center; margin-top: 60px; padding-top: 20px; border-top: 1px solid #E9ECEF; font-size: 12px; color: #999; }
+  @media print { body { padding: 0; } .rule { break-inside: avoid; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-icon">🏠</span>
+  <div>
+    <h1>Модуль 3: Объекты недвижимости</h1>
+    <span class="subtitle">I am Agent — Кодекс v2.0</span>
+  </div>
+</div>
+
+<div class="section-intro">
+  <strong>Что делает этот модуль:</strong> управление объектами недвижимости — дома, резорты, кондо. Создание, редактирование, модерация, удаление, фотографии, локации, назначение ответственного.
+</div>
+
+<!-- ============================================== -->
+<h2>3.1 Типы объектов</h2>
+
+<p>Пять типов, два уровня:</p>
+
+<p><strong>Самостоятельные объекты:</strong></p>
+<p>— <strong>Дом</strong> — отдельный объект, не входит в комплекс<br>
+— <strong>Резорт</strong> — комплекс, контейнер для домов<br>
+— <strong>Кондо</strong> — здание, контейнер для квартир</p>
+
+<p><strong>Дочерние объекты (внутри контейнера):</strong></p>
+<p>— <strong>Дом в резорте</strong> — дом внутри конкретного резорта<br>
+— <strong>Квартира в кондо</strong> — квартира внутри конкретного кондо</p>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Тип объекта задаётся при создании и <strong>не может быть изменён</strong>. Дом не станет резортом, квартира не станет домом.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Дочерний объект <strong>не может существовать</strong> без родителя. При удалении резорта/кондо — все дома/квартиры внутри удаляются автоматически. Пользователю показывается двойное предупреждение.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Дочерние объекты <strong>наследуют</strong> от родителя: город, район, собственника, ответственного агента (отображаются как неизменяемые).</div>
+</div>
+
+<!-- ============================================== -->
+<h2>3.2 Создание объекта</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Обязательные поля: <strong>Название</strong>, <strong>Город (локация)</strong>, <strong>Район</strong>. Всё остальное — по желанию, можно дозаполнить позже. Это важно для агентов «в поле» — быстро зафиксировать объект и уехать.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Если создаёт <strong>админ</strong> — объект сразу виден в списке (статус «одобрен»). Если создаёт <strong>агент</strong> — объект на проверке (статус «ожидает»), админ должен одобрить.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Агент может создать объект <strong>только</strong> если у него включён переключатель «Добавление объектов».</div>
+</div>
+
+<p><strong>Шаги заполнения на мобильном (пошаговый визард):</strong></p>
+<p>Для дома / дома в резорте / квартиры — <strong>8 шагов</strong>: Информация → Характеристики → Описание → Фото и видео → Удобства → Дополнительно → Цены и коммуналка → Комментарии.</p>
+<p>Для резорта / кондо — <strong>5 шагов</strong> (без удобств, доп. настроек и цен — контейнеры не сдаются).</p>
+
+<p><strong>На вебе</strong> — боковая панель с вкладками: Основное, Цены, Коммуналка, Удобства, Фото.</p>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Поле «Собственник» — видно и админу, и агенту. Поле «Ответственный агент» — видно <strong>только админу</strong>. Агент не видит и не может менять ответственного.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>3.3 Редактирование объекта</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body"><strong>Админ</strong> редактирует всё (кроме типа) и сохраняет сразу. Без модерации.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body"><strong>Агент</strong> — два независимых переключателя:<br>
+  — «Редактирование информации» — если включён, информация сохраняется напрямую<br>
+  — «Редактирование цен» — если включён, цены сохраняются напрямую<br><br>
+  Если переключатель выключен — изменения идут через <strong>черновик</strong> на проверку админу. Если оба выключены — кнопка «Редактировать» не видна.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Агент видит все поля при редактировании (кроме «Ответственный»). Может менять любые. При сохранении система <strong>разделяет</strong>: разрешённые → напрямую, неразрешённые → черновик.</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-058</span></div>
+  <div class="rule-body">Раздельное сохранение (разрешённое напрямую, неразрешённое через черновик) <strong>не реализовано</strong>. Сейчас — всё или ничего.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Отклонённый объект — <strong>всегда</strong> через черновик, даже если оба переключателя включены.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>3.4 Модерация (одобрение / отклонение)</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Два типа модерации:<br>
+  1. <strong>Новый объект</strong> — агент создал → статус «ожидает» → админ одобряет или отклоняет<br>
+  2. <strong>Черновик изменений</strong> — агент отредактировал → черновик → админ одобряет (изменения применяются) или отклоняет (оригинал не меняется)</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">При отклонении админ <strong>обязан</strong> указать причину. Причина отправляется агенту в уведомлении и сохраняется в журнале отклонений.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Админ находит объекты на проверке тремя способами: значок ⏳ в списке, колокольчик уведомлений, фильтр «На проверке».</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-055</span></div>
+  <div class="rule-body">Админ не видит сравнение «было / стало» при просмотре черновика. Нужно: изменённые поля выделены, старое и новое значение рядом.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>3.5 Удаление объекта</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body"><strong>Админ</strong> может удалить любой объект.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body"><strong>Агент</strong> может удалить объект <strong>только</strong> если: (1) сам создал и (2) объект не одобрен. Одобренный — не может, даже если сам создавал.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">При удалении объекта автоматически удаляются: дочерние объекты, все бронирования, уведомления, черновики, история отклонений. Контакты собственника <strong>не удаляются</strong>.</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-061</span></div>
+  <div class="rule-body">При удалении объекта с бронированиями нет предупреждения. Нужно: «У этого объекта N бронирований. Они тоже будут удалены.»</div>
+</div>
+
+<!-- ============================================== -->
+<h2>3.6 Фотографии</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Лимит фото: Standard — 10, Premium/Korshun — 30.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Два размера: <strong>1200px</strong> (полный, для просмотра) и <strong>150px</strong> (миниатюра, для списков и карточек). JPEG, качество 0.85.</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-064</span></div>
+  <div class="rule-body">Миниатюры <strong>не генерируются</strong>. Везде загружается полноразмерное фото даже для карточки 64px.</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-053</span></div>
+  <div class="rule-body">При удалении объекта фотографии <strong>остаются</strong> в хранилище. Утечка места.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>3.7 Локации и районы</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Локация = Страна / Регион / Город. Все три обязательны. Выбираются из справочника (выпадающие списки).</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">У каждой локации могут быть <strong>районы</strong> — более точное разделение внутри города. При переименовании или удалении района — каскадно обновляется на всех объектах.</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-067</span></div>
+  <div class="rule-body">Удаление локации не проверяет привязанные объекты. Нужно блокировать: «У этой локации N объектов.»</div>
+</div>
+
+<!-- ============================================== -->
+<h2>3.8 Ответственный агент</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body"><strong>Ответственный агент</strong> — определяет кто видит объект. Если не назначен — ответственный «Компания» (админ). При смене ответственного на резорте/кондо — каскадно обновляется на всех дочерних.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Информация об ответственном — <strong>только для админа</strong>. Агент не видит кто ответственный.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>3.9 Видимость объектов</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body"><strong>Админ</strong> видит все объекты компании. <strong>Агент</strong> видит только объекты где он ответственный. Объекты «компании» (без ответственного) — агент не видит.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">По умолчанию список показывает только одобренные. Ожидающие и отклонённые — через фильтр «На проверке».</div>
+</div>
+
+<!-- ============================================== -->
+<h2>Список известных проблем (выборка ключевых)</h2>
+
+<table class="td-table">
+  <tr><th style="width: 60px;">Номер</th><th>Описание</th><th style="width: 90px;">Приоритет</th></tr>
+  <tr><td>TD-044</td><td>Мобильный: не проверяет обязательность локации и района</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-050</td><td>Нет серверной проверки обязательных полей</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-053</td><td>Фото не удаляются из хранилища при удалении объекта</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-054</td><td>Код объекта не проверяется на уникальность</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-055</td><td>Нет сравнения «было/стало» для черновиков</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-058</td><td>Раздельное сохранение не реализовано</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-061</td><td>Нет предупреждения о бронированиях при удалении</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-064</td><td>Нет миниатюр фотографий</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-067</td><td>Удаление локации не проверяет объекты</td><td class="priority-medium">Средний</td></tr>
+</table>
+
+<p><em>Полный список: TD-025, 043-071 (22 пункта). Подробности в техническом документе MODULE_RULES/properties.md.</em></p>
+
+<div class="footer">
+  I am Agent CRM — Модуль 3: Объекты недвижимости — Кодекс v2.0 — Апрель 2026
+</div>
+
+</body>
+</html>

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>I am Agent — Модуль 1: Регистрация и вход</title>
+<style>
+  @page { margin: 2cm; size: A4; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.7; color: #2C2C2C; max-width: 800px; margin: 0 auto; padding: 40px 30px; }
+
+  .header { display: flex; align-items: center; gap: 12px; padding-bottom: 16px; border-bottom: 3px solid #3D7D82; margin-bottom: 32px; }
+  .header-icon { font-size: 32px; }
+  .header h1 { font-size: 24px; font-weight: 800; color: #3D7D82; }
+  .header .subtitle { font-size: 13px; color: #999; }
+
+  h2 { font-size: 20px; font-weight: 700; color: #3D7D82; margin: 36px 0 16px; padding-bottom: 8px; border-bottom: 2px solid #EAF4F5; }
+  h3 { font-size: 16px; font-weight: 700; color: #2C2C2C; margin: 24px 0 12px; }
+
+  p { margin-bottom: 12px; }
+
+  .rule { margin: 14px 0; padding: 12px 16px; border-radius: 8px; break-inside: avoid; }
+  .rule-ok { background: #E8F5E9; border-left: 4px solid #4CAF50; }
+  .rule-warn { background: #FFF8E1; border-left: 4px solid #FFC107; }
+  .rule-danger { background: #FFEBEE; border-left: 4px solid #E53935; }
+  .rule-tip { background: #E3F2FD; border-left: 4px solid #2196F3; }
+
+  .rule-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .rule-icon { font-size: 16px; flex-shrink: 0; }
+  .rule-id { font-size: 12px; font-weight: 700; color: #999; background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px; }
+  .rule-body { font-size: 13.5px; line-height: 1.6; }
+
+  .section-intro { background: #F8F9FA; border-radius: 8px; padding: 16px 20px; margin: 16px 0 24px; font-size: 14px; }
+
+  .td-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+  .td-table th { background: #3D7D82; color: #fff; font-weight: 600; text-align: left; padding: 8px 12px; }
+  .td-table td { padding: 8px 12px; border-bottom: 1px solid #E9ECEF; vertical-align: top; }
+  .td-table tr:nth-child(even) { background: #F8F9FA; }
+  .priority-critical { color: #E53935; font-weight: 700; }
+  .priority-medium { color: #E65100; font-weight: 600; }
+  .priority-low { color: #6C757D; }
+
+  .footer { text-align: center; margin-top: 60px; padding-top: 20px; border-top: 1px solid #E9ECEF; font-size: 12px; color: #999; }
+
+  @media print { body { padding: 0; } .rule { break-inside: avoid; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-icon">🔐</span>
+  <div>
+    <h1>Модуль 1: Регистрация и вход</h1>
+    <span class="subtitle">I am Agent — Кодекс v2.0</span>
+  </div>
+</div>
+
+<div class="section-intro">
+  <strong>Что делает этот модуль:</strong> позволяет создать аккаунт, войти в систему, восстановить пароль, управлять сессией и профилем.
+</div>
+
+<!-- ============================================== -->
+<h2>1.1 Регистрация нового пользователя</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Для регистрации нужны: <strong>электронная почта</strong> и <strong>пароль</strong>. Имя — по желанию. Минимум полей для быстрой регистрации.</div>
+</div>
+
+<div class="rule rule-danger">
+  <div class="rule-header"><span class="rule-icon">🔴</span><span class="rule-id">TD-031</span></div>
+  <div class="rule-body">Пароль должен быть <strong>не менее 8 символов</strong>. Пароли из списка самых популярных («123456», «password», «qwerty») должны отклоняться.<br><br><em>Сейчас: допускается 6 символов, любой пароль.</em></div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Пароль и подтверждение пароля должны совпадать.</div>
+</div>
+
+<div class="rule rule-danger">
+  <div class="rule-header"><span class="rule-icon">🔴</span><span class="rule-id">TD-015</span></div>
+  <div class="rule-body">После регистрации должно прийти <strong>письмо для подтверждения email</strong>. Пока не подтверждён — вход запрещён.<br><br><em>Сейчас: пользователь сразу попадает в систему без подтверждения.</em></div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-016</span></div>
+  <div class="rule-body">Регистрация с <strong>одноразовых почтовых адресов</strong> (mailinator.com, tempmail.com) должна быть запрещена — защита от ботов.<br><br><em>Не реализовано.</em></div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">При регистрации автоматически создаётся: учётная запись, профиль, <strong>Workspace</strong> (невидимый контейнер для данных) и запись о том что пользователь — администратор своего workspace. Всё мгновенно и незаметно.</div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">При регистрации <strong>по приглашению</strong> — workspace НЕ создаётся. Агент работает только с данными компании которая его пригласила. Это обеспечивается «умным триггером» в базе данных.</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-040</span></div>
+  <div class="rule-body">Если пользователь пытается зарегистрироваться, а на его почту уже есть приглашение — должно появиться окно: «Компания X вас пригласила. Принять / Отклонить». Принял — ввод кода, регистрация как агент. Отклонил — обычная регистрация с workspace.<br><br><em>Не реализовано.</em></div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Ошибки регистрации показываются прямо на экране под кнопкой (красный текст), не во всплывающем окне.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>1.2 Вход в систему</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Для входа нужны: email и пароль. При неправильном пароле — понятное сообщение на языке пользователя.</div>
+</div>
+
+<div class="rule rule-danger">
+  <div class="rule-header"><span class="rule-icon">🔴</span><span class="rule-id">TD-032</span></div>
+  <div class="rule-body">После <strong>5 неудачных попыток</strong> ввода пароля — вход должен блокироваться на 15-30 минут. Защита от подбора пароля.<br><br><em>Сейчас: бесконечные попытки.</em></div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-039</span></div>
+  <div class="rule-body">Кнопка входа должна показывать индикатор загрузки при нажатии.<br><br><em>Сейчас: нет индикатора (на экране регистрации — есть).</em></div>
+</div>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Клавиатурная навигация: Enter в поле email → фокус на пароль. Enter в поле пароль → отправка формы.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>1.3 Вход через Google и Facebook</h2>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span></div>
+  <div class="rule-body">Кнопки Google и Facebook <strong>временно скрыты</strong> до завершения проверки безопасности. Функции работают, просто не видны.</div>
+</div>
+
+<div class="rule rule-danger">
+  <div class="rule-header"><span class="rule-icon">🔴</span><span class="rule-id">TD-033</span></div>
+  <div class="rule-body">Мобильный вход через Google/Facebook использует устаревший небезопасный протокол. Нужно обновить до современного (PKCE).</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-041</span></div>
+  <div class="rule-body">Когда OAuth будет включён — вход через Google/Facebook должен тоже проверять приглашения (как обычная регистрация).<br><br><em>Не критично пока кнопки скрыты.</em></div>
+</div>
+
+<!-- ============================================== -->
+<h2>1.4 Восстановление сессии</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Если пользователь уже входил и не выходил — при открытии приложения попадает сразу на рабочий экран. Без повторного ввода пароля.</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-019</span></div>
+  <div class="rule-body">На вебе во время проверки сессии на долю секунды мелькает экран входа. Нужно показывать экран загрузки (как на мобильном).</div>
+</div>
+
+<!-- ============================================== -->
+<h2>1.5 Восстановление пароля</h2>
+
+<div class="rule rule-danger">
+  <div class="rule-header"><span class="rule-icon">🔴</span><span class="rule-id">TD-014</span></div>
+  <div class="rule-body">На экране входа должна быть ссылка <strong>«Забыл пароль»</strong>. По нажатию — ввод email → письмо со ссылкой → новый пароль.<br><br><em>Сейчас: такой функции нет вообще. Если забыл пароль — не можешь войти.</em></div>
+</div>
+
+<!-- ============================================== -->
+<h2>1.6 Смена пароля</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">Доступна только для пользователей с email (не через Google/Facebook). Для смены нужно ввести текущий пароль и новый.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>1.7 Выход и безопасность</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">При выходе сессия завершается, показывается экран входа. Кэш не очищается — при повторном входе данные загрузятся быстрее.</div>
+</div>
+
+<div class="rule rule-warn">
+  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-037</span></div>
+  <div class="rule-body">Должна быть кнопка <strong>«Выйти со всех устройств»</strong>. Если потерял телефон — одним нажатием закрыть все сессии.<br><br><em>Не реализовано.</em></div>
+</div>
+
+<!-- ============================================== -->
+<h2>1.8 Удаление аккаунта</h2>
+
+<div class="rule rule-danger">
+  <div class="rule-header"><span class="rule-icon">🔴</span><span class="rule-id">TD-038</span></div>
+  <div class="rule-body">Пользователь должен иметь возможность <strong>удалить свой аккаунт</strong>. Это требование Apple App Store (обязательно для публикации), GDPR (Европа) и PDPA (Таиланд — целевой рынок).<br><br><em>Сейчас: невозможно удалить аккаунт.</em></div>
+</div>
+
+<!-- ============================================== -->
+<h2>1.9 Профиль пользователя</h2>
+
+<div class="rule rule-ok">
+  <div class="rule-header"><span class="rule-icon">✅</span></div>
+  <div class="rule-body">При каждом входе система собирает полный профиль: тариф, роль, режим работы, права агента, язык, валюта. Это определяет что видит и может делать пользователь.</div>
+</div>
+
+<div class="rule rule-tip">
+  <div class="rule-header"><span class="rule-icon">💡</span><span class="rule-id">TD-035</span></div>
+  <div class="rule-body">Профиль собирается из 4-5 запросов к базе. Можно ускорить в 3-5 раз объединив в один запрос.</div>
+</div>
+
+<!-- ============================================== -->
+<h2>Список известных проблем</h2>
+
+<table class="td-table">
+  <tr><th style="width: 60px;">Номер</th><th>Описание</th><th style="width: 90px;">Приоритет</th></tr>
+  <tr><td>TD-001</td><td>Устаревшее поле «роль» в базе — содержит мусор, нужно удалить</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-014</td><td>Нет функции «Забыл пароль»</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-015</td><td>Нет подтверждения email при регистрации</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-016</td><td>Нет блокировки одноразовых почтовых адресов</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-017</td><td>Триггер создания workspace не в файлах проекта — может потеряться</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-018</td><td>В коде жёстко прописан привилегированный email</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-019</td><td>Веб: мелькает экран входа при загрузке</td><td class="priority-low">Низкий</td></tr>
+  <tr><td>TD-020</td><td>Обновление профиля не прокидывает системные поля</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-031</td><td>Слабые требования к паролю (6 символов)</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-032</td><td>Нет защиты от подбора пароля</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-033</td><td>Мобильный OAuth — устаревший протокол</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-034</td><td>Настройки при регистрации перезаписываются</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-035</td><td>Загрузка профиля медленная (5 запросов)</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-036</td><td>Дублирование кода входа через Google и Facebook</td><td class="priority-low">Низкий</td></tr>
+  <tr><td>TD-037</td><td>Нет «Выйти со всех устройств»</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-038</td><td>Нет удаления аккаунта (App Store, GDPR, PDPA)</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-039</td><td>Нет индикатора загрузки на кнопке входа</td><td class="priority-low">Низкий</td></tr>
+  <tr><td>TD-040</td><td>Регистрация не проверяет приглашения</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-041</td><td>OAuth не проверяет приглашения</td><td class="priority-medium">Средний</td></tr>
+</table>
+
+<div class="footer">
+  I am Agent CRM — Модуль 1: Регистрация и вход — Кодекс v2.0 — Апрель 2026
+</div>
+
+</body>
+</html>
