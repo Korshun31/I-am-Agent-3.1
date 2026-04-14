@@ -507,6 +507,9 @@ TD-047: Веб: нет поля address в WebPropertyEditPanel
 TD-070: Веб WebPropertyEditPanel — агент не может добавить новый район при создании/редактировании объекта
 Что сделать: добавить поле "+ новый район" в WebPropertyEditPanel для агентов (как в мобильном PropertyEditWizard)
 
+TD-071: Мобильный PropertyDetailScreen — агент видит строку "Ответственный" в деталях объекта (на вебе скрыта для агента)
+Что сделать: обернуть блок responsibleName в условие isAdmin, скрыть для агентов (как на вебе WebPropertiesScreen строка 429: isCompanyAdmin)
+
 ---
 
 ## 8. СХЕМА БАЗЫ ДАННЫХ (краткая)
