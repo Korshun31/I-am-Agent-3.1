@@ -369,6 +369,9 @@ TD-080: Формула расчёта общей стоимости бронир
 TD-084: RLS политика bookings: company member read даёт агенту доступ ко всем бронированиям компании
 Что сделать: убрать или ограничить — агент должен видеть только бронирования объектов где responsible_agent_id = auth.uid()
 
+TD-086: Новое поле booking_agent_id — ответственный за бронирование (аналог responsible_agent_id для объектов)
+Что сделать: (1) ALTER TABLE bookings ADD COLUMN booking_agent_id UUID REFERENCES auth.users(id) ON DELETE SET NULL, (2) backfill UPDATE bookings SET booking_agent_id = user_id, (3) обновить RLS: agent read/update/delete own → booking_agent_id вместо user_id, (4) убрать company member read (TD-084), (5) пикер для админа при создании/редактировании, скрыт для агента, (6) UI на обеих платформах
+
 ### Средний — при ближайшей возможности
 
 TD-004: Дублирующиеся ключи переводов: ownerCommissionOneTime vs bookingOwnerCommOnce
@@ -503,6 +506,9 @@ TD-083: Веб — "Клиент собственника" не скрывает
 
 TD-085: Агент видит все данные чужого бронирования на его объекте — должен видеть только "на Компанию"
 Что сделать: если booking.user_id != agent.id, скрывать contactId и показывать "Клиент компании" вместо имени
+
+TD-087: Переключатель can_delete_booking отсутствует в UI настроек агента и не проверяется в deleteBooking()
+Что сделать: добавить переключатель в WebTeamSection и мобильный аналог, проверять can_delete_booking перед удалением в deleteBooking() и в UI (скрывать кнопку)
 
 TD-035: getUserProfile() делает 4-5 последовательных запросов к БД при каждом логине
 Что сделать: создать RPC-функцию get_full_user_profile с LEFT JOIN — ускорение в 3-5 раз
