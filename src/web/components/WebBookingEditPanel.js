@@ -508,17 +508,33 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     }
   }, [form.contactId, form.notMyCustomer, localContacts]);
 
-  // Auto-compute total price
+  // Auto-compute total price (monthly calculation with real days)
   useEffect(() => {
     if (form.priceMonthly && form.checkIn && form.checkOut) {
-      const nights = dayjs(form.checkOut).diff(dayjs(form.checkIn), 'day');
-      if (nights > 0) {
-        const monthly = numOrNull(form.priceMonthly);
-        if (monthly) {
-          const total = Math.round(monthly * nights / 30);
-          setForm(f => ({ ...f, totalPrice: String(total) }));
+      const monthly = numOrNull(form.priceMonthly);
+      if (!monthly || monthly <= 0) return;
+      const start = new Date(form.checkIn);
+      const end = new Date(form.checkOut);
+      if (start >= end) return;
+
+      let total = 0;
+      let current = new Date(start);
+
+      while (current < end) {
+        const nextMonth = new Date(current.getFullYear(), current.getMonth() + 1, current.getDate());
+
+        if (nextMonth <= end) {
+          total += monthly;
+          current = nextMonth;
+        } else {
+          const daysInMonth = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
+          const daysRemaining = Math.round((end - current) / 86400000);
+          total += Math.round(monthly / daysInMonth * daysRemaining);
+          current = end;
         }
       }
+
+      setForm(f => ({ ...f, totalPrice: String(total) }));
     }
   }, [form.priceMonthly, form.checkIn, form.checkOut]);
 

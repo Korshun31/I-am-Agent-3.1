@@ -142,10 +142,27 @@ function computeTotalPrice(checkIn, checkOut, priceMonthly) {
   const start = checkIn instanceof Date ? checkIn : new Date(checkIn);
   const end = checkOut instanceof Date ? checkOut : new Date(checkOut);
   if (start >= end) return null;
-  const msPerDay = 86400000;
-  const nights = Math.round((end - start) / msPerDay);
-  if (nights <= 0) return null;
-  return Math.round(p * nights / 30);
+
+  let total = 0;
+  let current = new Date(start);
+
+  while (current < end) {
+    const nextMonth = new Date(current.getFullYear(), current.getMonth() + 1, current.getDate());
+
+    if (nextMonth <= end) {
+      // Полный месяц
+      total += p;
+      current = nextMonth;
+    } else {
+      // Неполный остаток — пропорционально дням в текущем месяце
+      const daysInMonth = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
+      const daysRemaining = Math.round((end - current) / 86400000);
+      total += Math.round(p / daysInMonth * daysRemaining);
+      current = end;
+    }
+  }
+
+  return total;
 }
 
 const COLORS = {
