@@ -93,9 +93,11 @@ export async function scheduleCommissionReminders(bookingId, dateAmounts = [], p
     const triggerDate = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0, 0);
     if (triggerDate.getTime() <= Date.now()) continue;
 
-    const trigger = Platform.OS === 'android'
-      ? { date: triggerDate, channelId: NOTIFICATION_CHANNEL_ID }
-      : triggerDate;
+    const trigger = {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: triggerDate,
+      ...(Platform.OS === 'android' && { channelId: NOTIFICATION_CHANNEL_ID }),
+    };
 
     const amountStr = amount != null ? String(amount) : '';
     const body = [label, amountStr].filter(Boolean).join(' ') || 'Комиссия от собственника';
