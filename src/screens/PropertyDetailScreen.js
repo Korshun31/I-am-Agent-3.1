@@ -2085,7 +2085,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             }}
             onOpenBookingCalendar={isApproved ? (ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); } : undefined}
             hideLocation={false}
-            responsibleName={isAdmin ? responsibleName : undefined}
+            responsibleName={(isAdmin && teamMembers && teamMembers.length > 0) ? responsibleName : undefined}
           />
         ) : p.type === 'condo' ? (
           <CondoDetailContent
@@ -2105,7 +2105,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             }}
             onOpenBookingCalendar={isApproved ? (ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); } : undefined}
             hideLocation={false}
-            responsibleName={isAdmin ? responsibleName : undefined}
+            responsibleName={(isAdmin && teamMembers && teamMembers.length > 0) ? responsibleName : undefined}
           />
         ) : (
           <HouseDetailContent
@@ -2126,7 +2126,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             }}
             onOpenBookingCalendar={isApproved ? (ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); } : undefined}
             hideLocation={false}
-            responsibleName={isAdmin ? responsibleName : undefined}
+            responsibleName={(isAdmin && teamMembers && teamMembers.length > 0) ? responsibleName : undefined}
           />
         )}
 
