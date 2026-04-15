@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { syncIfEnabled } from './dataUploadService';
 import { broadcastChange } from './companyChannel';
+import { deletePhotoFromStorage } from './storageService';
 
 export async function getProperties(agentId = null) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -170,6 +171,33 @@ export async function deleteProperty(id) {
     if (memberRow) {
       throw new Error('Approved properties cannot be deleted by agents.');
     }
+  }
+
+  // TD-053: Delete photos from Storage before CASCADE deletes records
+  try {
+    const { data: propPhotos } = await supabase
+      .from('properties')
+      .select('photos')
+      .eq('id', id)
+      .maybeSingle();
+
+    const { data: childPhotos } = await supabase
+      .from('properties')
+      .select('photos')
+      .eq('resort_id', id);
+
+    const allPhotos = [
+      ...((propPhotos?.photos || []).filter(url => url && typeof url === 'string')),
+      ...((childPhotos || []).flatMap(c => (c.photos || []).filter(url => url && typeof url === 'string'))),
+    ];
+
+    for (const url of allPhotos) {
+      try {
+        await deletePhotoFromStorage(url);
+      } catch {}
+    }
+  } catch (e) {
+    console.warn('[deleteProperty] photo cleanup failed:', e.message);
   }
 
   // Удаляем незакрытые уведомления на модерацию, связанные с этим объектом,
