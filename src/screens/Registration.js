@@ -13,6 +13,19 @@ import Logo, { COLORS } from '../components/Logo';
 import { useLanguage } from '../context/LanguageContext';
 import { signUp } from '../services/authService';
 
+const COMMON_PASSWORDS = [
+  '12345678', '123456789', '1234567890', 'password', 'password1',
+  'qwerty12', 'qwertyui', 'qwerty123', 'abc12345', 'abcd1234',
+  '11111111', '12341234', '00000000', 'iloveyou', 'sunshine',
+  'princess', 'football', 'charlie1', 'trustno1', 'superman',
+  'master12', 'welcome1', 'shadow12', 'monkey12', 'dragon12',
+  'michael1', 'jennifer', 'jordan23', 'harley12', 'ranger12',
+  'batman12', 'andrew12', 'tigger12', 'charlie', 'robert12',
+  'thomas12', 'hockey12', 'daniel12', 'starwars', 'klaster1',
+  'george12', 'computer', 'michelle', 'jessica1', 'pepper12',
+  'zxcvbnm1', 'asdfghjk', 'qazwsxed', 'zaq12wsx', 'passw0rd',
+];
+
 const fieldShadow = {
   shadowColor: '#000',
   shadowOffset: { width: 0, height: 2 },
@@ -51,7 +64,8 @@ export default function Registration({ onBack, onSuccess }) {
     const pw = password || '';
     if (!em) { setRegError(t('enterEmail')); return; }
     if (!pw) { setRegError(t('enterPassword')); return; }
-    if (pw.length < 6) { setRegError(t('passwordTooShort')); return; }
+    if (pw.length < 8) { setRegError(t('passwordTooShort')); return; }
+    if (COMMON_PASSWORDS.includes(pw.toLowerCase())) { setRegError(t('passwordTooCommon') || 'This password is too common. Please choose a more secure password.'); return; }
     if (pw !== passwordConfirm) { setRegError(t('passwordsMismatch')); return; }
     setLoading(true);
     try {
