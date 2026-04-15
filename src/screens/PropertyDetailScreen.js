@@ -1115,7 +1115,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const canBook = user?.teamPermissions?.can_book;
   const canEditInfo = !isTeamMember || user?.teamPermissions?.can_edit_info;
   const canEditPrices = !isTeamMember || user?.teamPermissions?.can_edit_prices;
-  const needsApproval = isTeamMember && (!canEditInfo || !canEditPrices || p?.property_status === 'rejected');
+  const showSubmitLabel = isTeamMember && (!canEditInfo || !canEditPrices || p?.property_status === 'rejected');
   const isApproved = !p?.property_status || p?.property_status === 'approved';
   const isParentContainer = (p?.type === 'resort' || p?.type === 'condo') && !p?.resort_id;
   const propertiesList = Array.isArray(properties) ? properties : [];
@@ -1562,8 +1562,25 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           await deletePhotoFromStorage(url);
         }
       }
-      if (needsApproval) {
-        // Отправляем черновик — оригинал не трогаем
+      // --- TD-058: Split save by permissions ---
+      const PRICE_FIELDS = new Set([
+        'price_monthly', 'price_monthly_is_from',
+        'booking_deposit', 'booking_deposit_is_from',
+        'save_deposit', 'save_deposit_is_from',
+        'commission', 'commission_is_from',
+        'owner_commission_one_time', 'owner_commission_one_time_is_percent',
+        'owner_commission_monthly', 'owner_commission_monthly_is_percent',
+        'electricity_price', 'water_price', 'water_price_type',
+        'gas_price', 'internet_price', 'cleaning_price', 'exit_cleaning_price',
+      ]);
+
+      const isAgent = !!user?.teamMembership;
+      const agentCanEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
+      const agentCanEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
+      const isRejected = p?.property_status === 'rejected';
+
+      // If rejected — everything through draft regardless of permissions
+      if (isAgent && isRejected) {
         await submitPropertyDraft(p.id, updates);
         const adminId = user?.teamMembership?.adminId;
         if (adminId) {
@@ -1577,11 +1594,66 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             propertyId: p.id,
           });
         }
-        // Обновляем local state черновика
         getPropertyDraft(p.id).then(setPendingDraft).catch(() => {});
         setWizardVisible(false);
         Alert.alert(t('draftSentAlertTitle'), t('draftSentAlertBody'));
-        return; // НЕ вызываем onPropertyUpdated — данные не изменились
+        return;
+      }
+
+      if (isAgent && (!agentCanEditInfo || !agentCanEditPrices)) {
+        // Split: separate direct updates from draft updates
+        const directUpdates = {};
+        const draftUpdates = {};
+
+        for (const [key, value] of Object.entries(updates)) {
+          const isPriceField = PRICE_FIELDS.has(key);
+          if (isPriceField) {
+            if (agentCanEditPrices) {
+              directUpdates[key] = value;
+            } else {
+              draftUpdates[key] = value;
+            }
+          } else {
+            if (agentCanEditInfo) {
+              directUpdates[key] = value;
+            } else {
+              draftUpdates[key] = value;
+            }
+          }
+        }
+
+        // Save direct updates if any
+        if (Object.keys(directUpdates).length > 0) {
+          await updateProperty(p.id, directUpdates);
+        }
+
+        // Submit draft for restricted fields if any changed
+        if (Object.keys(draftUpdates).length > 0) {
+          await submitPropertyDraft(p.id, draftUpdates);
+          const adminId = user?.teamMembership?.adminId;
+          if (adminId) {
+            const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email || '';
+            await sendNotification({
+              recipientId: adminId,
+              senderId: user.id,
+              type: 'edit_submitted',
+              title: `${agentName} ${t('notifPropChangesMiddle')} «${p.name}»`,
+              body: t('notifApprovalRequired'),
+              propertyId: p.id,
+            });
+          }
+          getPropertyDraft(p.id).then(setPendingDraft).catch(() => {});
+          setWizardVisible(false);
+          if (Object.keys(directUpdates).length > 0) {
+            onPropertyUpdated?.();
+            Alert.alert(t('draftSentAlertTitle'), t('draftSentPartialBody') || t('draftSentAlertBody'));
+          } else {
+            Alert.alert(t('draftSentAlertTitle'), t('draftSentAlertBody'));
+          }
+          return;
+        }
+
+        // All fields were direct — fall through to normal save below
       }
 
       // Агент с разрешениями или Админ — сохраняем напрямую
