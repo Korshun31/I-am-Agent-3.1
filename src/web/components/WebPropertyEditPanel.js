@@ -469,11 +469,15 @@ export default function WebPropertyEditPanel({
     getLocationDistricts(form.location_id).then(setDistricts).catch(() => setDistricts([]));
   }, [form.location_id]);
 
-  // Admin only: load owner contacts and team members for pickers
+  // Load owner contacts for all roles, team members for admin only
   useEffect(() => {
-    if (!visible || !isCompanyAdmin) return;
+    if (!visible) return;
+    // Owners — загружаем для всех ролей (агент тоже видит собственников)
     getContacts('owners').then(setOwners).catch(() => setOwners([]));
-    getActiveTeamMembers(user.companyId).then(setPanelTeamMembers).catch(() => setPanelTeamMembers([]));
+    // Team members — только для админа (пикер ответственного)
+    if (isCompanyAdmin) {
+      getActiveTeamMembers(user.companyId).then(setPanelTeamMembers).catch(() => setPanelTeamMembers([]));
+    }
   }, [visible, isCompanyAdmin, user?.companyId]);
 
   // Determine if this is a parent resort/condo (not a child unit)
