@@ -37,7 +37,6 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
   const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -99,29 +98,6 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
     } catch (e) {
       setFormError(e?.message || t('inviteRegisterError'));
       setStep(STEPS.NEW_USER_FORM);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Существующий пользователь подтверждает вступление
-  const handleExistingConfirm = () => setStep(STEPS.EXISTING_USER_LOGIN);
-
-  // Логин существующего пользователя
-  const handleLogin = async () => {
-    if (!loginPassword) { setFormError(t('enterPassword')); return; }
-    setLoading(true);
-    setFormError('');
-    setStep(STEPS.JOINING);
-    try {
-      await signIn({ email: invitation.email, password: loginPassword });
-      await joinCompanyViaInvitation(token);
-      const profile = await getUserProfile((await supabase.auth.getSession()).data.session?.user?.id);
-      setStep(STEPS.SUCCESS);
-      setTimeout(() => onComplete(profile), 1500);
-    } catch (e) {
-      setFormError(e?.message?.includes('Invalid') ? t('invitePasswordWrong') : (e?.message || t('inviteLoginError')));
-      setStep(STEPS.EXISTING_USER_LOGIN);
     } finally {
       setLoading(false);
     }
@@ -225,37 +201,12 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
         {step === STEPS.EXISTING_USER_CONFIRM && (
           <View style={s.stepWrap}>
             <Text style={s.warningIcon}>⚠️</Text>
-            <Text style={s.stepTitle}>{t('inviteHaveAccount')}</Text>
+            <Text style={s.stepTitle}>{t('inviteEmailExists') || 'Email already registered'}</Text>
             <Text style={s.stepSubtitle}>
-              {t('inviteTeamWarning')}
-              {'\n\n'}
-              {t('inviteJoinQuestion')} {invitation?.company_name}?
+              {t('inviteEmailExistsMessage') || 'This email is already registered in I am Agent. To join the team, please ask the administrator to send an invitation to a different email address.'}
             </Text>
-            <TouchableOpacity style={s.primaryBtn} onPress={handleExistingConfirm}>
-              <Text style={s.primaryBtnText}>{t('inviteYesJoin')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.cancelLink} onPress={onCancel}>
-              <Text style={s.cancelLinkText}>{t('inviteNoDecline')}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* ЛОГИН СУЩЕСТВУЮЩЕГО ПОЛЬЗОВАТЕЛЯ */}
-        {step === STEPS.EXISTING_USER_LOGIN && (
-          <View style={s.stepWrap}>
-            <Text style={s.stepTitle}>{t('inviteLoginTitle')}</Text>
-            <Text style={s.stepSubtitle}>Email: {invitation?.email}</Text>
-            <TextInput
-              style={s.input}
-              value={loginPassword}
-              onChangeText={v => { setLoginPassword(v); setFormError(''); }}
-              placeholder={t('invitePlaceholderLoginPassword')}
-              secureTextEntry
-              autoFocus
-            />
-            {!!formError && <Text style={s.errorText}>{formError}</Text>}
-            <TouchableOpacity style={[s.primaryBtn, loading && s.btnDisabled]} onPress={handleLogin} disabled={loading}>
-              <Text style={s.primaryBtnText}>{loading ? t('inviteLoggingIn') : t('inviteLoginAndJoin')}</Text>
+            <TouchableOpacity style={s.primaryBtn} onPress={onCancel}>
+              <Text style={s.primaryBtnText}>{t('ok') || 'OK'}</Text>
             </TouchableOpacity>
           </View>
         )}

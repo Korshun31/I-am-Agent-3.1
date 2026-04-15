@@ -266,7 +266,7 @@ function PropertyPicker({ value, properties, onChange, t }) {
 
 // ─── Contact Picker ───────────────────────────────────────────────────────────
 
-function ContactPicker({ value, contacts, onChange, onRequestNewContact, t, canManageClients }) {
+function ContactPicker({ value, contacts, onChange, onRequestNewContact, t, canCreateContact }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const searchRef = useRef(null);
@@ -326,7 +326,7 @@ function ContactPicker({ value, contacts, onChange, onRequestNewContact, t, canM
 
           <ScrollView style={{ maxHeight: 240 }} nestedScrollEnabled>
             {/* ── Добавить нового клиента — только если есть разрешение ── */}
-            {canManageClients && (
+            {canCreateContact && (
               <TouchableOpacity
                 style={s.addNewContactRow}
                 onPress={() => {
@@ -438,8 +438,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
 
   // Разрешения агента
   const isAgent = !!user?.teamMembership;
-  const canSeeFinancials = !isAgent || user?.teamPermissions?.can_see_financials;
-  const canManageClients = !isAgent || !!user?.teamPermissions?.can_book;
+  const canCreateContact = !isAgent || !!user?.teamPermissions?.can_book;
 
   const [form, setForm]             = useState(() => buildForm(booking, null));
   const [saving, setSaving]         = useState(false);
@@ -743,7 +742,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                     onChange={v => set('contactId', v)}
                     onRequestNewContact={handleRequestNewContact}
                     t={t}
-                    canManageClients={canManageClients}
+                    canCreateContact={canCreateContact}
                   />
                 </Field>
                   <Field label={t('bkPassport')}>
@@ -822,13 +821,10 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                       <FInput value={form.saveDeposit} onChangeText={v => set('saveDeposit', v)} placeholder="10 000" numeric />
                     </Field>
                   </View>
-                  {canSeeFinancials && (
-                    <Field label={L('bkAgentCommission')}>
-                      <FInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="15 000" numeric />
-                    </Field>
-                  )}
+                  <Field label={L('bkAgentCommission')}>
+                    <FInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="15 000" numeric />
+                  </Field>
                   {/* Owner commission one-time */}
-                  {canSeeFinancials && (
                   <Field label={t('bookingOwnerCommOnce')}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       {form.ownerCommissionOneTimeIsPercent ? (
@@ -864,9 +860,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                       </View>
                     </View>
                   </Field>
-                  )}
                   {/* Owner commission monthly */}
-                  {canSeeFinancials && (
                   <Field label={t('bookingOwnerCommMonthly')}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       {form.ownerCommissionMonthlyIsPercent ? (
@@ -902,7 +896,6 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                       </View>
                     </View>
                   </Field>
-                  )}
                 </SectionCard>
 
                 {/* Гости */}

@@ -292,7 +292,6 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   const isAgentRole = user?.isAgentRole ?? isAgent;
   const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
   const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
-  const canSeeFinancials = !isAgent || user?.teamPermissions?.can_see_financials;
   const canAddUnit = !isAgent || user?.teamPermissions?.can_add_property;
   // Agent may delete only their own non-approved property (LOCK-001)
   const isCreator = property.user_id === user?.id;
@@ -682,7 +681,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         )}
 
         {/* ── Commissions ── */}
-        {canSeeFinancials && (property.commission != null || property.owner_commission_one_time != null || property.owner_commission_monthly != null) && (
+        {(property.commission != null || property.owner_commission_one_time != null || property.owner_commission_monthly != null) && (
           <SectionBlock title={t('propCommissionSection')}>
             {property.commission != null && (
               <InfoRow
@@ -714,7 +713,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         )}
 
         {/* ── Utilities ── */}
-        {canSeeFinancials && (property.electricity_price != null || property.water_price != null || property.gas_price != null || property.internet_price != null || property.cleaning_price != null || property.exit_cleaning_price != null) && (
+        {(property.electricity_price != null || property.water_price != null || property.gas_price != null || property.internet_price != null || property.cleaning_price != null || property.exit_cleaning_price != null) && (
           <SectionBlock title={t('propUtilities')}>
             <InfoRow label={t('pdElectricity')} value={property.electricity_price != null ? `${property.electricity_price} ${psym}/${t('propWaterCubic')}` : null} />
             <InfoRow
