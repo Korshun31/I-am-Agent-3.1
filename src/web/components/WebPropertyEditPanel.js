@@ -432,7 +432,7 @@ export default function WebPropertyEditPanel({
   const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
   const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
   // Agent edit flow must always re-submit rejected properties through draft moderation.
-  const needsApproval = isAgent && (!canEditInfo || property?.property_status === 'rejected');
+  const showSubmitLabel = isAgent && (!canEditInfo || !canEditPrices || property?.property_status === 'rejected');
 
   // In edit mode use the currency stored on the property; in create mode use the user's selected currency
   const activeCurrency = (mode === 'edit' && property?.currency) ? property.currency : (userCurrency || 'THB');
@@ -626,7 +626,22 @@ export default function WebPropertyEditPanel({
       const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email;
 
       if (mode === 'edit') {
-        if (needsApproval) {
+        // --- TD-058: Split save by permissions ---
+        const PRICE_FIELDS = new Set([
+          'price_monthly', 'price_monthly_is_from',
+          'booking_deposit', 'booking_deposit_is_from',
+          'save_deposit', 'save_deposit_is_from',
+          'commission', 'commission_is_from',
+          'owner_commission_one_time', 'owner_commission_one_time_is_percent',
+          'owner_commission_monthly', 'owner_commission_monthly_is_percent',
+          'electricity_price', 'water_price', 'water_price_type',
+          'gas_price', 'internet_price', 'cleaning_price', 'exit_cleaning_price',
+        ]);
+
+        const isRejected = property?.property_status === 'rejected';
+
+        // Rejected — everything through draft
+        if (isAgent && isRejected) {
           await submitPropertyDraft(property.id, updates);
           if (adminId) {
             await sendNotification({
@@ -639,6 +654,50 @@ export default function WebPropertyEditPanel({
             });
           }
           onSaved(null);
+          return;
+        }
+
+        if (isAgent && (!canEditInfo || !canEditPrices)) {
+          const directUpdates = {};
+          const draftUpdates = {};
+
+          for (const [key, value] of Object.entries(updates)) {
+            const isPriceField = PRICE_FIELDS.has(key);
+            if (isPriceField) {
+              if (canEditPrices) {
+                directUpdates[key] = value;
+              } else {
+                draftUpdates[key] = value;
+              }
+            } else {
+              if (canEditInfo) {
+                directUpdates[key] = value;
+              } else {
+                draftUpdates[key] = value;
+              }
+            }
+          }
+
+          let saved = null;
+          if (Object.keys(directUpdates).length > 0) {
+            saved = await updateProperty(property.id, directUpdates);
+          }
+
+          if (Object.keys(draftUpdates).length > 0) {
+            await submitPropertyDraft(property.id, draftUpdates);
+            if (adminId) {
+              await sendNotification({
+                recipientId: adminId,
+                senderId: user.id,
+                type: 'edit_submitted',
+                title: `${agentName} ${t('notifPropChangesMiddle')} «${updates.name}»`,
+                body: t('notifApprovalRequired'),
+                propertyId: property.id,
+              });
+            }
+          }
+
+          onSaved(saved);
           return;
         }
         // Авто-принятие: админ сохраняет отклонённый объект -> статус становится approved
@@ -1337,7 +1396,7 @@ export default function WebPropertyEditPanel({
                     ? <ActivityIndicator size="small" color="#FFF" />
                     : <Text style={s.saveBtnText}>
                         {mode === 'edit'
-                          ? (needsApproval ? t('submitForReview') : t('save'))
+                          ? (showSubmitLabel ? t('submitForReview') : t('save'))
                           : `＋ ${t('add')}`}
                       </Text>
                   }
