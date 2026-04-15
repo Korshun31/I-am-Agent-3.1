@@ -10,6 +10,9 @@ import {
   Image,
   Linking,
   Alert,
+  Modal,
+  Pressable,
+  TextInput,
 } from 'react-native';
 import Constants from 'expo-constants';
 import MyDetailsEditModal from '../components/MyDetailsEditModal';
@@ -22,7 +25,7 @@ import DataUploadModal from '../components/DataUploadModal';
 import { useLanguage } from '../context/LanguageContext';
 import { useUser } from '../context/UserContext';
 import { ROLES } from '../constants/roleFeatures';
-import { updateUserProfile, getCurrentUser, canChangePassword } from '../services/authService';
+import { updateUserProfile, getCurrentUser, canChangePassword, deleteOwnAccount, signOut } from '../services/authService';
 import { getLocations, createLocation, updateLocation, deleteLocation, setLocationDistricts } from '../services/locationsService';
 
 const COLORS = {
@@ -60,6 +63,10 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
   const [addLocationsModalVisible, setAddLocationsModalVisible] = useState(false);
   const [editLocationData, setEditLocationData] = useState(null);
   const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [dataUploadModalVisible, setDataUploadModalVisible] = useState(false);
   const [locationsContentHeight, setLocationsContentHeight] = useState(0);
   const [allowChangePassword, setAllowChangePassword] = useState(false);
@@ -173,6 +180,27 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
     if (!user?.id) return;
     refreshCanChangePassword();
   }, [user?.id]);
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText.trim() !== 'DELETE') {
+      setDeleteError(t('deleteAccountTypeDelete') || 'Type DELETE to confirm');
+      return;
+    }
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await deleteOwnAccount();
+      await signOut();
+      onLogout?.();
+    } catch (e) {
+      if (e?.message?.includes('CANNOT_DELETE_HAS_AGENTS')) {
+        setDeleteError(t('deleteAccountHasAgents') || 'Deactivate all team members before deleting your account.');
+      } else {
+        setDeleteError(e?.message || 'Error');
+      }
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     if (isVisible && !prevTabVisible.current) {
@@ -512,6 +540,79 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
           <Text style={styles.menuBlockLabel}>{t('statistics')}</Text>
         </View>
       </TouchableOpacity>
+
+      {/* Delete Account */}
+      <TouchableOpacity
+        style={{ marginTop: 30, marginBottom: 20, paddingVertical: 14, alignItems: 'center' }}
+        onPress={() => { setDeleteConfirmVisible(true); setDeleteConfirmText(''); setDeleteError(''); }}
+        activeOpacity={0.7}
+      >
+        <Text style={{ color: '#C62828', fontSize: 15, fontWeight: '600' }}>
+          {t('deleteAccountBtn') || 'Delete account'}
+        </Text>
+      </TouchableOpacity>
+
+      <Modal visible={deleteConfirmVisible} transparent animationType="fade">
+        <Pressable style={{
+          flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'center', alignItems: 'center', padding: 24,
+        }} onPress={() => setDeleteConfirmVisible(false)}>
+          <Pressable style={{
+            backgroundColor: '#fff', borderRadius: 20, padding: 24,
+            width: '100%', maxWidth: 340,
+          }} onPress={e => e.stopPropagation()}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#C62828', marginBottom: 12, textAlign: 'center' }}>
+              {t('deleteAccountTitle') || 'Delete account'}
+            </Text>
+            <Text style={{ fontSize: 14, color: '#5A5A5A', marginBottom: 16, textAlign: 'center', lineHeight: 20 }}>
+              {t('deleteAccountWarning') || 'This action cannot be undone. All your data will be permanently deleted.'}
+            </Text>
+            <Text style={{ fontSize: 13, color: '#5A5A5A', marginBottom: 8, textAlign: 'center' }}>
+              {t('deleteAccountTypePrompt') || 'Type DELETE to confirm:'}
+            </Text>
+            <TextInput
+              style={{
+                height: 48, borderWidth: 2, borderColor: '#FFCDD2', borderRadius: 12,
+                textAlign: 'center', fontSize: 18, fontWeight: '700', color: '#C62828',
+                marginBottom: 12,
+              }}
+              value={deleteConfirmText}
+              onChangeText={v => { setDeleteConfirmText(v); setDeleteError(''); }}
+              placeholder="DELETE"
+              placeholderTextColor="#ccc"
+              autoCapitalize="characters"
+            />
+            {deleteError ? (
+              <Text style={{ color: '#C62828', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
+                {deleteError}
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#C62828', borderRadius: 12, paddingVertical: 14,
+                alignItems: 'center', marginBottom: 10,
+                opacity: deleting ? 0.5 : 1,
+              }}
+              onPress={handleDeleteAccount}
+              disabled={deleting}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>
+                {deleting ? '...' : (t('deleteAccountConfirmBtn') || 'Delete permanently')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingVertical: 10, alignItems: 'center' }}
+              onPress={() => setDeleteConfirmVisible(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#6B6B6B', fontSize: 14 }}>
+                {t('cancel') || 'Cancel'}
+              </Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <View style={styles.bottomSpacer} />
       </ScrollView>

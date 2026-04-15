@@ -330,6 +330,12 @@ export async function signInWithGoogle() {
   }
 }
 
+export async function deleteOwnAccount() {
+  const { data, error } = await supabase.rpc('delete_own_account');
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function signInWithFacebook() {
   if (Platform.OS === 'web') {
     const { error } = await supabase.auth.signInWithOAuth({

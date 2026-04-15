@@ -4,7 +4,7 @@ import {
   Image, ActivityIndicator, Platform, Linking, Switch,
   TextInput,
 } from 'react-native';
-import { getCurrentUser, updateUserProfile, signOut, canChangePassword } from '../../services/authService';
+import { getCurrentUser, updateUserProfile, signOut, canChangePassword, deleteOwnAccount } from '../../services/authService';
 import { activateCompany, deactivateCompany, updateCompany } from '../../services/companyService';
 import { getLocations, getLocationsForAgent } from '../../services/locationsService';
 import { useLanguage } from '../../context/LanguageContext';
@@ -107,6 +107,10 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
   const [settingsModal, setSettingsModal] = useState({ visible: false, type: '' });
   const [editingCompany, setEditingCompany] = useState(false);
   const [companyForm, setCompanyForm] = useState({ name: '', phone: '', email: '' });
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -141,6 +145,27 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
       onLogout?.();
     } catch (e) {
       console.error('Logout error:', e);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText.trim() !== 'DELETE') {
+      setDeleteError(t('deleteAccountTypeDelete') || 'Type DELETE to confirm');
+      return;
+    }
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await deleteOwnAccount();
+      await signOut();
+      onLogout?.();
+    } catch (e) {
+      if (e?.message?.includes('CANNOT_DELETE_HAS_AGENTS')) {
+        setDeleteError(t('deleteAccountHasAgents') || 'Deactivate all team members before deleting your account.');
+      } else {
+        setDeleteError(e?.message || 'Error');
+      }
+      setDeleting(false);
     }
   };
 
@@ -466,7 +491,7 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
                 <Text style={s.securityBtnText}>{t('changePassword')}</Text>
               </TouchableOpacity>
             ) || null}
-            <TouchableOpacity style={[s.securityBtn, s.dangerBtn]}>
+            <TouchableOpacity style={[s.securityBtn, s.dangerBtn]} onPress={() => { setDeleteConfirmVisible(true); setDeleteConfirmText(''); setDeleteError(''); }}>
               <Text style={[s.securityBtnText, s.dangerText]}>{t('deleteAccount') || 'Удалить аккаунт'}</Text>
             </TouchableOpacity>
           </SectionCard>
@@ -490,6 +515,68 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
         onClose={() => setSettingsModal(prev => ({ ...prev, visible: false }))}
         onSaved={setUser}
       />
+      {deleteConfirmVisible && (
+        <View style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center',
+          zIndex: 9999,
+        }}>
+          <View style={{
+            backgroundColor: '#fff', borderRadius: 20, padding: 24,
+            width: 360, maxWidth: '90%',
+          }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#C62828', marginBottom: 12, textAlign: 'center' }}>
+              {t('deleteAccountTitle') || 'Delete account'}
+            </Text>
+            <Text style={{ fontSize: 14, color: '#5A5A5A', marginBottom: 16, textAlign: 'center', lineHeight: 20 }}>
+              {t('deleteAccountWarning') || 'This action cannot be undone. All your data will be permanently deleted.'}
+            </Text>
+            <Text style={{ fontSize: 13, color: '#5A5A5A', marginBottom: 8, textAlign: 'center' }}>
+              {t('deleteAccountTypePrompt') || 'Type DELETE to confirm:'}
+            </Text>
+            <TextInput
+              style={{
+                height: 48, borderWidth: 2, borderColor: '#FFCDD2', borderRadius: 12,
+                textAlign: 'center', fontSize: 18, fontWeight: '700', color: '#C62828',
+                marginBottom: 12, outlineStyle: 'none',
+              }}
+              value={deleteConfirmText}
+              onChangeText={v => { setDeleteConfirmText(v); setDeleteError(''); }}
+              placeholder="DELETE"
+              placeholderTextColor="#ccc"
+              autoCapitalize="characters"
+            />
+            {deleteError ? (
+              <Text style={{ color: '#C62828', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
+                {deleteError}
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#C62828', borderRadius: 12, paddingVertical: 14,
+                alignItems: 'center', marginBottom: 10,
+                opacity: deleting ? 0.5 : 1,
+              }}
+              onPress={handleDeleteAccount}
+              disabled={deleting}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>
+                {deleting ? '...' : (t('deleteAccountConfirmBtn') || 'Delete permanently')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingVertical: 10, alignItems: 'center' }}
+              onPress={() => setDeleteConfirmVisible(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#6B6B6B', fontSize: 14 }}>
+                {t('cancel') || 'Cancel'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 }
