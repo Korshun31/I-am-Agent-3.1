@@ -13,6 +13,7 @@ import { getContacts } from '../../services/contactsService';
 import { supabase } from '../../services/supabase';
 import WebBookingEditPanel from '../components/WebBookingEditPanel';
 import WebPropertyDetailPanel from '../components/WebPropertyDetailPanel';
+import { buildConfirmationHTML } from '../../services/bookingConfirmationService';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -171,7 +172,7 @@ function statusInfo(checkIn, checkOut, t) {
 
 // ─── Booking Detail Panel ─────────────────────────────────────────────────────
 
-function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, user }) {
+function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, onPrint, user }) {
   const { t } = useLanguage();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -243,6 +244,11 @@ const canDeleteBooking = !user?.teamMembership || booking?.agentId === user?.id;
           </View>
         </View>
         <View style={d.headerActions}>
+          {!booking.notMyCustomer && (
+            <TouchableOpacity style={d.editBtn} onPress={onPrint}>
+              <Text style={d.editBtnText}>📄 {t('bookingConfirmation') || 'Confirmation'}</Text>
+            </TouchableOpacity>
+          )}
           {canEditBooking && (
             <TouchableOpacity style={d.editBtn} onPress={onEdit}>
               <Text style={d.editBtnText}>{t('edit')}</Text>
@@ -644,6 +650,35 @@ export default function WebBookingsScreen({ user, refreshKey }) {
     ? contacts.find(c => c.id === selectedBooking.contactId)
     : null;
 
+  const handlePrintConfirmation = (booking) => {
+    try {
+      const property = properties.find(p => p.id === booking.propertyId);
+      const contact = contacts.find(c => c.id === booking.contactId);
+      const allBookings = bookings.filter(b => b.propertyId === booking.propertyId);
+      const idx = allBookings
+        .sort((a, b) => new Date(a.createdAt || a.checkIn) - new Date(b.createdAt || b.checkIn))
+        .findIndex(b => b.id === booking.id);
+      const year = new Date(booking.checkIn).getFullYear();
+      const confirmationNumber = `${idx >= 0 ? idx + 1 : 1}/${String(year % 100).padStart(2, '0')}`;
+      const html = buildConfirmationHTML({
+        booking,
+        property: property || {},
+        contact: contact || {},
+        profile: user || {},
+        confirmationNumber,
+        language: t('lang') || 'en',
+      });
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        setTimeout(() => printWindow.print(), 500);
+      }
+    } catch (e) {
+      alert(e.message || 'Error generating confirmation');
+    }
+  };
+
   // Уникальные районы из загруженных объектов
   const uniqueDistricts = useMemo(() =>
     [...new Set(properties.map(p => p.district).filter(Boolean))].sort(),
@@ -1018,6 +1053,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
               onEdit={() => setEditPanelMode('edit')}
               onDelete={() => { setSelectedBooking(null); load(); }}
               onClose={() => setSelectedBooking(null)}
+              onPrint={() => selectedBooking && handlePrintConfirmation(selectedBooking)}
               user={user}
             />
           </View>

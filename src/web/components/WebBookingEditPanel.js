@@ -70,6 +70,7 @@ function buildForm(booking, property) {
       pets:                   !!booking.pets,
       comments:               booking.comments || '',
       photos:                 booking.photos || [],
+      reminderDays:           booking.reminderDays || [],
     };
   }
   return {
@@ -95,6 +96,7 @@ function buildForm(booking, property) {
     pets:                   false,
     comments:               '',
     photos:                 [],
+    reminderDays:           [],
   };
 }
 
@@ -448,6 +450,14 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
   const [newContactVisible, setNewContactVisible] = useState(false);
   const [newContactInitialName, setNewContactInitialName] = useState('');
   const [localContacts, setLocalContacts] = useState(contacts);
+  const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
+
+  const BOOKING_REMINDER_OPTIONS = [
+    { days: 1, key: 'bookingReminder1d' },
+    { days: 3, key: 'bookingReminder3d' },
+    { days: 7, key: 'bookingReminder1w' },
+    { days: 30, key: 'bookingReminder1m' },
+  ];
   const [calendarVisible, setCalendarVisible] = useState(false);
   const [propertyBookings, setPropertyBookings] = useState([]);
   const fileInputRef                = useRef(null);
@@ -627,6 +637,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
         pets:                   form.pets,
         comments:               form.comments || null,
         photos:                 form.photos || [],
+        reminderDays:           form.reminderDays || [],
         reminderDays:           booking?.reminderDays ?? [],
         currency:               activeCurrency,
       };
@@ -934,6 +945,53 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                   />
                 </SectionCard>
               </>
+            )}
+
+            {/* Напоминания — скрыты для "Клиент собственника" */}
+            {!form.notMyCustomer && (
+              <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#212529', marginBottom: 8 }}>
+                  {t('bookingNotifications') || 'Reminders'}
+                </Text>
+                <TouchableOpacity
+                  style={{ borderWidth: 1, borderColor: '#E9ECEF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 }}
+                  onPress={() => setReminderPickerOpen(!reminderPickerOpen)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 14, color: (form.reminderDays || []).length > 0 ? '#212529' : '#ADB5BD' }}>
+                    {(form.reminderDays || []).length > 0
+                      ? (form.reminderDays || []).map(d => t(BOOKING_REMINDER_OPTIONS.find(o => o.days === d)?.key || 'bookingReminder1d')).join(', ')
+                      : t('bookingAddNotification') || 'Add reminder'}
+                  </Text>
+                </TouchableOpacity>
+                {reminderPickerOpen && (
+                  <View style={{ marginTop: 8, borderWidth: 1, borderColor: '#E9ECEF', borderRadius: 8, overflow: 'hidden' }}>
+                    {BOOKING_REMINDER_OPTIONS.map(opt => {
+                      const isSelected = (form.reminderDays || []).includes(opt.days);
+                      return (
+                        <TouchableOpacity
+                          key={opt.days}
+                          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, backgroundColor: isSelected ? '#EAF4F5' : '#fff', borderBottomWidth: 1, borderBottomColor: '#E9ECEF' }}
+                          onPress={() => {
+                            setForm(f => ({
+                              ...f,
+                              reminderDays: isSelected
+                                ? (f.reminderDays || []).filter(d => d !== opt.days)
+                                : [...(f.reminderDays || []), opt.days].sort((a, b) => a - b),
+                            }));
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: isSelected ? '#3D7D82' : '#ADB5BD', backgroundColor: isSelected ? '#3D7D82' : '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                            {isSelected && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>✓</Text>}
+                          </View>
+                          <Text style={{ fontSize: 14, color: isSelected ? '#3D7D82' : '#212529', fontWeight: isSelected ? '600' : '400' }}>{t(opt.key)}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
             )}
 
             {/* Примечания */}
