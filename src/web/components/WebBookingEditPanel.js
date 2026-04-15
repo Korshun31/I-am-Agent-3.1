@@ -600,6 +600,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     if (!form.propertyId) { setError(t('bkErrNoProperty')); return; }
     if (!form.checkIn || !form.checkOut) { setError(t('bkErrNoDates')); return; }
     if (form.checkIn >= form.checkOut) { setError(t('bkErrDateOrder')); return; }
+    if (!form.notMyCustomer && !form.contactId) { setError(t('bookingSelectClient') || 'Please select a client'); return; }
 
     setSaving(true);
     setError('');

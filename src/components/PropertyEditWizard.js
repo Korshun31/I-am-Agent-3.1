@@ -1186,15 +1186,13 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       Alert.alert(t('error'), t('enterPropertyName'));
       return;
     }
-    if (mode === 'create') {
-      if (!(data.city || '').trim()) {
-        Alert.alert(t('error'), `${t('fieldRequired')}: ${t('city')}`);
-        return;
-      }
-      if (!(data.district || '').trim()) {
-        Alert.alert(t('error'), `${t('fieldRequired')}: ${t('propDistrict')}`);
-        return;
-      }
+    if (!data.location_id) {
+      Alert.alert(t('error'), `${t('fieldRequired')}: ${t('pdCity')}`);
+      return;
+    }
+    if (!data.district || !data.district.trim()) {
+      Alert.alert(t('error'), `${t('fieldRequired')}: ${t('propDistrict')}`);
+      return;
     }
     setSaving(true);
     try {

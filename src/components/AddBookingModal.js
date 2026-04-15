@@ -466,6 +466,10 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
       Alert.alert(t('error'), t('bookingDatesOccupied'));
       return;
     }
+    if (!notMyCustomer && !selectedClient?.id) {
+      Alert.alert(t('error'), t('bookingSelectClient') || 'Please select a client');
+      return;
+    }
     setSaving(true);
     try {
       let photoUrls = photos.filter((u) => !isLocalUri(u));
