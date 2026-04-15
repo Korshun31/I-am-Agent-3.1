@@ -78,6 +78,7 @@ export async function createBooking(booking) {
 
   const row = {
     user_id: session.user.id,
+    booking_agent_id: session.user.id,
     company_id: prop.company_id,
     property_id: booking.propertyId,
     contact_id: booking.contactId || null,
