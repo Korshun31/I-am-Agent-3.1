@@ -425,7 +425,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
       </View>
 
       {/* Ответственный — только для Admin компании (display only; edit in Edit Panel) */}
-      {isCompanyAdmin && user?.workAs === 'company' && (
+      {isCompanyAdmin && user?.companyInfo?.name?.trim() && (
         <View style={s.responsibleRow}>
           <Text style={s.responsibleLabel}>{t('propResponsibleLabel')}</Text>
           <Text style={s.responsibleValue}>
