@@ -194,7 +194,7 @@ const CALENDAR_LOCALES = {
 
 export default function AddBookingModal({ visible, onClose, onSaved, property, editBooking, initialMonth }) {
   const { t, language, currency, currencySymbol: globalSym } = useLanguage();
-  const { contacts, bookings } = useAppData();
+  const { contacts, bookings, refreshContacts: refreshGlobalContacts } = useAppData();
   const activeCurrency = property?.currency || currency || 'THB';
   const sym = getCurrencySymbol(activeCurrency);
   const [step, setStep] = useState(1);
@@ -374,6 +374,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
   const handleSaveContact = async (data) => {
     try {
       const created = await createContact({ ...data, type: 'clients' });
+      refreshGlobalContacts();
       setSelectedClient(created);
       setAddContactVisible(false);
       setClientPickerVisible(false);

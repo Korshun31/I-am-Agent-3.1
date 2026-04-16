@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
+import { useAppData } from '../context/AppDataContext';
 import { deleteContact, updateContact } from '../services/contactsService';
 import { getBookings, deleteBooking } from '../services/bookingsService';
 import { cancelBookingReminders } from '../services/bookingRemindersService';
@@ -96,6 +97,7 @@ function compareByCodeOrName(a, b) {
 
 export default function ContactDetailScreen({ contact, onBack, onContactUpdated, onContactDeleted, user }) {
   const { t } = useLanguage();
+  const { refreshContacts: refreshGlobalContacts, refreshProperties: refreshGlobalProperties, refreshBookings: refreshGlobalBookings } = useAppData();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [currentContact, setCurrentContact] = useState(contact);
   const isAgent = !!user?.teamMembership;
@@ -177,6 +179,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
         onPress: async () => {
           try {
             await deleteContact(c.id);
+            refreshGlobalContacts();
             onContactDeleted?.(c.id);
             onBack();
           } catch (e) {
@@ -190,6 +193,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
   const handleEditSave = async (data) => {
     try {
       const updated = await updateContact(c.id, data);
+      refreshGlobalContacts();
       setCurrentContact(updated);
       onContactUpdated?.(updated);
     } catch (e) {
@@ -282,6 +286,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
               onPress: async () => {
                 try {
                   await deleteProperty(selectedProperty.id);
+                  refreshGlobalProperties();
                   setSelectedProperty(null);
                   setRefreshPropertiesTrigger(prev => prev + 1);
                 } catch (e) {
@@ -313,6 +318,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
             try {
               await cancelBookingReminders(id);
               await deleteBooking(id);
+              refreshGlobalBookings();
               setSelectedBooking(null);
               setSelectedBookingTitle('');
               setSelectedBookingProperty(null);

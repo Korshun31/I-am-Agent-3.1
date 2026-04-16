@@ -30,6 +30,7 @@ import { getContacts, createContact } from '../services/contactsService';
 import { getActiveTeamMembers } from '../services/companyService';
 import { uploadPhoto, isLocalUri } from '../services/storageService';
 import AddContactModal from './AddContactModal';
+import { useAppData } from '../context/AppDataContext';
 
 const COLORS = {
   bg: 'rgba(255,255,255,0.92)',
@@ -153,6 +154,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
   const handleNewOwnerSave = async (contactData) => {
     try {
       const newOwner = await createContact({ ...contactData, type: 'owners' });
+      refreshGlobalContacts();
       const name = `${newOwner.name} ${newOwner.lastName}`.trim();
       if (addOwnerFor === 'owner2') {
         setData(d => ({ ...d, owner_id_2: newOwner.id, _owner2Name: name }));
@@ -1083,6 +1085,7 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
 
 export default function PropertyEditWizard({ visible, property, onClose, onSave, parentResort, mode = 'edit', initialType = 'house' }) {
   const { t, currency, currencySymbol: sym } = useLanguage();
+  const { refreshContacts: refreshGlobalContacts } = useAppData();
   const [step, setStep] = useState(0);
   const [data, setData] = useState({});
   const [saving, setSaving] = useState(false);
