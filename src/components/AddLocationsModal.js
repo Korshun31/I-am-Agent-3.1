@@ -16,6 +16,7 @@ import {
 import { getLocationDistricts, setLocationDistricts, updateDistrictName, removeDistrict } from '../services/locationsService';
 import { BlurView } from 'expo-blur';
 import { useLanguage } from '../context/LanguageContext';
+import { useAppData } from '../context/AppDataContext';
 
 function getCountryStateCity() {
   try {
@@ -124,6 +125,7 @@ function parseLocationString(str, csc) {
  */
 export default function AddLocationsModal({ visible, onClose, onSave, onDelete, initialLocation, editIndex, editLocationData }) {
   const { t } = useLanguage();
+  const { refreshProperties: refreshGlobalProperties } = useAppData();
   const [country, setCountry] = useState(null);
   const [region, setRegion] = useState(null);
   const [city, setCity] = useState(null);
@@ -249,6 +251,7 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
         Alert.alert(t('error') || 'Error', e?.message || 'Failed to update district');
         return;
       }
+      refreshGlobalProperties();
     }
     setDistricts((prev) => prev.map((x) => (x === editingDistrict ? trimmed : x)).sort());
     setEditingDistrict(null);
@@ -265,7 +268,9 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
     const doDelete = () => {
       const locationId = editLocationData?.id;
       if (locationId) {
-        removeDistrict(locationId, d).catch((e) => Alert.alert(t('error') || 'Error', e?.message));
+        removeDistrict(locationId, d)
+          .then(() => refreshGlobalProperties())
+          .catch((e) => Alert.alert(t('error') || 'Error', e?.message));
       }
       setDistricts((prev) => prev.filter((x) => x !== d));
     };
