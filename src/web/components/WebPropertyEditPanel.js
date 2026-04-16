@@ -993,6 +993,8 @@ export default function WebPropertyEditPanel({
             </FieldRow>
           )}
 
+          {user?.companyInfo?.name?.trim() ? (
+          <>
           <SectionDivider title={t('propResponsiblePicker')} />
           {isChildUnit ? (
             <FieldRow label={t('propResponsibleLabel')}>
@@ -1024,6 +1026,8 @@ export default function WebPropertyEditPanel({
               })()}
             </FieldRow>
           )}
+          </>
+          ) : null}
         </>
       )}
 

@@ -182,6 +182,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
   const owner2Display = data._owner2Name || (owners || []).find(o => o.id === data.owner_id_2)?.name || '';
   const isHouseInResort = Boolean(resortId);
   const isAdmin = !!(currentUser?.companyId) && !currentUser?.teamMembership;
+  const hasCompany = !!(currentUser?.companyInfo?.name?.trim());
   const companyDisplayName = currentUser?.companyInfo?.name || t('workAsCompany');
   const getResponsibleDisplay = (agentId) => {
     if (!agentId || agentId === currentUser?.id) return companyDisplayName;
@@ -353,7 +354,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
       )}
 
       {/* Ответственный — для child только inherited readonly; для parent/standalone editable picker */}
-      {isAdmin && isHouseInResort && (
+      {isAdmin && hasCompany && isHouseInResort && (
         <View style={s.fieldWrap}>
           <Text style={s.fieldLabel}>{t('propResponsiblePicker')}</Text>
           <View style={[s.pickerBtn, { opacity: 0.9 }]}>
@@ -361,7 +362,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
           </View>
         </View>
       )}
-      {isAdmin && !isHouseInResort && (
+      {isAdmin && hasCompany && !isHouseInResort && (
         <View style={s.fieldWrap}>
           <Text style={s.fieldLabel}>{t('propResponsiblePicker')}</Text>
           <TouchableOpacity
