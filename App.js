@@ -29,11 +29,11 @@ import WebMainScreen from './src/web/WebMainScreen';
 import { getCurrentUser, signOut } from './src/services/authService';
 import { supabase } from './src/services/supabase';
 import WebInviteAcceptScreen from './src/web/screens/WebInviteAcceptScreen';
-function AppMainLoader({ onLogout }) {
+function AppMainLoader({ onLogout, onUserUpdate }) {
   const { isLoaded, loadingProgress } = useAppData();
 
   if (!isLoaded) return <Preloader progress={loadingProgress} />;
-  return <MainNavigator onLogout={onLogout} />;
+  return <MainNavigator onLogout={onLogout} onUserUpdate={onUserUpdate} />;
 }
 
 function AppContent() {
@@ -133,7 +133,7 @@ function AppContent() {
               <WebMainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
             ) : (
               <AppDataProvider user={user}>
-                <AppMainLoader onLogout={handleLogout} />
+                <AppMainLoader onLogout={handleLogout} onUserUpdate={handleUserUpdate} />
               </AppDataProvider>
             )
           )}

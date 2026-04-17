@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator,
 import { useLanguage } from '../../context/LanguageContext';
 import { getTeamData, createInvitation, revokeInvitation, updateMemberPermissions, getAgentLocationAccess, setAgentLocationAccess, deactivateMember } from '../../services/companyService';
 import { getCompanyLocations } from '../../services/locationsService';
-import { broadcastChange } from '../../services/companyChannel';
+import { broadcastChange, broadcastMemberDeactivated } from '../../services/companyChannel';
 import dayjs from 'dayjs';
 
 const ACCENT = '#3D7D82';
@@ -481,6 +481,7 @@ export default function WebTeamSection({ companyId, currentUserId }) {
     setDeactivateError('');
     try {
       await deactivateMember(companyId, deactivateTarget);
+      await broadcastMemberDeactivated(deactivateTarget);
       setDeactivateTarget(null);
       await loadTeam();
     } catch (e) {

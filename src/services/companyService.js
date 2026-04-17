@@ -54,10 +54,14 @@ export async function activateCompany(companyData = {}) {
   let companyId;
 
   if (existing) {
-    // Реактивируем и обновляем данные
+    // Реактивируем: если данные переданы — обновляем, иначе только меняем статус
+    const hasData = Object.values(companyData).some(v => v !== undefined && v !== null && v !== '');
+    const updatePayload = hasData
+      ? { ...dbData, status: 'active', updated_at: new Date().toISOString() }
+      : { status: 'active', updated_at: new Date().toISOString() };
     await supabase
       .from('companies')
-      .update({ ...dbData, status: 'active', updated_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq('id', existing.id);
     companyId = existing.id;
   } else {

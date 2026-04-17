@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { Alert } from 'react-native';
 import { initCompanyChannel, destroyCompanyChannel } from '../services/companyChannel';
+import { signOut, getCurrentUser } from '../services/authService';
 import { getProperties } from '../services/propertiesService';
 import { getBookings } from '../services/bookingsService';
 import { getContacts } from '../services/contactsService';
@@ -108,9 +110,17 @@ export function AppDataProvider({ children, user }) {
       contacts: refreshContacts,
       calendar_events: refreshCalendarEvents,
       permissions: async () => {
-        const { getCurrentUser } = await import('../services/authService');
         const freshUser = await getCurrentUser();
         if (freshUser) refreshAll();
+      },
+      member_deactivated: (payload) => {
+        if (payload?.target_user_id === user?.id) {
+          Alert.alert(
+            'Account deactivated',
+            'Your account has been deactivated by the company administrator.',
+            [{ text: 'OK', onPress: () => signOut() }]
+          );
+        }
       },
     });
     return () => destroyCompanyChannel();

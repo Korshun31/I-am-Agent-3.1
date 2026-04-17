@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import Logo, { COLORS } from '../components/Logo';
 import { useLanguage } from '../context/LanguageContext';
-import { signUp } from '../services/authService';
+import { signUp, getCurrentUser } from '../services/authService';
 import { supabase } from '../services/supabase';
 import { joinCompanyViaInvitation } from '../services/companyService';
 
@@ -125,10 +125,11 @@ export default function Registration({ onBack, onSuccess }) {
       // Code accepted — register as agent
       const em = (email || '').trim();
       const pw = password || '';
-      const userData = await signUp({ email: em, password: pw, name: (name || '').trim() });
+      await signUp({ email: em, password: pw, name: (name || '').trim() });
       await joinCompanyViaInvitation(inviteToken);
+      const freshProfile = await getCurrentUser();
       setInviteModal(false);
-      onSuccess?.(userData);
+      onSuccess?.(freshProfile);
     } catch (e) {
       setInviteError(e?.message || 'Error');
     } finally {

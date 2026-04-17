@@ -81,13 +81,14 @@ export async function createProperty({ name, code, type, location_id, owner_id, 
   if (!session?.user) throw new Error('Not authenticated');
 
   const effectiveCompanyId = company_id ?? await resolveAgentCompanyId(session.user.id);
-  const effectivePropertyStatus = await resolveCreatePropertyStatus(session.user.id, property_status);
+  const agentMember = await isActiveAgentMember(session.user.id);
+  const effectivePropertyStatus = agentMember ? 'pending' : (property_status || 'approved');
 
   const { data, error } = await supabase
     .from('properties')
     .insert({
       user_id: session.user.id,
-      responsible_agent_id: session.user.id,
+      responsible_agent_id: agentMember ? session.user.id : null,
       name: name || '',
       code: code || '',
       type: type || 'house',

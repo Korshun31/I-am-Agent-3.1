@@ -75,6 +75,7 @@ function Field({ label, value, onChangeText, placeholder, keyboardType, multilin
 }
 
 function StepInfo({ data, setData, t, propertyType, locations, locationDistricts, onDistrictAdded, owners, onNewOwnerCreated, onOpenOwnerPicker, resortId, resortCode, parentResort, teamMembers, currentUser }) {
+  const { refreshContacts: refreshGlobalContacts } = useAppData();
   const [cityOpen, setCityOpen] = useState(false);
   const [districtOpen, setDistrictOpen] = useState(false);
   const [ownerPickerVisible, setOwnerPickerVisible] = useState(false);
@@ -1085,7 +1086,6 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
 
 export default function PropertyEditWizard({ visible, property, onClose, onSave, parentResort, mode = 'edit', initialType = 'house' }) {
   const { t, currency, currencySymbol: sym } = useLanguage();
-  const { refreshContacts: refreshGlobalContacts } = useAppData();
   const [step, setStep] = useState(0);
   const [data, setData] = useState({});
   const [saving, setSaving] = useState(false);

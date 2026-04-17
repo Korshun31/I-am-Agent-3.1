@@ -180,7 +180,7 @@ export async function getUserProfile(userId) {
     selectedCurrency: settings.selectedCurrency || 'USD',
     locations: Array.isArray(settings.locations) ? settings.locations : [],
     // workAs определяется наличием активной компании, не settings
-    workAs: companyData ? 'company' : 'private',
+    workAs: (companyData && companyData.name && companyData.name.trim()) ? 'company' : 'private',
     companyId: companyData?.id || null,
     companyInfo,
     // Backward compat: teamMembership populated ONLY for role='agent'.

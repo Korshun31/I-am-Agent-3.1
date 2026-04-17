@@ -9,6 +9,7 @@ import AgentCalendarScreen from '../screens/AgentCalendarScreen';
 import AccountScreen from '../screens/AccountScreen';
 import ContactsScreen from '../screens/ContactsScreen';
 import StatisticsScreen from '../screens/StatisticsScreen';
+import CompanyScreen from '../screens/CompanyScreen';
 
 const Tab = createBottomTabNavigator();
 const AccountStack = createNativeStackNavigator();
@@ -37,6 +38,7 @@ function AccountNavigator({ onLogout, onUserUpdate }) {
             {...props}
             onLogout={onLogout}
             onUserUpdate={onUserUpdate}
+            onOpenCompany={() => props.navigation.navigate('Company')}
             onOpenContacts={() => props.navigation.navigate('Contacts')}
             onOpenStatistics={() => props.navigation.navigate('Statistics')}
           />
@@ -52,6 +54,15 @@ function AccountNavigator({ onLogout, onUserUpdate }) {
         name="Statistics"
         children={(props) => (
           <StatisticsScreen onBack={() => props.navigation.goBack()} />
+        )}
+      />
+      <AccountStack.Screen
+        name="Company"
+        children={(props) => (
+          <CompanyScreen
+            onBack={() => props.navigation.goBack()}
+            onUserUpdate={onUserUpdate}
+          />
         )}
       />
     </AccountStack.Navigator>

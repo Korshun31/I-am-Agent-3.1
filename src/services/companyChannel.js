@@ -13,7 +13,7 @@ export function initCompanyChannel(companyId, callbacks = {}) {
     .on('broadcast', { event: 'data_changed' }, ({ payload }) => {
       if (payload?.sender_id === sessionId) return;
       const cb = callbacks[payload?.table];
-      if (typeof cb === 'function') cb();
+      if (typeof cb === 'function') cb(payload);
     })
     .subscribe();
 }
@@ -24,6 +24,15 @@ export async function broadcastChange(table) {
     type: 'broadcast',
     event: 'data_changed',
     payload: { table, sender_id: sessionId },
+  });
+}
+
+export async function broadcastMemberDeactivated(userId) {
+  if (!_channel || !_companyId) return;
+  await _channel.send({
+    type: 'broadcast',
+    event: 'data_changed',
+    payload: { table: 'member_deactivated', target_user_id: userId, sender_id: sessionId },
   });
 }
 

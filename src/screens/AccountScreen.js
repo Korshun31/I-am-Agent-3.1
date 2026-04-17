@@ -40,6 +40,7 @@ const COLORS = {
   iconGray: '#6B6B6B',
   logoutRed: '#E85D4C',
   contactLink: '#D81B60',
+  companyYellowGreen: '#D4E89E',
 };
 
 const BLOCK_VERTICAL_PADDING = 16; // Верхний и нижний отступ блока: от края до первой/последней строки
@@ -47,7 +48,7 @@ const BLOCK_ROW_GAP = 8; // Отступ между строками внутр�
 const LOCATIONS_BOTTOM_PADDING = 10;
 const ANIM_DURATION = 280;
 
-export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, onOpenStatistics, isVisible }) {
+export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, onOpenContacts, onOpenStatistics, isVisible }) {
   const { user = {} } = useUser();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsClosing, setSettingsClosing] = useState(false);
@@ -375,6 +376,31 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
           </>
         ) : null}
       </View>
+
+      {/* Company — видим только для админов (не агентов) */}
+      {!user?.isAgentRole && (
+        <TouchableOpacity
+          style={[styles.menuBlock, styles.companyBlock]}
+          activeOpacity={0.85}
+          onPress={() => {
+            const isPremium = ['premium', 'korshun'].includes(user?.plan);
+            if (!isPremium) {
+              Alert.alert(
+                t('premiumFeature'),
+                t('companyModePremiumOnly'),
+                [{ text: 'OK' }]
+              );
+              return;
+            }
+            onOpenCompany?.();
+          }}
+        >
+          <View style={styles.menuBlockLeft}>
+            <Text style={styles.menuBlockEmoji}>🏢</Text>
+            <Text style={styles.menuBlockLabel}>{t('company')}</Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* Settings — раздвижной, высота от содержимого (onLayout) */}
       <View style={styles.settingsWrap}>
@@ -990,8 +1016,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.contactLink,
   },
+  companyBlock: { backgroundColor: COLORS.companyYellowGreen },
   contactsBlock: { backgroundColor: COLORS.contactsPink },
   statisticsBlock: { backgroundColor: COLORS.statisticsPurple },
+  menuBlockEmoji: { fontSize: 22, marginRight: 10 },
   menuBlockIcon: { fontSize: 22, marginRight: 12 },
   menuBlockIconImage: {
     width: 26,
