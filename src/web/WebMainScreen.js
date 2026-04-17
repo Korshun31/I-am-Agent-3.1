@@ -10,7 +10,7 @@ import WebFlightTracker from './components/WebFlightTracker';
 import { supabase } from '../services/supabase';
 import { getUserProfile } from '../services/authService';
 import { useLanguage } from '../context/LanguageContext';
-import { initCompanyChannel, destroyCompanyChannel } from '../services/companyChannel';
+import { initCompanyChannel, destroyCompanyChannel, broadcastChange } from '../services/companyChannel';
 
 const FULL_HEIGHT_TABS = new Set(['properties', 'contacts', 'bookings', 'profile']);
 
@@ -26,6 +26,7 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
   const [refreshKey, setRefreshKey] = useState({
     properties: 0, bookings: 0, contacts: 0, calendar_events: 0,
   });
+  const [teamRefreshKey, setTeamRefreshKey] = useState(0);
 
   // Обновляем полный профиль пользователя при монтировании (с teamMembership, teamPermissions и т.д.)
   useEffect(() => {
@@ -50,7 +51,11 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
         const freshUser = await getUserProfile(user.id);
         if (freshUser) setUser(freshUser);
       },
+      team: () => setTeamRefreshKey(prev => prev + 1),
     });
+    if (user?.isAgentRole) {
+      setTimeout(() => broadcastChange('team'), 1000);
+    }
     return () => destroyCompanyChannel();
   }, [user?.id, user?.companyId, user?.teamMembership?.companyId]);
 
@@ -191,7 +196,7 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
       {/* Account — монтируется при первом посещении */}
       {visited.has('profile') && (
         <View style={[styles.tabWrap, tabStyle('profile')]}>
-          <WebAccountScreen user={user} onLogout={onLogout} onUserUpdate={setUser} />
+          <WebAccountScreen user={user} onLogout={onLogout} onUserUpdate={setUser} teamRefreshKey={teamRefreshKey} />
         </View>
       )}
 

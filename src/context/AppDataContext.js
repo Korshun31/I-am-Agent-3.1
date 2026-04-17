@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { Alert } from 'react-native';
-import { initCompanyChannel, destroyCompanyChannel } from '../services/companyChannel';
+import { initCompanyChannel, destroyCompanyChannel, broadcastChange } from '../services/companyChannel';
 import { signOut, getCurrentUser } from '../services/authService';
 import { getProperties } from '../services/propertiesService';
 import { getBookings } from '../services/bookingsService';
@@ -123,6 +123,10 @@ export function AppDataProvider({ children, user }) {
         }
       },
     });
+    // Сообщить компании что этот пользователь онлайн (для обновления списка команды у admin)
+    if (user?.isAgentRole) {
+      setTimeout(() => broadcastChange('team'), 1000);
+    }
     return () => destroyCompanyChannel();
   }, [user?.id, user?.companyId, user?.teamMembership?.companyId]);
 

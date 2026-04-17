@@ -36,6 +36,26 @@ export async function broadcastMemberDeactivated(userId) {
   });
 }
 
+export function broadcastOneShot(companyId, table) {
+  return new Promise((resolve) => {
+    const ch = supabase.channel(`company-${companyId}`, { config: { broadcast: { self: false } } });
+    ch.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        ch.send({
+          type: 'broadcast',
+          event: 'data_changed',
+          payload: { table, sender_id: sessionId },
+        }).then(() => {
+          setTimeout(() => {
+            supabase.removeChannel(ch);
+            resolve();
+          }, 500);
+        });
+      }
+    });
+  });
+}
+
 export function destroyCompanyChannel() {
   if (_channel) supabase.removeChannel(_channel);
   _channel = null;

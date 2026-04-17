@@ -55,7 +55,7 @@ function InfoRow({ label, value, isLink, onPress }) {
   );
 }
 
-export default function WebAccountScreen({ user: initialUser, onLogout, onUserUpdate }) {
+export default function WebAccountScreen({ user: initialUser, onLogout, onUserUpdate, teamRefreshKey }) {
   const { t, setLanguage } = useLanguage();
   const [user, setUser] = useState(initialUser);
 
@@ -369,7 +369,7 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
             {user?.workAs === 'company' && user?.companyId && (
               <View style={s.teamWrap}>
                 <View style={s.teamDivider} />
-                <WebTeamSection companyId={user.companyId} currentUserId={user.id} />
+                <WebTeamSection companyId={user.companyId} currentUserId={user.id} teamRefreshKey={teamRefreshKey} />
               </View>
             )}
           </SectionCard>

@@ -402,10 +402,11 @@ function ConfirmModal({ visible, title, message, confirmLabel, onConfirm, onCanc
   );
 }
 
-export default function WebTeamSection({ companyId, currentUserId }) {
+export default function WebTeamSection({ companyId, currentUserId, teamRefreshKey }) {
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState([]);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const [invitations, setInvitations] = useState([]);
   const [selectedMember, setSelectedMember] = useState(null);
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -436,7 +437,7 @@ export default function WebTeamSection({ companyId, currentUserId }) {
 
   useEffect(() => {
     loadTeam();
-  }, [loadTeam]);
+  }, [loadTeam, teamRefreshKey]);
 
   const handleInvite = async () => {
     if (!inviteEmail.trim()) return;
@@ -504,6 +505,9 @@ export default function WebTeamSection({ companyId, currentUserId }) {
     );
   }
 
+  const activeMembers = members.filter(m => m.status !== 'inactive');
+  const archivedMembers = members.filter(m => m.status === 'inactive');
+
   return (
     <View style={s.root}>
       {/* Заголовок */}
@@ -547,10 +551,10 @@ export default function WebTeamSection({ companyId, currentUserId }) {
       )}
 
       {/* Список участников */}
-      {members.length > 0 && (
+      {activeMembers.length > 0 && (
         <View style={s.section}>
           <Text style={s.sectionLabel}>{t('teamMembers')}</Text>
-          {members.map(m => (
+          {activeMembers.map(m => (
             <MemberRow
               key={m.member_id}
               member={m}
@@ -558,6 +562,27 @@ export default function WebTeamSection({ companyId, currentUserId }) {
               onPress={() => setSelectedMember(m)}
               onDeactivate={m.role === 'agent' && m.user_id !== currentUserId ? () => setDeactivateTarget(m.user_id) : undefined}
             />
+          ))}
+        </View>
+      )}
+
+      {archivedMembers.length > 0 && (
+        <View style={s.section}>
+          <TouchableOpacity onPress={() => setArchiveOpen(!archiveOpen)} activeOpacity={0.7}>
+            <Text style={s.archiveToggle}>
+              {archiveOpen ? '▼' : '▶'} {t('teamArchive')} ({archivedMembers.length})
+            </Text>
+          </TouchableOpacity>
+          {archiveOpen && archivedMembers.map(m => (
+            <View key={m.member_id} style={s.archivedMemberRow}>
+              <View style={s.memberAvatar}>
+                <Text style={s.memberAvatarText}>{(m.name || '?')[0].toUpperCase()}</Text>
+              </View>
+              <View style={s.archivedMemberInfo}>
+                <Text style={s.archivedMemberName}>{[m.name, m.last_name].filter(Boolean).join(' ') || '—'}</Text>
+                <Text style={s.archivedMemberDate}>{m.joined_at ? new Date(m.joined_at).toLocaleDateString() : ''}</Text>
+              </View>
+            </View>
           ))}
         </View>
       )}
@@ -585,7 +610,7 @@ export default function WebTeamSection({ companyId, currentUserId }) {
         />
       )}
 
-      {members.length === 0 && invitations.length === 0 && !showInviteForm && !inviteResult && (
+      {activeMembers.length === 0 && invitations.length === 0 && !showInviteForm && !inviteResult && (
         <Text style={s.emptyText}>{t('teamEmpty')}</Text>
       )}
 
@@ -686,6 +711,12 @@ const s = StyleSheet.create({
   closeSuccessBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
 
   emptyText: { fontSize: 13, color: C.muted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 16 },
+
+  archiveToggle: { fontSize: 14, fontWeight: '600', color: '#3D7D82', paddingVertical: 8 },
+  archivedMemberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: '#F0EDE6' },
+  archivedMemberInfo: { flex: 1, marginLeft: 12 },
+  archivedMemberName: { fontSize: 15, fontWeight: '600', color: '#2C2C2C' },
+  archivedMemberDate: { fontSize: 13, color: '#888', marginTop: 2 },
 
   permTagsRow: { flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' },
   permTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
