@@ -81,78 +81,89 @@ export async function syncIfEnabled() {
   }
 }
 
+// Website contract — explicit column whitelists (no SELECT *)
+const PROPERTIES_CRM_SELECT = 'id, user_id, company_id, resort_id, type, name, code, code_suffix, city, district, google_maps_link, bedrooms, bathrooms, air_conditioners, beach_distance, market_distance, description, photos, videos, amenities, pets_allowed, long_term_booking, price_monthly, price_monthly_is_from, booking_deposit, save_deposit, commission, electricity_price, water_price, gas_price, exit_cleaning_price';
+const BOOKINGS_CRM_SELECT = 'id, user_id, company_id, property_id, check_in, check_out';
+const RENTABLE_TYPES = ['house', 'resort_house', 'condo_apartment'];
+
 /**
- * Full sync: fetch all user data from our Supabase, push to target.
+ * Full sync: push company's properties + bookings to website Supabase.
+ * Contract:
+ *  - Scope = entire company (filter by company_id, not user_id)
+ *  - Only rentable types (no containers: resort, condo)
+ *  - Denormalize resort_name + resort_photos from parent for child objects
+ *  - DELETE by company_id → INSERT filtered set
  */
 async function syncToTarget(targetUrl, serviceRoleKey) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return;
 
-  const agentId = session.user.id;
+  const userId = session.user.id;
+
+  // Resolve company_id for current user via company_members
+  const { data: membership, error: memErr } = await supabase
+    .from('company_members')
+    .select('company_id')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (memErr) throw new Error(`resolve company: ${memErr.message}`);
+  const companyId = membership?.company_id;
+  if (!companyId) throw new Error('No active company membership for current user');
+
   const target = createClient(targetUrl, serviceRoleKey, { auth: { persistSession: false } });
 
-  // 1. Fetch from our DB (raw rows for insert)
-  const [locRes, contactRes, propRes, bookRes, eventRes] = await Promise.all([
-    supabase.from('locations').select('*').eq('user_id', agentId).order('created_at', { ascending: true }),
-    supabase.from('contacts').select('*').eq('user_id', agentId),
-    supabase.from('properties').select('*').eq('user_id', agentId).order('name', { ascending: true }),
-    supabase.from('bookings').select('*').eq('user_id', agentId),
-    supabase.from('calendar_events').select('*').eq('user_id', agentId),
+  // 1. Fetch ALL company properties (including containers — needed for denormalization)
+  const [allPropsRes, bookRes] = await Promise.all([
+    supabase.from('properties').select(PROPERTIES_CRM_SELECT).eq('company_id', companyId).order('name', { ascending: true }),
+    supabase.from('bookings').select(BOOKINGS_CRM_SELECT).eq('company_id', companyId),
   ]);
+  if (allPropsRes.error) throw new Error(`fetch properties: ${allPropsRes.error.message}`);
+  if (bookRes.error) throw new Error(`fetch bookings: ${bookRes.error.message}`);
 
-  const locations = locRes.data || [];
-  const contacts = contactRes.data || [];
-  const properties = propRes.data || [];
-  const bookings = bookRes.data || [];
-  const calendarEvents = eventRes.data || [];
+  const allProperties = allPropsRes.data || [];
+  const allBookings = bookRes.data || [];
 
-  const locationIds = locations.map((l) => l.id);
-
-  let districts = [];
-  if (locationIds.length > 0) {
-    const distRes = await supabase
-      .from('location_districts')
-      .select('*')
-      .in('location_id', locationIds);
-    districts = distRes.data || [];
+  // Build parent lookup for denormalization (resort / condo containers)
+  const parentsById = new Map();
+  for (const p of allProperties) {
+    if (p.type === 'resort' || p.type === 'condo') parentsById.set(p.id, p);
   }
 
-  // 2. Delete existing agent data on target (reverse FK order)
-  await target.from('bookings').delete().eq('user_id', agentId);
-  await target.from('calendar_events').delete().eq('user_id', agentId);
-  await target.from('properties').delete().eq('user_id', agentId);
-  await target.from('contacts').delete().eq('user_id', agentId);
-  if (locationIds.length > 0) {
-    await target.from('location_districts').delete().in('location_id', locationIds);
-  }
-  await target.from('locations').delete().eq('user_id', agentId);
+  // Filter rentable only + attach resort_name / resort_photos from parent
+  const properties = allProperties
+    .filter((p) => RENTABLE_TYPES.includes(p.type))
+    .map((p) => {
+      const parent = p.resort_id ? parentsById.get(p.resort_id) : null;
+      return {
+        ...p,
+        resort_name: parent?.name || null,
+        resort_photos: parent?.photos || [],
+      };
+    });
 
-  // 3. Insert in FK order
-  if (locations.length > 0) {
-    const { error } = await target.from('locations').insert(locations);
-    if (error) throw new Error(`locations: ${error.message}`);
-  }
-  if (districts.length > 0) {
-    const { error } = await target.from('location_districts').insert(districts);
-    if (error) throw new Error(`location_districts: ${error.message}`);
-  }
-  if (contacts.length > 0) {
-    const { error } = await target.from('contacts').insert(contacts);
-    if (error) throw new Error(`contacts: ${error.message}`);
-  }
+  // Keep only bookings that reference rentable properties (avoid FK orphans)
+  const propertyIds = new Set(properties.map((p) => p.id));
+  const bookings = allBookings.filter((b) => propertyIds.has(b.property_id));
+
+  console.log('[DataUpload] Syncing', properties.length, 'properties,', bookings.length, 'bookings for company', companyId);
+
+  // 2. Delete existing company data on target (bookings first — FK on properties)
+  const delBook = await target.from('bookings').delete().eq('company_id', companyId);
+  if (delBook.error) throw new Error(`delete bookings: ${delBook.error.message}`);
+  const delProp = await target.from('properties').delete().eq('company_id', companyId);
+  if (delProp.error) throw new Error(`delete properties: ${delProp.error.message}`);
+
+  // 3. Insert properties (top-level first, then children — resort_id is plain UUID on target, no FK)
   if (properties.length > 0) {
     const topLevel = properties.filter((p) => !p.resort_id);
     const children = properties.filter((p) => p.resort_id);
     const ordered = [...topLevel, ...children];
     const { error } = await target.from('properties').insert(ordered);
-    if (error) throw new Error(`properties: ${error.message}`);
+    if (error) throw new Error(`insert properties: ${error.message}`);
   }
   if (bookings.length > 0) {
     const { error } = await target.from('bookings').insert(bookings);
-    if (error) throw new Error(`bookings: ${error.message}`);
-  }
-  if (calendarEvents.length > 0) {
-    const { error } = await target.from('calendar_events').insert(calendarEvents);
-    if (error) throw new Error(`calendar_events: ${error.message}`);
+    if (error) throw new Error(`insert bookings: ${error.message}`);
   }
 }
