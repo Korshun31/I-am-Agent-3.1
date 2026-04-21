@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { useLanguage } from '../../context/LanguageContext';
-import { getTeamData, createInvitation, revokeInvitation, updateMemberPermissions, getAgentLocationAccess, setAgentLocationAccess, deactivateMember } from '../../services/companyService';
+import { getTeamData, createInvitation, revokeInvitation, resetInvitationSecret, updateMemberPermissions, getAgentLocationAccess, setAgentLocationAccess, deactivateMember } from '../../services/companyService';
 import { getCompanyLocations } from '../../services/locationsService';
 import { broadcastChange, broadcastMemberDeactivated } from '../../services/companyChannel';
 import dayjs from 'dayjs';
@@ -260,14 +260,20 @@ function MemberRow({ member, isCurrentUser, onPress, onDeactivate }) {
   );
 }
 
-function InvitationRow({ invitation, onRevoke }) {
+function InvitationRow({ invitation, onRevoke, onResetCode }) {
   const { t } = useLanguage();
   const [copied, setCopied] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
-  const statusLabel = invitation.status === 'sent'
-    ? t('inviteStatusSent')
-    : t('inviteStatusPending');
+  const isBlocked = invitation.status === 'revoked' && invitation.attempts >= 5;
+  const statusLabel = isBlocked
+    ? t('inviteStatusBlocked')
+    : invitation.status === 'sent'
+      ? t('inviteStatusSent')
+      : invitation.status === 'revoked'
+        ? t('inviteStatusRevoked')
+        : t('inviteStatusPending');
 
   const handleCopy = (text, key) => {
     copyToClipboard(text);
@@ -278,11 +284,11 @@ function InvitationRow({ invitation, onRevoke }) {
   const inviteLink = `https://i-am-agent-3-1.vercel.app/?token=${invitation.invite_token}`;
 
   return (
-    <View style={s.invitationRow}>
+    <View style={[s.invitationRow, isBlocked && s.invitationRowBlocked]}>
       <View style={s.invitationMain}>
         <View style={s.invitationInfo}>
           <Text style={s.invitationEmail}>{invitation.email}</Text>
-          <View style={[s.statusBadge, invitation.status === 'pending' && s.statusBadgePending]}>
+          <View style={[s.statusBadge, invitation.status === 'pending' && s.statusBadgePending, isBlocked && s.statusBadgeBlocked]}>
             <Text style={s.statusBadgeText}>{statusLabel}</Text>
           </View>
         </View>
@@ -290,11 +296,33 @@ function InvitationRow({ invitation, onRevoke }) {
           <TouchableOpacity style={s.detailsBtn} onPress={() => setShowDetails(!showDetails)}>
             <Text style={s.detailsBtnText}>{showDetails ? '▲' : '▼'} {t('inviteDetails')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.revokeBtn} onPress={() => onRevoke(invitation.id)}>
-            <Text style={s.revokeBtnText}>{t('inviteRevoke')}</Text>
-          </TouchableOpacity>
+          {!isBlocked && (
+            <TouchableOpacity style={s.revokeBtn} onPress={() => onRevoke(invitation.id)}>
+              <Text style={s.revokeBtnText}>{t('inviteRevoke')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
+
+      {isBlocked && (
+        <View style={s.blockedInfo}>
+          <Text style={s.blockedText}>{t('inviteBlockedMessage')}</Text>
+          <TouchableOpacity
+            style={s.resetCodeBtn}
+            onPress={async () => {
+              setResetting(true);
+              try {
+                await onResetCode?.(invitation.id);
+              } finally {
+                setResetting(false);
+              }
+            }}
+            disabled={resetting}
+          >
+            <Text style={s.resetCodeBtnText}>{resetting ? '...' : t('inviteResetCode')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {showDetails && (
         <View style={s.inviteDetails}>
@@ -591,8 +619,16 @@ export default function WebTeamSection({ companyId, currentUserId, teamRefreshKe
       {invitations.length > 0 && (
         <View style={s.section}>
           <Text style={s.sectionLabel}>{t('teamInvitations')}</Text>
-          {invitations.map(inv => (
-            <InvitationRow key={inv.id} invitation={inv} onRevoke={(id) => setRevokeTarget(id)} />
+          {invitations.filter(inv => inv.status !== 'revoked' || inv.attempts >= 5).map(inv => (
+            <InvitationRow
+              key={inv.id}
+              invitation={inv}
+              onRevoke={(id) => setRevokeTarget(id)}
+              onResetCode={async (id) => {
+                await resetInvitationSecret(id);
+                await loadTeam();
+              }}
+            />
           ))}
         </View>
       )}
@@ -717,6 +753,13 @@ const s = StyleSheet.create({
   archivedMemberInfo: { flex: 1, marginLeft: 12 },
   archivedMemberName: { fontSize: 15, fontWeight: '600', color: '#2C2C2C' },
   archivedMemberDate: { fontSize: 13, color: '#888', marginTop: 2 },
+
+  invitationRowBlocked: { backgroundColor: 'rgba(200, 40, 40, 0.08)', borderColor: 'rgba(200, 40, 40, 0.2)', borderWidth: 1 },
+  statusBadgeBlocked: { backgroundColor: '#FFCDD2' },
+  blockedInfo: { paddingTop: 8, paddingHorizontal: 4 },
+  blockedText: { fontSize: 13, color: '#C62828', marginBottom: 8 },
+  resetCodeBtn: { backgroundColor: '#3D7D82', borderRadius: 6, paddingVertical: 6, paddingHorizontal: 14, alignSelf: 'flex-start' },
+  resetCodeBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 
   permTagsRow: { flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' },
   permTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },

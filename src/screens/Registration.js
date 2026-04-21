@@ -16,6 +16,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { signUp, getCurrentUser } from '../services/authService';
 import { supabase } from '../services/supabase';
 import { joinCompanyViaInvitation } from '../services/companyService';
+import { broadcastOneShot } from '../services/companyChannel';
 
 const COMMON_PASSWORDS = [
   '12345678', '123456789', '1234567890', 'password', 'password1',
@@ -64,10 +65,11 @@ export default function Registration({ onBack, onSuccess }) {
   const [inviteModal, setInviteModal] = useState(false);
   const [inviteCompany, setInviteCompany] = useState('');
   const [inviteToken, setInviteToken] = useState(null);
+  const [inviteCompanyId, setInviteCompanyId] = useState(null);
   const [inviteCode, setInviteCode] = useState('');
   const [inviteError, setInviteError] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteStep, setInviteStep] = useState('choice'); // 'choice' | 'code'
+  const [inviteStep, setInviteStep] = useState('choice'); // 'choice' | 'code' | 'blocked'
 
   const handleRegister = async () => {
     setRegError('');
@@ -82,11 +84,17 @@ export default function Registration({ onBack, onSuccess }) {
     try {
       const { data: inviteData } = await supabase.rpc('check_pending_invitation', { p_email: em });
       if (inviteData && inviteData.length > 0) {
-        setInviteCompany(inviteData[0].company_name || '');
-        setInviteToken(inviteData[0].invite_token || null);
+        const inv = inviteData[0];
+        setInviteCompany(inv.company_name || '');
+        setInviteToken(inv.invite_token || null);
+        setInviteCompanyId(inv.company_id || null);
         setInviteCode('');
         setInviteError('');
-        setInviteStep('choice');
+        if (inv.invitation_status === 'revoked') {
+          setInviteStep('blocked');
+        } else {
+          setInviteStep('choice');
+        }
         setInviteModal(true);
         return; // Stop — modal will handle the rest
       }
@@ -113,15 +121,25 @@ export default function Registration({ onBack, onSuccess }) {
     setInviteLoading(true);
     setInviteError('');
     try {
-      const { data: ok } = await supabase.rpc('verify_invitation_secret', {
+      const { data: result } = await supabase.rpc('verify_invitation_secret', {
         p_token: inviteToken,
         p_code: inviteCode,
       });
-      if (!ok) {
-        setInviteError(t('inviteCodeWrong') || 'Wrong code');
+      if (result === -1) {
+        setInviteStep('blocked');
+        setInviteError('');
+        if (inviteCompanyId) {
+          broadcastOneShot(inviteCompanyId, 'team').catch(() => {});
+        }
         setInviteLoading(false);
         return;
       }
+      if (result > 0) {
+        setInviteError(`${t('inviteCodeWrong') || 'Invalid code.'} ${t('inviteAttemptsLeft') || 'Attempts left:'} ${result}`);
+        setInviteLoading(false);
+        return;
+      }
+      // result === 0 — code accepted
       // Code accepted — register as agent
       const em = (email || '').trim();
       const pw = password || '';
@@ -151,6 +169,27 @@ export default function Registration({ onBack, onSuccess }) {
       // Continue with normal registration — user taps "Create account" again
     } catch (e) {
       console.warn('decline failed:', e.message);
+      setInviteModal(false);
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleInviteDeclineBlocked = async () => {
+    setInviteLoading(true);
+    try {
+      if (inviteToken) {
+        await supabase
+          .from('company_invitations')
+          .update({ status: 'declined' })
+          .eq('invite_token', inviteToken);
+        if (inviteCompanyId) {
+          broadcastOneShot(inviteCompanyId, 'team').catch(() => {});
+        }
+      }
+      setInviteModal(false);
+    } catch (e) {
+      console.warn('decline blocked failed:', e.message);
       setInviteModal(false);
     } finally {
       setInviteLoading(false);
@@ -319,6 +358,34 @@ export default function Registration({ onBack, onSuccess }) {
                   >
                     <Text style={{ color: '#C62828', fontSize: 15, fontWeight: '600' }}>
                       {t('inviteDeclineBtn') || 'Decline'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : inviteStep === 'blocked' ? (
+                <>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#2C2C2C', marginBottom: 12, textAlign: 'center' }}>
+                    🏢 {inviteCompany}
+                  </Text>
+                  <Text style={{ fontSize: 14, color: '#C62828', marginBottom: 20, textAlign: 'center', lineHeight: 20 }}>
+                    {t('inviteBlockedMessage') || 'Invitation blocked. Contact the administrator to get a new code.'}
+                  </Text>
+                  <TouchableOpacity
+                    style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 10, borderWidth: 1, borderColor: '#C62828' }}
+                    onPress={handleInviteDeclineBlocked}
+                    disabled={inviteLoading}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ color: '#C62828', fontSize: 15, fontWeight: '600' }}>
+                      {t('inviteDeclineInvitation') || 'Decline invitation'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+                    onPress={() => setInviteModal(false)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ color: '#5A5A5A', fontSize: 15, fontWeight: '600' }}>
+                      {t('ok') || 'OK'}
                     </Text>
                   </TouchableOpacity>
                 </>

@@ -240,9 +240,9 @@ export async function getTeamData(companyId) {
     supabase.rpc('get_company_team', { p_company_id: companyId }),
     supabase
       .from('company_invitations')
-      .select('id, email, status, created_at, expires_at, invite_token, secret_code')
+      .select('id, email, status, created_at, expires_at, invite_token, secret_code, attempts')
       .eq('company_id', companyId)
-      .in('status', ['sent', 'pending'])
+      .in('status', ['sent', 'pending', 'revoked'])
       .order('created_at', { ascending: false }),
   ]);
 
@@ -255,6 +255,14 @@ export async function getTeamData(companyId) {
 /**
  * Отзывает приглашение (пока не принято).
  */
+export async function resetInvitationSecret(invitationId) {
+  const { data, error } = await supabase.rpc('reset_invitation_secret', {
+    p_invitation_id: invitationId,
+  });
+  if (error) throw new Error(error.message);
+  return data; // new secret code
+}
+
 export async function revokeInvitation(invitationId) {
   const { error } = await supabase
     .from('company_invitations')

@@ -64,8 +64,9 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
     setLoading(true);
     setCodeError('');
     try {
-      const { data: ok } = await supabase.rpc('verify_invitation_secret', { p_token: token, p_code: code });
-      if (!ok) { setCodeError(t('inviteCodeWrong')); setLoading(false); return; }
+      const { data: result } = await supabase.rpc('verify_invitation_secret', { p_token: token, p_code: code });
+      if (result === -1) { setCodeError(t('inviteBlocked')); setLoading(false); return; }
+      if (result > 0) { setCodeError(`${t('inviteCodeWrong')} ${t('inviteAttemptsLeft')} ${result}`); setLoading(false); return; }
 
       // Проверяем есть ли уже аккаунт с этим email
       const { data: exists } = await supabase.rpc('check_email_exists', { p_email: invitation.email });
