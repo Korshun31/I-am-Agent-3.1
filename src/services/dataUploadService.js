@@ -82,8 +82,8 @@ export async function syncIfEnabled() {
 }
 
 // Website contract — explicit column whitelists (no SELECT *)
-const PROPERTIES_CRM_SELECT = 'id, user_id, company_id, resort_id, type, name, code, code_suffix, city, district, google_maps_link, bedrooms, bathrooms, air_conditioners, beach_distance, market_distance, description, photos, videos, amenities, pets_allowed, long_term_booking, price_monthly, price_monthly_is_from, booking_deposit, save_deposit, commission, electricity_price, water_price, gas_price, exit_cleaning_price';
-const BOOKINGS_CRM_SELECT = 'id, user_id, company_id, property_id, check_in, check_out';
+const PROPERTIES_CRM_SELECT = 'id, user_id, company_id, resort_id, type, name, code, code_suffix, city, district, google_maps_link, bedrooms, bathrooms, air_conditioners, beach_distance, market_distance, description, photos, videos, amenities, pets_allowed, long_term_booking, price_monthly, price_monthly_is_from, booking_deposit, save_deposit, commission, electricity_price, water_price, gas_price, exit_cleaning_price, created_at, updated_at';
+const BOOKINGS_CRM_SELECT = 'id, user_id, company_id, property_id, check_in, check_out, created_at, updated_at';
 const RENTABLE_TYPES = ['house', 'resort_house', 'condo_apartment'];
 
 /**
