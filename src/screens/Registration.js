@@ -8,15 +8,10 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Modal,
-  Pressable,
 } from 'react-native';
 import Logo, { COLORS } from '../components/Logo';
 import { useLanguage } from '../context/LanguageContext';
-import { signUp, getCurrentUser } from '../services/authService';
-import { supabase } from '../services/supabase';
-import { joinCompanyViaInvitation } from '../services/companyService';
-import { broadcastOneShot } from '../services/companyChannel';
+import { signUp } from '../services/authService';
 
 const COMMON_PASSWORDS = [
   '12345678', '123456789', '1234567890', 'password', 'password1',
@@ -62,14 +57,6 @@ export default function Registration({ onBack, onSuccess }) {
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
   const confirmRef = useRef(null);
-  const [inviteModal, setInviteModal] = useState(false);
-  const [inviteCompany, setInviteCompany] = useState('');
-  const [inviteToken, setInviteToken] = useState(null);
-  const [inviteCompanyId, setInviteCompanyId] = useState(null);
-  const [inviteCode, setInviteCode] = useState('');
-  const [inviteError, setInviteError] = useState('');
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteStep, setInviteStep] = useState('choice'); // 'choice' | 'code' | 'blocked'
 
   const handleRegister = async () => {
     setRegError('');
@@ -80,28 +67,6 @@ export default function Registration({ onBack, onSuccess }) {
     if (pw.length < 8) { setRegError(t('passwordTooShort')); return; }
     if (COMMON_PASSWORDS.includes(pw.toLowerCase())) { setRegError(t('passwordTooCommon') || 'This password is too common. Please choose a more secure password.'); return; }
     if (pw !== passwordConfirm) { setRegError(t('passwordsMismatch')); return; }
-    // TD-040: Check for pending invitation before signUp
-    try {
-      const { data: inviteData } = await supabase.rpc('check_pending_invitation', { p_email: em });
-      if (inviteData && inviteData.length > 0) {
-        const inv = inviteData[0];
-        setInviteCompany(inv.company_name || '');
-        setInviteToken(inv.invite_token || null);
-        setInviteCompanyId(inv.company_id || null);
-        setInviteCode('');
-        setInviteError('');
-        if (inv.invitation_status === 'revoked') {
-          setInviteStep('blocked');
-        } else {
-          setInviteStep('choice');
-        }
-        setInviteModal(true);
-        return; // Stop — modal will handle the rest
-      }
-    } catch (e) {
-      // If RPC fails, continue with normal registration
-      console.warn('check_pending_invitation failed:', e.message);
-    }
     setLoading(true);
     try {
       const userData = await signUp({ email: em, password: pw, name: (name || '').trim() });
@@ -110,89 +75,6 @@ export default function Registration({ onBack, onSuccess }) {
       setRegError(err?.message || t('saveFailed'));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleInviteAccept = async () => {
-    if (inviteCode.length !== 6) {
-      setInviteError(t('inviteEnter6Code') || 'Enter 6-digit code');
-      return;
-    }
-    setInviteLoading(true);
-    setInviteError('');
-    try {
-      const { data: result } = await supabase.rpc('verify_invitation_secret', {
-        p_token: inviteToken,
-        p_code: inviteCode,
-      });
-      if (result === -1) {
-        setInviteStep('blocked');
-        setInviteError('');
-        if (inviteCompanyId) {
-          broadcastOneShot(inviteCompanyId, 'team').catch(() => {});
-        }
-        setInviteLoading(false);
-        return;
-      }
-      if (result > 0) {
-        setInviteError(`${t('inviteCodeWrong') || 'Invalid code.'} ${t('inviteAttemptsLeft') || 'Attempts left:'} ${result}`);
-        setInviteLoading(false);
-        return;
-      }
-      // result === 0 — code accepted
-      // Code accepted — register as agent
-      const em = (email || '').trim();
-      const pw = password || '';
-      await signUp({ email: em, password: pw, name: (name || '').trim() });
-      await joinCompanyViaInvitation(inviteToken);
-      const freshProfile = await getCurrentUser();
-      setInviteModal(false);
-      onSuccess?.(freshProfile);
-    } catch (e) {
-      setInviteError(e?.message || 'Error');
-    } finally {
-      setInviteLoading(false);
-    }
-  };
-
-  const handleInviteDecline = async () => {
-    setInviteLoading(true);
-    try {
-      // Mark invitation as declined
-      if (inviteToken) {
-        await supabase
-          .from('company_invitations')
-          .update({ status: 'declined' })
-          .eq('invite_token', inviteToken);
-      }
-      setInviteModal(false);
-      // Continue with normal registration — user taps "Create account" again
-    } catch (e) {
-      console.warn('decline failed:', e.message);
-      setInviteModal(false);
-    } finally {
-      setInviteLoading(false);
-    }
-  };
-
-  const handleInviteDeclineBlocked = async () => {
-    setInviteLoading(true);
-    try {
-      if (inviteToken) {
-        await supabase
-          .from('company_invitations')
-          .update({ status: 'declined' })
-          .eq('invite_token', inviteToken);
-        if (inviteCompanyId) {
-          broadcastOneShot(inviteCompanyId, 'team').catch(() => {});
-        }
-      }
-      setInviteModal(false);
-    } catch (e) {
-      console.warn('decline blocked failed:', e.message);
-      setInviteModal(false);
-    } finally {
-      setInviteLoading(false);
     }
   };
 
@@ -323,126 +205,6 @@ export default function Registration({ onBack, onSuccess }) {
 
         <Text style={styles.footer}>Production 3.1 (2025)</Text>
       </ScrollView>
-        {/* TD-040: Invitation modal */}
-        <Modal visible={inviteModal} transparent animationType="fade">
-          <Pressable style={{
-            flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
-            justifyContent: 'center', alignItems: 'center', padding: 24,
-          }} onPress={() => {}}>
-            <View style={{
-              backgroundColor: '#fff', borderRadius: 20, padding: 24,
-              width: '100%', maxWidth: 340,
-            }}>
-              {inviteStep === 'choice' ? (
-                <>
-                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#2C2C2C', marginBottom: 12, textAlign: 'center' }}>
-                    🏢 {inviteCompany}
-                  </Text>
-                  <Text style={{ fontSize: 14, color: '#5A5A5A', marginBottom: 20, textAlign: 'center', lineHeight: 20 }}>
-                    {t('inviteFoundMessage') || 'An invitation to join this company was sent to your email. Would you like to join the team?'}
-                  </Text>
-                  <TouchableOpacity
-                    style={{ backgroundColor: '#3D7D82', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 10 }}
-                    onPress={() => setInviteStep('code')}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>
-                      {t('inviteAcceptBtn') || 'Accept invitation'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
-                    onPress={handleInviteDecline}
-                    disabled={inviteLoading}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={{ color: '#C62828', fontSize: 15, fontWeight: '600' }}>
-                      {t('inviteDeclineBtn') || 'Decline'}
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              ) : inviteStep === 'blocked' ? (
-                <>
-                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#2C2C2C', marginBottom: 12, textAlign: 'center' }}>
-                    🏢 {inviteCompany}
-                  </Text>
-                  <Text style={{ fontSize: 14, color: '#C62828', marginBottom: 20, textAlign: 'center', lineHeight: 20 }}>
-                    {t('inviteBlockedMessage') || 'Invitation blocked. Contact the administrator to get a new code.'}
-                  </Text>
-                  <TouchableOpacity
-                    style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 10, borderWidth: 1, borderColor: '#C62828' }}
-                    onPress={handleInviteDeclineBlocked}
-                    disabled={inviteLoading}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={{ color: '#C62828', fontSize: 15, fontWeight: '600' }}>
-                      {t('inviteDeclineInvitation') || 'Decline invitation'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
-                    onPress={() => setInviteModal(false)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={{ color: '#5A5A5A', fontSize: 15, fontWeight: '600' }}>
-                      {t('ok') || 'OK'}
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#2C2C2C', marginBottom: 12, textAlign: 'center' }}>
-                    {t('inviteEnterCode') || 'Enter secret code'}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: '#5A5A5A', marginBottom: 16, textAlign: 'center' }}>
-                    {t('inviteCodeHint') || 'Ask the company administrator for the 6-digit code'}
-                  </Text>
-                  <TextInput
-                    style={{
-                      height: 56, borderWidth: 2, borderColor: '#E0D8CC', borderRadius: 12,
-                      textAlign: 'center', fontSize: 28, fontWeight: '800', letterSpacing: 8,
-                      color: '#2C2C2C', marginBottom: 12,
-                    }}
-                    value={inviteCode}
-                    onChangeText={v => { setInviteCode(v.replace(/\D/g, '').slice(0, 6)); setInviteError(''); }}
-                    placeholder="000000"
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    autoFocus
-                  />
-                  {inviteError ? (
-                    <Text style={{ color: '#C62828', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
-                      {inviteError}
-                    </Text>
-                  ) : null}
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: '#3D7D82', borderRadius: 12, paddingVertical: 14,
-                      alignItems: 'center', marginBottom: 10,
-                      opacity: inviteCode.length !== 6 || inviteLoading ? 0.5 : 1,
-                    }}
-                    onPress={handleInviteAccept}
-                    disabled={inviteCode.length !== 6 || inviteLoading}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>
-                      {inviteLoading ? '...' : (t('inviteJoinBtn') || 'Join team')}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={{ borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}
-                    onPress={() => setInviteStep('choice')}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={{ color: '#6B6B6B', fontSize: 14 }}>
-                      {t('back') || 'Back'}
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </Pressable>
-        </Modal>
     </KeyboardAvoidingView>
   );
 }

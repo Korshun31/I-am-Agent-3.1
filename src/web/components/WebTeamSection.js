@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { useLanguage } from '../../context/LanguageContext';
-import { getTeamData, createInvitation, revokeInvitation, resetInvitationSecret, updateMemberPermissions, getAgentLocationAccess, setAgentLocationAccess, deactivateMember } from '../../services/companyService';
+import { getTeamData, createInvitation, resendInvitation, revokeInvitation, updateMemberPermissions, getAgentLocationAccess, setAgentLocationAccess, deactivateMember } from '../../services/companyService';
 import { getCompanyLocations } from '../../services/locationsService';
 import { broadcastChange, broadcastMemberDeactivated } from '../../services/companyChannel';
 import dayjs from 'dayjs';
@@ -20,12 +20,6 @@ const C = {
   success: '#16A34A',
   successBg: '#F0FAF5',
 };
-
-function copyToClipboard(text) {
-  if (typeof navigator !== 'undefined' && navigator.clipboard) {
-    navigator.clipboard.writeText(text);
-  }
-}
 
 function PermissionToggleRow({ label, hint, value, onToggle }) {
   return (
@@ -260,143 +254,57 @@ function MemberRow({ member, isCurrentUser, onPress, onDeactivate }) {
   );
 }
 
-function InvitationRow({ invitation, onRevoke, onResetCode }) {
+function InvitationRow({ invitation, onRevoke, onResend }) {
   const { t } = useLanguage();
-  const [copied, setCopied] = useState(null);
-  const [showDetails, setShowDetails] = useState(false);
-  const [resetting, setResetting] = useState(false);
+  const [resending, setResending] = useState(false);
 
-  const isBlocked = invitation.status === 'revoked' && invitation.attempts >= 5;
-  const statusLabel = isBlocked
-    ? t('inviteStatusBlocked')
+  const isExpired = invitation.status !== 'accepted'
+    && invitation.expires_at
+    && dayjs(invitation.expires_at).isBefore(dayjs());
+
+  const statusLabel = isExpired
+    ? t('inviteStatusExpired')
     : invitation.status === 'sent'
       ? t('inviteStatusSent')
       : invitation.status === 'revoked'
         ? t('inviteStatusRevoked')
         : t('inviteStatusPending');
 
-  const handleCopy = (text, key) => {
-    copyToClipboard(text);
-    setCopied(key);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  const inviteLink = `https://i-am-agent-3-1.vercel.app/?token=${invitation.invite_token}`;
-
   return (
-    <View style={[s.invitationRow, isBlocked && s.invitationRowBlocked]}>
+    <View style={[s.invitationRow, isExpired && s.invitationRowExpired]}>
       <View style={s.invitationMain}>
         <View style={s.invitationInfo}>
           <Text style={s.invitationEmail}>{invitation.email}</Text>
-          <View style={[s.statusBadge, invitation.status === 'pending' && s.statusBadgePending, isBlocked && s.statusBadgeBlocked]}>
+          <View style={[
+            s.statusBadge,
+            invitation.status === 'pending' && s.statusBadgePending,
+            isExpired && s.statusBadgeExpired,
+          ]}>
             <Text style={s.statusBadgeText}>{statusLabel}</Text>
           </View>
         </View>
         <View style={s.invitationActions}>
-          <TouchableOpacity style={s.detailsBtn} onPress={() => setShowDetails(!showDetails)}>
-            <Text style={s.detailsBtnText}>{showDetails ? '▲' : '▼'} {t('inviteDetails')}</Text>
-          </TouchableOpacity>
-          {!isBlocked && (
-            <TouchableOpacity style={s.revokeBtn} onPress={() => onRevoke(invitation.id)}>
-              <Text style={s.revokeBtnText}>{t('inviteRevoke')}</Text>
+          {(isExpired || invitation.status === 'revoked') && (
+            <TouchableOpacity
+              style={s.resendBtn}
+              disabled={resending}
+              onPress={async () => {
+                setResending(true);
+                try {
+                  await onResend?.(invitation.email);
+                } finally {
+                  setResending(false);
+                }
+              }}
+            >
+              <Text style={s.resendBtnText}>{resending ? '...' : t('inviteResend')}</Text>
             </TouchableOpacity>
           )}
-        </View>
-      </View>
-
-      {isBlocked && (
-        <View style={s.blockedInfo}>
-          <Text style={s.blockedText}>{t('inviteBlockedMessage')}</Text>
-          <TouchableOpacity
-            style={s.resetCodeBtn}
-            onPress={async () => {
-              setResetting(true);
-              try {
-                await onResetCode?.(invitation.id);
-              } finally {
-                setResetting(false);
-              }
-            }}
-            disabled={resetting}
-          >
-            <Text style={s.resetCodeBtnText}>{resetting ? '...' : t('inviteResetCode')}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {showDetails && (
-        <View style={s.inviteDetails}>
-          <View style={s.inviteDetailRow}>
-            <Text style={s.inviteDetailLabel}>{t('inviteLink')}</Text>
-            <View style={s.inviteDetailValue}>
-              <Text style={s.inviteLinkText} numberOfLines={1}>{inviteLink}</Text>
-              <TouchableOpacity style={s.copyBtn} onPress={() => handleCopy(inviteLink, 'link')}>
-                <Text style={s.copyBtnText}>{copied === 'link' ? '✓' : t('copy')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={s.inviteDetailRow}>
-            <Text style={s.inviteDetailLabel}>{t('secretCode')}</Text>
-            <View style={s.inviteDetailValue}>
-              <Text style={s.secretCodeText}>{invitation.secret_code}</Text>
-              <TouchableOpacity style={s.copyBtn} onPress={() => handleCopy(invitation.secret_code, 'code')}>
-                <Text style={s.copyBtnText}>{copied === 'code' ? '✓' : t('copy')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <Text style={s.inviteExpiry}>
-            {t('inviteExpires')} {dayjs(invitation.expires_at).format('DD MMM YYYY')}
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
-function InviteSuccessCard({ result, onClose }) {
-  const { t } = useLanguage();
-  const [copied, setCopied] = useState(null);
-
-  const handleCopy = (text, key) => {
-    copyToClipboard(text);
-    setCopied(key);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  return (
-    <View style={s.successCard}>
-      <Text style={s.successTitle}>✅ {t('inviteSent')}</Text>
-      <Text style={s.successSubtitle}>{t('inviteSentHint')}</Text>
-
-      <View style={s.successBlock}>
-        <Text style={s.successBlockLabel}>{t('inviteLink')}</Text>
-        <View style={s.successRow}>
-          <Text style={s.successLinkText} numberOfLines={2}>{result.inviteLink}</Text>
-          <TouchableOpacity
-            style={[s.copyBtn, copied === 'link' && s.copyBtnSuccess]}
-            onPress={() => handleCopy(result.inviteLink, 'link')}
-          >
-            <Text style={s.copyBtnText}>{copied === 'link' ? `✓ ${t('copied')}` : t('copy')}</Text>
+          <TouchableOpacity style={s.revokeBtn} onPress={() => onRevoke(invitation.id)}>
+            <Text style={s.revokeBtnText}>{t('inviteRevoke')}</Text>
           </TouchableOpacity>
         </View>
       </View>
-
-      <View style={s.successBlock}>
-        <Text style={s.successBlockLabel}>{t('secretCode')}</Text>
-        <View style={s.successRow}>
-          <Text style={s.secretCodeBig}>{result.secretCode}</Text>
-          <TouchableOpacity
-            style={[s.copyBtn, copied === 'code' && s.copyBtnSuccess]}
-            onPress={() => handleCopy(result.secretCode, 'code')}
-          >
-            <Text style={s.copyBtnText}>{copied === 'code' ? `✓ ${t('copied')}` : t('copy')}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <TouchableOpacity style={s.closeSuccessBtn} onPress={onClose}>
-        <Text style={s.closeSuccessBtnText}>{t('close')}</Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -441,7 +349,7 @@ export default function WebTeamSection({ companyId, currentUserId, teamRefreshKe
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState('');
-  const [inviteResult, setInviteResult] = useState(null);
+  const [inviteToast, setInviteToast] = useState(null);
   const [revokeTarget, setRevokeTarget] = useState(null);
   const [deactivateTarget, setDeactivateTarget] = useState(null);
   const [revoking, setRevoking] = useState(false);
@@ -468,23 +376,39 @@ export default function WebTeamSection({ companyId, currentUserId, teamRefreshKe
   }, [loadTeam, teamRefreshKey]);
 
   const handleInvite = async () => {
-    if (!inviteEmail.trim()) return;
+    const email = inviteEmail.trim();
+    if (!email) return;
     setInviting(true);
     setInviteError('');
     try {
-      const result = await createInvitation(companyId, inviteEmail.trim());
-      setInviteResult(result);
+      const result = await createInvitation(companyId, email);
+      setInviteToast({ email: result.email, resent: false });
       setShowInviteForm(false);
       setInviteEmail('');
       await loadTeam();
     } catch (e) {
-      if (e?.message === 'EMAIL_EXISTS') {
+      const code = e?.code || '';
+      if (code === 'EMAIL_OCCUPIED' || code === 'EMAIL_OCCUPIED_ORPHAN' || e?.message === 'EMAIL_EXISTS') {
         setInviteError(t('inviteEmailExists'));
+      } else if (code === 'RATE_LIMITED') {
+        setInviteError(t('inviteRateLimited'));
+      } else if (code === 'COMPANY_NOT_ACTIVATED') {
+        setInviteError(t('inviteCompanyNotActivated'));
       } else {
         setInviteError(t('inviteError'));
       }
     } finally {
       setInviting(false);
+    }
+  };
+
+  const handleResend = async (email) => {
+    try {
+      const result = await resendInvitation(email);
+      setInviteToast({ email: result.email, resent: true });
+      await loadTeam();
+    } catch (e) {
+      console.error('Resend invitation error:', e);
     }
   };
 
@@ -521,10 +445,6 @@ export default function WebTeamSection({ companyId, currentUserId, teamRefreshKe
     }
   };
 
-  const handleCloseSuccess = () => {
-    setInviteResult(null);
-  };
-
   if (loading) {
     return (
       <View style={s.loadingWrap}>
@@ -541,20 +461,27 @@ export default function WebTeamSection({ companyId, currentUserId, teamRefreshKe
       {/* Заголовок */}
       <View style={s.header}>
         <Text style={s.title}>👥 {t('team')}</Text>
-        {!showInviteForm && !inviteResult && (
+        {!showInviteForm && (
           <TouchableOpacity style={s.inviteBtn} onPress={() => setShowInviteForm(true)}>
             <Text style={s.inviteBtnText}>+ {t('inviteAgent')}</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Результат приглашения */}
-      {inviteResult && (
-        <InviteSuccessCard result={inviteResult} onClose={handleCloseSuccess} />
+      {/* Toast об отправленном приглашении */}
+      {inviteToast && (
+        <View style={s.toastCard}>
+          <Text style={s.toastText}>
+            ✉️ {(inviteToast.resent ? t('inviteEmailResent') : t('inviteEmailSent')).replace('{email}', inviteToast.email)}
+          </Text>
+          <TouchableOpacity onPress={() => setInviteToast(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={s.toastClose}>✕</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* Форма приглашения */}
-      {showInviteForm && !inviteResult && (
+      {showInviteForm && (
         <View style={s.inviteForm}>
           <Text style={s.inviteFormLabel}>{t('inviteEmailLabel')}</Text>
           <TextInput
@@ -619,15 +546,12 @@ export default function WebTeamSection({ companyId, currentUserId, teamRefreshKe
       {invitations.length > 0 && (
         <View style={s.section}>
           <Text style={s.sectionLabel}>{t('teamInvitations')}</Text>
-          {invitations.filter(inv => inv.status !== 'revoked' || inv.attempts >= 5).map(inv => (
+          {invitations.filter(inv => inv.status !== 'revoked').map(inv => (
             <InvitationRow
               key={inv.id}
               invitation={inv}
               onRevoke={(id) => setRevokeTarget(id)}
-              onResetCode={async (id) => {
-                await resetInvitationSecret(id);
-                await loadTeam();
-              }}
+              onResend={handleResend}
             />
           ))}
         </View>
@@ -646,7 +570,7 @@ export default function WebTeamSection({ companyId, currentUserId, teamRefreshKe
         />
       )}
 
-      {activeMembers.length === 0 && invitations.length === 0 && !showInviteForm && !inviteResult && (
+      {activeMembers.length === 0 && invitations.length === 0 && !showInviteForm && (
         <Text style={s.emptyText}>{t('teamEmpty')}</Text>
       )}
 
@@ -700,29 +624,34 @@ const s = StyleSheet.create({
   memberDate: { fontSize: 11, color: C.muted },
 
   invitationRow: { borderWidth: 1, borderColor: C.border, borderRadius: 12, marginBottom: 8, overflow: 'hidden' },
+  invitationRowExpired: { backgroundColor: C.bg, opacity: 0.85 },
   invitationMain: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12 },
   invitationInfo: { flex: 1, gap: 4 },
   invitationEmail: { fontSize: 13, fontWeight: '600', color: C.text },
   invitationActions: { flexDirection: 'row', gap: 8 },
   statusBadge: { alignSelf: 'flex-start', backgroundColor: '#FFF3E0', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   statusBadgePending: { backgroundColor: '#E3F2FD' },
+  statusBadgeExpired: { backgroundColor: '#ECEFF1' },
   statusBadgeText: { fontSize: 11, fontWeight: '700', color: '#E65100' },
-  detailsBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: C.border },
-  detailsBtnText: { fontSize: 12, color: C.muted, fontWeight: '600' },
+  resendBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: ACCENT },
+  resendBtnText: { fontSize: 12, color: '#FFF', fontWeight: '700' },
   revokeBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#FFCDD2', backgroundColor: C.dangerBg },
   revokeBtnText: { fontSize: 12, color: C.danger, fontWeight: '700' },
 
-  inviteDetails: { backgroundColor: C.bg, padding: 12, borderTopWidth: 1, borderTopColor: C.border, gap: 10 },
-  inviteDetailRow: { gap: 4 },
-  inviteDetailLabel: { fontSize: 11, fontWeight: '600', color: C.muted },
-  inviteDetailValue: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  inviteLinkText: { flex: 1, fontSize: 12, color: C.text, fontFamily: 'monospace' },
-  secretCodeText: { fontSize: 20, fontWeight: '800', color: C.text, letterSpacing: 4 },
-  inviteExpiry: { fontSize: 11, color: C.muted, fontStyle: 'italic' },
-
-  copyBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: ACCENT + '15', borderWidth: 1, borderColor: ACCENT + '40' },
-  copyBtnSuccess: { backgroundColor: C.successBg, borderColor: C.success },
-  copyBtnText: { fontSize: 12, fontWeight: '700', color: ACCENT },
+  toastCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: C.successBg,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  toastText: { flex: 1, fontSize: 13, color: '#15803D', fontWeight: '600' },
+  toastClose: { fontSize: 14, color: C.muted, fontWeight: '700', marginLeft: 12 },
 
   inviteForm: { backgroundColor: C.bg, borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border, gap: 8 },
   inviteFormLabel: { fontSize: 13, fontWeight: '600', color: C.text },
@@ -735,17 +664,6 @@ const s = StyleSheet.create({
   sendBtnDisabled: { opacity: 0.5 },
   sendBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
 
-  successCard: { backgroundColor: C.successBg, borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#BBF7D0', gap: 12 },
-  successTitle: { fontSize: 15, fontWeight: '800', color: C.success },
-  successSubtitle: { fontSize: 12, color: '#4A7D62' },
-  successBlock: { gap: 6 },
-  successBlockLabel: { fontSize: 12, fontWeight: '600', color: '#4A7D62' },
-  successRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  successLinkText: { flex: 1, fontSize: 12, color: C.text, fontFamily: 'monospace' },
-  secretCodeBig: { fontSize: 28, fontWeight: '900', color: C.text, letterSpacing: 6 },
-  closeSuccessBtn: { alignSelf: 'flex-end', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: C.success },
-  closeSuccessBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
-
   emptyText: { fontSize: 13, color: C.muted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 16 },
 
   archiveToggle: { fontSize: 14, fontWeight: '600', color: '#3D7D82', paddingVertical: 8 },
@@ -753,13 +671,6 @@ const s = StyleSheet.create({
   archivedMemberInfo: { flex: 1, marginLeft: 12 },
   archivedMemberName: { fontSize: 15, fontWeight: '600', color: '#2C2C2C' },
   archivedMemberDate: { fontSize: 13, color: '#888', marginTop: 2 },
-
-  invitationRowBlocked: { backgroundColor: 'rgba(200, 40, 40, 0.08)', borderColor: 'rgba(200, 40, 40, 0.2)', borderWidth: 1 },
-  statusBadgeBlocked: { backgroundColor: '#FFCDD2' },
-  blockedInfo: { paddingTop: 8, paddingHorizontal: 4 },
-  blockedText: { fontSize: 13, color: '#C62828', marginBottom: 8 },
-  resetCodeBtn: { backgroundColor: '#3D7D82', borderRadius: 6, paddingVertical: 6, paddingHorizontal: 14, alignSelf: 'flex-start' },
-  resetCodeBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 
   permTagsRow: { flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' },
   permTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },

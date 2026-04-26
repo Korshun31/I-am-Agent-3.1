@@ -43,7 +43,7 @@ function AppContent() {
   const [inviteToken, setInviteToken] = useState(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      return params.get('token') || null;
+      return params.get('invite_token') || null;
     }
     return null;
   });

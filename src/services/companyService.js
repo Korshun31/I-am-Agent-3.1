@@ -188,40 +188,73 @@ export function mapCompanyToInfo(company) {
   };
 }
 
-const INVITE_BASE_URL = 'https://i-am-agent-3-1.vercel.app';
-
 /**
- * Создаёт приглашение в команду.
- * Проверяет что email не зарегистрирован (личная база защищена).
- * Возвращает ссылку и секретный код для передачи агенту.
- * Выбрасывает 'EMAIL_EXISTS' если email уже в системе.
+ * Создаёт приглашение в команду через Edge Function `invite-agent`.
+ * Бэк сам проверяет права админа, свободность email, rate-limit
+ * и шлёт magic-link через Supabase Auth + наш Email Template.
+ * Параметр companyId сейчас не используется (бэк определяет company по JWT админа),
+ * оставлен для обратной совместимости вызовов.
+ *
+ * Бросает Error с понятным сообщением. Возможные коды (берутся из Edge Function):
+ *  - EMAIL_OCCUPIED        — email уже зарегистрирован в системе
+ *  - EMAIL_OCCUPIED_ORPHAN — email занят неактивным auth-аккаунтом, нужен другой
+ *  - RATE_LIMITED          — превышен лимит 10 приглашений в минуту
+ *  - NOT_ADMIN             — вызывающий не является admin компании
+ *  - COMPANY_NOT_ACTIVATED — у компании пустое поле name
  */
 export async function createInvitation(companyId, email) {
-  const normalizedEmail = email.toLowerCase().trim();
+  return invokeInviteAgent({ email, resend: false });
+}
 
-  const { data: exists } = await supabase.rpc('check_email_exists', { p_email: normalizedEmail });
-  if (exists) throw new Error('EMAIL_EXISTS');
+/**
+ * Перевыпускает magic-link для уже существующего приглашения по тому же email.
+ * Используется кнопкой "Отправить повторно" в карточке приглашения,
+ * когда оригинальная ссылка просрочена (24 часа от выдачи).
+ * Бэк находит запись по email + company, обновляет expires_at и status='sent',
+ * шлёт письмо с прежним invite_token.
+ *
+ * Бросает Error если активного приглашения нет (INVITATION_NOT_FOUND).
+ */
+export async function resendInvitation(email) {
+  return invokeInviteAgent({ email, resend: true });
+}
 
-  const { data: code } = await supabase.rpc('generate_secret_code');
+async function invokeInviteAgent(payload) {
+  const normalizedEmail = (payload.email || '').toLowerCase().trim();
+  if (!normalizedEmail) throw new Error('EMAIL_REQUIRED');
 
-  const { data, error } = await supabase
-    .from('company_invitations')
-    .insert({
-      company_id: companyId,
-      email: normalizedEmail,
-      secret_code: code,
-    })
-    .select('id, invite_token, secret_code, expires_at')
-    .single();
+  const { data, error } = await supabase.functions.invoke('invite-agent', {
+    body: { email: normalizedEmail, resend: payload.resend === true },
+  });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    let code = 'UNKNOWN';
+    let serverMessage = error.message || '';
+    if (error.context && typeof error.context.json === 'function') {
+      try {
+        const parsed = await error.context.json();
+        if (parsed && typeof parsed === 'object') {
+          code = parsed.code || code;
+          serverMessage = parsed.error || serverMessage;
+        }
+      } catch (_) {}
+    }
+    const e = new Error(serverMessage || 'Failed to send invitation');
+    e.code = code;
+    throw e;
+  }
+
+  if (!data || data.success !== true) {
+    const e = new Error((data && data.error) || 'Invitation failed');
+    e.code = (data && data.code) || 'UNKNOWN';
+    throw e;
+  }
 
   return {
-    id: data.id,
+    email: data.email,
     inviteToken: data.invite_token,
-    secretCode: data.secret_code,
-    expiresAt: data.expires_at,
-    inviteLink: `${INVITE_BASE_URL}/?token=${data.invite_token}`,
+    companyName: data.company_name,
+    resent: data.resent === true,
   };
 }
 
@@ -250,17 +283,6 @@ export async function getTeamData(companyId) {
     members: membersRes.data || [],
     invitations: invitationsRes.data || [],
   };
-}
-
-/**
- * Отзывает приглашение (пока не принято).
- */
-export async function resetInvitationSecret(invitationId) {
-  const { data, error } = await supabase.rpc('reset_invitation_secret', {
-    p_invitation_id: invitationId,
-  });
-  if (error) throw new Error(error.message);
-  return data; // new secret code
 }
 
 export async function revokeInvitation(invitationId) {
