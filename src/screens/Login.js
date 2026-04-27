@@ -57,6 +57,8 @@ export default function Login({ onSignUp, onLogin }) {
       const msg = err?.message || '';
       if (msg.includes('Invalid login credentials')) {
         setLoginError(t('wrongPassword'));
+      } else if (msg === 'PROFILE_NOT_FOUND') {
+        setLoginError(t('loginProfileNotFound'));
       } else {
         setLoginError(msg || t('saveFailed'));
       }

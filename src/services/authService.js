@@ -55,7 +55,14 @@ export async function signIn({ email, password }) {
 
   if (error) throw new Error(error.message);
 
-  return getUserProfile(data.user.id);
+  const profile = await getUserProfile(data.user.id);
+  if (!profile) {
+    // Auth user exists but no users_profile — orphan account.
+    // Sign out and refuse: account is incomplete and must not get into CRM.
+    try { await supabase.auth.signOut(); } catch {}
+    throw new Error('PROFILE_NOT_FOUND');
+  }
+  return profile;
 }
 
 export async function signOut() {
@@ -76,14 +83,15 @@ export async function getUserProfile(userId) {
     .eq('id', userId)
     .single();
 
-  if (error) return {
-    email: '', name: '', lastName: '', phone: '', telegram: '',
-    documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '',
-    photoUri: '', role: 'standard', plan: 'standard', language: 'en',
-    notificationSettings: {}, selectedCurrency: 'USD',
-    locations: [], workAs: 'private', companyId: null, companyInfo: {},
-    teamRole: null, isAgentRole: false, isAdminRole: false,
-  };
+  if (error) {
+    // PGRST116 = "no rows" from PostgREST .single() — orphan auth user
+    // (auth.users row exists but no users_profile yet, e.g. invitation
+    // not finalized). Anything else is a real DB error worth logging.
+    if (error.code !== 'PGRST116') {
+      console.warn('[getUserProfile] DB error:', error.message);
+    }
+    return null;
+  }
 
   // Загружаем активную компанию из таблицы companies (источник правды)
   const { data: companyData } = await supabase
