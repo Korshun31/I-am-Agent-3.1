@@ -45,6 +45,7 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
   const isMobile = width < 768;
 
   const [step, setStep] = useState(STEPS.LOADING);
+  const [invalidReason, setInvalidReason] = useState(null); // 'revoked' | 'expired' | 'accepted' | 'not_found'
   const [companyName, setCompanyName] = useState('');
   const [currentSessionEmail, setCurrentSessionEmail] = useState('');
   const [name, setName] = useState('');
@@ -58,11 +59,53 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
     let cancelled = false;
     async function bootstrap() {
       try {
+        // First — check invitation status by token (so we can block early on
+        // revoked / accepted / expired without showing the form).
+        const { data: status, error: statusErr } = await supabase
+          .rpc('get_invitation_status', { p_token: token });
+
+        if (cancelled) return;
+
+        if (statusErr) {
+          setInvalidReason('not_found');
+          setStep(STEPS.INVALID);
+          return;
+        }
+        if (status === 'not_found' || status === 'declined') {
+          setInvalidReason('not_found');
+          setStep(STEPS.INVALID);
+          return;
+        }
+        if (status === 'revoked') {
+          setInvalidReason('revoked');
+          setStep(STEPS.INVALID);
+          return;
+        }
+        if (status === 'expired') {
+          setInvalidReason('expired');
+          setStep(STEPS.INVALID);
+          return;
+        }
+        if (status === 'accepted') {
+          setInvalidReason('accepted');
+          setStep(STEPS.INVALID);
+          return;
+        }
+        // Whitelist: only 'sent' and 'pending' are acceptable.
+        // Any unexpected value defaults to INVALID — protects against future
+        // status values added without UI awareness.
+        if (status !== 'sent' && status !== 'pending') {
+          setInvalidReason('not_found');
+          setStep(STEPS.INVALID);
+          return;
+        }
+
         const { data, error } = await supabase.auth.getUser();
         if (cancelled) return;
 
         const user = data?.user;
         if (error || !user) {
+          setInvalidReason('not_found');
           setStep(STEPS.INVALID);
           return;
         }
@@ -79,7 +122,10 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
           setStep(STEPS.SWITCH_ACCOUNT);
         }
       } catch {
-        if (!cancelled) setStep(STEPS.INVALID);
+        if (!cancelled) {
+          setInvalidReason('not_found');
+          setStep(STEPS.INVALID);
+        }
       }
     }
     bootstrap();
@@ -161,8 +207,24 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
         {step === STEPS.INVALID && (
           <View style={s.center}>
             <Text style={s.errorIcon}>⚠️</Text>
-            <Text style={s.errorTitle}>{t('inviteLinkInvalid')}</Text>
-            <Text style={s.errorSubtitle}>{t('inviteLinkExpired')}</Text>
+            <Text style={s.errorTitle}>
+              {invalidReason === 'revoked'
+                ? t('inviteRevokedTitle')
+                : invalidReason === 'accepted'
+                  ? t('inviteAcceptedTitle')
+                  : invalidReason === 'expired'
+                    ? t('inviteExpiredTitle')
+                    : t('inviteLinkInvalid')}
+            </Text>
+            <Text style={s.errorSubtitle}>
+              {invalidReason === 'revoked'
+                ? t('inviteRevokedMessage')
+                : invalidReason === 'accepted'
+                  ? t('inviteAcceptedMessage')
+                  : invalidReason === 'expired'
+                    ? t('inviteExpiredMessage')
+                    : t('inviteLinkExpired')}
+            </Text>
             <TouchableOpacity style={s.primaryBtn} onPress={onCancel}>
               <Text style={s.primaryBtnText}>{t('inviteGoHome')}</Text>
             </TouchableOpacity>
