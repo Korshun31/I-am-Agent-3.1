@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import {
   View,
@@ -11,8 +11,17 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Logo, { COLORS } from '../components/Logo';
 import { signIn, signInWithGoogle, signInWithFacebook } from '../services/authService';
+
+// TD-032: brute-force protection. After MAX_ATTEMPTS wrong passwords for the
+// same email, block the login button for LOCK_DURATION_MS. Counter is keyed
+// by lowercased email and persisted in AsyncStorage so it survives reloads.
+const MAX_ATTEMPTS = 3;
+const LOCK_DURATION_MS = 60 * 1000;
+const ATTEMPTS_KEY = (email) => `loginAttempts:${(email || '').trim().toLowerCase()}`;
+const LOCK_KEY     = (email) => `loginLockedUntil:${(email || '').trim().toLowerCase()}`;
 
 // Тени в стиле макета: выраженные drop shadow, «слоистость»
 const inputShadow = {
@@ -42,9 +51,76 @@ export default function Login({ onSignUp, onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [lockedUntil, setLockedUntil] = useState(0);
+  const [now, setNow] = useState(Date.now());
   const passwordRef = useRef(null);
 
+  // Tick every second while the form is locked, so the countdown re-renders.
+  useEffect(() => {
+    if (lockedUntil <= Date.now()) return undefined;
+    const id = setInterval(() => {
+      const t1 = Date.now();
+      setNow(t1);
+      if (t1 >= lockedUntil) {
+        setLockedUntil(0);
+        setLoginError('');
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [lockedUntil]);
+
+  // When user changes the email, look up any persisted lock for that email.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const em = (email || '').trim().toLowerCase();
+      if (!em) {
+        if (!cancelled) { setLockedUntil(0); setLoginError(''); }
+        return;
+      }
+      try {
+        const raw = await AsyncStorage.getItem(LOCK_KEY(em));
+        const until = raw ? parseInt(raw, 10) : 0;
+        if (cancelled) return;
+        if (until && until > Date.now()) {
+          setLockedUntil(until);
+          setNow(Date.now());
+        } else {
+          setLockedUntil(0);
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [email]);
+
+  const isLocked = lockedUntil > now;
+  const secondsLeft = isLocked ? Math.ceil((lockedUntil - now) / 1000) : 0;
+
+  const recordFailedAttempt = async (em) => {
+    try {
+      const raw = await AsyncStorage.getItem(ATTEMPTS_KEY(em));
+      const prev = parseInt(raw, 10);
+      const next = (Number.isFinite(prev) ? prev : 0) + 1;
+      if (next >= MAX_ATTEMPTS) {
+        const until = Date.now() + LOCK_DURATION_MS;
+        await AsyncStorage.setItem(LOCK_KEY(em), String(until));
+        await AsyncStorage.removeItem(ATTEMPTS_KEY(em));
+        setLockedUntil(until);
+        setNow(Date.now());
+      } else {
+        await AsyncStorage.setItem(ATTEMPTS_KEY(em), String(next));
+      }
+    } catch {}
+  };
+
+  const resetLoginAttempts = async (em) => {
+    try {
+      await AsyncStorage.multiRemove([ATTEMPTS_KEY(em), LOCK_KEY(em)]);
+    } catch {}
+  };
+
   const handleLogin = async () => {
+    if (isLocked) return;
     setLoginError('');
     const em = (email || '').trim();
     const pw = password || '';
@@ -52,10 +128,12 @@ export default function Login({ onSignUp, onLogin }) {
     if (!pw) { setLoginError(t('enterPassword')); return; }
     try {
       const userData = await signIn({ email: em, password: pw });
+      await resetLoginAttempts(em.toLowerCase());
       onLogin?.(userData);
     } catch (err) {
       const msg = err?.message || '';
       if (msg.includes('Invalid login credentials')) {
+        await recordFailedAttempt(em.toLowerCase());
         setLoginError(t('wrongPassword'));
       } else if (msg === 'PROFILE_NOT_FOUND') {
         setLoginError(t('loginProfileNotFound'));
@@ -131,9 +209,10 @@ export default function Login({ onSignUp, onLogin }) {
           </View>
 
           <TouchableOpacity
-            style={[styles.loginButton, buttonShadow]}
+            style={[styles.loginButton, buttonShadow, isLocked && styles.loginButtonDisabled]}
             activeOpacity={0.8}
             onPress={handleLogin}
+            disabled={isLocked}
           >
             <Text style={styles.loginButtonText}>{t('login')}</Text>
           </TouchableOpacity>
@@ -153,7 +232,11 @@ export default function Login({ onSignUp, onLogin }) {
           </View> */}
         </View>
 
-        {loginError ? (
+        {isLocked ? (
+          <Text style={styles.loginError}>
+            {(t('loginLockedTryAgain') || 'Too many failed attempts. Try again in {seconds} s.').replace('{seconds}', String(secondsLeft))}
+          </Text>
+        ) : loginError ? (
           <Text style={styles.loginError}>{loginError}</Text>
         ) : null}
 
@@ -250,6 +333,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     marginBottom: 26,
+  },
+  loginButtonDisabled: {
+    opacity: 0.5,
   },
   loginButtonText: {
     color: '#FFF',
