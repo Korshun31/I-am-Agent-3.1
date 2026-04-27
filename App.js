@@ -116,13 +116,21 @@ function AppContent() {
           {(screen === 'login' || (screen === 'preloader' && Platform.OS === 'web')) && (
             <Login
               onSignUp={() => setScreen('registration')}
-              onLogin={(userData) => { updateUser(userData); setScreen('main'); }}
+              onLogin={(userData) => {
+                updateUser(userData);
+                if (userData?.language) setLanguage(userData.language);
+                setScreen('main');
+              }}
             />
           )}
           {screen === 'registration' && (
             <Registration
               onBack={() => setScreen('login')}
-              onSuccess={(userData) => { updateUser(userData); setScreen('main'); }}
+              onSuccess={(userData) => {
+                updateUser(userData);
+                if (userData?.language) setLanguage(userData.language);
+                setScreen('main');
+              }}
             />
           )}
           {screen === 'preloader' && Platform.OS !== 'web' && (
