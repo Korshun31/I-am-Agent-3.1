@@ -390,6 +390,10 @@ export default function WebTeamSection({ companyId, currentUserId, teamRefreshKe
       const code = e?.code || '';
       if (code === 'EMAIL_OCCUPIED' || code === 'EMAIL_OCCUPIED_ORPHAN' || e?.message === 'EMAIL_EXISTS') {
         setInviteError(t('inviteEmailExists'));
+      } else if (code === 'EMAIL_OCCUPIED_ORPHAN_PENDING') {
+        setInviteError(t('inviteEmailOrphanPending'));
+      } else if (code === 'EMAIL_RACE') {
+        setInviteError(t('inviteEmailRace'));
       } else if (code === 'RATE_LIMITED') {
         setInviteError(t('inviteRateLimited'));
       } else if (code === 'COMPANY_NOT_ACTIVATED') {

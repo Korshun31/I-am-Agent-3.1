@@ -204,13 +204,90 @@ Deno.serve(async (req) => {
       return jsonResp({ error: 'Email already registered', code: 'EMAIL_OCCUPIED' }, 409)
     }
     if (emailStatus === 'orphan') {
-      return jsonResp(
-        {
-          error: 'Email occupied by an orphan auth account; ask the agent for a different address',
-          code: 'EMAIL_OCCUPIED_ORPHAN',
-        },
-        409,
+      // Orphan = auth.users row exists but no users_profile.
+      // This happens when:
+      //   (a) admin previously invited this email but agent never finalized
+      //       (clicked the link or filled the form), and the invitation was
+      //       later revoked / declined / expired by the admin, OR
+      //   (b) there is still an active invitation for this email (sent/pending).
+      //
+      // For (b) we should refuse and tell admin to use Resend.
+      // For (a) we clean up the orphan auth user and proceed with a fresh invite.
+
+      const { data: lastInv, error: lastInvErr } = await adminClient
+        .from('company_invitations')
+        .select('status, expires_at')
+        .eq('email', email)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (lastInvErr) {
+        return jsonResp(
+          { error: 'DB error reading last invitation', details: lastInvErr.message },
+          500,
+        )
+      }
+
+      const isActiveInvitation =
+        lastInv &&
+        (lastInv.status === 'sent' || lastInv.status === 'pending') &&
+        lastInv.expires_at &&
+        new Date(lastInv.expires_at) > new Date()
+
+      if (isActiveInvitation) {
+        return jsonResp(
+          {
+            error: 'There is already an active invitation for this email; use Resend',
+            code: 'EMAIL_OCCUPIED_ORPHAN_PENDING',
+          },
+          409,
+        )
+      }
+
+      // Stale orphan — look up auth.users.id by email via SQL helper
+      // (more reliable than admin.listUsers paging for projects with >50 users).
+      const { data: orphanId, error: orphanIdErr } = await adminClient.rpc(
+        'get_auth_user_id_by_email',
+        { p_email: email },
       )
+      if (orphanIdErr) {
+        return jsonResp(
+          { error: 'Failed to lookup orphan auth user id', details: orphanIdErr.message },
+          500,
+        )
+      }
+      if (orphanId) {
+        const { error: delErr } = await adminClient.auth.admin.deleteUser(orphanId as string)
+        if (delErr) {
+          return jsonResp(
+            { error: 'Failed to remove orphan auth user', details: delErr.message },
+            500,
+          )
+        }
+      }
+
+      // Re-check email status (race protection: someone might have signed up
+      // between listUsers and now).
+      const { data: recheck, error: recheckErr } = await adminClient.rpc('check_email_status', {
+        p_email: email,
+      })
+      if (recheckErr) {
+        return jsonResp(
+          { error: 'DB error on email recheck', details: recheckErr.message },
+          500,
+        )
+      }
+      if (recheck !== 'free') {
+        return jsonResp(
+          {
+            error: 'Email became occupied during cleanup, retry the invitation',
+            code: 'EMAIL_RACE',
+          },
+          409,
+        )
+      }
+      // Fall through to normal invite-flow below.
     }
 
     // 7. Insert invitation row (status='sent', expires_at default = now() + 7 days)

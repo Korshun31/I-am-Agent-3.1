@@ -105,7 +105,11 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
 
         const user = data?.user;
         if (error || !user) {
-          setInvalidReason('not_found');
+          // Invitation in DB is valid (sent/pending), but the auth session
+          // is gone. Most likely the magic-link was already consumed, the
+          // orphan auth user was cleaned up during a re-invite, or the link
+          // has not been clicked yet at all.
+          setInvalidReason('session_invalid');
           setStep(STEPS.INVALID);
           return;
         }
@@ -158,11 +162,28 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
       const user = userResp?.user;
       if (!user) throw new Error('Session lost');
 
-      const { error: profileErr } = await supabase
+      // Invite-flow trigger no longer creates users_profile, so we create
+      // it here when the agent finalizes the form. INSERT first; if a row
+      // for this id already exists (rare, e.g. legacy state), update ONLY
+      // the name — must not overwrite role of an existing user.
+      const { error: insertErr } = await supabase
         .from('users_profile')
-        .update({ name: trimmedName })
-        .eq('id', user.id);
-      if (profileErr) throw new Error(profileErr.message);
+        .insert({
+          id: user.id,
+          email: user.email,
+          name: trimmedName,
+          role: 'standard',
+        });
+      if (insertErr && insertErr.code !== '23505') {
+        throw new Error(insertErr.message);
+      }
+      if (insertErr && insertErr.code === '23505') {
+        const { error: updateErr } = await supabase
+          .from('users_profile')
+          .update({ name: trimmedName })
+          .eq('id', user.id);
+        if (updateErr) throw new Error(updateErr.message);
+      }
 
       await joinCompanyViaInvitation(token);
 
@@ -214,7 +235,9 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
                   ? t('inviteAcceptedTitle')
                   : invalidReason === 'expired'
                     ? t('inviteExpiredTitle')
-                    : t('inviteLinkInvalid')}
+                    : invalidReason === 'session_invalid'
+                      ? t('inviteSessionInvalidTitle')
+                      : t('inviteLinkInvalid')}
             </Text>
             <Text style={s.errorSubtitle}>
               {invalidReason === 'revoked'
@@ -223,7 +246,9 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
                   ? t('inviteAcceptedMessage')
                   : invalidReason === 'expired'
                     ? t('inviteExpiredMessage')
-                    : t('inviteLinkExpired')}
+                    : invalidReason === 'session_invalid'
+                      ? t('inviteSessionInvalidMessage')
+                      : t('inviteLinkExpired')}
             </Text>
             <TouchableOpacity style={s.primaryBtn} onPress={onCancel}>
               <Text style={s.primaryBtnText}>{t('inviteGoHome')}</Text>
