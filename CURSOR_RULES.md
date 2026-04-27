@@ -118,7 +118,7 @@ Data Layer: Supabase PostgreSQL + RLS
 
 ### Известные проблемы (технический долг)
 - TD-010: WebPropertyDetailPanel.js — TYPE_COLOR константа захардкожена на русском. Заменить label на t() внутри компонента
-- TD-011: ✅ ЗАКРЫТ — язык хранится в users_profile.settings.web_language (веб) и users_profile.settings.app_language (мобайл). Синхронизация при запуске через App.js (2026-04-08)
+- TD-011: ✅ ЗАКРЫТ — язык хранится в users_profile.settings.web_language (веб) и users_profile.settings.app_language (мобайл). Синхронизация при запуске через App.js (2026-04-08). Доделка 2026-04-27 коммит `6d4988e`: добавлен `setLanguage(userData.language)` в `App.js` callback'ах `onLogin`/`onSuccess` — раньше язык подхватывался только в `checkSession` (для уже залогиненных), а после свежего входа/регистрации UI оставался на дефолтном английском.
 - TD-012: WebPropertyDetailPanel.js, WebSettingsModal.js — несколько хардкод строк не через t()
 
 ---
@@ -308,6 +308,8 @@ Diagnose → Implement → Verify → Document
 ---
 
 ## 7. ТЕХНИЧЕСКИЙ ДОЛГ (приоритизированный)
+
+> **Актуальный прогресс по каждому TD — в `docs/PROGRESS_PLAN.md`** (там единый список со статусами ✅/⏳/⬜). Этот раздел — детальные описания TD; статусы здесь могут быть устаревшими.
 
 ### Критический — сделать в первую очередь
 
