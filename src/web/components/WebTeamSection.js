@@ -419,6 +419,7 @@ export default function WebTeamSection({ companyId, currentUserId, teamRefreshKe
     try {
       await revokeInvitation(revokeTarget);
       setRevokeTarget(null);
+      setInviteToast(null);
       await loadTeam();
     } catch (e) {
       console.error('Revoke error:', e);
