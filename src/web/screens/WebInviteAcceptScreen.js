@@ -172,7 +172,6 @@ export default function WebInviteAcceptScreen({ token, onComplete, onCancel }) {
           id: user.id,
           email: user.email,
           name: trimmedName,
-          role: 'standard',
         });
       if (insertErr && insertErr.code !== '23505') {
         throw new Error(insertErr.message);
