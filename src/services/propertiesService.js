@@ -3,6 +3,42 @@ import { syncIfEnabled } from './dataUploadService';
 import { broadcastChange } from './companyChannel';
 import { deletePhotoFromStorage } from './storageService';
 
+// TD-051: whitelist of fields the client is allowed to write to `properties`.
+// Server-only fields (id, user_id, company_id, property_status, submitted_by,
+// rejection_reason, created_at, updated_at) are explicitly NOT here — they
+// are set by the service layer or DB. responsible_agent_id is included
+// because admins legitimately set it from the UI; agent-role guard for
+// reassignment lives in the role check (see TD-049 / role audit).
+const ALLOWED_CLIENT_FIELDS = [
+  'name', 'code', 'code_suffix', 'type',
+  'location_id', 'city', 'district', 'google_maps_link', 'website_url', 'address',
+  'houses_count', 'floors', 'bedrooms', 'bathrooms', 'area', 'floor_number',
+  'beach_distance', 'market_distance',
+  'description', 'comments', 'currency',
+  'price_monthly', 'price_monthly_is_from',
+  'booking_deposit', 'booking_deposit_is_from',
+  'save_deposit', 'save_deposit_is_from',
+  'commission', 'commission_is_from',
+  'owner_commission_one_time', 'owner_commission_one_time_is_percent',
+  'owner_commission_monthly', 'owner_commission_monthly_is_percent',
+  'electricity_price', 'water_price', 'water_price_type', 'gas_price',
+  'internet_price', 'cleaning_price', 'exit_cleaning_price',
+  'air_conditioners', 'internet_speed', 'pets_allowed', 'long_term_booking',
+  'amenities', 'photos', 'videos', 'video_url',
+  'resort_id',
+  'owner_id', 'owner_id_2',
+  'responsible_agent_id',
+];
+
+function pickAllowed(updates) {
+  if (!updates || typeof updates !== 'object') return {};
+  const out = {};
+  for (const key of ALLOWED_CLIENT_FIELDS) {
+    if (key in updates) out[key] = updates[key];
+  }
+  return out;
+}
+
 export async function getProperties(agentId = null) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return [];
@@ -115,9 +151,9 @@ export async function createPropertyFull(updates) {
   const effectivePropertyStatus = await resolveCreatePropertyStatus(session.user.id, updates.property_status);
 
   const row = {
+    ...pickAllowed(updates),
     user_id: session.user.id,
     responsible_agent_id: updates.responsible_agent_id ?? session.user.id,
-    ...updates,
     property_status: effectivePropertyStatus,
     company_id: effectiveCompanyId,
   };
@@ -140,7 +176,7 @@ export async function updateProperty(id, updates) {
 
   const { data, error } = await supabase
     .from('properties')
-    .update(updates)
+    .update(pickAllowed(updates))
     .eq('id', id)
     .select();
 
@@ -307,7 +343,7 @@ export async function updatePropertyResponsible(propertyId, responsibleAgentId, 
 export async function approveProperty(propertyId) {
   const { error } = await supabase
     .from('properties')
-    .update({ property_status: 'approved' })
+    .update({ property_status: 'approved', rejection_reason: null })
     .eq('id', propertyId);
   if (error) throw new Error(error.message);
   broadcastChange('properties');
@@ -476,7 +512,7 @@ export async function approvePropertyDraft(draftId) {
   // Применяем изменения к объекту и одобряем черновик последовательно
   const { data: updatedProperty, error: propErr } = await supabase
     .from('properties')
-    .update({ ...draft.draft_data, property_status: 'approved' })
+    .update({ ...pickAllowed(draft.draft_data), property_status: 'approved' })
     .eq('id', draft.property_id)
     .select()
     .single();

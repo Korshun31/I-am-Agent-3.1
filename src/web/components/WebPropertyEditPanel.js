@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Switch, Animated, Modal, ActivityIndicator, Image, Platform,
 } from 'react-native';
-import { updateProperty, createPropertyFull, createProperty, submitPropertyDraft, updatePropertyResponsible } from '../../services/propertiesService';
+import { updateProperty, createPropertyFull, createProperty, submitPropertyDraft, updatePropertyResponsible, approveProperty } from '../../services/propertiesService';
 import { getCompanyLocations, getLocationsForAgent, getLocationDistricts } from '../../services/locationsService';
 import { getContacts } from '../../services/contactsService';
 import { getActiveTeamMembers } from '../../services/companyService';
@@ -737,15 +737,25 @@ export default function WebPropertyEditPanel({
         // Авто-принятие: админ сохраняет отклонённый объект -> статус становится approved
         const isCompanyAdmin = !!(user?.workAs === 'company' && user?.companyId);
         const wasRejected = property?.property_status === 'rejected';
-        if (isCompanyAdmin && wasRejected) {
-          updates.property_status = 'approved';
-          updates.rejection_reason = '';
-        }
         saved = await updateProperty(property.id, updates);
+        let approveFailed = false;
+        if (isCompanyAdmin && wasRejected) {
+          try {
+            await approveProperty(property.id);
+            if (saved) saved = { ...saved, property_status: 'approved', rejection_reason: null };
+          } catch (e) {
+            approveFailed = true;
+            console.warn('[WebPropertyEditPanel] approveProperty failed after updateProperty:', e?.message);
+          }
+        }
         // Parent resort/condo: cascade responsible to all child units
         if (isCompanyAdmin && isParent) {
           await updatePropertyResponsible(property.id, form.responsible_agent_id || null, true);
           if (saved) saved = { ...saved, responsible_agent_id: form.responsible_agent_id || null };
+        }
+        if (approveFailed) {
+          setError(t('approveError'));
+          return;
         }
         // Уведомить агента об одобрении после авто-принятия
         if (isCompanyAdmin && wasRejected && saved && property.user_id) {
