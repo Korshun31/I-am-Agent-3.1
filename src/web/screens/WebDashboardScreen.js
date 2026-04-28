@@ -548,36 +548,15 @@ export default function WebDashboardScreen({ user, refreshKey }) {
         <View style={[styles.statCard, { borderLeftColor: CLR.stat2 }]}>
           <View>
             <Text style={styles.statLabel}>{t('dashboardBookings').toUpperCase()}</Text>
-            {agentStats ? (
-              <>
-                <Text style={[styles.statValue, { color: CLR.stat2Text }]}>{agentStats.myAgencyActive}</Text>
-                <View style={styles.agentStatLabels}>
-                  <Text style={[styles.agentStatLabelColored, { color: CLR.stat2Text }]}>{t('dashboardStatMine')}</Text>
-                </View>
-              </>
-            ) : (
-              <Text style={[styles.statValue, { color: CLR.stat2Text }]}>{stats.occupied}</Text>
-            )}
+            <Text style={[styles.statValue, { color: CLR.stat2Text }]}>
+              {stats.occupied + stats.upcoming}
+            </Text>
           </View>
 
-          {agentStats ? (
-            <View style={styles.subStats}>
-              <Text style={styles.subStatText}>{t('all')}{': '}
-                <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyTotalActive}</Text>
-              </Text>
-              <Text style={styles.subStatText}>{t('dashboardStatOwners')}{': '}
-                <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyOwnerActive}</Text>
-              </Text>
-              <Text style={styles.subStatText}>{t('dashboardStatCompany')}{': '}
-                <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyAgencyActive}</Text>
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.subStats}>
-              <Text style={styles.subStatText}>{t('dashboardMyClients')}: <Text style={styles.subStatValue}>{stats.myClients}</Text></Text>
-              <Text style={styles.subStatText}>{t('dashboardOtherClients')}: <Text style={styles.subStatValue}>{stats.otherClients}</Text></Text>
-            </View>
-          )}
+          <View style={styles.subStats}>
+            <Text style={styles.subStatText}>{t('dashboardActiveBookings')}: <Text style={styles.subStatValue}>{stats.occupied}</Text></Text>
+            <Text style={styles.subStatText}>{t('dashboardFutureBookings')}: <Text style={styles.subStatValue}>{stats.upcoming}</Text></Text>
+          </View>
         </View>
 
         {/* ЗАЕЗДЫ */}
