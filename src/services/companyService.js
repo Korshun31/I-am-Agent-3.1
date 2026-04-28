@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { broadcastOneShot } from './companyChannel';
 
 /**
  * Загружает компанию текущего пользователя (активную или неактивную).
@@ -363,5 +364,12 @@ export async function joinCompanyViaInvitation(token) {
   // RPC returns joined_company_id / joined_company_name (avoids plpgsql OUT-param shadowing company_id)
   const cid = row?.joined_company_id ?? row?.company_id;
   const cname = row?.joined_company_name ?? row?.company_name;
+
+  // Notify the company's existing online sessions (admin already in the
+  // Team tab) so they refresh the team list without a manual reload.
+  if (cid) {
+    try { await broadcastOneShot(cid, 'team'); } catch {}
+  }
+
   return row && (cid != null || cname != null) ? { companyId: cid, companyName: cname } : null;
 }

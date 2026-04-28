@@ -44,7 +44,15 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
     if (!companyId) return;
     initCompanyChannel(companyId, {
       properties: () => setRefreshKey(k => ({ ...k, properties: k.properties + 1 })),
-      bookings: () => setRefreshKey(k => ({ ...k, bookings: k.bookings + 1 })),
+      // A booking event also affects what contacts the current user can see
+      // (TD-099: agent reads booking-clients via RLS) and the dashboard
+      // counters (Мои брони / occupied / upcoming). Bump the related keys
+      // so those screens refetch instead of showing stale data until reload.
+      bookings: () => setRefreshKey(k => ({
+        ...k,
+        bookings: k.bookings + 1,
+        contacts: k.contacts + 1,
+      })),
       contacts: () => setRefreshKey(k => ({ ...k, contacts: k.contacts + 1 })),
       calendar_events: () => setRefreshKey(k => ({ ...k, calendar_events: k.calendar_events + 1 })),
       permissions: async () => {
@@ -177,7 +185,13 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
     >
       {/* Dashboard — монтируется сразу */}
       <View style={[styles.tabWrap, tabStyle('dashboard')]}>
-        <WebDashboardScreen user={user} refreshKey={refreshKey.calendar_events} />
+        <WebDashboardScreen
+          user={user}
+          // Dashboard reads bookings, properties and calendar events to build
+          // its counters and check-in/out lists. A composite key forces
+          // refetch when any of those change in the company.
+          refreshKey={refreshKey.calendar_events + refreshKey.bookings + refreshKey.properties}
+        />
       </View>
 
       {/* Properties — монтируется при первом посещении */}
