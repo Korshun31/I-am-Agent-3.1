@@ -10,6 +10,7 @@ import { getCurrencySymbol } from '../../utils/currency';
 import { getBookings, deleteBooking } from '../../services/bookingsService';
 import { getProperties } from '../../services/propertiesService';
 import { getContacts } from '../../services/contactsService';
+import { getActiveTeamMembers } from '../../services/companyService';
 import { supabase } from '../../services/supabase';
 import WebBookingEditPanel from '../components/WebBookingEditPanel';
 import WebPropertyDetailPanel from '../components/WebPropertyDetailPanel';
@@ -172,7 +173,7 @@ function statusInfo(checkIn, checkOut, t) {
 
 // ─── Booking Detail Panel ─────────────────────────────────────────────────────
 
-function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, onPrint, user }) {
+function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, onPrint, user, teamMembers = [] }) {
   const { t } = useLanguage();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -236,17 +237,30 @@ const canDeleteBooking = !user?.teamMembership || booking?.responsibleAgentId ==
           </Text>
           <View style={d.propMeta}>
             <View style={[d.typeDot, { backgroundColor: tc.border }]} />
-            <Text style={[d.propCode, { color: tc.text }]}>
+            <Text
+              style={[d.propCode, { color: tc.text, flexShrink: 1 }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {property?.code || ''}
               {property?.code_suffix ? ` (${property.code_suffix})` : ''}
             </Text>
-            {property?.city ? <Text style={d.propCity}> · {property.city}</Text> : null}
+            {property?.city ? (
+              <Text style={[d.propCity, { flexShrink: 1 }]} numberOfLines={1} ellipsizeMode="tail">
+                {' · '}{property.city}
+              </Text>
+            ) : null}
           </View>
         </View>
         <View style={d.headerActions}>
           {!booking.notMyCustomer && (
-            <TouchableOpacity style={d.editBtn} onPress={onPrint}>
-              <Text style={d.editBtnText}>📄 {t('bookingConfirmation') || 'Confirmation'}</Text>
+            <TouchableOpacity
+              style={d.iconBtn}
+              onPress={onPrint}
+              accessibilityLabel={t('bookingConfirmation')}
+              {...(Platform.OS === 'web' ? { title: t('bookingConfirmationTooltip') || t('bookingConfirmation') } : {})}
+            >
+              <Text style={d.iconBtnText}>📄</Text>
             </TouchableOpacity>
           )}
           {canEditBooking && (
@@ -306,6 +320,25 @@ const canDeleteBooking = !user?.teamMembership || booking?.responsibleAgentId ==
             </>
           )}
         </Section>
+
+        {/* Responsible — admin only */}
+        {!user?.teamMembership && (() => {
+          const ra = booking.responsibleAgentId;
+          let label;
+          if (!ra) {
+            label = user?.companyInfo?.name || user?.teamMembership?.companyName || t('workAsCompany') || 'Company';
+          } else {
+            const m = (teamMembers || []).find(x => (x.user_id ?? x.id) === ra);
+            label = m
+              ? ([m.name, m.last_name || m.lastName].filter(Boolean).join(' ') || m.email || '—')
+              : '—';
+          }
+          return (
+            <Section title={t('bookingSectionResponsible')}>
+              <InfoRow label={t('bookingResponsibleLabel')} value={label} />
+            </Section>
+          );
+        })()}
 
         {/* Prices */}
         <Section title={t('bookingSectionCost')}>
@@ -383,11 +416,11 @@ const d = StyleSheet.create({
   statusBadge: { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 6 },
   statusText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
   propName: { fontSize: 17, fontWeight: '700', color: C.text, marginBottom: 4 },
-  propMeta: { flexDirection: 'row', alignItems: 'center' },
-  typeDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  propMeta: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, overflow: 'hidden' },
+  typeDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6, flexShrink: 0 },
   propCode: { fontSize: 13, fontWeight: '700' },
   propCity: { fontSize: 13, color: C.muted },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 12 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 12, flexShrink: 0 },
   editBtn: {
     backgroundColor: '#EAF4F5',
     borderRadius: 14,
@@ -397,6 +430,17 @@ const d = StyleSheet.create({
     borderColor: '#B2D8DB',
   },
   editBtnText: { fontSize: 14, color: '#3D7D82', fontWeight: '700' },
+  iconBtn: {
+    backgroundColor: '#EAF4F5',
+    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderWidth: 1.5,
+    borderColor: '#B2D8DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBtnText: { fontSize: 18, lineHeight: 22 },
   closeBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   closeBtnText: { fontSize: 18, color: C.muted },
   confirmBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3F3', padding: 12, borderBottomWidth: 1, borderBottomColor: '#FFCDD2', gap: 8 },
@@ -410,7 +454,7 @@ const d = StyleSheet.create({
   sectionTitle: { fontSize: 10, fontWeight: '800', color: C.light, letterSpacing: 1, marginBottom: 10 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
   infoLabel: { fontSize: 13, color: C.muted, flex: 1 },
-  infoValue: { fontSize: 13, color: C.text, fontWeight: '500', textAlign: 'right', flex: 1 },
+  infoValue: { fontSize: 13, color: C.text, fontWeight: '500', textAlign: 'right', flex: 1, minWidth: 90 },
   datesRow: { flexDirection: 'row', alignItems: 'center' },
   dateBlock: { flex: 1 },
   dateLabel: { fontSize: 11, color: C.light, fontWeight: '700', letterSpacing: 0.5, marginBottom: 3 },
@@ -538,6 +582,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
   const [properties, setProperties] = useState([]);
   const [contacts, setContacts]     = useState([]);
   const [owners, setOwners]         = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [myCompanyName, setMyCompanyName] = useState('');
   const [viewMode, setViewMode]     = useState('gantt'); // 'gantt' | 'list'
@@ -620,6 +665,18 @@ export default function WebBookingsScreen({ user, refreshKey }) {
       setProperties(bookable);
       setContacts(co);
       setOwners(ow);
+
+      // Team members — needed by the booking-detail panel to show the
+      // responsible-agent name. Only admin actually sees that section, so
+      // skip the network call for team members altogether.
+      if (!user?.teamMembership && user?.companyId) {
+        try {
+          const tm = await getActiveTeamMembers(user.companyId);
+          setTeamMembers(Array.isArray(tm) ? tm : []);
+        } catch { setTeamMembers([]); }
+      } else {
+        setTeamMembers([]);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -1055,6 +1112,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
               onClose={() => setSelectedBooking(null)}
               onPrint={() => selectedBooking && handlePrintConfirmation(selectedBooking)}
               user={user}
+              teamMembers={teamMembers}
             />
           </View>
         )}
