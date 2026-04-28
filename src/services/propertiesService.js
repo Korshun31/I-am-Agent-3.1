@@ -175,6 +175,19 @@ export async function updateProperty(id, updates) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
+  // If the responsible agent is changing, snapshot the previous value so we
+  // can decide whether to notify the new agent after the update.
+  const responsibleChanging = updates && Object.prototype.hasOwnProperty.call(updates, 'responsible_agent_id');
+  let oldResponsible = null;
+  if (responsibleChanging) {
+    const { data: prev } = await supabase
+      .from('properties')
+      .select('responsible_agent_id')
+      .eq('id', id)
+      .maybeSingle();
+    oldResponsible = prev?.responsible_agent_id ?? null;
+  }
+
   const { data, error } = await supabase
     .from('properties')
     .update(pickAllowed(updates))
@@ -182,9 +195,31 @@ export async function updateProperty(id, updates) {
     .select();
 
   if (error) throw new Error(error.message);
+  const saved = data?.[0] ?? null;
+
+  // Notify the newly-assigned responsible agent (best-effort).
+  if (responsibleChanging && saved) {
+    try {
+      const newResponsible = saved.responsible_agent_id ?? null;
+      if (newResponsible && newResponsible !== session.user.id && newResponsible !== oldResponsible) {
+        const propertyName = saved.name || '';
+        await sendNotification({
+          recipientId: newResponsible,
+          senderId: session.user.id,
+          type: 'property_assigned',
+          title: 'New property assigned to you',
+          body: propertyName.length > 80 ? `${propertyName.slice(0, 77)}…` : propertyName,
+          propertyId: saved.id,
+        });
+      }
+    } catch (e) {
+      console.warn('[properties] property_assigned notification failed:', e?.message);
+    }
+  }
+
   syncIfEnabled();
   broadcastChange('properties');
-  return data?.[0] ?? null;
+  return saved;
 }
 
 export async function deleteProperty(id) {
