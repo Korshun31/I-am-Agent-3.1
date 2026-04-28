@@ -164,7 +164,15 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
       onTabChange={handleTabChange}
       fullHeight={FULL_HEIGHT_TABS.has(activeTab)}
       user={user}
-      onPropertiesChanged={() => setRefreshKey(k => ({ ...k, properties: k.properties + 1 }))}
+      onPropertiesChanged={() => setRefreshKey(k => ({
+        ...k,
+        properties: k.properties + 1,
+        // Bookings tab caches the property list (with responsible_agent_id)
+        // and uses it to show/hide the "Responsible agent" picker in the
+        // booking form. Bump bookings key too so the picker stays in sync
+        // when admin changes a property's responsible agent.
+        bookings: k.bookings + 1,
+      }))}
       onNavigateToProperty={navigateToProperty}
     >
       {/* Dashboard — монтируется сразу */}
