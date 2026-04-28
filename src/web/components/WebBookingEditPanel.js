@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import dayjs from 'dayjs';
 import { createBooking, updateBooking, getBookings } from '../../services/bookingsService';
+import { getActiveTeamMembers } from '../../services/companyService';
 import WebContactEditPanel from './WebContactEditPanel';
 import WebBookingCalendarPicker from './WebBookingCalendarPicker';
 import { supabase } from '../../services/supabase';
@@ -51,6 +52,7 @@ function buildForm(booking, property) {
       propertyId:             booking.propertyId || '',
       contactId:              booking.contactId  || '',
       notMyCustomer:          !!booking.notMyCustomer,
+      responsibleAgentId:     booking.responsibleAgentId ?? null,
       passportId:             booking.passportId || '',
       checkIn:                sanitizeISODate(booking.checkIn) || '',
       checkOut:               sanitizeISODate(booking.checkOut) || '',
@@ -77,6 +79,7 @@ function buildForm(booking, property) {
     propertyId:             property?.id || '',
     contactId:              '',
     notMyCustomer:          false,
+    responsibleAgentId:     null,
     passportId:             '',
     checkIn:                '',
     checkOut:               '',
@@ -460,11 +463,22 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
   ];
   const [calendarVisible, setCalendarVisible] = useState(false);
   const [propertyBookings, setPropertyBookings] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
   const fileInputRef                = useRef(null);
   const prevContactIdRef            = useRef(null);
 
   // Sync contacts when prop changes
   useEffect(() => { setLocalContacts(contacts); }, [contacts]);
+
+  // Load active team members for the responsible-agent picker (admin only).
+  useEffect(() => {
+    if (isAgent || !user?.companyId) return;
+    let cancelled = false;
+    getActiveTeamMembers(user.companyId)
+      .then(list => { if (!cancelled) setTeamMembers(Array.isArray(list) ? list : []); })
+      .catch(() => { if (!cancelled) setTeamMembers([]); });
+    return () => { cancelled = true; };
+  }, [isAgent, user?.companyId]);
 
   const slideAnim    = useRef(new Animated.Value(540)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
@@ -618,6 +632,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
         propertyId:             form.propertyId,
         contactId:              form.notMyCustomer ? null : (form.contactId || null),
         notMyCustomer:          form.notMyCustomer,
+        responsibleAgentId:     form.responsibleAgentId ?? null,
         passportId:             form.passportId || null,
         checkIn:                form.checkIn,
         checkOut:               form.checkOut,
@@ -638,7 +653,6 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
         comments:               form.comments || null,
         photos:                 form.photos || [],
         reminderDays:           form.reminderDays || [],
-        reminderDays:           booking?.reminderDays ?? [],
         currency:               activeCurrency,
       };
 
@@ -715,6 +729,10 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                     setForm(f => ({
                       ...f,
                       propertyId:     id,
+                      // When the property changes, the responsible agent must be re-picked:
+                      // the previous agent is unlikely to be responsible for the new property,
+                      // and the DB integrity trigger would reject the save otherwise.
+                      responsibleAgentId: f.propertyId === id ? f.responsibleAgentId : null,
                       priceMonthly:   pr?.price_monthly   != null ? String(pr.price_monthly)   : f.priceMonthly,
                       bookingDeposit: pr?.booking_deposit != null ? String(pr.booking_deposit) : f.bookingDeposit,
                       saveDeposit:    pr?.save_deposit    != null ? String(pr.save_deposit)    : f.saveDeposit,
@@ -728,6 +746,50 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                 />
               </Field>
             </SectionCard>
+
+            {/* Ответственный за бронь — только для админа на доме с responsible_agent_id */}
+            {(() => {
+              if (isAgent) return null;
+              const sp = properties.find(p => p.id === form.propertyId);
+              const houseAgentId = sp?.responsible_agent_id || null;
+              if (!houseAgentId) return null;
+              const houseAgent = teamMembers.find(m => m.user_id === houseAgentId);
+              const houseAgentLabel = houseAgent
+                ? ([houseAgent.name, houseAgent.last_name].filter(Boolean).join(' ') || houseAgent.email || 'Agent')
+                : 'Agent';
+              const companyLabel = user?.companyInfo?.name || user?.teamMembership?.companyName || t('workAsCompany') || 'Company';
+              const selected = form.responsibleAgentId || null;
+              return (
+                <SectionCard title={t('bkResponsible') || 'Responsible'} icon="🧑‍💼">
+                  <Field label={t('bkResponsible') || 'Responsible'}>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity
+                        onPress={() => set('responsibleAgentId', null)}
+                        style={{
+                          flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: selected === null ? ACCENT : C.border,
+                          backgroundColor: selected === null ? C.accentBg : C.surface,
+                        }}
+                      >
+                        <Text style={{ color: C.text, fontSize: 14 }} numberOfLines={1}>{companyLabel}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => set('responsibleAgentId', houseAgentId)}
+                        style={{
+                          flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: selected === houseAgentId ? ACCENT : C.border,
+                          backgroundColor: selected === houseAgentId ? C.accentBg : C.surface,
+                        }}
+                      >
+                        <Text style={{ color: C.text, fontSize: 14 }} numberOfLines={1}>{houseAgentLabel}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </Field>
+                </SectionCard>
+              );
+            })()}
 
             {/* Клиент */}
             <SectionCard title={t('bkSectionClient')} icon="👤">

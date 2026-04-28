@@ -261,11 +261,15 @@ async function invokeInviteAgent(payload) {
 /**
  * Загружает данные команды: участники + активные приглашения.
  */
-/** Получить активных участников команды для выпадающего списка "Ответственный". */
+/** Получить активных участников команды для выпадающего списка "Ответственный".
+ *  RPC `get_company_team` возвращает всех — включая deactivated. Фильтруем
+ *  по status='active' на клиенте, чтобы пикеры не показывали уволенных
+ *  агентов (B21). Метод `getTeamData` ниже намеренно НЕ фильтрует —
+ *  админу в общем списке нужны и неактивные. */
 export async function getActiveTeamMembers(companyId) {
   const { data, error } = await supabase.rpc('get_company_team', { p_company_id: companyId });
   if (error) throw new Error(error.message);
-  return data || [];
+  return (data || []).filter(m => m.status === 'active');
 }
 
 export async function getTeamData(companyId) {

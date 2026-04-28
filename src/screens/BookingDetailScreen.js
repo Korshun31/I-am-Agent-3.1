@@ -257,7 +257,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
       {/* Кнопки управления: агент видит их только для своих бронирований */}
       {(() => {
         const isTeamMember = !!(user?.teamMembership);
-        const isOwnBooking = !isTeamMember || booking?.agentId === user?.id;
+        const isOwnBooking = !isTeamMember || booking?.responsibleAgentId === user?.id;
         if (!isOwnBooking) return null;
         return (
           <View style={styles.actionsRow}>

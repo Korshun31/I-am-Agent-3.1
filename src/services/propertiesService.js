@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { syncIfEnabled } from './dataUploadService';
 import { broadcastChange } from './companyChannel';
 import { deletePhotoFromStorage } from './storageService';
+import { sendNotification } from './notificationsService';
 
 // TD-051: whitelist of fields the client is allowed to write to `properties`.
 // Server-only fields (id, user_id, company_id, property_status, submitted_by,
@@ -320,6 +321,15 @@ export async function updateResortChildrenDistrict(resortId, district) {
 /** Admin: назначить ответственного агента (null = Компания). Каскад на детей резорта/кондо. */
 export async function updatePropertyResponsible(propertyId, responsibleAgentId, cascade = false) {
   const value = responsibleAgentId ?? null;
+
+  // Snapshot the previous responsible agent so we can decide whether the
+  // new agent needs to be notified after the update.
+  const { data: prev } = await supabase
+    .from('properties')
+    .select('responsible_agent_id, name')
+    .eq('id', propertyId)
+    .maybeSingle();
+
   const { data, error } = await supabase
     .from('properties')
     .update({ responsible_agent_id: value })
@@ -334,6 +344,28 @@ export async function updatePropertyResponsible(propertyId, responsibleAgentId, 
       .from('properties')
       .update({ responsible_agent_id: value })
       .eq('resort_id', propertyId);
+  }
+
+  // Notify the newly assigned agent (only when responsibility actually
+  // changed and the new agent is not the caller themselves). Best-effort.
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const sender = session?.user?.id;
+    const oldAgent = prev?.responsible_agent_id ?? null;
+    const newAgent = value;
+    if (sender && newAgent && newAgent !== sender && newAgent !== oldAgent) {
+      const propertyName = data?.name || prev?.name || '';
+      await sendNotification({
+        recipientId: newAgent,
+        senderId: sender,
+        type: 'property_assigned',
+        title: 'New property assigned to you',
+        body: propertyName.length > 80 ? `${propertyName.slice(0, 77)}…` : propertyName,
+        propertyId: data.id,
+      });
+    }
+  } catch (e) {
+    console.warn('[properties] property_assigned notification failed:', e?.message);
   }
 
   syncIfEnabled();

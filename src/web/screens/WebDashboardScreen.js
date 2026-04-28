@@ -186,7 +186,7 @@ export default function WebDashboardScreen({ user, refreshKey }) {
       let myClientsCount = 0;
       let otherClientsCount = 0;
       const bookingsForStats = isTeamMemberStats
-        ? bookings.filter(b => b.agentId === user.id)
+        ? bookings.filter(b => b.responsibleAgentId === user.id)
         : bookings;
 
       const occupiedCount = bookingsForStats.filter(b => {
@@ -233,13 +233,13 @@ export default function WebDashboardScreen({ user, refreshKey }) {
           if (b.notMyCustomer) { companyOwnerActive++; }
           else {
             companyAgencyActive++;
-            if (b.agentId === user.id) myAgencyActive++;
+            if (b.responsibleAgentId === user.id) myAgencyActive++;
           }
         });
 
         // Предстоящие заселения
         const allFutureAgency = bookings.filter(b => !b.notMyCustomer && dayjs(b.checkIn).isAfter(now));
-        const myFutureAgency = allFutureAgency.filter(b => b.agentId === user.id);
+        const myFutureAgency = allFutureAgency.filter(b => b.responsibleAgentId === user.id);
         const companyUpcomingCount = allFutureAgency.length;
         const myUpcomingCount = myFutureAgency.length;
         const myThisMonth = myFutureAgency.filter(b => dayjs(b.checkIn).isBefore(endOfMonth)).length;
@@ -248,7 +248,7 @@ export default function WebDashboardScreen({ user, refreshKey }) {
         // Заселения агента: сегодня / эта неделя / этот месяц
         const todayStr = now.format('YYYY-MM-DD');
         const endOfWeek = now.endOf('week');
-        const myBookings = bookings.filter(b => b.agentId === user.id && !b.notMyCustomer);
+        const myBookings = bookings.filter(b => b.responsibleAgentId === user.id && !b.notMyCustomer);
         const myCheckInToday = myBookings.filter(b => b.checkIn === todayStr).length;
         const myCheckInWeek = myBookings.filter(b => {
           const d = dayjs(b.checkIn);

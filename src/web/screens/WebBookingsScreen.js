@@ -152,7 +152,7 @@ function filterProperties(properties, bookings, filter, userId) {
   // 'myBookings' (agent) — только объекты с бронированиями самого агента
   if (filter === 'myBookings') {
     const agentProps = new Set(
-      bookings.filter(b => b.agentId === userId).map(b => b.propertyId)
+      bookings.filter(b => b.responsibleAgentId === userId).map(b => b.propertyId)
     );
     return properties.filter(p => agentProps.has(p.id));
   }
@@ -177,9 +177,9 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-// Guard: agent can edit/delete only bookings they personally created (agentId = own id)
-const canEditBooking   = !user?.teamMembership || (booking?.agentId === user?.id && !!user?.teamPermissions?.can_book);
-const canDeleteBooking = !user?.teamMembership || booking?.agentId === user?.id;
+// Guard: agent can edit/delete only bookings they are responsible for
+const canEditBooking   = !user?.teamMembership || (booking?.responsibleAgentId === user?.id && !!user?.teamPermissions?.can_book);
+const canDeleteBooking = !user?.teamMembership || booking?.responsibleAgentId === user?.id;
 
   if (!booking) return null;
 
@@ -707,7 +707,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
     let result = bookings;
     if (propFilter === 'mine') result = result.filter(b => !b.notMyCustomer);
     if (propFilter === 'company') result = result.filter(b => !b.notMyCustomer);
-    if (propFilter === 'myBookings') result = result.filter(b => b.agentId === user?.id);
+    if (propFilter === 'myBookings') result = result.filter(b => b.responsibleAgentId === user?.id);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter(b => {
@@ -998,7 +998,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
                               const companyName = myCompanyName || user?.companyInfo?.name || user?.teamMembership?.companyName || '';
 
                               // Per-booking contract flags
-                              const isOwnBooking   = bk.agentId === user?.id;
+                              const isOwnBooking   = bk.responsibleAgentId === user?.id;
                               const isAdminBooking = isAgent && isResponsibleProperty && !isOwnBooking;
                               const canOpenBooking = !isAgent || (isResponsibleProperty && isOwnBooking);
 

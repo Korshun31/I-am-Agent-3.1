@@ -96,7 +96,7 @@ export async function deleteNotification(notificationId) {
   }
 }
 
-export async function sendNotification({ recipientId, senderId, type, title, body, propertyId = null }) {
+export async function sendNotification({ recipientId, senderId, type, title, body, propertyId = null, bookingId = null }) {
   const { data, error } = await supabase.rpc('create_notification', {
     p_recipient_id: recipientId,
     p_sender_id: senderId,
@@ -104,6 +104,7 @@ export async function sendNotification({ recipientId, senderId, type, title, bod
     p_title: title,
     p_body: body || null,
     p_property_id: propertyId || null,
+    p_booking_id: bookingId || null,
   });
   if (error) {
     console.warn('[notifications] send error:', error.message);

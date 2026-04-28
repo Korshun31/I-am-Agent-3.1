@@ -26,7 +26,9 @@ import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
 import { createContact, getContactById } from '../services/contactsService';
 import { createBooking, updateBooking } from '../services/bookingsService';
+import { getActiveTeamMembers } from '../services/companyService';
 import { useAppData } from '../context/AppDataContext';
+import { useUser } from '../context/UserContext';
 import { scheduleBookingReminders, cancelBookingReminders } from '../services/bookingRemindersService';
 import { getCommissionDateAmounts, scheduleCommissionReminders, cancelCommissionReminders } from '../services/commissionRemindersService';
 import { requestReminderPermissions } from '../services/calendarRemindersService';
@@ -195,6 +197,8 @@ const CALENDAR_LOCALES = {
 export default function AddBookingModal({ visible, onClose, onSaved, property, editBooking, initialMonth }) {
   const { t, language, currency, currencySymbol: globalSym } = useLanguage();
   const { contacts, bookings, refreshContacts: refreshGlobalContacts } = useAppData();
+  const { user } = useUser();
+  const isAgent = !!user?.teamMembership;
   const activeCurrency = property?.currency || currency || 'THB';
   const sym = getCurrencySymbol(activeCurrency);
   const [step, setStep] = useState(1);
@@ -235,6 +239,19 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
   const [reminderDays, setReminderDays] = useState([]);
   const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Responsible agent picker (admin only)
+  const [responsibleAgentId, setResponsibleAgentId] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
+
+  // Load active team members for the responsible-agent picker
+  useEffect(() => {
+    if (isAgent || !user?.companyId) return;
+    let cancelled = false;
+    getActiveTeamMembers(user.companyId)
+      .then(list => { if (!cancelled) setTeamMembers(Array.isArray(list) ? list : []); })
+      .catch(() => { if (!cancelled) setTeamMembers([]); });
+    return () => { cancelled = true; };
+  }, [isAgent, user?.companyId]);
 
   const BOOKING_REMINDER_OPTIONS = [
     { days: 1, key: 'bookingReminder1d' },
@@ -287,9 +304,11 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         setComments(editBooking.comments || '');
         setPhotos(Array.isArray(editBooking.photos) ? [...editBooking.photos] : []);
         setReminderDays(Array.isArray(editBooking.reminderDays) ? [...editBooking.reminderDays] : []);
+        setResponsibleAgentId(editBooking.responsibleAgentId ?? null);
       } else {
         setNotMyCustomer(false);
         setSelectedClient(null);
+        setResponsibleAgentId(null);
         setPassportId('');
         if (initialMonth && initialMonth.year != null && initialMonth.month != null) {
           setCheckIn(new Date(initialMonth.year, initialMonth.month, 1));
@@ -484,6 +503,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         contactId: notMyCustomer ? null : selectedClient?.id,
         passportId: notMyCustomer ? '' : passportId.trim(),
         notMyCustomer,
+        responsibleAgentId: isAgent ? null : (responsibleAgentId ?? null),
         checkIn: formatDateYMD(checkIn),
         checkOut: formatDateYMD(checkOut),
         checkInTime: checkInTime.trim() || null,
@@ -910,6 +930,46 @@ isMonthFirst
                     <View style={s.section}>
                       <CheckRow label={t('pdPets')} checked={pets} onPress={() => setPets(!pets)} />
                     </View>
+
+                    {/* Responsible agent picker — admin only, when the property has a responsible agent */}
+                    {!isAgent && property?.responsible_agent_id && (() => {
+                      const houseAgentId = property.responsible_agent_id;
+                      const houseAgent = teamMembers.find(m => m.user_id === houseAgentId);
+                      const houseAgentLabel = houseAgent
+                        ? ([houseAgent.name, houseAgent.last_name].filter(Boolean).join(' ') || houseAgent.email || 'Agent')
+                        : 'Agent';
+                      const companyLabel = user?.companyInfo?.name || user?.teamMembership?.companyName || t('workAsCompany') || 'Company';
+                      const selected = responsibleAgentId || null;
+                      return (
+                        <>
+                          <Text style={s.fieldLabel}>{t('bkResponsible') || 'Responsible'}</Text>
+                          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                            <TouchableOpacity
+                              onPress={() => setResponsibleAgentId(null)}
+                              style={{
+                                flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
+                                borderWidth: 1,
+                                borderColor: selected === null ? '#3D7D82' : '#E0E0E0',
+                                backgroundColor: selected === null ? '#EAF4F5' : '#FFF',
+                              }}
+                            >
+                              <Text style={{ color: '#212529', fontSize: 14 }} numberOfLines={1}>{companyLabel}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => setResponsibleAgentId(houseAgentId)}
+                              style={{
+                                flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
+                                borderWidth: 1,
+                                borderColor: selected === houseAgentId ? '#3D7D82' : '#E0E0E0',
+                                backgroundColor: selected === houseAgentId ? '#EAF4F5' : '#FFF',
+                              }}
+                            >
+                              <Text style={{ color: '#212529', fontSize: 14 }} numberOfLines={1}>{houseAgentLabel}</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      );
+                    })()}
 
                     <Text style={s.fieldLabel}>{t('pdComments')}</Text>
                     <TextInput
