@@ -496,106 +496,6 @@ const d = StyleSheet.create({
 // ─── Gantt Chart ──────────────────────────────────────────────────────────────
 
 
-// ─── List View ────────────────────────────────────────────────────────────────
-
-function ListView({ bookings, properties, contacts, colorMap, onSelectBooking, selectedBookingId }) {
-  const { t } = useLanguage();
-  const today = dayjs().format('YYYY-MM-DD');
-
-  const upcoming = bookings.filter(b => b.checkIn > today).sort((a, b) => a.checkIn.localeCompare(b.checkIn));
-  const current  = bookings.filter(b => b.checkIn <= today && b.checkOut >= today).sort((a, b) => a.checkOut.localeCompare(b.checkOut));
-  const past     = bookings.filter(b => b.checkOut < today).sort((a, b) => b.checkOut.localeCompare(a.checkOut));
-
-  function Group({ title, color, items }) {
-    if (!items.length) return null;
-    return (
-      <View style={lv.group}>
-        <View style={[lv.groupHeader, { borderLeftColor: color }]}>
-          <Text style={[lv.groupTitle, { color }]}>{title}</Text>
-          <Text style={lv.groupCount}>{items.length}</Text>
-        </View>
-        {items.map(bk => {
-          const prop = properties.find(p => p.id === bk.propertyId);
-          const contact = contacts.find(c => c.id === bk.contactId);
-          const tc = TYPE_COLOR[getEffectiveType(prop)] || TYPE_COLOR.house;
-          const color = colorMap[bk.id] || '#90A4AE';
-          const isSelected = bk.id === selectedBookingId;
-          const nights = nightsCount(bk.checkIn, bk.checkOut);
-          const fullCode = prop ? (prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '')) : '—';
-          const clientName = bk.notMyCustomer
-            ? t('bookingNotMyClient')
-            : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() || '—' : '—');
-
-          return (
-            <TouchableOpacity
-              key={bk.id}
-              style={[lv.row, isSelected && lv.rowSelected]}
-              onPress={() => onSelectBooking(bk)}
-              activeOpacity={0.75}
-            >
-              <View style={[lv.colorDot, { backgroundColor: color }]} />
-              <View style={[lv.codeChip, { borderColor: tc.border, backgroundColor: tc.bg }]}>
-                <Text style={[lv.codeText, { color: tc.text }]}>{fullCode}</Text>
-              </View>
-              <View style={lv.propInfo}>
-                <Text style={lv.propName} numberOfLines={1}>{prop?.name || '—'}</Text>
-                <Text style={lv.clientName} numberOfLines={1}>{clientName}</Text>
-              </View>
-              <View style={lv.dates}>
-                <Text style={lv.dateIn}>{fmtDate(bk.checkIn)}</Text>
-                <Text style={lv.dateArrow}>→</Text>
-                <Text style={lv.dateOut}>{fmtDate(bk.checkOut)}</Text>
-                <Text style={lv.nights}>{nights}{t('bookingNights')[0]}</Text>
-              </View>
-              <View style={lv.price}>
-                {bk.totalPrice ? (
-                  <Text style={lv.priceText}>{Number(bk.totalPrice).toLocaleString('ru-RU')} {getCurrencySymbol(prop?.currency || 'THB')}</Text>
-                ) : (
-                  <Text style={lv.priceEmpty}>—</Text>
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView style={lv.scroll} showsVerticalScrollIndicator={false}>
-      <Group title={t('bookingStatusActive')}   color={C.green} items={current}  />
-      <Group title={t('bookingStatusUpcoming')} color={C.blue}  items={upcoming} />
-      <Group title={t('bookingStatusDone')}     color={C.muted} items={past}     />
-      <View style={{ height: 40 }} />
-    </ScrollView>
-  );
-}
-
-const lv = StyleSheet.create({
-  scroll: { flex: 1 },
-  group: { marginBottom: 4 },
-  groupHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, borderLeftWidth: 3, backgroundColor: '#FAFBFC', borderBottomWidth: 1, borderBottomColor: C.border },
-  groupTitle: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-  groupCount: { marginLeft: 8, fontSize: 12, color: C.muted, fontWeight: '600' },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.surface, gap: 10 },
-  rowSelected: { backgroundColor: '#EAF4F5' },
-  colorDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
-  codeChip: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, flexShrink: 0 },
-  codeText: { fontSize: 11, fontWeight: '700' },
-  propInfo: { flex: 1, minWidth: 0 },
-  propName: { fontSize: 13, color: C.text, fontWeight: '600' },
-  clientName: { fontSize: 12, color: C.muted, marginTop: 1 },
-  dates: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
-  dateIn: { fontSize: 12, color: C.text, fontWeight: '500' },
-  dateArrow: { fontSize: 11, color: C.light },
-  dateOut: { fontSize: 12, color: C.text, fontWeight: '500' },
-  nights: { fontSize: 11, color: C.muted, marginLeft: 4 },
-  price: { minWidth: 90, alignItems: 'flex-end', flexShrink: 0 },
-  priceText: { fontSize: 13, color: ACCENT, fontWeight: '700' },
-  priceEmpty: { fontSize: 13, color: C.light },
-});
-
-
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function WebBookingsScreen({ user, refreshKey }) {
@@ -607,7 +507,6 @@ export default function WebBookingsScreen({ user, refreshKey }) {
   const [teamMembers, setTeamMembers] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [myCompanyName, setMyCompanyName] = useState('');
-  const [viewMode, setViewMode]     = useState('gantt'); // 'gantt' | 'list'
   const [propFilter, setPropFilter] = useState('all');   // 'all' | 'mine'
   const [districtFilters, setDistrictFilters] = useState([]); // multi-select
   const [bedroomsFilters, setBedroomsFilters] = useState([]); // multi-select
@@ -715,7 +614,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
 
   // Auto-scroll gantt so current month is the 2nd visible column
   useEffect(() => {
-    if (!loading && viewMode === 'gantt') {
+    if (!loading) {
       const currentMonthX = dateToPx(dayjs().startOf('month').format('YYYY-MM-DD'), months);
       const offset = Math.max(0, currentMonthX - MONTH_W);
       setTimeout(() => {
@@ -723,7 +622,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
         if (node) node.scrollLeft = offset;
       }, 150);
     }
-  }, [loading, viewMode]);
+  }, [loading]);
 
   const selectedProperty = selectedBooking
     ? properties.find(p => p.id === selectedBooking.propertyId)
@@ -807,30 +706,6 @@ export default function WebBookingsScreen({ user, refreshKey }) {
     }
     return result;
   }, [properties, bookings, propFilter, districtFilters, bedroomsFilters, petsFilter, longTermFilter, responsibleFilter, search]);
-
-  const visibleBookings = useMemo(() => {
-    if (viewMode !== 'list') return bookings;
-    let result = bookings;
-    if (propFilter === 'mine') result = result.filter(b => !b.notMyCustomer);
-    if (propFilter === 'company') result = result.filter(b => !b.notMyCustomer);
-    if (propFilter === 'myBookings') result = result.filter(b => b.responsibleAgentId === user?.id);
-    if (responsibleFilter !== 'all') {
-      const propIds = new Set(visibleProps.map(p => p.id));
-      result = result.filter(b => propIds.has(b.propertyId));
-    }
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      result = result.filter(b => {
-        const prop = properties.find(p => p.id === b.propertyId);
-        const contact = contacts.find(c => c.id === b.contactId);
-        return (prop?.name || '').toLowerCase().includes(q) ||
-          (prop?.code || '').toLowerCase().includes(q) ||
-          (contact?.name || '').toLowerCase().includes(q) ||
-          (contact?.lastName || '').toLowerCase().includes(q);
-      });
-    }
-    return result;
-  }, [bookings, properties, contacts, viewMode, search, propFilter, responsibleFilter, visibleProps]);
 
   const showDetail = !!selectedBooking;
 
@@ -1092,12 +967,9 @@ export default function WebBookingsScreen({ user, refreshKey }) {
 
       {/* ── Body ── */}
       <View style={s.body}>
-        {/* Left + Gantt / List */}
         <View style={[s.mainArea, showDetail && s.mainAreaWithDetail]}>
-          {viewMode === 'gantt' ? (
-            <>
-              {/* Gantt: single overflow:auto container — CSS sticky works for both axes */}
-              <View style={s.ganttOuter}>
+          {/* Gantt: single overflow:auto container — CSS sticky works for both axes */}
+          <View style={s.ganttOuter}>
                 <View ref={ganttScrollRef} style={s.ganttScroll}>
                   <View style={{ minWidth: LEFT_W + totalW }}>
                     {/* Sticky header row */}
@@ -1212,17 +1084,6 @@ export default function WebBookingsScreen({ user, refreshKey }) {
                   </View>
                 </View>
               </View>
-            </>
-          ) : (
-            <ListView
-              bookings={visibleBookings}
-              properties={properties}
-              contacts={contacts}
-              colorMap={colorMap}
-              onSelectBooking={setSelectedBooking}
-              selectedBookingId={selectedBooking?.id}
-            />
-          )}
         </View>
 
         {/* Detail panel */}
@@ -1403,17 +1264,6 @@ const s = StyleSheet.create({
     backgroundColor: C.accentBg,
   },
   resetBtnText: { fontSize: 12, color: ACCENT, fontWeight: '700' },
-
-  // View toggle (row 2 right)
-  viewToggle: {
-    flexDirection: 'row',
-    backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.border,
-    overflow: 'hidden',
-  },
-  viewBtn: { paddingHorizontal: 14, paddingVertical: 6 },
-  viewBtnActive: { backgroundColor: ACCENT },
-  viewBtnText: { fontSize: 12, color: C.muted, fontWeight: '600' },
-  viewBtnTextActive: { color: '#FFF', fontWeight: '700' },
 
   // Body
   body: { flex: 1, flexDirection: 'row' },
