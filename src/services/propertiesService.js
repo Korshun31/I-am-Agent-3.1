@@ -87,6 +87,37 @@ async function resolveAgentCompanyId(userId) {
   }
 }
 
+async function resolveCompanyOwnerId(companyId) {
+  if (!companyId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('companies')
+      .select('owner_id')
+      .eq('id', companyId)
+      .maybeSingle();
+    if (error) return null;
+    return data?.owner_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function notifyAdminPropertyCreated({ adminId, senderId, propertyId, propertyName }) {
+  if (!adminId || adminId === senderId) return;
+  try {
+    await sendNotification({
+      recipientId: adminId,
+      senderId,
+      type: 'property_created',
+      title: 'Agent added a new property',
+      body: (propertyName || '').length > 80 ? `${propertyName.slice(0, 77)}…` : (propertyName || ''),
+      propertyId,
+    });
+  } catch (e) {
+    console.warn('[properties] property_created notification failed:', e?.message);
+  }
+}
+
 async function isActiveAgentMember(userId) {
   try {
     const { data, error } = await supabase
@@ -130,6 +161,17 @@ export async function createProperty({ name, code, type, location_id, owner_id, 
     .single();
 
   if (error) throw new Error(error.message);
+
+  if (agentMember) {
+    const adminId = await resolveCompanyOwnerId(effectiveCompanyId);
+    await notifyAdminPropertyCreated({
+      adminId,
+      senderId: session.user.id,
+      propertyId: data.id,
+      propertyName: data.name,
+    });
+  }
+
   syncIfEnabled();
   broadcastChange('properties');
   return data;
@@ -141,6 +183,7 @@ export async function createPropertyFull(updates) {
   if (!session?.user) throw new Error('Not authenticated');
 
   const effectiveCompanyId = updates.company_id ?? await resolveAgentCompanyId(session.user.id);
+  const agentMember = await isActiveAgentMember(session.user.id);
 
   const row = {
     ...pickAllowed(updates),
@@ -156,6 +199,17 @@ export async function createPropertyFull(updates) {
     .single();
 
   if (error) throw new Error(error.message);
+
+  if (agentMember) {
+    const adminId = await resolveCompanyOwnerId(effectiveCompanyId);
+    await notifyAdminPropertyCreated({
+      adminId,
+      senderId: session.user.id,
+      propertyId: data.id,
+      propertyName: data.name,
+    });
+  }
+
   syncIfEnabled();
   broadcastChange('properties');
   return data;

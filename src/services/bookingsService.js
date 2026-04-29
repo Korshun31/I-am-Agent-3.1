@@ -193,6 +193,36 @@ export async function createBooking(booking) {
     }
   }
 
+  // If the creator is an agent, notify the company admin about the new booking.
+  if (!isAdmin && prop.company_id) {
+    try {
+      const { data: company } = await supabase
+        .from('companies')
+        .select('owner_id')
+        .eq('id', prop.company_id)
+        .maybeSingle();
+      const adminId = company?.owner_id ?? null;
+      if (adminId && adminId !== session.user.id) {
+        const ctx = await loadBookingNotificationContext(data);
+        await sendNotification({
+          recipientId: adminId,
+          senderId: session.user.id,
+          type: 'booking_created',
+          title: 'New booking added by agent',
+          body: formatBookingNotificationBody({
+            ...ctx,
+            checkIn: data.check_in,
+            checkOut: data.check_out,
+          }),
+          propertyId: data.property_id,
+          bookingId: data.id,
+        });
+      }
+    } catch (e) {
+      console.warn('[bookings] booking_created notification failed:', e?.message);
+    }
+  }
+
   syncIfEnabled();
   broadcastChange('bookings');
   return mapBooking(data);
