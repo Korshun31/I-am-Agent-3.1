@@ -8,6 +8,7 @@ import { createBooking, updateBooking, getBookings } from '../../services/bookin
 import { getActiveTeamMembers } from '../../services/companyService';
 import WebContactEditPanel from './WebContactEditPanel';
 import WebBookingCalendarPicker from './WebBookingCalendarPicker';
+import ContactPicker from './ContactPicker';
 import { supabase } from '../../services/supabase';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
@@ -270,128 +271,6 @@ function PropertyPicker({ value, properties, onChange, t }) {
 }
 
 // ─── Contact Picker ───────────────────────────────────────────────────────────
-
-function ContactPicker({ value, contacts, onChange, onRequestNewContact, t, canCreateContact }) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const searchRef = useRef(null);
-  const contact = contacts.find(c => c.id === value);
-
-  const filtered = contacts.filter(c => {
-    const q = search.toLowerCase();
-    const name = `${c.name || ''} ${c.lastName || ''}`.toLowerCase();
-    return name.includes(q) || (c.phone || '').includes(q);
-  });
-
-  useEffect(() => {
-    if (open) setTimeout(() => searchRef.current?.focus(), 50);
-  }, [open]);
-
-  return (
-    <View>
-      <TouchableOpacity style={s.pickerTrigger} onPress={() => setOpen(!open)} activeOpacity={0.8}>
-        {contact ? (
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={s.contactAvatar}>
-              <Text style={s.contactAvatarText}>
-                {(contact.name || contact.lastName || '?')[0].toUpperCase()}
-              </Text>
-            </View>
-            <View>
-              <Text style={s.pickerMainText}>
-                {`${contact.name || ''} ${contact.lastName || ''}`.trim() || '—'}
-              </Text>
-              {contact.phone ? <Text style={s.pickerSubText}>{contact.phone}</Text> : null}
-            </View>
-          </View>
-        ) : (
-          <Text style={s.pickerPlaceholder}>{t('bkPickClient')}</Text>
-        )}
-        <Text style={s.pickerChevron}>{open ? '▲' : '▼'}</Text>
-      </TouchableOpacity>
-
-      {open && (
-        <View style={s.dropdown}>
-          <View style={s.searchWrap}>
-            <Text style={s.searchIcon}>🔍</Text>
-            <TextInput
-              ref={searchRef}
-              style={s.searchInput}
-              value={search}
-              onChangeText={setSearch}
-              placeholder={t('bkSearchClient')}
-              placeholderTextColor={C.light}
-            />
-            {search ? (
-              <TouchableOpacity onPress={() => setSearch('')}>
-                <Text style={s.searchClear}>✕</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-
-          <ScrollView style={{ maxHeight: 240 }} nestedScrollEnabled>
-            {/* ── Добавить нового клиента — только если есть разрешение ── */}
-            {canCreateContact && (
-              <TouchableOpacity
-                style={s.addNewContactRow}
-                onPress={() => {
-                  setOpen(false);
-                  onRequestNewContact?.(search);
-                }}
-              >
-                <View style={s.addNewContactIcon}>
-                  <Text style={{ fontSize: 15, color: '#FFF', lineHeight: 18, marginTop: -1 }}>+</Text>
-                </View>
-                <Text style={s.addNewContactText}>
-                  {search ? `${t('bkAddNewContact')} "${search}"` : t('bkAddNewContact')}
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {/* ── Убрать выбранного ── */}
-            {value ? (
-              <TouchableOpacity
-                style={[s.dropdownItem, { backgroundColor: '#FFF5F5' }]}
-                onPress={() => { onChange(''); setOpen(false); }}
-              >
-                <Text style={{ fontSize: 13, color: '#DC2626' }}>✕  {t('bkRemoveClient')}</Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {filtered.length === 0 && (
-              <Text style={s.dropdownEmpty}>{t('noResults')}</Text>
-            )}
-            {filtered.map(c => {
-              const isActive = c.id === value;
-              const name = `${c.name || ''} ${c.lastName || ''}`.trim();
-              return (
-                <TouchableOpacity
-                  key={c.id}
-                  style={[s.dropdownItem, isActive && { backgroundColor: C.accentBg }]}
-                  onPress={() => { onChange(c.id); setOpen(false); setSearch(''); }}
-                  activeOpacity={0.75}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                    <View style={s.contactAvatar}>
-                      <Text style={s.contactAvatarText}>
-                        {(name || c.phone || '?')[0].toUpperCase()}
-                      </Text>
-                    </View>
-                    <View>
-                      <Text style={s.dropdownItemName}>{name || '—'}</Text>
-                      {c.phone ? <Text style={s.dropdownItemSub}>{c.phone}</Text> : null}
-                    </View>
-                  </View>
-                  {isActive && <Text style={{ color: ACCENT, fontSize: 16 }}>✓</Text>}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
-    </View>
-  );
-}
 
 // ─── Counter Input ────────────────────────────────────────────────────────────
 
@@ -814,8 +693,14 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                     contacts={localContacts}
                     onChange={v => set('contactId', v)}
                     onRequestNewContact={handleRequestNewContact}
-                    t={t}
                     canCreateContact={canCreateContact}
+                    texts={{
+                      placeholder:       t('bkPickClient'),
+                      searchPlaceholder: t('bkSearchClient'),
+                      addNewLabel:       t('bkAddNewContact'),
+                      removeLabel:       t('bkRemoveClient'),
+                      noResults:         t('noResults'),
+                    }}
                   />
                 </Field>
                   <Field label={t('bkPassport')}>

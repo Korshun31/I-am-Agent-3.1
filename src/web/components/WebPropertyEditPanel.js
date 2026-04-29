@@ -12,6 +12,8 @@ import { supabase } from '../../services/supabase';
 import { deletePhotoFromStorage } from '../../services/storageService';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
+import ContactPicker from './ContactPicker';
+import WebContactEditPanel from './WebContactEditPanel';
 
 const ICON_TAB_MAIN      = require('../../../assets/icon-tab-main.png');
 const ICON_TAB_PRICES    = require('../../../assets/icon-tab-prices.png');
@@ -575,6 +577,33 @@ export default function WebPropertyEditPanel({
 
   const set = readOnly ? () => {} : (key, val) => setForm(f => ({ ...f, [key]: val }));
   const setAmenity = readOnly ? () => {} : (key, val) => setForm(f => ({ ...f, amenities: { ...f.amenities, [key]: val } }));
+
+  // Inline создание контакта-собственника прямо из формы объекта.
+  const [newOwnerVisible, setNewOwnerVisible] = useState(false);
+  const [newOwnerInitialName, setNewOwnerInitialName] = useState('');
+  const [newOwnerTarget, setNewOwnerTarget] = useState('owner_id'); // 'owner_id' | 'owner_id_2'
+
+  const handleRequestNewOwner = useCallback((target, prefillName) => {
+    setNewOwnerTarget(target);
+    setNewOwnerInitialName(prefillName || '');
+    setNewOwnerVisible(true);
+  }, []);
+
+  const handleNewOwnerSaved = useCallback((saved) => {
+    const contact = Array.isArray(saved) ? saved[0] : saved;
+    if (contact?.id) {
+      setOwners(prev => [contact, ...prev]);
+      setForm(f => ({ ...f, [newOwnerTarget]: contact.id }));
+    }
+    setNewOwnerVisible(false);
+  }, [newOwnerTarget]);
+
+  // Не закрываем форму объекта пока открыто окно создания собственника —
+  // иначе несохранённые данные нового контакта потеряются вместе с анимацией.
+  const handleClose = useCallback(() => {
+    if (newOwnerVisible) return;
+    onClose?.();
+  }, [newOwnerVisible, onClose]);
   const handleTypeChange = useCallback((nextType) => {
     setForm((prev) => {
       if (mode !== 'create') return prev;
@@ -984,25 +1013,37 @@ export default function WebPropertyEditPanel({
                 </View>
               </FieldRow>
               <FieldRow label={t('propOwner2')}>
-                <FieldDropdown
+                <ContactPicker
                   value={form.owner_id_2 || ''}
-                  options={[
-                    { value: '', label: '—' },
-                    ...owners.map(c => ({ value: c.id, label: [c.name, c.lastName].filter(Boolean).join(' ') })),
-                  ]}
+                  contacts={owners}
                   onChange={v => set('owner_id_2', v || null)}
+                  canCreateContact={true}
+                  onRequestNewContact={(prefill) => handleRequestNewOwner('owner_id_2', prefill)}
+                  texts={{
+                    placeholder:       t('propPickOwner'),
+                    searchPlaceholder: t('propSearchOwner'),
+                    addNewLabel:       t('propAddNewOwner'),
+                    removeLabel:       t('propRemoveOwner'),
+                    noResults:         t('noResults'),
+                  }}
                 />
               </FieldRow>
             </>
           ) : (
             <FieldRow label={t('propOwner1')}>
-              <FieldDropdown
+              <ContactPicker
                 value={form.owner_id || ''}
-                options={[
-                  { value: '', label: '—' },
-                  ...owners.map(c => ({ value: c.id, label: [c.name, c.lastName].filter(Boolean).join(' ') })),
-                ]}
+                contacts={owners}
                 onChange={v => set('owner_id', v || null)}
+                canCreateContact={true}
+                onRequestNewContact={(prefill) => handleRequestNewOwner('owner_id', prefill)}
+                texts={{
+                  placeholder:       t('propPickOwner'),
+                  searchPlaceholder: t('propSearchOwner'),
+                  addNewLabel:       t('propAddNewOwner'),
+                  removeLabel:       t('propRemoveOwner'),
+                  noResults:         t('noResults'),
+                }}
               />
             </FieldRow>
           )}
@@ -1329,14 +1370,14 @@ export default function WebPropertyEditPanel({
   if (!mounted) return null;
 
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={handleClose}>
       <View style={s.overlay}>
         {/* Dim backdrop — animated opacity */}
         <Animated.View
           style={[s.backdrop, { opacity: backdropAnim }]}
           pointerEvents={visible ? 'auto' : 'none'}
         >
-          <TouchableOpacity style={{ flex: 1 }} onPress={onClose} activeOpacity={1} />
+          <TouchableOpacity style={{ flex: 1 }} onPress={handleClose} activeOpacity={1} />
         </Animated.View>
 
         {/* Sliding panel */}
@@ -1352,7 +1393,7 @@ export default function WebPropertyEditPanel({
                 </Text>
               )}
             </View>
-            <TouchableOpacity style={s.closeBtn} onPress={onClose}>
+            <TouchableOpacity style={s.closeBtn} onPress={handleClose}>
               <Text style={s.closeBtnText}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -1450,7 +1491,7 @@ export default function WebPropertyEditPanel({
             ) : (
               /* ── Normal mode: Отмена + Сохранить ── */
               <View style={s.footerBtns}>
-                <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
+                <TouchableOpacity style={s.cancelBtn} onPress={handleClose}>
                   <Text style={s.cancelBtnText}>{t('cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
@@ -1468,6 +1509,20 @@ export default function WebPropertyEditPanel({
           </View>
         </Animated.View>
       </View>
+
+      {/* Панель создания нового собственника — открывается поверх формы объекта */}
+      <WebContactEditPanel
+        visible={newOwnerVisible}
+        mode="add"
+        lockType="owners"
+        contact={(() => {
+          const parts = (newOwnerInitialName || '').trim().split(/\s+/).filter(Boolean);
+          if (parts.length === 0) return null;
+          return { name: parts[0], lastName: parts.slice(1).join(' ') };
+        })()}
+        onClose={() => setNewOwnerVisible(false)}
+        onSaved={handleNewOwnerSaved}
+      />
     </Modal>
   );
 }
