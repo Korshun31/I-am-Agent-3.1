@@ -290,9 +290,9 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   // Phase 1: explicit role predicate (LOCK-001). Falls back to isAgent for
   // screens that haven't received a fresh auth profile yet.
   const isAgentRole = user?.isAgentRole ?? isAgent;
-  const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
-  const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
-  const canAddUnit = !isAgent || user?.teamPermissions?.can_add_property;
+  const canEditInfo = !isAgent || user?.teamPermissions?.can_manage_property;
+  const canEditPrices = !isAgent || user?.teamPermissions?.can_manage_property;
+  const canAddUnit = !isAgent || user?.teamPermissions?.can_manage_property;
   // Agent may delete only their own non-approved property (LOCK-001)
   const isCreator = property.user_id === user?.id;
 
@@ -1373,7 +1373,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
   }
 
   const isAgent = !!user?.teamMembership;
-  const canAdd = !isAgent || user?.teamPermissions?.can_add_property;
+  const canAdd = !isAgent || user?.teamPermissions?.can_manage_property;
 
   return (
     <View style={s.root}>

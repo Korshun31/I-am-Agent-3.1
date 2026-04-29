@@ -807,7 +807,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                     />
                   )}
                   {(() => {
-                    const canBook = user?.teamPermissions?.can_book;
+                    const canBook = user?.teamPermissions?.can_manage_bookings;
                     const isAgent = !!(user?.teamMembership);
                     return listToShow.map((unit) => {
                       const canAddBooking = !readOnly && (!isAgent || canBook);

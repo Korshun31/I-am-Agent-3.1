@@ -179,7 +179,7 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, 
   const [deleting, setDeleting] = useState(false);
 
 // Guard: agent can edit/delete only bookings they are responsible for
-const canEditBooking   = !user?.teamMembership || (booking?.responsibleAgentId === user?.id && !!user?.teamPermissions?.can_book);
+const canEditBooking   = !user?.teamMembership || (booking?.responsibleAgentId === user?.id && !!user?.teamPermissions?.can_manage_bookings);
 const canDeleteBooking = !user?.teamMembership || booking?.responsibleAgentId === user?.id;
 
   if (!booking) return null;
@@ -529,7 +529,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
   const totalW   = useMemo(() => timelineWidth(months), [months]);
   const colorMap = useMemo(() => assignColors(bookings), [bookings]);
 
-  const canCreate = !user?.teamMembership || !!user?.teamPermissions?.can_book;
+  const canCreate = !user?.teamMembership || !!user?.teamPermissions?.can_manage_bookings;
 
   const handleGanttCellPress = (prop, date) => {
     setCreateTemplate({ propertyId: prop.id, checkIn: date });
@@ -740,7 +740,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
               </TouchableOpacity>
             )}
           </View>
-          {(!user?.teamMembership || user?.teamPermissions?.can_book) && (
+          {(!user?.teamMembership || user?.teamPermissions?.can_manage_bookings) && (
             <TouchableOpacity style={s.addBtn} onPress={() => { setCreateTemplate(null); setSelectedBooking(null); setEditPanelMode('create'); }}>
               <Text style={s.addBtnText}>+ {t('bookingsAddBtn')}</Text>
             </TouchableOpacity>

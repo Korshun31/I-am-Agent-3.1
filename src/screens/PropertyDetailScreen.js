@@ -1112,9 +1112,9 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const isAgentRole = user?.isAgentRole ?? isTeamMember;
   const isAdmin = user?.workAs === 'company' && !!(user?.companyId); // web-паттерн: явная проверка company mode
   const isAdminRole = user?.isAdminRole ?? (!user?.teamMembership && !!user?.companyId);
-  const canBook = user?.teamPermissions?.can_book;
-  const canEditInfo = !isTeamMember || user?.teamPermissions?.can_edit_info;
-  const canEditPrices = !isTeamMember || user?.teamPermissions?.can_edit_prices;
+  const canBook = user?.teamPermissions?.can_manage_bookings;
+  const canEditInfo = !isTeamMember || user?.teamPermissions?.can_manage_property;
+  const canEditPrices = !isTeamMember || user?.teamPermissions?.can_manage_property;
   const showSubmitLabel = isTeamMember && (!canEditInfo || !canEditPrices || p?.property_status === 'rejected');
   const isApproved = !p?.property_status || p?.property_status === 'approved';
   const isParentContainer = (p?.type === 'resort' || p?.type === 'condo') && !p?.resort_id;
@@ -1575,8 +1575,8 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       ]);
 
       const isAgent = !!user?.teamMembership;
-      const agentCanEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
-      const agentCanEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
+      const agentCanEditInfo = !isAgent || user?.teamPermissions?.can_manage_property;
+      const agentCanEditPrices = !isAgent || user?.teamPermissions?.can_manage_property;
       const isRejected = p?.property_status === 'rejected';
 
       // If rejected — everything through draft regardless of permissions

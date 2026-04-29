@@ -75,7 +75,7 @@ export default function RealEstateScreen({ onReady }) {
   const propertyToOpen = route.params?.propertyToOpen ?? null;
   const { t } = useLanguage();
   const { properties, propertiesLoading: loading, refreshProperties, contacts } = useAppData();
-  const canAdd = !user?.teamMembership || user?.teamPermissions?.can_add_property;
+  const canAdd = !user?.teamMembership || user?.teamPermissions?.can_manage_property;
 
   useEffect(() => { onReady?.(); }, []);
   const [filterVisible, setFilterVisible] = useState(false);

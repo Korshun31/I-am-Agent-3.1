@@ -464,8 +464,8 @@ export default function WebPropertyEditPanel({
   // Разрешения агента / роли
   const isAgent = !!user?.teamMembership;
   const isCompanyAdmin = !isAgent && !!(user?.workAs === 'company' && user?.companyId);
-  const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
-  const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
+  const canEditInfo = !isAgent || user?.teamPermissions?.can_manage_property;
+  const canEditPrices = !isAgent || user?.teamPermissions?.can_manage_property;
   // Agent edit flow must always re-submit rejected properties through draft moderation.
   const showSubmitLabel = isAgent && (!canEditInfo || !canEditPrices || property?.property_status === 'rejected');
 

@@ -322,7 +322,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
 
   // Разрешения агента
   const isAgent = !!user?.teamMembership;
-  const canCreateContact = !isAgent || !!user?.teamPermissions?.can_book;
+  const canCreateContact = !isAgent || !!user?.teamPermissions?.can_manage_bookings;
 
   const [form, setForm]             = useState(() => buildForm(booking, null));
   const [saving, setSaving]         = useState(false);
