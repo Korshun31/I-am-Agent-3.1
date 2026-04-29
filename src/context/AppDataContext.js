@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { initCompanyChannel, destroyCompanyChannel, broadcastChange } from '../services/companyChannel';
 import { signOut, getCurrentUser } from '../services/authService';
@@ -75,15 +75,8 @@ export function AppDataProvider({ children, user }) {
     ]);
   }, [refreshProperties, refreshBookings, refreshContacts, refreshCalendarEvents]);
 
-  // Бронирования только для утверждённых объектов (pending/rejected исключены)
-  const filteredBookings = useMemo(() => {
-    const approvedIds = new Set(
-      properties
-        .filter(p => !p.property_status || p.property_status === 'approved')
-        .map(p => p.id)
-    );
-    return bookings.filter(b => approvedIds.has(b.propertyId));
-  }, [properties, bookings]);
+  // Все объекты после упрощения модели прав сразу одобрены — фильтр снят.
+  const filteredBookings = bookings;
 
   const isLoaded = !propertiesLoading && !bookingsLoading && !contactsLoading && !eventsLoading;
 

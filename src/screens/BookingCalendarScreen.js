@@ -175,9 +175,9 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const hasScrolledOnceRef = useRef(false);
   const notifModalVisibleRef = useRef(false);
 
-  const approvedProperties = properties.filter(p => !p.property_status || p.property_status === 'approved');
-  const topLevel = approvedProperties.filter(p => !p.resort_id);
-  const children = approvedProperties.filter(p => p.resort_id);
+  // После упрощения модели прав модерация снята — все объекты считаются одобренными.
+  const topLevel = properties.filter(p => !p.resort_id);
+  const children = properties.filter(p => p.resort_id);
   const getParent = (id) => properties.find(pr => pr.id === id);
 
   const filterFn = useCallback((p, parent) => {
