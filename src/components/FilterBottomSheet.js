@@ -72,7 +72,6 @@ export default function FilterBottomSheet({
   const [city, setCity] = useState(filter?.city ?? null);
   const [selectedDistricts, setSelectedDistricts] = useState(new Set(filter?.districts ?? []));
   const [selectedTypes, setSelectedTypes] = useState(new Set(filter?.types ?? []));
-  const [inReview, setInReview] = useState(filter?.inReview ?? false);
   const [selectedBedrooms, setSelectedBedrooms] = useState(() => {
     const b = filter?.bedrooms;
     if (b == null) return new Set();
@@ -102,7 +101,6 @@ export default function FilterBottomSheet({
       setPets(filter?.pets ?? null);
       setLongTerm(filter?.longTerm ?? null);
       setSelectedAmenities(new Set(filter?.amenities ?? []));
-      setInReview(filter?.inReview ?? false);
     }
   }, [visible, filter]);
 
@@ -160,7 +158,6 @@ export default function FilterBottomSheet({
     setPets(null);
     setLongTerm(null);
     setSelectedAmenities(new Set());
-    setInReview(false);
     onApply?.(null);
     onClose?.();
   };
@@ -178,7 +175,6 @@ export default function FilterBottomSheet({
       pets: pets,
       longTerm: longTerm,
       amenities: [...selectedAmenities],
-      inReview: inReview || false,
     });
     onClose?.();
   };
@@ -273,14 +269,6 @@ export default function FilterBottomSheet({
                   );
                 })}
               </View>
-            </View>
-
-            <View style={s.section}>
-              <CheckRow
-                label={t('filterInReview')}
-                checked={inReview}
-                onPress={() => setInReview(v => !v)}
-              />
             </View>
 
             <View style={s.section}>
