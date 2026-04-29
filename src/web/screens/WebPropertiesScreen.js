@@ -39,12 +39,11 @@ const AMENITY_ICONS = {
   blender:         require('../../../assets/icon-amenity-blender.png'),
 };
 
-import { getProperties, createProperty, deleteProperty, approveProperty, rejectProperty, approvePropertyDraft, rejectPropertyDraft, getPropertyDraft, getPropertyRejectionHistory } from '../../services/propertiesService';
+import { getProperties, createProperty, deleteProperty } from '../../services/propertiesService';
 import { getActiveTeamMembers } from '../../services/companyService';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
 import { getContacts } from '../../services/contactsService';
 import { getBookings } from '../../services/bookingsService';
-import { sendNotification } from '../../services/notificationsService';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -236,11 +235,6 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
           </View>
         )}
         {occupied && <View style={s.occupiedDot} />}
-        {(item.property_status === 'pending' || item.property_status === 'rejected') && (
-          <View style={s.pendingChip}>
-            <Text style={s.pendingChipText}>⏳</Text>
-          </View>
-        )}
       </View>
 
       {/* Body */}
@@ -277,7 +271,7 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
 
 // ─── Property Detail ──────────────────────────────────────────────────────────
 
-export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit, user, onApprove, onReject, onDelete, draftRefreshKey, historyRefreshKey }) {
+export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit, user, onDelete }) {
   const { t } = useLanguage();
   const TYPE_META = getTypeMeta(t);
   const AMENITY_LABELS = getAmenityLabels(t);
@@ -298,12 +292,8 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
 
   const [teamMembers, setTeamMembers] = useState([]);
   const [currentResponsible, setCurrentResponsible] = useState(property.responsible_agent_id ?? null);
-  const [pendingDraft, setPendingDraft] = useState(null);
-  const [rejectionHistory, setRejectionHistory] = useState([]);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [deleteCascadeConfirmVisible, setDeleteCascadeConfirmVisible] = useState(false);
-  // Admin: pending draft from any agent for this property (draft-aware moderation)
-  const [adminAgentDraft, setAdminAgentDraft] = useState(null);
 
   React.useEffect(() => {
     setCurrentResponsible(property.responsible_agent_id ?? null);
@@ -314,50 +304,12 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
     getActiveTeamMembers(user.companyId).then(setTeamMembers).catch(() => {});
   }, [isCompanyAdmin, user?.companyId]);
 
-  // Загружаем pending черновик агента для этого объекта (агентская сторона)
-  React.useEffect(() => {
-    if (!isAgent || !property?.id) { setPendingDraft(null); return; }
-    getPropertyDraft(property.id).then(setPendingDraft).catch(() => {});
-  }, [property?.id, isAgent, draftRefreshKey]);
-
-  // Admin: загружаем черновик агента (без фильтра по user_id) для draft-aware модерации.
-  // Зависит от draftRefreshKey — он растёт после broadcastChange из submitPropertyDraft.
-  React.useEffect(() => {
-    let cancelled = false;
-    if (!isCompanyAdmin || !property?.id) { setAdminAgentDraft(null); return; }
-    supabase
-      .from('property_drafts')
-      .select('id, user_id')
-      .eq('property_id', property.id)
-      .eq('status', 'pending')
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => { if (!cancelled) setAdminAgentDraft(data || null); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [isCompanyAdmin, property?.id, draftRefreshKey]);
-
-  // Загружаем историю отклонений (для rejected объектов и их авторов/админов)
-  React.useEffect(() => {
-    if (!property?.id || property.property_status === 'approved') {
-      setRejectionHistory([]);
-      return;
-    }
-    getPropertyRejectionHistory(property.id).then(setRejectionHistory).catch(() => setRejectionHistory([]));
-  }, [property?.id, property?.property_status, historyRefreshKey]);
-
-  const isSubmitted = property.property_status === 'pending';
-  const isRejected = property.property_status === 'rejected';
-  // Priority: adminAgentDraft (or pending property) → in_review; otherwise use property_status
-  const displayStatus = (adminAgentDraft || isSubmitted) ? 'in_review' : isRejected ? 'rejected' : null;
-
   const owner1 = contacts.find(c => c.id === property.owner_id);
   const owner2 = contacts.find(c => c.id === property.owner_id_2);
   const parent = allProperties.find(p => p.id === property.resort_id);
   const children = allProperties.filter(p => p.resort_id === property.id);
   const isParentContainer = (property.type === 'resort' || property.type === 'condo') && !property.resort_id;
-  const hasApprovedChildren = children.some((child) => child.property_status === 'approved');
-  const needsSecondDeleteConfirm = isAdminRole && isParentContainer && hasApprovedChildren;
+  const needsSecondDeleteConfirm = isAdminRole && isParentContainer && children.length > 0;
   const occupied = isOccupiedNow(bookings, property.id);
   const code = property.code + (property.code_suffix ? `-${property.code_suffix}` : '');
   const effectiveType = property.resort_id && parent ? parent.type : property.type;
@@ -468,72 +420,20 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
             </View>
           </View>
           <View style={s.detailActions}>
-            {displayStatus === 'in_review' ? (
-              isCompanyAdmin ? (
-                /* Admin + in_review: badge + Approve + Reject + Delete (draft-aware) */
-                <View style={s.statusActionRow}>
-                  <View style={s.statusBadgePending}>
-                    <Text style={s.statusBadgePendingText}>⏳ {t('propSubmitted') || 'На проверке'}</Text>
-                  </View>
-                  <TouchableOpacity style={s.detailApproveBtnOutline} onPress={() => onApprove(adminAgentDraft?.id)}>
-                    <Text style={s.detailApproveBtnText}>✓ {t('propApprove') || 'Принять'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={s.detailRejectBtnOutline} onPress={() => onReject(adminAgentDraft?.id)}>
-                    <Text style={s.detailRejectBtnText}>✗ {t('propReject') || 'Отклонить'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={s.detailDeleteBtnOutline} onPress={() => setDeleteConfirmVisible(true)}>
-                    <Text style={s.detailDeleteBtnText}>🗑</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                /* Agent + in_review: badge; creator also gets delete */
-                <View style={s.statusActionRow}>
-                  <View style={s.statusBadgePending}>
-                    <Text style={s.statusBadgePendingText}>⏳ {t('propSubmitted') || 'На проверке'}</Text>
-                  </View>
-                  {isCreator && (
-                    <TouchableOpacity style={s.detailDeleteBtnOutline} onPress={() => setDeleteConfirmVisible(true)}>
-                      <Text style={s.detailDeleteBtnText}>🗑</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )
-            ) : displayStatus === 'rejected' ? (
-              /* Rejected (no pending draft): badge + Edit + Delete в одну строку */
-              <View style={s.statusActionRow}>
-                <View style={s.statusBadgePending}>
-                  <Text style={s.statusBadgePendingText}>⏳ {t('propProcessing') || 'На обработке'}</Text>
-                </View>
-                <TouchableOpacity style={s.detailEditBtnOutline} onPress={onEdit}>
-                  <Image source={ICON_PENCIL} style={s.detailEditBtnIconMuted} resizeMode="contain" />
-                  <Text style={s.detailEditBtnTextMuted}>{t('edit')}</Text>
+            <View style={s.statusActionRow}>
+              <TouchableOpacity style={s.detailEditBtn} onPress={onEdit}>
+                <Image source={ICON_PENCIL} style={s.detailEditBtnIcon} resizeMode="contain" />
+                <Text style={s.detailEditBtnText}>{t('edit')}</Text>
+              </TouchableOpacity>
+              {!isAgentRole && (
+                <TouchableOpacity
+                  style={s.detailDeleteBtnOutline}
+                  onPress={() => setDeleteConfirmVisible(true)}
+                >
+                  <Text style={s.detailDeleteBtnText}>🗑</Text>
                 </TouchableOpacity>
-                {(!isAgent || isCreator) && (
-                  <TouchableOpacity
-                    style={s.detailDeleteBtnOutline}
-                    onPress={() => setDeleteConfirmVisible(true)}
-                  >
-                    <Text style={s.detailDeleteBtnText}>🗑</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ) : (
-              /* Normal (approved): Edit + Delete в одну строку */
-              <View style={s.statusActionRow}>
-                <TouchableOpacity style={s.detailEditBtn} onPress={onEdit}>
-                  <Image source={ICON_PENCIL} style={s.detailEditBtnIcon} resizeMode="contain" />
-                  <Text style={s.detailEditBtnText}>{t('edit')}</Text>
-                </TouchableOpacity>
-                {!isAgentRole && (
-                  <TouchableOpacity
-                    style={s.detailDeleteBtnOutline}
-                    onPress={() => setDeleteConfirmVisible(true)}
-                  >
-                    <Text style={s.detailDeleteBtnText}>🗑</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
+              )}
+            </View>
           </View>
         </View>
 
@@ -589,57 +489,6 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
           );
         })()}
 
-
-        {/* ── История отклонений ── */}
-        {isRejected && (rejectionHistory.length > 0 || !!property.rejection_reason) ? (
-          <View style={s.rejectedBlock}>
-            <Text style={s.rejectedLabel}>{t('propRejectionHistory') || 'История отклонений'}</Text>
-            {rejectionHistory.length > 0 ? (
-              rejectionHistory.map((entry, idx) => {
-                const isLatest = idx === 0;
-                const num = rejectionHistory.length - idx;
-                const dateStr = entry.created_at
-                  ? new Date(entry.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
-                  : '';
-                return (
-                  <View key={entry.id} style={[s.rejectionHistoryItem, isLatest && s.rejectionHistoryItemLatest]}>
-                    <View style={s.rejectionHistoryRow}>
-                      <Text style={[s.rejectionHistoryNum, isLatest && s.rejectionHistoryNumLatest]}>
-                        {`#${num}`}
-                      </Text>
-                      <Text style={[s.rejectionHistoryReason, isLatest && s.rejectionHistoryReasonLatest, { flex: 1 }]}>
-                        {entry.reason || '—'}
-                      </Text>
-                    </View>
-                    {!!dateStr && (
-                      <Text style={s.rejectionHistoryDate}>{dateStr}</Text>
-                    )}
-                  </View>
-                );
-              })
-            ) : (
-              /* Legacy fallback: история пуста, но есть старый rejection_reason */
-              <View style={[s.rejectionHistoryItem, s.rejectionHistoryItemLatest]}>
-                <View style={s.rejectionHistoryRow}>
-                  <Text style={[s.rejectionHistoryNum, s.rejectionHistoryNumLatest]}>#1</Text>
-                  <Text style={[s.rejectionHistoryReason, s.rejectionHistoryReasonLatest, { flex: 1 }]}>
-                    {property.rejection_reason}
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
-        ) : null}
-
-        {/* Баннер для агента: изменения отправлены на проверку */}
-        {pendingDraft && (
-          <View style={s.draftBanner}>
-            <Text style={s.draftBannerIcon}>⏳</Text>
-            <Text style={s.draftBannerText}>
-              {t('propDraftSent')}
-            </Text>
-          </View>
-        )}
 
         {/* ── Location ── */}
         {(property.city || property.beach_distance || property.market_distance || property.google_maps_link || property.website_url) && (
@@ -815,9 +664,6 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
               {children.map(child => {
                 const childMeta = TYPE_META[getTypeMetaKey(child.type)] || TYPE_META.house;
                 const childCode = child.code + (child.code_suffix ? `-${child.code_suffix}` : '');
-                const isPending = child.property_status === 'pending';
-                const isRejected = child.property_status === 'rejected';
-                const isInReview = isPending || isRejected;
                 const activeBooking = getActiveBooking(bookings, child.id);
                 const childOccupied = !!activeBooking;
                 const checkOutLabel = activeBooking
@@ -839,11 +685,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                       {hasPhoto ? (
                         <Image
                           source={{ uri: child.photos[0] }}
-                          style={[
-                            s.childCardImg,
-                            isInReview && s.childCardImgMuted,
-                            Platform.OS === 'web' && isInReview && s.childMediaGrayWeb,
-                          ]}
+                          style={s.childCardImg}
                           resizeMode="cover"
                         />
                       ) : (
@@ -852,25 +694,19 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                             ? (
                               <Image
                                 source={childMeta.img}
-                                style={[
-                                  s.childCardImgIcon2,
-                                  isInReview && s.childCardImgIconMuted,
-                                  Platform.OS === 'web' && isInReview && s.childMediaGrayWeb,
-                                ]}
+                                style={s.childCardImgIcon2}
                                 resizeMode="contain"
                               />
                             )
-                            : <Text style={[s.childCardImgIcon, isInReview && s.childCardImgIconMuted]}>{childMeta.icon}</Text>}
+                            : <Text style={s.childCardImgIcon}>{childMeta.icon}</Text>}
                         </View>
                       )}
-                      {isInReview && <View pointerEvents="none" style={s.childCardPhotoOverlay} />}
                     </View>
 
                     {/* Info */}
                     <View style={s.childCardInfo}>
                       {/* Top row: name + code + status */}
                       <View style={s.childCardTopRow}>
-                        {isInReview && <Text style={s.childInReviewMark}>⏳</Text>}
                         <Text style={s.childCardTitle} numberOfLines={1}>{child.name}</Text>
                         <View style={s.childCodeChip}>
                           <Text style={s.childCodeChipText}>{childCode}</Text>
@@ -1022,25 +858,11 @@ function AddPropertyModal({ visible, onClose, onSaved, user }) {
     setSaving(true);
     setError('');
     try {
-      const created = await createProperty({
+      await createProperty({
         name: name.trim(),
         code: code.trim().toUpperCase(),
         type,
-        property_status: user?.teamMembership ? 'pending' : 'approved',
       });
-      // Уведомляем Админа если создаёт агент
-      const adminId = user?.teamMembership?.adminId;
-      if (adminId && created?.id) {
-        const agentName = [user.name, user.lastName].filter(Boolean).join(' ') || user.email;
-        await sendNotification({
-          recipientId: adminId,
-          senderId: user.id,
-          type: 'property_submitted',
-          title: `${agentName} ${t('notifAddedProperty')} «${name.trim()}»`,
-          body: `${t('notifLabelCode')} ${code.trim().toUpperCase()} · ${t('notifLabelType')} ${type}`,
-          propertyId: created.id,
-        });
-      }
       reset();
       onSaved();
     } catch (e) {
@@ -1155,12 +977,6 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
   const [restoreScrollY, setRestoreScrollY] = useState(0);
   const [addVisible, setAddVisible] = useState(false);
   const [editPanel, setEditPanel] = useState({ visible: false, mode: 'create', property: null, parentProperty: null });
-  const [draftRefreshKey, setDraftRefreshKey] = useState(0);
-  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
-  const [rejectModalVisible, setRejectModalVisible] = useState(false);
-  const [rejectDraftId, setRejectDraftId] = useState(null);
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectReasonError, setRejectReasonError] = useState('');
 
   const handleSelectProperty = (prop) => {
     setSelected(prop);
@@ -1213,7 +1029,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
   }, []);
 
   useEffect(() => { load(); }, []);
-  useEffect(() => { if (refreshKey) { load(); setDraftRefreshKey(k => k + 1); setHistoryRefreshKey(k => k + 1); } }, [refreshKey]);
+  useEffect(() => { if (refreshKey) { load(); } }, [refreshKey]);
 
 
 
@@ -1237,18 +1053,8 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
   }, [initialPropertyId, loading, properties]);
 
   // ── Filter & sort list ──
-  const isInReviewTab = typeFilter === 'inReview';
-  const isFilterActive = typeFilter !== 'all' || search.trim() !== '';
-  const approvedBase = properties.filter(p => !p.property_status || p.property_status === 'approved');
-  const reviewBase = properties.filter(p => p.property_status === 'pending' || p.property_status === 'rejected');
-
-  // Таб "На проверке" — показываем pending/rejected, поиск внутри этого набора.
-  // Любой другой фильтр/поиск — только approved.
-  // Без фильтра и поиска — весь список (как раньше).
-  const listBase = isInReviewTab ? reviewBase : (isFilterActive ? approvedBase : properties);
-
-  const filtered = listBase.filter(p => {
-    if (!isInReviewTab && typeFilter !== 'all') {
+  const filtered = properties.filter(p => {
+    if (typeFilter !== 'all') {
       if (typeFilter === 'house') {
         if (!HOUSE_LIKE_TYPES.has(p.type)) return false;
       } else if (p.type !== typeFilter) {
@@ -1264,82 +1070,22 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
     return true;
   });
 
-  // В поиске показываем все (включая юниты).
-  // Для In review также всегда показываем и верхний уровень, и юниты даже без поиска.
-  // Для остальных табов без поиска оставляем только верхний уровень.
+  // В поиске показываем все (включая юниты), без поиска — только верхний уровень.
   const sorted = search.trim()
     ? [...filtered.filter(p => !p.resort_id), ...filtered.filter(p => !!p.resort_id)]
-    : (isInReviewTab
-      ? [...filtered.filter(p => !p.resort_id), ...filtered.filter(p => !!p.resort_id)]
-      : filtered.filter(p => !p.resort_id));
+    : filtered.filter(p => !p.resort_id);
 
-  // Счётчики табов — всегда стабильные, не зависят от выбранного таба или поиска
   const counts = {
     all: properties.length,
-    inReview: reviewBase.length,
-    house:  approvedBase.filter(p => HOUSE_LIKE_TYPES.has(p.type)).length,
-    resort: approvedBase.filter(p => p.type === 'resort').length,
-    condo:  approvedBase.filter(p => p.type === 'condo').length,
+    house:  properties.filter(p => HOUSE_LIKE_TYPES.has(p.type)).length,
+    resort: properties.filter(p => p.type === 'resort').length,
+    condo:  properties.filter(p => p.type === 'condo').length,
   };
 
   const handleSaved = () => {
     setAddVisible(false);
     setLoading(true);
     load();
-  };
-
-  const openRejectModal = (draftId) => {
-    setRejectDraftId(draftId || null);
-    setRejectReason('');
-    setRejectReasonError('');
-    setRejectModalVisible(true);
-  };
-
-  const closeRejectModal = () => {
-    setRejectModalVisible(false);
-    setRejectDraftId(null);
-    setRejectReason('');
-    setRejectReasonError('');
-  };
-
-  const handleSubmitReject = async () => {
-    const trimmedReason = (rejectReason || '').trim();
-    if (!trimmedReason) {
-      setRejectReasonError(t('propRejectReasonRequired') || t('diffRejectPlaceholder') || 'Reason is required');
-      return;
-    }
-    if (!selected?.id) return;
-    try {
-      let recipientId = selected?.user_id || null;
-      if (rejectDraftId) {
-        const { data: draftData } = await supabase
-          .from('property_drafts')
-          .select('user_id')
-          .eq('id', rejectDraftId)
-          .maybeSingle();
-        if (draftData?.user_id) recipientId = draftData.user_id;
-        await rejectPropertyDraft(rejectDraftId, trimmedReason);
-      } else {
-        await rejectProperty(selected.id, trimmedReason);
-      }
-      if (recipientId) {
-        await sendNotification({
-          recipientId,
-          senderId: user?.id,
-          type: rejectDraftId ? 'edit_rejected' : 'property_rejected',
-          title: t('changesRejected'),
-          body: `${t('diffReason')} ${trimmedReason}`,
-          propertyId: selected.id,
-        });
-      }
-      await load();
-      setSelected(prev => prev ? { ...prev, property_status: 'rejected', rejection_reason: trimmedReason } : prev);
-      setHistoryRefreshKey(k => k + 1);
-      closeRejectModal();
-    } catch (e) {
-      console.error('reject error', e);
-      setRejectReasonError(e.message || t('rejectError') || t('errorSave') || 'Failed to reject');
-    }
   };
 
   const openCreate = () => setEditPanel({ visible: true, mode: 'create', property: null, parentProperty: null });
@@ -1349,15 +1095,9 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
 
   const handlePanelSaved = (saved) => {
     closePanel();
-    if (!saved) {
-      // Был отправлен черновик — перезагружаем баннер без перезагрузки списка
-      setDraftRefreshKey(k => k + 1);
-      return;
-    }
     setLoading(true);
     load().then(() => {
       if (saved?.id) {
-        // Обновляем выбранный объект если редактировали его
         setSelected(prev => prev?.id === saved.id ? saved : prev);
       }
     });
@@ -1415,7 +1155,6 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
         <View style={s.filterTabs}>
           {[
             { key: 'all',      label: `${t('all')} (${counts.all})`,                    img: null },
-            { key: 'inReview', label: `${t('filterInReview')} (${counts.inReview || 0})`, img: null },
             { key: 'house',    label: `${t('house')} (${counts.house || 0})`,           img: ICON_TYPE_HOUSE  },
             { key: 'resort',   label: `${t('resort')} (${counts.resort || 0})`,         img: ICON_TYPE_RESORT },
             { key: 'condo',    label: `${t('condo')} (${counts.condo || 0})`,           img: ICON_TYPE_CONDO  },
@@ -1490,24 +1229,6 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
             onEdit={() => openEdit(selected)}
             onAddUnit={() => openCreateUnit(selected)}
             user={user}
-            draftRefreshKey={draftRefreshKey}
-            historyRefreshKey={historyRefreshKey}
-            onApprove={async (draftId) => {
-              try {
-                if (draftId) {
-                  await approvePropertyDraft(draftId);
-                } else {
-                  await approveProperty(selected.id);
-                }
-                await load();
-                setSelected(prev => prev ? { ...prev, property_status: 'approved' } : prev);
-              } catch (e) {
-                console.error('approve error', e);
-              }
-            }}
-            onReject={async (draftId) => {
-              openRejectModal(draftId);
-            }}
             onDelete={async () => {
               try {
                 await deleteProperty(selected.id);
@@ -1544,42 +1265,6 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
         user={user}
       />
 
-      <Modal
-        visible={rejectModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={closeRejectModal}
-      >
-        <View style={s.modalOverlay}>
-          <View style={s.rejectModalBox}>
-            <Text style={s.rejectModalTitle}>{t('propReject') || 'Reject'}</Text>
-            <Text style={s.rejectModalSubtitle}>{t('propRejectReasonPlaceholder') || t('diffRejectPlaceholder') || 'Please provide rejection reason'}</Text>
-            <TextInput
-              style={[s.rejectModalInput, !!rejectReasonError && s.rejectModalInputError]}
-              value={rejectReason}
-              onChangeText={(v) => {
-                setRejectReason(v);
-                if (rejectReasonError) setRejectReasonError('');
-              }}
-              placeholder={t('propRejectReasonPlaceholder') || t('diffRejectPlaceholder') || 'Reason'}
-              placeholderTextColor={C.light}
-              multiline
-              autoFocus
-            />
-            {!!rejectReasonError && (
-              <Text style={s.rejectModalErrorText}>{rejectReasonError}</Text>
-            )}
-            <View style={s.rejectModalActions}>
-              <TouchableOpacity style={s.rejectModalCancelBtn} onPress={closeRejectModal}>
-                <Text style={s.rejectModalCancelText}>{t('cancel') || 'Cancel'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.rejectModalSubmitBtn} onPress={handleSubmitReject}>
-                <Text style={s.rejectModalSubmitText}>{t('propRejectSubmit') || 'Send reject'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
