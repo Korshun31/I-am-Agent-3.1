@@ -300,11 +300,18 @@ export async function revokeInvitation(invitationId) {
 
 /**
  * Обновить разрешения участника команды.
+ * Принимает только две галочки упрощённой модели прав; старые ключи
+ * (can_add_property/can_edit_info/can_edit_prices/can_book/can_delete_booking)
+ * перетираются и в дальнейшем не читаются. Этап 3 удалит их физически.
  */
 export async function updateMemberPermissions(memberId, permissions) {
+  const next = {
+    can_manage_property: !!permissions?.can_manage_property,
+    can_manage_bookings: !!permissions?.can_manage_bookings,
+  };
   const { error } = await supabase
     .from('company_members')
-    .update({ permissions })
+    .update({ permissions: next })
     .eq('id', memberId);
   if (error) throw new Error(error.message);
 }

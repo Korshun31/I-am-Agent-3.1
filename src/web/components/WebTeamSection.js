@@ -115,19 +115,10 @@ function MemberPermissionsModal({ member, companyId, visible, onClose, onSave })
             <View style={s.modalSection}>
               <Text style={s.modalSectionTitle}>{t('permSectionProperties')}</Text>
               <PermissionToggleRow
-                label={t('permCanAddProperty')}
-                hint={t('permCanAddPropertyHint')}
-                value={!!permissions.can_add_property}
-                onToggle={() => toggle('can_add_property')}
-              />
-              <PermissionToggleRow
-                label={t('permCanEditProperty')}
-                hint={t('permCanEditPropertyHint')}
-                value={!!permissions.can_edit_info}
-                onToggle={() => {
-                  const newVal = !permissions.can_edit_info;
-                  setPermissions(prev => ({ ...prev, can_edit_info: newVal, can_edit_prices: newVal }));
-                }}
+                label={t('permCanManageProperty')}
+                hint={t('permCanManagePropertyHint')}
+                value={!!permissions.can_manage_property}
+                onToggle={() => toggle('can_manage_property')}
               />
             </View>
 
@@ -135,10 +126,10 @@ function MemberPermissionsModal({ member, companyId, visible, onClose, onSave })
             <View style={s.modalSection}>
               <Text style={s.modalSectionTitle}>{t('permSectionBookings')}</Text>
               <PermissionToggleRow
-                label={t('permCanBookLabel')}
-                hint={t('permCanBookLabelHint')}
-                value={!!permissions.can_book}
-                onToggle={() => toggle('can_book')}
+                label={t('permCanManageBookings')}
+                hint={t('permCanManageBookingsHint')}
+                value={!!permissions.can_manage_bookings}
+                onToggle={() => toggle('can_manage_bookings')}
               />
             </View>
 
@@ -196,9 +187,8 @@ function MemberPermissionsModal({ member, companyId, visible, onClose, onSave })
 }
 
 const PERM_TAGS = [
-  { key: 'can_add_property', labelKey: 'permTagAdd' },
-  { key: 'can_edit_info', labelKey: 'permTagEdit' },
-  { key: 'can_book', labelKey: 'permTagBook' },
+  { key: 'can_manage_property', labelKey: 'permTagProperty' },
+  { key: 'can_manage_bookings', labelKey: 'permTagBookings' },
 ];
 
 function MemberRow({ member, isCurrentUser, onPress, onDeactivate }) {
