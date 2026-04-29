@@ -45,21 +45,6 @@ export async function getTotalCount() {
   return count || 0;
 }
 
-export async function getPendingActionsCount() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return 0;
-
-  const { count, error } = await supabase
-    .from('notifications')
-    .select('id', { count: 'exact', head: true })
-    .eq('recipient_id', session.user.id)
-    .eq('action_taken', false)
-    .in('type', ['property_submitted', 'edit_submitted', 'price_submitted']);
-
-  if (error) return 0;
-  return count || 0;
-}
-
 export async function markAllRead() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return;

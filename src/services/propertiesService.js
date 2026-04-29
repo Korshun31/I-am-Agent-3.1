@@ -107,19 +107,12 @@ async function isActiveAgentMember(userId) {
   }
 }
 
-async function resolveCreatePropertyStatus(userId, requestedStatus) {
-  const agentMember = await isActiveAgentMember(userId);
-  if (agentMember) return 'pending';
-  return requestedStatus || 'approved';
-}
-
-export async function createProperty({ name, code, type, location_id, owner_id, property_status, company_id }) {
+export async function createProperty({ name, code, type, location_id, owner_id, company_id }) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
   const effectiveCompanyId = company_id ?? await resolveAgentCompanyId(session.user.id);
   const agentMember = await isActiveAgentMember(session.user.id);
-  const effectivePropertyStatus = agentMember ? 'pending' : (property_status || 'approved');
 
   const { data, error } = await supabase
     .from('properties')
@@ -131,7 +124,6 @@ export async function createProperty({ name, code, type, location_id, owner_id, 
       type: type || 'house',
       location_id: location_id || null,
       owner_id: owner_id || null,
-      property_status: effectivePropertyStatus,
       company_id: effectiveCompanyId,
     })
     .select()
@@ -149,13 +141,11 @@ export async function createPropertyFull(updates) {
   if (!session?.user) throw new Error('Not authenticated');
 
   const effectiveCompanyId = updates.company_id ?? await resolveAgentCompanyId(session.user.id);
-  const effectivePropertyStatus = await resolveCreatePropertyStatus(session.user.id, updates.property_status);
 
   const row = {
     ...pickAllowed(updates),
     user_id: session.user.id,
     responsible_agent_id: updates.responsible_agent_id ?? session.user.id,
-    property_status: effectivePropertyStatus,
     company_id: effectiveCompanyId,
   };
 
@@ -226,26 +216,6 @@ export async function deleteProperty(id) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
-  // Defense-in-depth: only role='agent' team members cannot delete approved properties.
-  // Company owners (admin) are exempt from this restriction (LOCK-001).
-  const { data: propData } = await supabase
-    .from('properties')
-    .select('property_status')
-    .eq('id', id)
-    .maybeSingle();
-
-  if (propData?.property_status === 'approved') {
-    const { data: memberRow } = await supabase
-      .from('company_members')
-      .select('role')
-      .eq('user_id', session.user.id)
-      .eq('role', 'agent')
-      .maybeSingle();
-    if (memberRow) {
-      throw new Error('Approved properties cannot be deleted by agents.');
-    }
-  }
-
   // TD-053: Delete photos from Storage before CASCADE deletes records
   try {
     const { data: propPhotos } = await supabase
@@ -271,19 +241,6 @@ export async function deleteProperty(id) {
     }
   } catch (e) {
     console.warn('[deleteProperty] photo cleanup failed:', e.message);
-  }
-
-  // Удаляем незакрытые уведомления на модерацию, связанные с этим объектом,
-  // чтобы у админа в Bell не висели уведомления об удалённом объекте.
-  const { error: notifError } = await supabase
-    .from('notifications')
-    .delete()
-    .eq('property_id', id)
-    .in('type', ['property_submitted', 'edit_submitted', 'price_submitted'])
-    .eq('action_taken', false);
-
-  if (notifError) {
-    console.warn('[deleteProperty] failed to clean up notifications:', notifError.message);
   }
 
   const { error } = await supabase
@@ -407,265 +364,3 @@ export async function updatePropertyResponsible(propertyId, responsibleAgentId, 
   return data;
 }
 
-export async function approveProperty(propertyId) {
-  const { error } = await supabase
-    .from('properties')
-    .update({ property_status: 'approved', rejection_reason: null })
-    .eq('id', propertyId);
-  if (error) throw new Error(error.message);
-  broadcastChange('properties');
-}
-
-export async function rejectProperty(propertyId, reason) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const { error } = await supabase
-    .from('properties')
-    .update({ property_status: 'rejected', rejection_reason: reason || '' })
-    .eq('id', propertyId);
-  if (error) throw new Error(error.message);
-
-  // Пишем запись в журнал отклонений
-  const { error: histErr } = await supabase.from('property_rejection_history').insert({
-    property_id:    propertyId,
-    reason:         reason || '',
-    rejection_type: 'property_submitted',
-    rejected_by:    session?.user?.id ?? null,
-  });
-  if (histErr) throw new Error(histErr.message);
-
-  broadcastChange('properties');
-}
-
-// =============================================================================
-// СИСТЕМА ЧЕРНОВИКОВ (Property Drafts)
-// Агент отправляет изменения на одобрение Администратору.
-// Оригинал в properties НЕ меняется до момента одобрения.
-// =============================================================================
-
-/**
- * Отправить черновик изменений объекта на одобрение Администратору.
- * Делает UPSERT — если черновик уже существует, обновляет его.
- * НЕ изменяет таблицу properties.
- *
- * @param {string} propertyId - UUID объекта
- * @param {object} draftData - объект со всеми изменёнными полями
- * @returns {object} запись черновика
- */
-export async function submitPropertyDraft(propertyId, draftData) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) throw new Error('Not authenticated');
-
-  const { data, error } = await supabase
-    .from('property_drafts')
-    .upsert(
-      {
-        property_id: propertyId,
-        user_id: session.user.id,
-        draft_data: draftData,
-        status: 'pending',
-        rejection_reason: null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'property_id,user_id' }
-    )
-    .select()
-    .single();
-
-  if (error) throw new Error(error.message);
-
-  // Reset property_status back to 'pending' so admin screens immediately show
-  // "In Review" state with approve/reject buttons — no complex adminAgentDraft query needed.
-  const { error: statusErr } = await supabase
-    .from('properties')
-    .update({ property_status: 'pending' })
-    .eq('id', propertyId);
-  if (statusErr) console.warn('[submitPropertyDraft] property_status reset failed:', statusErr.message);
-
-  // Signal admin screens to refresh
-  broadcastChange('properties');
-  return data;
-}
-
-/**
- * Получить активный (pending) черновик текущего агента для указанного объекта.
- *
- * @param {string} propertyId - UUID объекта
- * @returns {object|null} черновик или null
- */
-export async function getPropertyDraft(propertyId) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return null;
-
-  const { data, error } = await supabase
-    .from('property_drafts')
-    .select('*')
-    .eq('property_id', propertyId)
-    .eq('user_id', session.user.id)
-    .eq('status', 'pending')
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    console.error('getPropertyDraft error:', error.message);
-    return null;
-  }
-
-  return data;
-}
-
-/**
- * Для Администратора: получить все pending черновики объектов компании.
- * Включает имя объекта, код и имя агента.
- *
- * @param {string} companyId - UUID компании
- * @returns {Array<{draft, propertyName, propertyCode, agentName}>}
- */
-export async function getPendingDraftsForAdmin(companyId) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return [];
-
-  const { data, error } = await supabase
-    .from('property_drafts')
-    .select(`
-      *,
-      properties!inner(name, code, company_id),
-      users_profile:user_id(id, name, last_name, email)
-    `)
-    .eq('properties.company_id', companyId)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('getPendingDraftsForAdmin error:', error.message);
-    return [];
-  }
-
-  return (data || []).map((row) => ({
-    draft: {
-      id: row.id,
-      property_id: row.property_id,
-      user_id: row.user_id,
-      draft_data: row.draft_data,
-      status: row.status,
-      rejection_reason: row.rejection_reason,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    },
-    propertyName: row.properties?.name || '',
-    propertyCode: row.properties?.code || '',
-    agentName: [row.users_profile?.name, row.users_profile?.last_name]
-               .filter(Boolean).join(' ') || row.users_profile?.email || '',
-  }));
-}
-
-/**
- * Администратор одобряет черновик: применяет draft_data к объекту,
- * ставит статус черновика 'approved' и property_status объекта 'approved'.
- *
- * @param {string} draftId - UUID черновика
- * @returns {object} обновлённая запись объекта
- */
-export async function approvePropertyDraft(draftId) {
-  // Загружаем черновик
-  const { data: draft, error: draftErr } = await supabase
-    .from('property_drafts')
-    .select('*')
-    .eq('id', draftId)
-    .single();
-
-  if (draftErr) throw new Error(draftErr.message);
-  if (!draft) throw new Error('Draft not found');
-
-  // Применяем изменения к объекту и одобряем черновик последовательно
-  const { data: updatedProperty, error: propErr } = await supabase
-    .from('properties')
-    .update({ ...pickAllowed(draft.draft_data), property_status: 'approved' })
-    .eq('id', draft.property_id)
-    .select()
-    .single();
-
-  if (propErr) throw new Error(propErr.message);
-
-  const { error: approveErr } = await supabase
-    .from('property_drafts')
-    .update({ status: 'approved', updated_at: new Date().toISOString() })
-    .eq('id', draftId);
-
-  if (approveErr) throw new Error(approveErr.message);
-
-  syncIfEnabled();
-  broadcastChange('properties');
-  return updatedProperty;
-}
-
-/**
- * Администратор отклоняет черновик: ставит статус 'rejected' с причиной.
- * Данные в properties НЕ меняются. Объект возвращается в статус 'approved'.
- *
- * @param {string} draftId - UUID черновика
- * @param {string} reason - причина отклонения
- */
-export async function rejectPropertyDraft(draftId, reason) {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  // Загружаем черновик чтобы получить property_id и тип уведомления
-  const { data: draft, error: draftErr } = await supabase
-    .from('property_drafts')
-    .select('property_id, status')
-    .eq('id', draftId)
-    .single();
-
-  if (draftErr) throw new Error(draftErr.message);
-  if (!draft) throw new Error('Draft not found');
-
-  // Отклоняем черновик
-  const { error: rejectErr } = await supabase
-    .from('property_drafts')
-    .update({
-      status: 'rejected',
-      rejection_reason: reason || '',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', draftId);
-
-  if (rejectErr) throw new Error(rejectErr.message);
-
-  // Обновляем сам объект: статус rejected + причина (критично для UI агента)
-  const { error: propErr } = await supabase
-    .from('properties')
-    .update({ property_status: 'rejected', rejection_reason: reason || '' })
-    .eq('id', draft.property_id);
-
-  if (propErr) throw new Error(propErr.message);
-
-  // Пишем запись в журнал отклонений
-  const { error: histErr } = await supabase.from('property_rejection_history').insert({
-    property_id:    draft.property_id,
-    reason:         reason || '',
-    rejection_type: 'edit_submitted',
-    rejected_by:    session?.user?.id ?? null,
-  });
-  if (histErr) throw new Error(histErr.message);
-
-  syncIfEnabled();
-  broadcastChange('properties');
-}
-
-/**
- * Получить полную историю отклонений объекта, отсортированную от новых к старым.
- * @param {string} propertyId - UUID объекта
- * @returns {Array} массив записей { id, reason, rejection_type, rejected_by, created_at }
- */
-export async function getPropertyRejectionHistory(propertyId) {
-  const { data, error } = await supabase
-    .from('property_rejection_history')
-    .select('id, reason, rejection_type, rejected_by, created_at')
-    .eq('property_id', propertyId)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('getPropertyRejectionHistory error:', error.message);
-    return [];
-  }
-  return data || [];
-}
