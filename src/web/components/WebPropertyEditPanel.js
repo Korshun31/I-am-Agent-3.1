@@ -993,26 +993,36 @@ export default function WebPropertyEditPanel({
         </View>
       </View>
 
-      {/* ── Owners — visible to admin and agent (TD-048 / PR-CR-12) ── */}
-      {!readOnly && (
-        <>
-          <SectionDivider title={t('propOwners')} />
+      {/* ── Owners — visible to admin and agent (TD-048 / PR-CR-12).
+          В readOnly (просмотр через уведомление / approval) — статичные плашки с именами. */}
+      <>
+        <SectionDivider title={t('propOwners')} />
 
-          {isChildUnit ? (
-            <>
-              <FieldRow label={`${t('propOwner1')} 🔒`}>
+        {isChildUnit ? (
+          <>
+            <FieldRow label={`${t('propOwner1')} 🔒`}>
+              <View style={s.fieldInputReadonly}>
+                <Text style={s.fieldInputReadonlyText}>
+                  {(() => {
+                    const parentOwnerId = parentProperty?.owner_id ?? property?.owner_id;
+                    const o = owners.find(c => c.id === parentOwnerId);
+                    return o ? [o.name, o.lastName].filter(Boolean).join(' ') : '—';
+                  })()}
+                </Text>
+                <Text style={s.fieldInputReadonlyHint}>🔒</Text>
+              </View>
+            </FieldRow>
+            <FieldRow label={t('propOwner2')}>
+              {readOnly ? (
                 <View style={s.fieldInputReadonly}>
                   <Text style={s.fieldInputReadonlyText}>
                     {(() => {
-                      const parentOwnerId = parentProperty?.owner_id ?? property?.owner_id;
-                      const o = owners.find(c => c.id === parentOwnerId);
+                      const o = owners.find(c => c.id === form.owner_id_2);
                       return o ? [o.name, o.lastName].filter(Boolean).join(' ') : '—';
                     })()}
                   </Text>
-                  <Text style={s.fieldInputReadonlyHint}>🔒</Text>
                 </View>
-              </FieldRow>
-              <FieldRow label={t('propOwner2')}>
+              ) : (
                 <ContactPicker
                   value={form.owner_id_2 || ''}
                   contacts={owners}
@@ -1027,10 +1037,21 @@ export default function WebPropertyEditPanel({
                     noResults:         t('noResults'),
                   }}
                 />
-              </FieldRow>
-            </>
-          ) : (
-            <FieldRow label={t('propOwner1')}>
+              )}
+            </FieldRow>
+          </>
+        ) : (
+          <FieldRow label={t('propOwner1')}>
+            {readOnly ? (
+              <View style={s.fieldInputReadonly}>
+                <Text style={s.fieldInputReadonlyText}>
+                  {(() => {
+                    const o = owners.find(c => c.id === form.owner_id);
+                    return o ? [o.name, o.lastName].filter(Boolean).join(' ') : '—';
+                  })()}
+                </Text>
+              </View>
+            ) : (
               <ContactPicker
                 value={form.owner_id || ''}
                 contacts={owners}
@@ -1045,13 +1066,14 @@ export default function WebPropertyEditPanel({
                   noResults:         t('noResults'),
                 }}
               />
-            </FieldRow>
-          )}
-        </>
-      )}
+            )}
+          </FieldRow>
+        )}
+      </>
 
-      {/* ── Responsible agent — admin only ── */}
-      {isCompanyAdmin && !readOnly && user?.companyInfo?.name?.trim() ? (
+      {/* ── Responsible agent — admin only.
+          В readOnly показываем имя ответственного как плашку (для approval-режима). */}
+      {isCompanyAdmin && user?.companyInfo?.name?.trim() ? (
         <>
           <SectionDivider title={t('propResponsiblePicker')} />
           {isChildUnit ? (
@@ -1059,6 +1081,19 @@ export default function WebPropertyEditPanel({
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{t('propResponsibleInherited')}</Text>
                 <Text style={s.fieldInputReadonlyHint}>🔒</Text>
+              </View>
+            </FieldRow>
+          ) : readOnly ? (
+            <FieldRow label={t('propResponsibleLabel')}>
+              <View style={s.fieldInputReadonly}>
+                <Text style={s.fieldInputReadonlyText}>
+                  {(() => {
+                    const id = form.responsible_agent_id;
+                    if (!id) return user?.companyInfo?.name || t('workAsCompany');
+                    const m = panelTeamMembers.find(x => x.user_id === id);
+                    return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : '—';
+                  })()}
+                </Text>
               </View>
             </FieldRow>
           ) : (

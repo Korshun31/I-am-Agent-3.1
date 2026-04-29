@@ -49,7 +49,7 @@ function fmt(n) {
 
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
-export default function WebPropertyDetailPanel({ visible, property, bookings = [], onClose, user }) {
+export default function WebPropertyDetailPanel({ visible, property, bookings = [], onClose, user, teamMembers = [] }) {
   const { t } = useLanguage();
   const slideAnim    = useRef(new Animated.Value(500)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
@@ -209,6 +209,27 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
               )}
             </View>
           )}
+
+          {/* Ответственный за объект — только админ компании с командой.
+              У одиночки без приглашённых агентов карточка не имеет смысла. */}
+          {!user?.teamMembership && property && (teamMembers || []).length > 0 ? (() => {
+            const ra = property.responsible_agent_id ?? null;
+            let name;
+            if (!ra) {
+              name = user?.companyInfo?.name || 'Company';
+            } else {
+              const m = teamMembers.find(x => (x.user_id ?? x.id) === ra);
+              name = m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : '—';
+            }
+            return (
+              <View style={st.card}>
+                <Text style={st.cardTitle}>ОТВЕТСТВЕННЫЙ ЗА ОБЪЕКТ</Text>
+                <View style={st.cardBody}>
+                  <Text style={st.ownerName}>{name}</Text>
+                </View>
+              </View>
+            );
+          })() : null}
 
           {/* Owner */}
           {owner && (

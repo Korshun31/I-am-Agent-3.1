@@ -1249,6 +1249,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
         property={propDetailProperty}
         bookings={bookings}
         owners={owners}
+        teamMembers={teamMembers}
         onClose={() => setPropDetailProperty(null)}
         user={user}
       />
