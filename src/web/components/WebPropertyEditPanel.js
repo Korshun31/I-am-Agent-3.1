@@ -3,11 +3,10 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Switch, Animated, Modal, ActivityIndicator, Image, Platform,
 } from 'react-native';
-import { updateProperty, createPropertyFull, createProperty, submitPropertyDraft, updatePropertyResponsible, approveProperty } from '../../services/propertiesService';
+import { updateProperty, createPropertyFull, createProperty, updatePropertyResponsible } from '../../services/propertiesService';
 import { getCompanyLocations, getLocationsForAgent, getLocationDistricts } from '../../services/locationsService';
 import { getContacts } from '../../services/contactsService';
 import { getActiveTeamMembers } from '../../services/companyService';
-import { sendNotification } from '../../services/notificationsService';
 import { supabase } from '../../services/supabase';
 import { deletePhotoFromStorage } from '../../services/storageService';
 import { useLanguage } from '../../context/LanguageContext';
@@ -455,19 +454,12 @@ function buildForm(property, parentProperty) {
 export default function WebPropertyEditPanel({
   visible, mode, property, parentProperty, onClose, onSaved, userCurrency, user,
   readOnly = false,
-  reviewMode = false,
-  onApprove = null,
-  onReject = null,
 }) {
   const { t } = useLanguage();
 
   // Разрешения агента / роли
   const isAgent = !!user?.teamMembership;
   const isCompanyAdmin = !isAgent && !!(user?.workAs === 'company' && user?.companyId);
-  const canEditInfo = !isAgent || user?.teamPermissions?.can_manage_property;
-  const canEditPrices = !isAgent || user?.teamPermissions?.can_manage_property;
-  // Agent edit flow must always re-submit rejected properties through draft moderation.
-  const showSubmitLabel = isAgent && (!canEditInfo || !canEditPrices || property?.property_status === 'rejected');
 
   // In edit mode use the currency stored on the property; in create mode use the user's selected currency
   const activeCurrency = (mode === 'edit' && property?.currency) ? property.currency : (userCurrency || 'THB');
@@ -527,9 +519,6 @@ export default function WebPropertyEditPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [reviewRejectMode, setReviewRejectMode] = useState(false);
-  const [reviewReason, setReviewReason] = useState('');
-  const [reviewRejectError, setReviewRejectError] = useState('');
   const slideAnim    = useRef(new Animated.Value(540)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(false);
@@ -541,9 +530,6 @@ export default function WebPropertyEditPanel({
       setForm(buildForm(property, parentProperty));
       setTab('main');
       setError('');
-      setReviewRejectMode(false);
-      setReviewReason('');
-      setReviewRejectError('');
       Animated.parallel([
         Animated.spring(slideAnim, {
           toValue: 0,
@@ -689,117 +675,12 @@ export default function WebPropertyEditPanel({
 
     try {
       let saved;
-      const adminId = user?.teamMembership?.adminId;
-      const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email;
 
       if (mode === 'edit') {
-        // --- TD-058: Split save by permissions ---
-        const PRICE_FIELDS = new Set([
-          'price_monthly', 'price_monthly_is_from',
-          'booking_deposit', 'booking_deposit_is_from',
-          'save_deposit', 'save_deposit_is_from',
-          'commission', 'commission_is_from',
-          'owner_commission_one_time', 'owner_commission_one_time_is_percent',
-          'owner_commission_monthly', 'owner_commission_monthly_is_percent',
-          'electricity_price', 'water_price', 'water_price_type',
-          'gas_price', 'internet_price', 'cleaning_price', 'exit_cleaning_price',
-        ]);
-
-        const isRejected = property?.property_status === 'rejected';
-
-        // Rejected — everything through draft
-        if (isAgent && isRejected) {
-          await submitPropertyDraft(property.id, updates);
-          if (adminId) {
-            await sendNotification({
-              recipientId: adminId,
-              senderId: user.id,
-              type: 'edit_submitted',
-              title: `${agentName} ${t('notifPropChangesMiddle')} «${updates.name}»`,
-              body: t('notifApprovalRequired'),
-              propertyId: property.id,
-            });
-          }
-          onSaved(null);
-          return;
-        }
-
-        if (isAgent && (!canEditInfo || !canEditPrices)) {
-          const directUpdates = {};
-          const draftUpdates = {};
-
-          for (const [key, value] of Object.entries(updates)) {
-            const isPriceField = PRICE_FIELDS.has(key);
-            if (isPriceField) {
-              if (canEditPrices) {
-                directUpdates[key] = value;
-              } else {
-                draftUpdates[key] = value;
-              }
-            } else {
-              if (canEditInfo) {
-                directUpdates[key] = value;
-              } else {
-                draftUpdates[key] = value;
-              }
-            }
-          }
-
-          let saved = null;
-          if (Object.keys(directUpdates).length > 0) {
-            saved = await updateProperty(property.id, directUpdates);
-          }
-
-          if (Object.keys(draftUpdates).length > 0) {
-            await submitPropertyDraft(property.id, draftUpdates);
-            if (adminId) {
-              await sendNotification({
-                recipientId: adminId,
-                senderId: user.id,
-                type: 'edit_submitted',
-                title: `${agentName} ${t('notifPropChangesMiddle')} «${updates.name}»`,
-                body: t('notifApprovalRequired'),
-                propertyId: property.id,
-              });
-            }
-          }
-
-          onSaved(saved);
-          return;
-        }
-        // Авто-принятие: админ сохраняет отклонённый объект -> статус становится approved
-        const isCompanyAdmin = !!(user?.workAs === 'company' && user?.companyId);
-        const wasRejected = property?.property_status === 'rejected';
         saved = await updateProperty(property.id, updates);
-        let approveFailed = false;
-        if (isCompanyAdmin && wasRejected) {
-          try {
-            await approveProperty(property.id);
-            if (saved) saved = { ...saved, property_status: 'approved', rejection_reason: null };
-          } catch (e) {
-            approveFailed = true;
-            console.warn('[WebPropertyEditPanel] approveProperty failed after updateProperty:', e?.message);
-          }
-        }
-        // Parent resort/condo: cascade responsible to all child units
         if (isCompanyAdmin && isParent) {
           await updatePropertyResponsible(property.id, form.responsible_agent_id || null, true);
           if (saved) saved = { ...saved, responsible_agent_id: form.responsible_agent_id || null };
-        }
-        if (approveFailed) {
-          setError(t('approveError'));
-          return;
-        }
-        // Уведомить агента об одобрении после авто-принятия
-        if (isCompanyAdmin && wasRejected && saved && property.user_id) {
-          await sendNotification({
-            recipientId: property.user_id,
-            senderId: user.id,
-            type: 'property_approved',
-            title: t('changesApproved'),
-            body: `🏠 ${updates.name}`,
-            propertyId: property.id,
-          });
         }
       } else if (mode === 'create-unit') {
         const unitType = getUnitTypeForParent(parentProperty?.type);
@@ -808,37 +689,15 @@ export default function WebPropertyEditPanel({
           resort_id: parentProperty.id,
           type: unitType,
           responsible_agent_id: parentProperty.responsible_agent_id ?? null,
-          property_status: isAgent ? 'pending' : 'approved',
         });
-        if (isAgent && adminId) {
-          await sendNotification({
-            recipientId: adminId,
-            senderId: user.id,
-            type: 'property_submitted',
-              title: `🏠 ${agentName} ${t('notifAddedPropertyTo')} ${parentProperty.name}`,
-              body: `${t('notifLabelProperty')} ${updates.name} · ${t('notifLabelCode')} ${updates.code}`,
-            propertyId: saved.id,
-          });
-        }
       } else {
         saved = await createProperty({
           name: updates.name,
           code: updates.code,
           type: updates.type,
-          property_status: isAgent ? 'pending' : 'approved',
         });
         if (saved?.id) {
           saved = await updateProperty(saved.id, updates);
-          if (isAgent && adminId) {
-            await sendNotification({
-              recipientId: adminId,
-              senderId: user.id,
-              type: 'property_submitted',
-              title: `🏠 ${agentName} ${t('notifAddedProperty')} «${updates.name}»`,
-              body: `${t('notifLabelCode')} ${updates.code} · ${t('notifLabelType')} ${updates.type}`,
-              propertyId: saved.id,
-            });
-          }
         }
       }
       onSaved(saved);
@@ -897,9 +756,7 @@ export default function WebPropertyEditPanel({
     }
   };
 
-  const title = reviewMode
-    ? `${t('propertyReviewTitle')}: ${property?.name || ''}`
-    : mode === 'edit'
+  const title = mode === 'edit'
     ? `${t('editProperty')}: ${property?.name || ''}`
     : mode === 'create-unit'
     ? `${t('addPropertyUnit')} ${parentProperty?.name || ''}`
@@ -1315,9 +1172,6 @@ export default function WebPropertyEditPanel({
   const renderPhotosTab = () => (
     <>
       <SectionDivider title={t('pdPhotos')} />
-      {reviewMode && (
-        <Text style={s.reviewModeLabel}>👁 {t('reviewMode') || 'Режим просмотра'}</Text>
-      )}
       <View style={s.photosGrid}>
         {(form.photos || []).map((uri, idx) => (
           <View key={idx} style={s.photoThumb}>
@@ -1461,86 +1315,21 @@ export default function WebPropertyEditPanel({
           <View style={s.footer}>
             {error ? <Text style={s.footerError}>{error}</Text> : null}
 
-            {reviewMode ? (
-              /* ── Review mode: Одобрить / Отклонить ── */
-              reviewRejectMode ? (
-                <>
-                  <TextInput
-                    style={s.reviewRejectInput}
-                    placeholder={t('diffRejectPlaceholder')}
-                    placeholderTextColor={C.light}
-                    value={reviewReason}
-                    onChangeText={(v) => {
-                      setReviewReason(v);
-                      if (reviewRejectError) setReviewRejectError('');
-                    }}
-                    multiline
-                    numberOfLines={3}
-                    autoFocus
-                  />
-                  {!!reviewRejectError && (
-                    <Text style={s.reviewRejectErrorText}>{reviewRejectError}</Text>
-                  )}
-                  <View style={s.footerBtns}>
-                    <TouchableOpacity style={s.cancelBtn}
-                      onPress={() => { setReviewRejectMode(false); setReviewReason(''); setReviewRejectError(''); }}>
-                      <Text style={s.cancelBtnText}>{t('reviewBack')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[s.saveBtn, { backgroundColor: '#FFF5F5', borderColor: '#FFCDD2' }]}
-                      onPress={async () => {
-                        const trimmed = (reviewReason || '').trim();
-                        if (!trimmed) {
-                          setReviewRejectError(t('propRejectReasonRequired') || 'Причина обязательна');
-                          return;
-                        }
-                        setReviewRejectError('');
-                        const ok = await onReject?.(trimmed);
-                        if (ok === false) {
-                          setReviewRejectError(t('rejectError') || t('errorSave'));
-                          return;
-                        }
-                        if (ok === true) onClose();
-                      }}>
-                      <Text style={[s.saveBtnText, { color: '#C62828' }]}>{t('diffReject')}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              ) : (
-                <View style={s.footerBtns}>
-                  <TouchableOpacity
-                    style={[s.cancelBtn, { borderColor: '#FFCDD2' }]}
-                    onPress={() => setReviewRejectMode(true)}>
-                    <Text style={[s.cancelBtnText, { color: '#C62828' }]}>{`✕ ${t('diffReject')}`}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.saveBtn, { backgroundColor: ACCENT, borderColor: ACCENT }]}
-                    onPress={async () => {
-                      const ok = await onApprove?.();
-                      if (ok === true) onClose();
-                    }}>
-                    <Text style={[s.saveBtnText, { color: '#FFF' }]}>{`✓ ${t('diffApprove')}`}</Text>
-                  </TouchableOpacity>
-                </View>
-              )
-            ) : (
-              /* ── Normal mode: Отмена + Сохранить ── */
-              <View style={s.footerBtns}>
-                <TouchableOpacity style={s.cancelBtn} onPress={handleClose}>
-                  <Text style={s.cancelBtnText}>{t('cancel')}</Text>
-                </TouchableOpacity>
+            <View style={s.footerBtns}>
+              <TouchableOpacity style={s.cancelBtn} onPress={handleClose}>
+                <Text style={s.cancelBtnText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              {!readOnly && (
                 <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
                   {saving
                     ? <ActivityIndicator size="small" color="#FFF" />
                     : <Text style={s.saveBtnText}>
-                        {mode === 'edit'
-                          ? (showSubmitLabel ? t('submitForReview') : t('save'))
-                          : `＋ ${t('add')}`}
+                        {mode === 'edit' ? t('save') : `＋ ${t('add')}`}
                       </Text>
                   }
                 </TouchableOpacity>
-              </View>
-            )}
+              )}
+            </View>
           </View>
         </Animated.View>
       </View>
