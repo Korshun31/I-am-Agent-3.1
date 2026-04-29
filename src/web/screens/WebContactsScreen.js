@@ -6,7 +6,7 @@ import {
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 
-import { getContacts, getContactsByIds, getMyContacts, deleteContact } from '../../services/contactsService';
+import { getContacts, deleteContact } from '../../services/contactsService';
 import { getBookings } from '../../services/bookingsService';
 import { getProperties } from '../../services/propertiesService';
 import WebContactEditPanel from '../components/WebContactEditPanel';
@@ -524,63 +524,25 @@ export default function WebContactsScreen({ onNavigateToProperty, user, refreshK
   const [inlineBookings, setInlineBookings] = useState([]);
   const [inlineEditPanel, setInlineEditPanel] = useState({ visible: false, mode: 'edit', property: null, parentProperty: null });
 
-  const isTeamMember = user?.teamMembership != null && !user?.teamMembership?.is_admin;
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      let allOwners = [];
-      let allClients = [];
-      let props = [];
+      // Контакты и объекты: RLS базы сама фильтрует по роли (admin видит всё, agent — по политикам CT-VIS-2).
+      const [allClients, allOwners, props] = await Promise.all([
+        getContacts('clients'),
+        getContacts('owners'),
+        getProperties(),
+      ]);
 
-      if (isTeamMember) {
-        // Агент: получаем его объекты, затем собственников по owner_id
-        props = await getProperties();
-        const ownerIds = [...new Set([
-          ...props.map(p => p.owner_id).filter(Boolean),
-          ...props.map(p => p.owner_id_2).filter(Boolean),
-        ])];
-        allOwners = ownerIds.length > 0 ? await getContactsByIds(ownerIds) : [];
-        // Клиенты — из бронирований его объектов
-        const propIds = new Set(props.map(p => p.id));
-        try {
-          const allBookings = await getBookings();
-          const clientIds = [...new Set(
-            allBookings.filter(bk => propIds.has(bk.propertyId) && bk.contactId).map(bk => bk.contactId)
-          )];
-          allClients = clientIds.length > 0 ? await getContactsByIds(clientIds) : [];
-        } catch {}
-        // Свои контакты — созданные агентом напрямую (owners и clients)
-        const myContacts = await getMyContacts();
-
-        // Убираем дубликаты (если один контакт — и собственник и клиент)
-        const seen = new Set();
-        const all = [...allOwners, ...allClients, ...myContacts].filter(c => {
-          if (seen.has(c.id)) return false;
-          seen.add(c.id);
-          return true;
-        }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'));
-
-        setAllContacts(all);
-        setAllProperties(props);
-        return;
-      } else {
-        // Админ: загружаем всё
-        [allClients, allOwners, props] = await Promise.all([
-          getContacts('clients'),
-          getContacts('owners'),
-          getProperties(),
-        ]);
-        // Count bookings per client
-        const counts = {};
-        try {
-          const allBookings = await getBookings();
-          allBookings.forEach(bk => {
-            if (bk.contactId) counts[bk.contactId] = (counts[bk.contactId] || 0) + 1;
-          });
-        } catch {}
-        setBookingCounts(counts);
-      }
+      // Счётчик броней по клиенту: getBookings() для агента вернёт только видимые ему брони (RLS bookings).
+      const counts = {};
+      try {
+        const allBookings = await getBookings();
+        allBookings.forEach(bk => {
+          if (bk.contactId) counts[bk.contactId] = (counts[bk.contactId] || 0) + 1;
+        });
+      } catch {}
+      setBookingCounts(counts);
 
       // Убираем дубликаты (если один контакт — и собственник и клиент)
       const seen = new Set();
@@ -595,7 +557,7 @@ export default function WebContactsScreen({ onNavigateToProperty, user, refreshK
     } finally {
       setLoading(false);
     }
-  }, [isTeamMember]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (refreshKey) load(); }, [refreshKey]);

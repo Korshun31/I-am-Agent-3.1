@@ -144,7 +144,10 @@ function resetTypeSpecificFields(nextType, prevForm) {
 function sanitizeUpdatesByType(type, updates) {
   const next = { ...updates };
   if (type === 'resort' || type === 'condo') {
-    for (const key of UNIT_DETAIL_FIELDS) next[key] = null;
+    // Поля юнита (internet_speed, air_conditioners, цены, площади и т.д.) у контейнера не существуют по бизнесу,
+    // и схема БД требует валидных значений (например internet_speed — text NOT NULL DEFAULT '').
+    // Поэтому не зануляем — удаляем ключи целиком, чтобы БД использовала default'ы при INSERT и не трогала при UPDATE.
+    for (const key of UNIT_DETAIL_FIELDS) delete next[key];
     next.price_monthly_is_from = false;
     next.booking_deposit_is_from = false;
     next.save_deposit_is_from = false;
@@ -645,8 +648,9 @@ export default function WebPropertyEditPanel({
       photos: form.photos || [],
       video_url: form.video_url.trim() || null,
       currency: activeCurrency,
-      ...(isCompanyAdmin && !isChildUnit && { owner_id: form.owner_id || null }),
-      ...(isCompanyAdmin && isChildUnit  && { owner_id_2: form.owner_id_2 || null }),
+      // TD-048: agent тоже задаёт owner при создании объекта (PR-CR-12 / CT-VIS-2).
+      ...(!isChildUnit && { owner_id: form.owner_id || null }),
+      ...(isChildUnit  && { owner_id_2: form.owner_id_2 || null }),
       // responsible_agent_id: parent resort/condo → cascade separately after save;
       //                       child unit         → inherited, never touch here;
       //                       standalone house   → plain field update.
@@ -960,8 +964,8 @@ export default function WebPropertyEditPanel({
         </View>
       </View>
 
-      {/* ── Owners + Responsible — admin only ── */}
-      {isCompanyAdmin && !readOnly && (
+      {/* ── Owners — visible to admin and agent (TD-048 / PR-CR-12) ── */}
+      {!readOnly && (
         <>
           <SectionDivider title={t('propOwners')} />
 
@@ -1002,9 +1006,12 @@ export default function WebPropertyEditPanel({
               />
             </FieldRow>
           )}
+        </>
+      )}
 
-          {user?.companyInfo?.name?.trim() ? (
-          <>
+      {/* ── Responsible agent — admin only ── */}
+      {isCompanyAdmin && !readOnly && user?.companyInfo?.name?.trim() ? (
+        <>
           <SectionDivider title={t('propResponsiblePicker')} />
           {isChildUnit ? (
             <FieldRow label={t('propResponsibleLabel')}>
@@ -1036,10 +1043,8 @@ export default function WebPropertyEditPanel({
               })()}
             </FieldRow>
           )}
-          </>
-          ) : null}
         </>
-      )}
+      ) : null}
 
       <SectionDivider title={t('propParams')} />
 
