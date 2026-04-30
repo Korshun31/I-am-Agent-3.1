@@ -1470,30 +1470,6 @@ const s = StyleSheet.create({
     backgroundColor: '#F8F9FA',
     borderColor: '#E9ECEF',
   },
-  reviewModeLabel: {
-    fontSize: 12,
-    color: C.muted,
-    textAlign: 'center',
-    paddingVertical: 6,
-    paddingBottom: 10,
-    fontStyle: 'italic',
-  },
-  // Reject reason input in review footer
-  reviewRejectInput: {
-    borderWidth: 1, borderColor: C.border, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 10,
-    fontSize: 13, color: C.text,
-    minHeight: 72, outlineWidth: 0, textAlignVertical: 'top',
-    marginBottom: 8,
-  },
-  reviewRejectErrorText: {
-    fontSize: 12,
-    color: '#C62828',
-    fontWeight: '600',
-    marginTop: -2,
-    marginBottom: 8,
-  },
-
   row2: { flexDirection: 'row', gap: 12 },
   row3: { flexDirection: 'row', gap: 12 },
 

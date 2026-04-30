@@ -40,7 +40,7 @@ function categoryKeyRentable(p, propsMap) {
   return null;
 }
 
-function approvedBreakdown(properties, propsMap, filterFn) {
+function breakdownByCategory(properties, propsMap, filterFn) {
   let houses = 0;
   let resortHouses = 0;
   let apartments = 0;
@@ -151,7 +151,7 @@ export default function WebDashboardScreen({ user, refreshKey }) {
       const statsObjectFilter = isTeamMemberStats
         ? (p) => p.responsible_agent_id === user.id
         : null;
-      const approvedForStats = approvedBreakdown(properties, propsMapStats, statsObjectFilter);
+      const categoryBreakdown = breakdownByCategory(properties, propsMapStats, statsObjectFilter);
 
       // 2. Статистика занятости (для агента: только свои бронирования)
       let myClientsCount = 0;
@@ -175,10 +175,10 @@ export default function WebDashboardScreen({ user, refreshKey }) {
       const thisMonthCount = upcomingBookings.filter(b => dayjs(b.checkIn).isBefore(endOfMonth)).length;
 
       setStats({
-        total: approvedForStats.total,
-        houses: approvedForStats.houses,
-        resortHouses: approvedForStats.resortHouses,
-        apartments: approvedForStats.apartments,
+        total: categoryBreakdown.total,
+        houses: categoryBreakdown.houses,
+        resortHouses: categoryBreakdown.resortHouses,
+        apartments: categoryBreakdown.apartments,
         occupied: occupiedCount,
         myClients: myClientsCount,
         otherClients: otherClientsCount,
@@ -189,8 +189,8 @@ export default function WebDashboardScreen({ user, refreshKey }) {
 
       // Доп. статистика для участников команды (агентов)
       if (isTeamMemberStats) {
-        const companyBd = approvedBreakdown(properties, propsMapStats, null);
-        const myBd = approvedBreakdown(properties, propsMapStats, (p) => p.responsible_agent_id === user?.id);
+        const companyBd = breakdownByCategory(properties, propsMapStats, null);
+        const myBd = breakdownByCategory(properties, propsMapStats, (p) => p.responsible_agent_id === user?.id);
 
         // Бронирования (активные сейчас)
         let companyAgencyActive = 0, companyOwnerActive = 0, myAgencyActive = 0;
