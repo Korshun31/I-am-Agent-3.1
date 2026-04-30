@@ -32,6 +32,8 @@ const MONTH_W = 130;   // px per month column
 const ROW_H   = 48;    // px per property row
 const LEFT_W  = 130;   // px for left property name column
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
+// TD-095: список удобств для фильтра — синхронизирован с FilterBottomSheet (мобильный) и CURSOR_RULES 2.7.
+const FILTER_AMENITY_KEYS = ['swimming_pool', 'gym', 'parking', 'washing_machine'];
 
 const BOOKING_COLORS = [
   '#4FC3F7','#81C784','#FFB74D','#BA68C8',
@@ -74,11 +76,12 @@ function nightsCount(checkIn, checkOut) {
   return dayjs(checkOut).diff(dayjs(checkIn), 'day');
 }
 
-  // Build timeline: 12 months back → 24 months forward = ~37 months
+  // Build timeline: 36 months back → 36 months forward (~6 лет вокруг сегодня).
+  // TD-097: расширили окно, чтобы пикер года мог скроллить по диапазону.
   function buildMonths() {
     const today = dayjs();
-    const start = today.subtract(12, 'month').startOf('month');
-    const end   = today.add(24, 'month').endOf('month');
+    const start = today.subtract(36, 'month').startOf('month');
+    const end   = today.add(36, 'month').endOf('month');
     const months = [];
     let m = start;
     while (m.isBefore(end) || m.isSame(end, 'month')) {
@@ -508,16 +511,29 @@ export default function WebBookingsScreen({ user, refreshKey }) {
   const [loading, setLoading]       = useState(true);
   const [myCompanyName, setMyCompanyName] = useState('');
   const [propFilter, setPropFilter] = useState('all');   // 'all' | 'mine'
+  const [cityFilters, setCityFilters] = useState([]); // TD-092: multi-select
+  const [typeFilters, setTypeFilters] = useState([]); // TD-093: multi-select 'house' | 'resort' | 'condo'
   const [districtFilters, setDistrictFilters] = useState([]); // multi-select
   const [bedroomsFilters, setBedroomsFilters] = useState([]); // multi-select
+  const [priceMin, setPriceMin]   = useState(''); // TD-094
+  const [priceMax, setPriceMax]   = useState(''); // TD-094
+  const [amenityFilters, setAmenityFilters] = useState([]); // TD-095
   const [petsFilter, setPetsFilter]           = useState(false);
   const [longTermFilter, setLongTermFilter]   = useState(false);
   const [responsibleFilter, setResponsibleFilter] = useState('all'); // 'all' | 'none' | <agentUserId>
+  const [cityOpen, setCityOpen]         = useState(false);
+  const [typeOpen, setTypeOpen]         = useState(false);
   const [districtOpen, setDistrictOpen] = useState(false);
   const [bedroomsOpen, setBedroomsOpen] = useState(false);
+  const [amenityOpen, setAmenityOpen]   = useState(false);
+  const [yearOpen, setYearOpen]         = useState(false); // TD-097
   const [responsibleOpen, setResponsibleOpen] = useState(false);
+  const cityLeaveTimer     = useRef(null);
+  const typeLeaveTimer     = useRef(null);
   const districtLeaveTimer = useRef(null);
   const bedroomsLeaveTimer = useRef(null);
+  const amenityLeaveTimer  = useRef(null);
+  const yearLeaveTimer     = useRef(null);
   const responsibleLeaveTimer = useRef(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [editPanelMode, setEditPanelMode]     = useState(null); // null | 'create' | 'edit'
@@ -527,6 +543,28 @@ export default function WebBookingsScreen({ user, refreshKey }) {
 
   const months   = useMemo(() => buildMonths(), []);
   const totalW   = useMemo(() => timelineWidth(months), [months]);
+  // TD-097: список годов для пикера — на основе диапазона months.
+  const yearOptions = useMemo(() => {
+    const set = new Set(months.map(m => m.year()));
+    return [...set].sort((a, b) => a - b);
+  }, [months]);
+  const handleYearJump = (year) => {
+    const targetX = dateToPx(`${year}-01-01`, months);
+    const node = ganttScrollRef.current;
+    if (node) node.scrollLeft = Math.max(0, targetX);
+    setYearOpen(false);
+  };
+  // Общий helper: закрывает все dropdown'ы кроме указанного. Предотвращает
+  // ситуацию когда два списка открыты одновременно.
+  const closeOtherDropdowns = (except) => {
+    if (except !== 'city')        setCityOpen(false);
+    if (except !== 'type')        setTypeOpen(false);
+    if (except !== 'district')    setDistrictOpen(false);
+    if (except !== 'bedrooms')    setBedroomsOpen(false);
+    if (except !== 'amenity')     setAmenityOpen(false);
+    if (except !== 'year')        setYearOpen(false);
+    if (except !== 'responsible') setResponsibleOpen(false);
+  };
   const colorMap = useMemo(() => assignColors(bookings), [bookings]);
 
   const canCreate = !user?.teamMembership || !!user?.teamPermissions?.can_manage_bookings;
@@ -660,7 +698,10 @@ export default function WebBookingsScreen({ user, refreshKey }) {
     }
   };
 
-  // Уникальные районы из загруженных объектов
+  // Уникальные города и районы из загруженных объектов
+  const uniqueCities = useMemo(() =>
+    [...new Set(properties.map(p => p.city).filter(Boolean))].sort(),
+  [properties]);
   const uniqueDistricts = useMemo(() =>
     [...new Set(properties.map(p => p.district).filter(Boolean))].sort(),
   [properties]);
@@ -687,8 +728,23 @@ export default function WebBookingsScreen({ user, refreshKey }) {
   // Filter + search properties
   const visibleProps = useMemo(() => {
     let result = filterProperties(properties, bookings, propFilter, user?.id);
+    if (cityFilters.length > 0)     result = result.filter(p => cityFilters.includes(p.city));
+    if (typeFilters.length > 0)     result = result.filter(p => typeFilters.includes(p.effectiveType || p.type));
     if (districtFilters.length > 0) result = result.filter(p => districtFilters.includes(p.district));
     if (bedroomsFilters.length > 0) result = result.filter(p => bedroomsFilters.includes(p.bedrooms));
+    // TD-094: фильтр по цене price_monthly. Если поле null/0 — объект не пройдёт фильтр.
+    const minNum = parseFloat(priceMin);
+    const maxNum = parseFloat(priceMax);
+    if (Number.isFinite(minNum)) result = result.filter(p => Number(p.price_monthly) >= minNum);
+    if (Number.isFinite(maxNum)) result = result.filter(p => Number(p.price_monthly) <= maxNum);
+    // TD-095: удобства хранятся как объект { swimming_pool: true, gym: false, ... }.
+    // Объект пройдёт фильтр только если у него все выбранные удобства === true.
+    if (amenityFilters.length > 0) {
+      result = result.filter(p => {
+        const am = p.amenities || {};
+        return amenityFilters.every(a => am[a]);
+      });
+    }
     if (petsFilter)     result = result.filter(p => p.pets_allowed);
     if (longTermFilter) result = result.filter(p => p.long_term_booking);
     if (responsibleFilter === 'none') {
@@ -697,15 +753,23 @@ export default function WebBookingsScreen({ user, refreshKey }) {
       result = result.filter(p => p.responsible_agent_id === responsibleFilter);
     }
     if (search.trim()) {
+      // TD-096: поиск по коду, имени объекта, имени собственника (owner_id и owner_id_2).
       const q = search.trim().toLowerCase();
+      const ownerName = (id) => {
+        if (!id) return '';
+        const o = owners.find(x => x.id === id);
+        if (!o) return '';
+        return [o.name, o.lastName].filter(Boolean).join(' ').toLowerCase();
+      };
       result = result.filter(p =>
-        (p.name || '').toLowerCase().includes(q) ||
         (p.code || '').toLowerCase().includes(q) ||
-        (p.district || '').toLowerCase().includes(q)
+        (p.name || '').toLowerCase().includes(q) ||
+        ownerName(p.owner_id).includes(q) ||
+        ownerName(p.owner_id_2).includes(q)
       );
     }
     return result;
-  }, [properties, bookings, propFilter, districtFilters, bedroomsFilters, petsFilter, longTermFilter, responsibleFilter, search]);
+  }, [properties, bookings, propFilter, cityFilters, typeFilters, districtFilters, bedroomsFilters, priceMin, priceMax, amenityFilters, petsFilter, longTermFilter, responsibleFilter, search, owners]);
 
   const showDetail = !!selectedBooking;
 
@@ -773,6 +837,85 @@ export default function WebBookingsScreen({ user, refreshKey }) {
               ))}
             </View>
 
+            {/* TD-092: Dropdown — Город (мультивыбор) */}
+            <View
+              style={s.dropdownWrap}
+              onMouseEnter={() => { if (cityLeaveTimer.current) clearTimeout(cityLeaveTimer.current); }}
+              onMouseLeave={() => { cityLeaveTimer.current = setTimeout(() => setCityOpen(false), 300); }}
+            >
+              <TouchableOpacity
+                style={[s.dropdownBtn, cityFilters.length > 0 && s.dropdownBtnActive]}
+                onPress={() => { closeOtherDropdowns('city'); setCityOpen(o => !o); }}
+              >
+                <Text style={[s.dropdownBtnText, cityFilters.length > 0 && s.dropdownBtnTextActive]}>
+                  {cityFilters.length > 0 ? `${t('filterCity')} (${cityFilters.length})` : t('filterCity')} ▾
+                </Text>
+              </TouchableOpacity>
+              {cityOpen && (
+                <View style={s.dropdownList}>
+                  {uniqueCities.map(c => {
+                    const selected = cityFilters.includes(c);
+                    return (
+                      <TouchableOpacity
+                        key={c} style={s.dropdownItem}
+                        onPress={() => setCityFilters(prev =>
+                          selected ? prev.filter(x => x !== c) : [...prev, c]
+                        )}
+                      >
+                        <View style={s.dropdownItemRow}>
+                          <View style={[s.dropdownCheckbox, selected && s.dropdownCheckboxChecked]}>
+                            {selected && <Text style={s.dropdownCheckmark}>✓</Text>}
+                          </View>
+                          <Text style={[s.dropdownItemText, selected && s.dropdownItemTextActive]}>{c}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {uniqueCities.length === 0 && (
+                    <Text style={s.dropdownEmpty}>{t('noData')}</Text>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* TD-093: Dropdown — Тип объекта (мультивыбор: house/resort/condo) */}
+            <View
+              style={s.dropdownWrap}
+              onMouseEnter={() => { if (typeLeaveTimer.current) clearTimeout(typeLeaveTimer.current); }}
+              onMouseLeave={() => { typeLeaveTimer.current = setTimeout(() => setTypeOpen(false), 300); }}
+            >
+              <TouchableOpacity
+                style={[s.dropdownBtn, typeFilters.length > 0 && s.dropdownBtnActive]}
+                onPress={() => { closeOtherDropdowns('type'); setTypeOpen(o => !o); }}
+              >
+                <Text style={[s.dropdownBtnText, typeFilters.length > 0 && s.dropdownBtnTextActive]}>
+                  {typeFilters.length > 0 ? `${t('filterType')} (${typeFilters.length})` : t('filterType')} ▾
+                </Text>
+              </TouchableOpacity>
+              {typeOpen && (
+                <View style={s.dropdownList}>
+                  {['house', 'resort', 'condo'].map(typeKey => {
+                    const selected = typeFilters.includes(typeKey);
+                    return (
+                      <TouchableOpacity
+                        key={typeKey} style={s.dropdownItem}
+                        onPress={() => setTypeFilters(prev =>
+                          selected ? prev.filter(x => x !== typeKey) : [...prev, typeKey]
+                        )}
+                      >
+                        <View style={s.dropdownItemRow}>
+                          <View style={[s.dropdownCheckbox, selected && s.dropdownCheckboxChecked]}>
+                            {selected && <Text style={s.dropdownCheckmark}>✓</Text>}
+                          </View>
+                          <Text style={[s.dropdownItemText, selected && s.dropdownItemTextActive]}>{t(typeKey)}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+
             {/* Dropdown: Район (мультивыбор) */}
             <View
               style={s.dropdownWrap}
@@ -781,7 +924,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
             >
               <TouchableOpacity
                 style={[s.dropdownBtn, districtFilters.length > 0 && s.dropdownBtnActive]}
-                onPress={() => { setDistrictOpen(o => !o); setBedroomsOpen(false); }}
+                onPress={() => { closeOtherDropdowns('district'); setDistrictOpen(o => !o); }}
               >
                 <Text style={[s.dropdownBtnText, districtFilters.length > 0 && s.dropdownBtnTextActive]}>
                   {districtFilters.length > 0 ? `${t('filterDistrict')} (${districtFilters.length})` : t('filterDistrict')} ▾
@@ -822,7 +965,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
             >
               <TouchableOpacity
                 style={[s.dropdownBtn, bedroomsFilters.length > 0 && s.dropdownBtnActive]}
-                onPress={() => { setBedroomsOpen(o => !o); setDistrictOpen(false); }}
+                onPress={() => { closeOtherDropdowns('bedrooms'); setBedroomsOpen(o => !o); }}
               >
                 <Text style={[s.dropdownBtnText, bedroomsFilters.length > 0 && s.dropdownBtnTextActive]}>
                   {bedroomsFilters.length > 0 ? `${t('filterBedrooms')} (${bedroomsFilters.length})` : t('filterBedrooms')} ▾
@@ -853,6 +996,91 @@ export default function WebBookingsScreen({ user, refreshKey }) {
               )}
             </View>
 
+            {/* TD-094: Цена аренды от/до */}
+            <View style={s.priceRangeWrap}>
+              <TextInput
+                style={[s.priceInput, priceMin && s.priceInputActive]}
+                placeholder={t('filterPriceFromPlaceholder') || (t('priceFrom') || 'from')}
+                placeholderTextColor="#999"
+                value={priceMin}
+                onChangeText={(v) => setPriceMin(v.replace(/[^0-9]/g, ''))}
+                keyboardType="numeric"
+              />
+              <Text style={s.priceRangeDash}>—</Text>
+              <TextInput
+                style={[s.priceInput, priceMax && s.priceInputActive]}
+                placeholder={t('filterPriceToPlaceholder') || (t('priceTo') || 'to')}
+                placeholderTextColor="#999"
+                value={priceMax}
+                onChangeText={(v) => setPriceMax(v.replace(/[^0-9]/g, ''))}
+                keyboardType="numeric"
+              />
+            </View>
+
+            {/* TD-095: Dropdown — Удобства (мультивыбор: бассейн/спортзал/парковка/стиралка) */}
+            <View
+              style={s.dropdownWrap}
+              onMouseEnter={() => { if (amenityLeaveTimer.current) clearTimeout(amenityLeaveTimer.current); }}
+              onMouseLeave={() => { amenityLeaveTimer.current = setTimeout(() => setAmenityOpen(false), 300); }}
+            >
+              <TouchableOpacity
+                style={[s.dropdownBtn, amenityFilters.length > 0 && s.dropdownBtnActive]}
+                onPress={() => { closeOtherDropdowns('amenity'); setAmenityOpen(o => !o); }}
+              >
+                <Text style={[s.dropdownBtnText, amenityFilters.length > 0 && s.dropdownBtnTextActive]}>
+                  {amenityFilters.length > 0 ? `${t('filterAmenities')} (${amenityFilters.length})` : t('filterAmenities')} ▾
+                </Text>
+              </TouchableOpacity>
+              {amenityOpen && (
+                <View style={s.dropdownList}>
+                  {FILTER_AMENITY_KEYS.map(key => {
+                    const selected = amenityFilters.includes(key);
+                    return (
+                      <TouchableOpacity
+                        key={key} style={s.dropdownItem}
+                        onPress={() => setAmenityFilters(prev =>
+                          selected ? prev.filter(x => x !== key) : [...prev, key]
+                        )}
+                      >
+                        <View style={s.dropdownItemRow}>
+                          <View style={[s.dropdownCheckbox, selected && s.dropdownCheckboxChecked]}>
+                            {selected && <Text style={s.dropdownCheckmark}>✓</Text>}
+                          </View>
+                          <Text style={[s.dropdownItemText, selected && s.dropdownItemTextActive]}>{t('amenity_' + key)}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+
+            {/* TD-097: Dropdown — Год (Gantt jump) */}
+            <View
+              style={s.dropdownWrap}
+              onMouseEnter={() => { if (yearLeaveTimer.current) clearTimeout(yearLeaveTimer.current); }}
+              onMouseLeave={() => { yearLeaveTimer.current = setTimeout(() => setYearOpen(false), 300); }}
+            >
+              <TouchableOpacity
+                style={s.dropdownBtn}
+                onPress={() => { closeOtherDropdowns('year'); setYearOpen(o => !o); }}
+              >
+                <Text style={s.dropdownBtnText}>{t('filterYear')} ▾</Text>
+              </TouchableOpacity>
+              {yearOpen && (
+                <View style={s.dropdownList}>
+                  {yearOptions.map(year => (
+                    <TouchableOpacity
+                      key={year} style={s.dropdownItem}
+                      onPress={() => handleYearJump(year)}
+                    >
+                      <Text style={s.dropdownItemText}>{year}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
             {/* Dropdown: Ответственный (single-select, только админу) */}
             {!user?.teamMembership && (responsibleAgents.length > 0 || hasUnassignedProperty) && (
               <View
@@ -862,7 +1090,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
               >
                 <TouchableOpacity
                   style={[s.dropdownBtn, responsibleFilter !== 'all' && s.dropdownBtnActive]}
-                  onPress={() => { setResponsibleOpen(o => !o); setDistrictOpen(false); setBedroomsOpen(false); }}
+                  onPress={() => { closeOtherDropdowns('responsible'); setResponsibleOpen(o => !o); }}
                 >
                   <Text style={[s.dropdownBtnText, responsibleFilter !== 'all' && s.dropdownBtnTextActive]}>
                     {(() => {
@@ -944,12 +1172,19 @@ export default function WebBookingsScreen({ user, refreshKey }) {
             </TouchableOpacity>
 
             {/* Кнопка сброса всех фильтров */}
-            {(districtFilters.length > 0 || bedroomsFilters.length > 0 || petsFilter || longTermFilter || propFilter !== 'all' || responsibleFilter !== 'all') && (
+            {(cityFilters.length > 0 || typeFilters.length > 0 || districtFilters.length > 0 || bedroomsFilters.length > 0
+              || amenityFilters.length > 0 || priceMin || priceMax
+              || petsFilter || longTermFilter || propFilter !== 'all' || responsibleFilter !== 'all') && (
               <TouchableOpacity
                 style={s.resetBtn}
                 onPress={() => {
+                  setCityFilters([]);
+                  setTypeFilters([]);
                   setDistrictFilters([]);
                   setBedroomsFilters([]);
+                  setAmenityFilters([]);
+                  setPriceMin('');
+                  setPriceMax('');
                   setPetsFilter(false);
                   setLongTermFilter(false);
                   setPropFilter('all');
@@ -1210,6 +1445,15 @@ const s = StyleSheet.create({
   dropdownBtnActive: { borderColor: ACCENT, backgroundColor: C.accentBg },
   dropdownBtnText: { fontSize: 12, color: C.muted, fontWeight: '600' },
   dropdownBtnTextActive: { color: ACCENT, fontWeight: '700' },
+  // TD-094: фильтр цена от/до
+  priceRangeWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  priceInput: {
+    width: 70, paddingHorizontal: 8, paddingVertical: 6,
+    borderRadius: 8, borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.bg, fontSize: 12, color: C.text,
+  },
+  priceInputActive: { borderColor: ACCENT, backgroundColor: C.accentBg },
+  priceRangeDash:   { color: C.muted, fontSize: 12 },
   dropdownList: {
     position: 'absolute', top: 36, left: 0, zIndex: 999,
     backgroundColor: C.surface, borderRadius: 10, borderWidth: 1, borderColor: C.border,

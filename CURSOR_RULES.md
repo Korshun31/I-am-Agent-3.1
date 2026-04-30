@@ -599,8 +599,7 @@ TD-071: Мобильный PropertyDetailScreen — агент видит стр
 TD-078: Мобильный AddBookingModal — время заезда/выезда по умолчанию пустое вместо 14:00/12:00
 Что сделать: setCheckInTime('14:00') и setCheckOutTime('12:00') в начальном состоянии при создании нового бронирования
 
-TD-091: Веб WebBookingsScreen — dormant код режима "Список" (viewMode state + логика, переключатель убран)
-Что сделать: удалить viewMode state, setViewMode, условия viewMode === 'list' и связанный рендеринг
+TD-091: ✅ ЗАКРЫТ ранее — коммит `2d30d4a`. В `WebBookingsScreen.js` убран dormant `viewMode` state и условные ветки `viewMode === 'list'`. Подтверждено grep'ом 2026-04-30 — упоминаний нет.
 
 TD-096: Веб WebBookingsScreen — поиск ищет по району и контакту вместо кода, имени объекта, собственника
 Что сделать: заменить поля поиска на: код объекта, имя объекта, собственник (как на мобильном BookingCalendarScreen)
