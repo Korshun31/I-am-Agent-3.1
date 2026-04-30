@@ -134,9 +134,9 @@ graph TD
 ## 📝 Описание ключевых процессов
 
 ### 1. Жизненный цикл Объекта
-*   **Создание:** Агент заполняет `PropertyEditWizard` → `propertiesService.js` отправляет данные в Supabase.
-*   **Модерация:** Объект попадает в базу со статусом `pending`. Админ получает уведомление через `postgres_changes`.
-*   **Одобрение:** После проверки Админом статус меняется на `approved`, и объект становится видимым для всей команды (согласно RLS).
+*   **Создание:** Админ или агент (при `can_manage_property`) заполняет `PropertyEditWizard` → `propertiesService.js` отправляет данные в Supabase.
+*   **Публикация:** Объект попадает в базу со статусом `approved` через DB-default и сразу виден всей команде (согласно RLS).
+*   **Уведомление админу:** Если создатель — агент, админу приходит информационное `property_created` (без действий). Модерация выпилена 2026-04-30 (этап 2 — упрощение прав).
 
 ### 2. Логика Бронирований
 *   **Защита от наложений:** Перед сохранением `BookingsService` проверяет пересечение дат (`check_in`/`check_out`) для выбранного объекта.
@@ -146,18 +146,15 @@ graph TD
 *   **RLS (Row Level Security):** Основной механизм защиты. База данных сама фильтрует строки, которые может видеть или менять пользователь, основываясь на его `auth.uid()` и `company_id`.
 *   **Финансовая изоляция:** Поля комиссий собственника скрыты от обычных агентов на уровне политик безопасности.
 
-### 4. Review Flow и модерация объектов
+### 4. Review Flow и модерация — снято 2026-04-30 (этап 2)
 
-*   **Отправка на проверку:** Agent создаёт или редактирует объект → создаётся запись в `property_drafts` (при edit) или напрямую в `properties` (при create) → отправляется уведомление (`property_submitted` / `edit_submitted`).
-*   **Review-панель:** Admin кликает на уведомление → `WebNotificationBell` загружает данные → открывает `WebPropertyEditPanel` в режиме `readOnly=true, reviewMode=true`. При `edit_submitted` мержит оригинальный объект с данными черновика.
-*   **Approve/Reject:** После решения вызывается `approveProperty` / `rejectProperty` (или `Draft`-варианты). При reject — новая запись в `property_rejection_history`.
-*   **Синхронизация UI:** `broadcastChange('properties')` → inter-session refresh через companyChannel. `onPropertiesChanged` callback → intra-session refresh для initiator.
+Модерация выпилена. Уведомления `property_submitted` / `edit_submitted` / `property_approved` / `property_rejected` / `edit_*` / `price_*` удалены. Review-панель `WebPropertyEditPanel(readOnly=true, reviewMode=true)` не используется. Функции `approveProperty`, `approvePropertyDraft`, `rejectProperty`, `rejectPropertyDraft`, `submitPropertyDraft` удалены из `propertiesService`. См. ADR-015.
 
-### 5. История отклонений (`property_rejection_history`)
+Теперь админу приходит просто `property_created` / `booking_created` — информация без действий.
 
-*   **Хранение:** Append-only таблица. Каждый reject добавляет новую строку; записи не обновляются и не удаляются.
-*   **Связь с `properties.rejection_reason`:** Это поле хранит последнюю причину (для legacy-совместимости). В UI используется как fallback если история пуста.
-*   **Refresh-механизм:** `historyRefreshKey` (local state) инкрементируется при каждом reject (из правой панели или через глобальный `refreshKey`), что гарантирует перезагрузку истории в `PropertyDetail`.
+### 5. История отклонений — снято 2026-04-30 (этап 2)
+
+Таблица `property_rejection_history` физически остаётся в БД до этапа 3 (cleanup-миграция её дропнет), но не пишется и не читается. UI блок «История отклонений», `historyRefreshKey`, `getPropertyRejectionHistory` удалены.
 
 ---
 

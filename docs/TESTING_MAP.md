@@ -106,7 +106,7 @@
 | 34 | TD-084: RLS агент не видит чужие брони | BK-VIS-2 | Admin бронь на НЕ-агентском объекте → Agent не видит. | ✅ |
 | 35 | TD-086: booking_agent_id | BK-EDIT-4 | Agent создаёт бронь → в БД booking_agent_id=Agent. Agent не может edit/delete бронь Admin. | ✅ |
 | 36 | TD-042: деактивация сотрудника | CO-DEACT-MEMBER | Admin деактивирует Agent → блокирован, email свободен, объекты отвязаны. | ✅ |
-| 37 | TD-058: agent save через draft | PR-EDIT | Agent меняет цены → draft (pending), не прямое обновление. | ✅ |
+| 37 | TD-058: agent save через draft | PR-EDIT | ✅ СНЯТ 2026-04-30 (этап 2, ADR-015 — draft flow выпилен). Был: Agent меняет цены → draft (pending), не прямое обновление. | ✅ |
 | 38 | Responsible field с компанией | PR-RESP | Admin → "Ответственный" видно. Agent → скрыто. | ✅ |
 
 ---
@@ -117,7 +117,7 @@
 |---|-------|---------------|--------|
 | 39 | TD-084+086: RLS web | Те же тесты что #34-35 на вебе. | ⬜ |
 | 40 | TD-048: owners для агента web | Agent видит owners в контактах. | ⬜ |
-| 41 | TD-058: agent save web | Agent меняет цены → draft flow. | ⬜ |
+| 41 | TD-058: agent save web | ✅ СНЯТ 2026-04-30 (этап 2, ADR-015 — draft flow выпилен). Был: Agent меняет цены → draft flow. | ✅ |
 
 ---
 
@@ -134,12 +134,12 @@
 | B7 | 3 | 32 | Registration.js: после регистрации через invitation профиль загружается до joinCompanyViaInvitation — isAgentRole=false. ИСПРАВЛЕНО: getCurrentUser() после join. | src/screens/Registration.js | ✅ |
 | B8 | 3 | — | PropertyDetailScreen: при загрузке на секунду мелькает "название компании" вместо ответственного. Косметический timing issue. | src/screens/PropertyDetailScreen.js | ⬜ |
 | B9 | 3 | — | Web: после деактивации агента визуально не обновляется статус в списке команды (данные в БД корректны). ИСПРАВЛЕНО: архив деактивированных сотрудников в сворачиваемом блоке. | src/web/components/WebTeamSection.js | ✅ |
-| B10 | 3 | — | Permissions агента (can_book и др.) не обновляются в реальном времени на мобильном — нужен перезапуск. Broadcast permissions есть но UI не перерисовывается. | src/context/AppDataContext.js | ⬜ |
+| B10 | 3 | — | Permissions агента (`can_manage_property` / `can_manage_bookings`) не обновляются в реальном времени на мобильном — нужен перезапуск. Broadcast permissions есть но UI не перерисовывается. | src/context/AppDataContext.js | ⬜ |
 | B11 | 3 | 36 | Деактивированный агент сохранял активную сессию. ИСПРАВЛЕНО: broadcast member_deactivated → signOut на мобильном. | src/context/AppDataContext.js, src/services/companyChannel.js | ✅ |
 | B12 | 3 | — | При регистрации агента через invitation — админ не получает уведомление и приглашение висит как неподтверждённое до перезагрузки страницы. ИСПРАВЛЕНО: broadcastChange('team') при входе агента. | src/web/components/WebTeamSection.js | ✅ |
-| B13 | 3 | — | Модерация: текст "Changes rejected" при отклонении нового объекта — должно быть "Property rejected". | notifications | ⬜ |
-| B14 | 3 | — | Модерация web: нет поля "Собственник" в боковом окне проверки объекта. | src/web/components/ | ⬜ |
-| B15 | 3 | — | Модерация web: после одобрения объекта не переходит на страницу объекта. | src/web/screens/WebPropertiesScreen.js | ⬜ |
+| B13 | 3 | — | ✅ СНЯТ 2026-04-30 (этап 2 — модерация выпилена). Был: текст "Changes rejected" при отклонении нового объекта — должно быть "Property rejected". | notifications | ✅ |
+| B14 | 3 | — | ✅ СНЯТ 2026-04-30 (этап 2 — review-панель удалена). Был: нет поля "Собственник" в боковом окне проверки объекта. | src/web/components/ | ✅ |
+| B15 | 3 | — | ✅ СНЯТ 2026-04-30 (этап 2 — одобрений больше нет). Был: после одобрения объекта не переходит на страницу объекта. | src/web/screens/WebPropertiesScreen.js | ✅ |
 | B16 | 3 | — | Шрифты: после logout при деактивации некоторые строки текста растягиваются по горизонтали. Возможно side effect crash/hot reload. Наблюдать. | — | ⬜ |
 | B17 | 2 | 26 | Web: кнопка "bookingConfirmation" — текст не переведён (показывает ключ), кнопка наезжает на поля окна бронирования. | src/web/screens/WebBookingsScreen.js | ⬜ |
 | B18 | 2 | 26 | Web: PDF сразу открывает окно печати. Нужно: отдельная строка + две кнопки "Preview" / "Print". | src/web/screens/WebBookingsScreen.js | ⬜ |

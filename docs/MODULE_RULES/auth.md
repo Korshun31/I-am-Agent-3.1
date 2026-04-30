@@ -192,7 +192,7 @@ screen.
 | `user.isAgentRole` | derived | `true` если `teamRole === 'agent'` |
 | `user.isAdminRole` | derived | `true` если пользователь — владелец компании |
 | `user.workAs` | derived | `'company'` если есть active company, иначе `'private'` |
-| `user.teamPermissions` | `company_members.permissions` | JSONB с флагами: `can_add_property`, `can_edit_prices` и т.д. |
+| `user.teamPermissions` | `company_members.permissions` | JSONB с флагами: `can_manage_property`, `can_manage_bookings` (старые ключи `can_add_property`, `can_edit_info`, `can_edit_prices`, `can_book`, `can_delete_booking`, `can_see_financials`, `can_manage_clients` сняты 2026-04-30 в этапе 2 — упрощение прав) |
 
 **AU-PROFILE-3.** Поле `users_profile.role` — **устаревшее, содержит мусор**. НЕ использовать для определения ни роли, ни тарифа.
 См. TD-001.

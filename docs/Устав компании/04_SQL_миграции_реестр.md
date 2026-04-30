@@ -25,7 +25,7 @@
 | `20250323000000_property_drafts.sql` | Черновики правок агента | `property_drafts` table + RLS | Средний | Ключевая фича |
 | `20250323000001_add_properties_floor_number.sql` | Этаж объекта | `properties.floors` | — | — |
 | `20250324000000_fix_properties_rls.sql` | Фикс RLS объектов | RLS policies на `properties` | Средний | — |
-| `20250324000001_properties_rls_edit_permission.sql` | Разрешение редактирования | RLS: `can_edit_info` check | Средний | — |
+| `20250324000001_properties_rls_edit_permission.sql` | Разрешение редактирования | RLS: `can_edit_info` check | Средний | Ключ `can_edit_info` снят 2026-04-30 (этап 2, ADR-015). RLS-политика заменена в миграции этапа 2. |
 | `20250324000002_fix_property_drafts_rls.sql` | Фикс RLS черновиков | RLS policies на `property_drafts` | Средний | — |
 | `20250324000003_add_bookings_missing_columns.sql` | Недостающие поля бронирований | `bookings.*` | — | — |
 | `20250325000000_enable_properties_realtime.sql` | Realtime для объектов | `supabase_realtime` publication | Низкий | — |
@@ -42,13 +42,17 @@
 | `20260327150000_rls_bookings_company_first.sql` | Company-first RLS | RLS на bookings | Средний | — |
 | `20260327160000_rls_locations_company_first.sql` | Company-first RLS | RLS на locations | Средний | — |
 | `20260327170000_rls_properties_cleanup.sql` | Очистка legacy RLS | RLS на properties | **Высокий**: убирает старые политики | Idempotent |
-| `20260328000000_property_rejection_history.sql` | Журнал отклонений | `property_rejection_history` table + RLS | Низкий | Append-only |
+| `20260328000000_property_rejection_history.sql` | Журнал отклонений | `property_rejection_history` table + RLS | Низкий | Append-only (снято в этапе 2) |
+| `20260429000000_simple_perms_overhaul_phase1.sql` | Упрощение прав, фаза 1 (аддитивная) | `company_members.permissions`: добавлены `can_manage_property` и `can_manage_bookings`; DB-default `properties.property_status='approved'` | Средний | Этап 2 — упрощение прав |
+| `20260429000001_simplify_properties_rls_phase2.sql` | Упрощение прав, фаза 2 (RLS) | DROP всех RLS-политик `property_drafts` + DROP TABLE из publication; properties INSERT/UPDATE/DELETE и bookings INSERT/UPDATE/DELETE переписаны под `can_manage_property` / `can_manage_bookings` | **Высокий**: модерация выпилена | Этап 2 — упрощение прав |
 
 ---
 
-## Таблица `property_rejection_history` — детали
+## Таблица `property_rejection_history` — снята 2026-04-30 (этап 2)
 
-**Назначение:** append-only журнал всех отклонений объектов.
+Модерация выпилена. Таблица физически остаётся в БД до этапа 3 (cleanup-миграция дропнет её), но не пишется и не читается. Описание ниже сохранено как историческая справка.
+
+**Назначение (исторически):** append-only журнал всех отклонений объектов.
 
 ```sql
 CREATE TABLE property_rejection_history (
@@ -69,34 +73,12 @@ CREATE TABLE property_rejection_history (
 
 ---
 
-## Backfill стратегия (для legacy-объектов)
+## Backfill стратегия — снята 2026-04-30 (этап 2)
 
-Объекты с заполненным `properties.rejection_reason` и пустой историей можно бэкфиллить:
-
-```sql
--- ПЛАН (не запускать без тестирования на staging):
--- Найти кандидатов:
-SELECT id, rejection_reason FROM properties
-WHERE property_status = 'rejected'
-  AND rejection_reason IS NOT NULL
-  AND rejection_reason <> ''
-  AND NOT EXISTS (
-    SELECT 1 FROM property_rejection_history
-    WHERE property_id = properties.id
-  );
-
--- Safe plan: INSERT по одной строке на объект с rejection_type='manual'
--- НЕ запускать массово без проверки: может затронуть данные, которые уже вручную синхронизированы.
-```
-
-**Статус:** не запущен. Описан как forward-plan.
+TD-008 закрыт. Бэкфилл `property_rejection_history` для legacy-объектов больше не нужен — таблица будет удалена в этапе 3 (cleanup-миграция).
 
 ---
 
-## SQL-ограничения, которые НЕ enforced в БД
+## SQL-ограничения, которые НЕ enforced в БД — сняты 2026-04-30 (этап 2)
 
-| Правило | Где enforced | Статус |
-|---------|--------------|--------|
-| Причина отклонения обязательна | UI/Service (`reason \|\| ''`) | ⚠️ Только UI, не CHECK в БД |
-| Только admin может отклонять | RLS INSERT на history | ✅ Enforced |
-| История append-only | Нет UPDATE/DELETE RLS | ✅ Enforced через отсутствие политик |
+Все три ограничения относились к flow модерации (отклонение объекта админом). Модерация выпилена, ограничения больше не актуальны. Таблица `property_rejection_history` будет удалена в этапе 3.

@@ -39,15 +39,13 @@ authService выполнял `.eq('status','active')` → PostgREST error → `m
 | Операция | Company Owner (Admin) | Agent (team member) | Анонимный |
 |----------|-----------------------|---------------------|-----------|
 | SELECT properties | ✅ (все объекты компании) | ✅ **только** `responsible_agent_id = uid` | ❌ |
-| INSERT property | ✅ | ✅ (с company scope) | ❌ |
-| UPDATE property | ✅ | ✅ **только** `responsible_agent_id = uid` | ❌ |
+| INSERT property | ✅ | ✅ при `can_manage_property` (с company scope) | ❌ |
+| UPDATE property | ✅ | ✅ при `can_manage_property` + `responsible_agent_id = uid` | ❌ |
 | DELETE property (admin) | ✅ (любой объект компании) | — | ❌ |
-| DELETE property (agent) | ✅ | ✅ только создатель + статус НЕ `approved` (см. LOCK-001) | ❌ |
-| Approve/Reject property | ✅ | ❌ | ❌ |
-| SELECT property_drafts | ✅ (все компании) | ✅ (только свои) | ❌ |
-| INSERT property_drafts | ✅ | ✅ | ❌ |
-| SELECT property_rejection_history | ✅ | ✅ (только своих объектов) | ❌ |
-| INSERT property_rejection_history | ✅ (company owner only) | ❌ | ❌ |
+| DELETE property (agent) | ✅ | ✅ при `can_manage_property` + `responsible_agent_id = uid` | ❌ |
+| INSERT booking | ✅ | ✅ при `can_manage_bookings` (с company scope) | ❌ |
+| UPDATE booking | ✅ | ✅ при `can_manage_bookings` + `booking_agent_id = uid` | ❌ |
+| DELETE booking | ✅ | ✅ при `can_manage_bookings` + `booking_agent_id = uid` | ❌ |
 | SELECT notifications | ✅ | ✅ (только свои) | ❌ |
 | INSERT notifications | ✅ | ✅ | ❌ |
 | SELECT bookings | ✅ (все компании) | ✅ (только свои объекты) | ❌ |
@@ -55,13 +53,7 @@ authService выполнял `.eq('status','active')` → PostgREST error → `m
 
 > **Критическое правило (CF-001):** `properties.user_id` (создатель) **не является** правом доступа. После переназначения ответственного или его снятия агент-создатель теряет доступ к объекту немедленно. Единственный критерий доступа агента — `responsible_agent_id = auth.uid()`.
 
-> **LOCK-001 — Удаление объекта по роли (утверждено Human Owner):**  
-> Роль `agent` может удалить объект **только** при одновременном выполнении двух условий:  
-> 1. Агент является создателем: `properties.user_id = auth.uid()`  
-> 2. Статус объекта **не** `approved`: `coalesce(property_status, 'approved') <> 'approved'`  
->  
-> Роль `agent` **никогда** не может удалить `approved` объект, даже если является его создателем.  
-> Для роли `admin` ограничение `approved` **не применяется**; удаление регулируется стандартными RLS компании.
+> **LOCK-001 — снят 2026-04-30 (этап 2 — упрощение прав, модерация выпилена).** Старая логика «удалять только не-approved» убрана. Новая: агент удаляет свой объект при `can_manage_property = true` И `responsible_agent_id = auth.uid()`. См. RLS-миграцию `20260429000001_simplify_properties_rls_phase2.sql`.
 
 ---
 
@@ -77,50 +69,13 @@ authService выполнял `.eq('status','active')` → PostgREST error → `m
 
 ---
 
-## Approve / Reject — кто может
+## Approve / Reject — снято 2026-04-30 (этап 2)
 
-**Approve:**
-- `approveProperty` — только company owner (через RLS UPDATE на `properties`)
-- `approvePropertyDraft` — только company owner
+Модерация выпилена. Функции `approveProperty`, `approvePropertyDraft`, `rejectProperty`, `rejectPropertyDraft` удалены из `propertiesService`. Таблица `property_drafts` и её RLS-политики дропнуты в RLS-миграции этапа 2 (`20260429000001_simplify_properties_rls_phase2.sql`).
 
-**Reject:**
-- `rejectProperty` — company owner → обновляет `properties` + INSERT в `property_rejection_history`
-- `rejectPropertyDraft` — company owner → обновляет `property_drafts` + `properties` + INSERT в `property_rejection_history`
+## Rejection History — снято 2026-04-30 (этап 2)
 
-RLS на `property_rejection_history` INSERT:
-```sql
-WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM properties p
-    JOIN companies c ON c.id = p.company_id
-    WHERE p.id = property_rejection_history.property_id
-      AND c.owner_id = auth.uid()
-  )
-);
-```
-
----
-
-## Rejection History — кто читает
-
-**Company owner:** видит историю всех объектов своей компании.  
-**Agent:** видит историю объектов, которые создал или назначен ответственным.
-
-```sql
--- Owner policy:
-EXISTS (
-  SELECT 1 FROM properties p JOIN companies c ON c.id = p.company_id
-  WHERE p.id = property_rejection_history.property_id AND c.owner_id = auth.uid()
-)
-
--- Agent policy (для истории user_id намеренно сохранён: агент-создатель должен видеть
--- историю отклонений своего объекта даже после переназначения ответственного):
-EXISTS (
-  SELECT 1 FROM properties p
-  WHERE p.id = property_rejection_history.property_id
-    AND (p.user_id = auth.uid() OR p.responsible_agent_id = auth.uid())
-)
-```
+Таблица `property_rejection_history` физически остаётся в БД до этапа 3 (cleanup-миграция дропнет её), но не пишется и не читается. RLS-политики пока сохранены, но не имеют практического значения.
 
 ---
 
@@ -130,36 +85,21 @@ EXISTS (
 
 | Поле | Что разрешает |
 |------|--------------|
-| `can_edit_info` | Редактировать основные поля объекта |
-| `can_edit_prices` | Редактировать цены |
-| `can_see_financials` | Видеть комиссии и финансы |
-| `can_add_property` | Добавлять новые объекты |
-| `can_book` | Создавать бронирования |
-| `can_delete_booking` | Удалять бронирования |
-| `can_manage_clients` | Управлять контактами |
+| `can_manage_property` | Добавлять, редактировать (включая цены) и удалять свои объекты |
+| `can_manage_bookings` | Добавлять, редактировать и удалять свои бронирования |
+
+**Сняты 2026-04-30 (этап 2 — упрощение прав, модерация выпилена):**
+- `can_add_property`, `can_edit_info`, `can_edit_prices` — заменены на единый `can_manage_property`
+- `can_book`, `can_delete_booking` — заменены на единый `can_manage_bookings`
+- `can_see_financials` (TD-088) — агент всегда видит финансы своих бронирований
+- `can_manage_clients` (TD-102) — агент всегда работает со своими контактами
+
+Старые ключи физически остаются в JSONB до этапа 3 (cleanup-миграция), но не читаются ни кодом, ни RLS.
 
 ---
 
-## Proposal: роль "помощник админа" / `can_moderate_properties`
+## Proposal: роль "помощник админа" / `can_moderate_properties` — закрыто 2026-04-30
 
-**Статус:** PROPOSAL (не реализовано).
+**Статус:** ❌ ЗАКРЫТО в пользу простоты (P1-002 снят 2026-04-30, этап 2).
 
-**Проблема:** сейчас только `company.owner_id` может approve/reject. Если нужен "старший агент" с правом модерации — необходимо:
-
-1. Добавить `can_moderate_properties: boolean` в `company_members.permissions`.
-2. Обновить RLS INSERT на `property_rejection_history`:
-   ```sql
-   -- Добавить к текущей policy:
-   OR EXISTS (
-     SELECT 1 FROM company_members cm
-     JOIN properties p ON p.company_id = cm.company_id
-     WHERE p.id = property_rejection_history.property_id
-       AND cm.user_id = auth.uid()
-       AND cm.status = 'active'
-       AND (cm.permissions->>'can_moderate_properties')::boolean = true
-   )
-   ```
-3. Обновить `rejectProperty` / `rejectPropertyDraft` / `approveProperty` аналогично.
-4. Сделать отдельной миграцией с полным описанием совместимости.
-
-**Риски:** расширение поверхности атаки (больше пользователей могут менять статусы). Требует аудита всех approve/reject flow.
+Модерация целиком выпилена. Идея «старшего агента» с правом одобрять/отклонять чужие объекты больше не имеет смысла — одобрять нечего. Если в будущем понадобится разделить агентов по уровню ответственности — это будет другая концепция, не основанная на approve/reject flow.
