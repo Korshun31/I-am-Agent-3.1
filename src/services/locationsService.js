@@ -132,8 +132,7 @@ export async function addLocationDistrict(locationId, district) {
 
   const { error } = await supabase
     .from('location_districts')
-    .insert({ location_id: locationId, district: trimmed })
-    .select();
+    .insert({ location_id: locationId, district: trimmed });
 
   // 23505 = unique_violation — район уже есть, ничего страшного, просто игнорируем.
   if (error && error.code !== '23505') {

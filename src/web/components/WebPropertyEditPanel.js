@@ -446,6 +446,7 @@ export default function WebPropertyEditPanel({
   const [districts, setDistricts] = useState([]);
   const [newDistrictInput, setNewDistrictInput] = useState('');
   const [addingDistrict, setAddingDistrict] = useState(false);
+  const [addDistrictError, setAddDistrictError] = useState('');
   const [owners, setOwners] = useState([]);
   const [panelTeamMembers, setPanelTeamMembers] = useState([]);
 
@@ -549,14 +550,15 @@ export default function WebPropertyEditPanel({
       return;
     }
     setAddingDistrict(true);
+    setAddDistrictError('');
     try {
       await addLocationDistrict(form.location_id, trimmed);
       setDistricts(prev => [...new Set([...prev, trimmed])].sort());
       set('district', trimmed);
       setNewDistrictInput('');
     } catch (e) {
-      // Показываем причину сбоя в консоль, чтобы видеть в Sentry/devtools.
       console.warn('[addLocationDistrict] failed:', e?.message);
+      setAddDistrictError(e?.message || t('errorUpload'));
     } finally {
       setAddingDistrict(false);
     }
@@ -847,25 +849,28 @@ export default function WebPropertyEditPanel({
                 />
                 {/* TD-070: добавить новый район — доступно и админу, и агенту. */}
                 {!readOnly && form.location_id && (
-                  <View style={s.addDistrictRow}>
-                    <TextInput
-                      style={s.addDistrictInput}
-                      placeholder={t('addNewDistrictPlaceholder')}
-                      placeholderTextColor={C.light}
-                      value={newDistrictInput}
-                      onChangeText={setNewDistrictInput}
-                      editable={!addingDistrict}
-                      onSubmitEditing={handleAddNewDistrict}
-                    />
-                    <TouchableOpacity
-                      style={[s.addDistrictBtn, (!newDistrictInput.trim() || addingDistrict) && s.addDistrictBtnDisabled]}
-                      onPress={handleAddNewDistrict}
-                      disabled={!newDistrictInput.trim() || addingDistrict}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={s.addDistrictBtnText}>{addingDistrict ? '…' : t('addDistrictBtn')}</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <>
+                    <View style={s.addDistrictRow}>
+                      <TextInput
+                        style={s.addDistrictInput}
+                        placeholder={t('addNewDistrictPlaceholder')}
+                        placeholderTextColor={C.light}
+                        value={newDistrictInput}
+                        onChangeText={(v) => { setNewDistrictInput(v); if (addDistrictError) setAddDistrictError(''); }}
+                        editable={!addingDistrict}
+                        onSubmitEditing={handleAddNewDistrict}
+                      />
+                      <TouchableOpacity
+                        style={[s.addDistrictBtn, (!newDistrictInput.trim() || addingDistrict) && s.addDistrictBtnDisabled]}
+                        onPress={handleAddNewDistrict}
+                        disabled={!newDistrictInput.trim() || addingDistrict}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={s.addDistrictBtnText}>{addingDistrict ? '…' : t('addDistrictBtn')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {addDistrictError ? <Text style={s.addDistrictError}>{addDistrictError}</Text> : null}
+                  </>
                 )}
               </>
             )}
@@ -1590,4 +1595,5 @@ const s = StyleSheet.create({
   },
   addDistrictBtnDisabled:{ opacity: 0.4 },
   addDistrictBtnText:    { fontSize: 13, color: ACCENT, fontWeight: '600' },
+  addDistrictError:      { fontSize: 12, color: '#C62828', marginTop: 4, marginLeft: 2 },
 });
