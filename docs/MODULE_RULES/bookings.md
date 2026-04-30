@@ -50,7 +50,7 @@
 
 **BK-CR-1.** Админ — всегда может создать бронирование.
 
-**BK-CR-2.** Агент — только при наличии permission `can_book` (CO-PERM-1, CURSOR_RULES 4.2). Без `can_book` кнопка создания скрыта.
+**BK-CR-2.** Агент — только при наличии permission `can_manage_bookings` (CO-PERM-1, CURSOR_RULES 4.2). Без `can_manage_bookings` кнопка создания скрыта.
 
 ### Обязательные поля
 
@@ -212,7 +212,7 @@ expo-notifications (тот же баг что был в `calendarRemindersServic
 меняется** автоматически. Бронирование остаётся "на агента".
 
 **BK-EDIT-2.** Агент — редактирует бронирование если:
-- Есть permission `can_book`
+- Есть permission `can_manage_bookings`
 - `booking_agent_id = его id` (он ответственный за это бронирование)
 
 Не важно кто создал — важно кто назначен ответственным.
@@ -275,12 +275,9 @@ expo-notifications (тот же баг что был в `calendarRemindersServic
 
 **BK-DEL-2.** Агент — удаляет бронирование если:
 - `booking_agent_id = его id` (он ответственный за это бронирование)
-- Есть permission `can_delete_booking`
+- Есть permission `can_manage_bookings`
 
-Без `can_delete_booking` — кнопка удаления **скрыта**, даже для своих бронирований.
-
-**BK-DEL-2.1.** *(TD-087)* Переключатель `can_delete_booking` отсутствует в UI настроек агента (обе платформы). В коде
-`deleteBooking()` permission не проверяется. Нужно добавить переключатель + проверку.
+Без `can_manage_bookings` — кнопка удаления **скрыта**, даже для своих бронирований. Отдельного флага удаления больше нет: добавление, редактирование и удалениие управляются одной галочкой `can_manage_bookings` (этап 2 simple-perms, RLS-миграция `20260429000001`).
 
 ### Что происходит при удалении
 
@@ -297,7 +294,7 @@ expo-notifications (тот же баг что был в `calendarRemindersServic
 
 | Аспект | Мобильный | Веб | Совпадает? |
 |---|---|---|---|
-| Проверка `can_delete_booking` | ❌ Не проверяется | ❌ Не проверяется | ⚠️  TD-087 |
+| Проверка `can_manage_bookings` при удалении | ✅ через RLS | ✅ через RLS | ✅ |
 | Отмена напоминаний перед удалением | ✅ `cancelCommissionReminders` | Нужно проверить | ⚠️  |
 
 **Все правила этого подмодуля применяются одинаково на вебе и мобильном.**
@@ -541,16 +538,15 @@ expo-notifications (тот же баг что был в `calendarRemindersServic
 
 ## Связь с RBAC
 
-- `can_book` — агент может создать бронирование только при наличии (CURSOR_RULES 4.2)
-- `can_delete_booking` — агент может удалить бронирование только при наличии (BK-DEL-2)
-- `booking_agent_id` — определяет кто отвечает за бронирование и может его редактировать/удалять (BK-EDIT-4)
-- `can_see_financials` — **удалить из проекта** (TD-088). Агент всегда видит финансы своих бронирований.
+- `can_manage_bookings` — единая галочка для агента на добавление, редактирование и удаление бронирований (CURSOR_RULES 4.2). Проверяется в RLS на `bookings` (миграция `20260429000001`).
+- `booking_agent_id` — определяет кто отвечает за бронирование и может его редактировать/удалять (BK-EDIT-4).
+- Финансы своих бронирований видит и админ, и агент — отдельного флага `can_see_financials` нет.
 
 ## Связь с другими модулями
 
 | Модуль | Связь |
 |---|---|
-| **Auth & Session** | `user.teamPermissions.can_book` разрешает/запрещает создание. |
+| **Auth & Session** | `user.teamPermissions.can_manage_bookings` разрешает/запрещает создание, редактирование и удаление. |
 | **Properties** | `property_id` — объект бронирования. Цены предзаполняются. При удалении объекта бронирования удаляются каскадно (PR-DEL-5). |
 | **Contacts** | `contact_id` — гость. При удалении контакта `contact_id → NULL` (FK ON DELETE SET NULL). |
 | **Company & Team** | `company_id` берётся из объекта. При деактивации агента — бронирования остаются (user_id сохранён). |
@@ -574,7 +570,6 @@ expo-notifications (тот же баг что был в `calendarRemindersServic
 | **TD-084** | RLS `company member read` даёт агенту доступ ко всем бронированиям компании — нарушает ограничение видимости | Критический |
 | **TD-085** | Агент видит все данные бронирования вместо скрытия имени клиента для бронирований "на Компанию" | Средний |
 | **TD-086** | Новое поле `booking_agent_id` — ответственный за бронирование. Нужно: колонка в БД (UUID, nullable, FK → auth.users ON DELETE SET NULL), backfill user_id → booking_agent_id, обновить 3 RLS политики (read/update/delete own), убрать company member read (TD-084), пикер для админа, скрыт для агента | Критический |
-| **TD-087** | Переключатель `can_delete_booking` отсутствует в UI настроек агента (обе платформы), permission не проверяется в deleteBooking() | Средний |
 | **TD-088** | Удалить `can_see_financials` из проекта: CO-PERM-1, CURSOR_RULES 4.2, код (WebBookingEditPanel canSeeFinancials обёртка, WebPropertiesScreen и др.) | Средний |
 | **TD-089** | Мобильный AddBookingModal: нет переключателя %/сумма для комиссии собственнику и нет расчёта суммы из процента (на вебе есть). Добавить по примеру PropertyEditWizard | Средний |
 | **TD-090** | Веб: нет браузерных push-уведомлений для напоминаний о заезде и комиссии (Web Push API) | Средний |
@@ -585,3 +580,5 @@ expo-notifications (тот же баг что был в `calendarRemindersServic
 | **TD-095** | Веб: нет фильтра по удобствам в WebBookingsScreen (на мобильном есть) | Средний |
 | **TD-096** | Веб: поиск в WebBookingsScreen ищет по району и контакту — привести к мобильному (код, имя объекта, собственник) | Низкий |
 | **TD-097** | Веб: нет выбора года в WebBookingsScreen (на мобильном есть) | Низкий |
+
+**Снято в этапе 2 simple-perms:** TD-087 (`can_delete_booking` UI и server check) — объединён с `can_manage_bookings`.

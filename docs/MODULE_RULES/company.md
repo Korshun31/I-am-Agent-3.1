@@ -174,23 +174,18 @@ EXISTING_USER_CONFIRM / EXISTING_USER_LOGIN) подлежит удалению. 
 
 ### Управление правами (CO-PERM)
 
-**CO-PERM-1.** Права хранятся в `company_members.permissions` (JSONB):
+**CO-PERM-1.** Права хранятся в `company_members.permissions` (JSONB). После этапа 2 simple-perms модель сократилась до двух флагов:
 
 | Флаг | Назначение |
 |---|---|
-| `can_add_property` | Добавлять объекты |
-| `can_edit_info` | Редактировать основные поля объектов |
-| `can_edit_prices` | Редактировать цены |
-| `can_see_financials` | Видеть комиссии и финансы |
-| `can_book` | Создавать бронирования |
-| `can_delete_booking` | Удалять бронирования |
-| `can_manage_clients` | Управлять контактами |
+| `can_manage_property` | Добавлять и редактировать свои объекты (включая цены). Удаление — через RLS с этим же флагом. |
+| `can_manage_bookings` | Добавлять, редактировать и удалять свои бронирования. |
 
-**CO-PERM-2.** Права управляются только владельцем (admin) через `updateMemberPermissions()`.
+Старые поля (`can_add_property`, `can_edit_info`, `can_edit_prices`, `can_see_financials`, `can_book`, `can_delete_booking`, `can_manage_clients`) физически остаются в JSONB до этапа 3 (cleanup-миграция), но не читаются ни кодом, ни RLS-политиками.
 
-**CO-PERM-3.** По умолчанию при join все permissions не установлены (пустой JSONB). Владелец настраивает после добавления.
+**CO-PERM-2.** Права управляются только владельцем (admin) через `updateMemberPermissions()`. Сервис принимает на вход любой объект, но в БД пишет белым списком только `{ can_manage_property, can_manage_bookings }`.
 
-**CO-PERM-3.1.** *(TD-005, ранее зафиксирован)* Permissions определены, но не полностью enforced в UI.
+**CO-PERM-3.** По умолчанию при join все permissions не установлены (пустой JSONB). Владелец настраивает после добавления — выставляет нужные галочки в карточке агента.
 
 ### Деактивация участника (CO-DEACT-MEMBER)
 
@@ -245,14 +240,13 @@ EXISTING_USER_CONFIRM / EXISTING_USER_LOGIN) подлежит удалению. 
 | **Auth & Session** | Триггер `handle_new_user` **условно** создаёт workspace (только при самостоятельной регистрации). `getUserProfile` собирает membership. `signUp`/`signIn` используются в invite flow. |
 | **Properties** | `responsible_agent_id` привязывает объект к агенту. При деактивации — сбрасывается. `auto_set_property_company` (trigger) привязывает property к company. `getActiveTeamMembers()` используется для выбора ответственного в PropertyEditWizard. |
 | **Bookings** | Видимость броней зависит от membership и `company_id`. |
-| **Contacts** | Видимость контактов зависит от `can_manage_clients` permission. |
+| **Contacts** | Видимость контактов определяется ролью и RLS-политиками контактов (admin компании видит всё, агент — свои + клиентов своих броней). |
 | **i18n** | Все UI-тексты приглашений и управления командой локализованы (en/th/ru). |
 
 ## Известные пробелы и TD
 
 | TD | Описание | Приоритет |
 |---|---|---|
-| **TD-005** | Permissions не полностью enforced в UI (ранее зафиксирован) | Средний |
 | **TD-021** | Принятие приглашения только на web, нет мобильного экрана | Средний |
 | **TD-022** | Нет мобильного UI для управления командой | Средний |
 | **TD-023** | `check_email_exists` не в миграциях (исправлена в live-базе 2026-04-12) | Критический |
@@ -265,3 +259,5 @@ EXISTING_USER_CONFIRM / EXISTING_USER_LOGIN) подлежит удалению. 
 | **TD-030** | Нет аудит-лога действий с командой | Низкий |
 | **TD-040** | Экран регистрации не проверяет pending-приглашения. Нужна DB-функция `check_pending_invitation`, модальное окно выбора, уведомления админу при принятии/отклонении, модификация триггера `handle_new_user` для условного создания workspace | Критический |
 | **TD-042** | `deactivate_member` не выполняет: soft-delete (status='inactive'), подмену email (освобождение для повторного использования), блокировку аккаунта. Нужно переписать DB-функцию целиком | Критический |
+
+**Снято в этапе 2 simple-perms:** TD-005 (permissions guards в UI), TD-057 (два переключателя `info`/`prices`) — модель прав упрощена до двух флагов.
