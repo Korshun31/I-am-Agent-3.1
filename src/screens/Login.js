@@ -46,13 +46,14 @@ const buttonShadow = {
   elevation: 5,
 };
 
-export default function Login({ onSignUp, onLogin }) {
+export default function Login({ onSignUp, onLogin, onForgotPassword }) {
   const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [lockedUntil, setLockedUntil] = useState(0);
   const [now, setNow] = useState(Date.now());
+  const [loading, setLoading] = useState(false);
   const passwordRef = useRef(null);
 
   // Tick every second while the form is locked, so the countdown re-renders.
@@ -120,12 +121,13 @@ export default function Login({ onSignUp, onLogin }) {
   };
 
   const handleLogin = async () => {
-    if (isLocked) return;
+    if (isLocked || loading) return;
     setLoginError('');
     const em = (email || '').trim();
     const pw = password || '';
     if (!em) { setLoginError(t('enterEmail')); return; }
     if (!pw) { setLoginError(t('enterPassword')); return; }
+    setLoading(true);
     try {
       const userData = await signIn({ email: em, password: pw });
       await resetLoginAttempts(em.toLowerCase());
@@ -140,6 +142,8 @@ export default function Login({ onSignUp, onLogin }) {
       } else {
         setLoginError(msg || t('saveFailed'));
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -209,13 +213,20 @@ export default function Login({ onSignUp, onLogin }) {
           </View>
 
           <TouchableOpacity
-            style={[styles.loginButton, buttonShadow, isLocked && styles.loginButtonDisabled]}
+            style={[styles.loginButton, buttonShadow, (isLocked || loading) && styles.loginButtonDisabled]}
             activeOpacity={0.8}
             onPress={handleLogin}
-            disabled={isLocked}
+            disabled={isLocked || loading}
           >
-            <Text style={styles.loginButtonText}>{t('login')}</Text>
+            <Text style={styles.loginButtonText}>{loading ? t('saving') : t('login')}</Text>
           </TouchableOpacity>
+
+          {/* TD-014: ссылка на экран сброса пароля */}
+          {onForgotPassword && (
+            <TouchableOpacity onPress={onForgotPassword} activeOpacity={0.7} style={styles.forgotLink}>
+              <Text style={styles.forgotLinkText}>{t('forgotPasswordLink')}</Text>
+            </TouchableOpacity>
+          )}
 
           {/* <Text style={styles.orText}>{t('orSignIn')}</Text> */}
           {/* <View style={styles.socialRow}>
@@ -341,6 +352,17 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 17,
     fontWeight: '700',
+  },
+  forgotLink: {
+    alignSelf: 'center',
+    marginTop: -10,
+    marginBottom: 20,
+    padding: 8,
+  },
+  forgotLinkText: {
+    color: COLORS.subtitle,
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
   orText: {
     fontSize: 14,

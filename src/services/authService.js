@@ -236,6 +236,34 @@ export async function updateUserProfile(updates) {
   return getUserProfile(session.user.id);
 }
 
+/**
+ * TD-014: запрос ссылки для сброса пароля. Supabase отправляет письмо с magic link;
+ * после клика пользователь попадает на recovery-страницу где может задать новый пароль.
+ * На вебе redirectTo = текущий origin → onAuthStateChange('PASSWORD_RECOVERY') в App.js
+ * подхватит событие и покажет экран UpdatePassword.
+ */
+export async function requestPasswordReset(email) {
+  const trimmed = (email || '').trim();
+  if (!trimmed) throw new Error('Email is required');
+  const options = {};
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    options.redirectTo = window.location.origin;
+  }
+  const { error } = await supabase.auth.resetPasswordForEmail(trimmed, options);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
+
+/** TD-014: установка нового пароля после клика по recovery-ссылке. */
+export async function setNewPassword(newPassword) {
+  if (!newPassword || newPassword.length < 8) {
+    throw new Error('Password must be at least 8 characters');
+  }
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
+
 /** Returns true if user signed up with email/password (can change password). */
 export async function canChangePassword() {
   const { data: { user } } = await supabase.auth.getUser();

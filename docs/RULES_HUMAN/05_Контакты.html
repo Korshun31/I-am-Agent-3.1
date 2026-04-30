@@ -72,14 +72,14 @@
   <div class="rule-body"><strong>Админ</strong> — редактирует и удаляет любой контакт. <strong>Агент</strong> — только свои (которые сам создал).</div>
 </div>
 
-<div class="rule rule-warn">
-  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-105</span></div>
-  <div class="rule-body">При удалении <strong>собственника</strong> — нет предупреждения что у него есть объекты. Объекты останутся без собственника. Нужно предупреждение.</div>
+<div class="rule">
+  <div class="rule-header"><span class="rule-icon">✅</span><span class="rule-id">TD-105</span></div>
+  <div class="rule-body">Закрыт 2026-04-30. На обеих платформах: при удалении собственника, у которого есть объекты, показывается предупреждение «У этого собственника N объектов. Если удалить контакт, объекты останутся без собственника. Удалить всё равно?».</div>
 </div>
 
-<div class="rule rule-warn">
-  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-106</span></div>
-  <div class="rule-body">При удалении <strong>клиента</strong> — нет предупреждения что у него есть бронирования. Бронирования останутся без контакта. Нужно предупреждение.</div>
+<div class="rule">
+  <div class="rule-header"><span class="rule-icon">✅</span><span class="rule-id">TD-106</span></div>
+  <div class="rule-body">Закрыт 2026-04-30. На обеих платформах: при удалении клиента, у которого есть бронирования, показывается аналогичное предупреждение с количеством броней.</div>
 </div>
 
 <div class="rule rule-ok">
@@ -99,26 +99,26 @@
   <div class="rule-body"><strong>Агент</strong> видит: (1) контакты которые сам создал, (2) собственников объектов за которые отвечает, (3) клиентов из бронирований за которые отвечает.</div>
 </div>
 
-<div class="rule rule-warn">
-  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-099</span></div>
-  <div class="rule-body">Пункт 3 (клиенты из бронирований) не реализован в базе данных. На вебе работает через обходной путь в коде.</div>
+<div class="rule">
+  <div class="rule-header"><span class="rule-icon">✅</span><span class="rule-id">TD-099</span></div>
+  <div class="rule-body">Закрыт 2026-04-28 миграцией <code>20260428000001</code>. Добавлена политика <code>contacts: agent reads booking clients</code> — агент видит клиента, если у него есть бронь на этого клиента.</div>
 </div>
 
 <h2>5.4 Фото и документы</h2>
 
-<div class="rule rule-warn">
-  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-100</span></div>
-  <div class="rule-body">Фото контактов загружаются <strong>без сжатия</strong>. Нужно: 1200px + миниатюра 150px (как для объектов).</div>
+<div class="rule">
+  <div class="rule-header"><span class="rule-icon">✅</span><span class="rule-id">TD-100</span></div>
+  <div class="rule-body">Закрыт 2026-04-30. Мобильное приложение сжимает фото-аватар контакта до 1200 пикселей JPEG 85% — файл уменьшается в 10-20 раз без потери качества. Веб-аватар пока не реализован (TD-104), сжатие там появится автоматически когда добавим поле. Маленькие миниатюры (150px для списков) — отдельная задача TD-064.</div>
 </div>
 
-<div class="rule rule-warn">
-  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-103</span></div>
-  <div class="rule-body">На мобильном нет возможности <strong>прикрепить документы</strong> к контакту (на вебе есть).</div>
+<div class="rule">
+  <div class="rule-header"><span class="rule-icon">✅</span><span class="rule-id">TD-103</span></div>
+  <div class="rule-body">Закрыт 2026-04-30. На мобильном в карточке контакта появился блок «Документы»: можно прикреплять фото паспорта, договора и других документов из галереи. Каждое фото автоматически сжимается до 1200 пикселей. Можно удалять документы по крестику. Паритет с вебом.</div>
 </div>
 
-<div class="rule rule-warn">
-  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-104</span></div>
-  <div class="rule-body">На вебе нет поля <strong>«Фото контакта»</strong> (на мобильном есть).</div>
+<div class="rule">
+  <div class="rule-header"><span class="rule-icon">✅</span><span class="rule-id">TD-104</span></div>
+  <div class="rule-body">Закрыт 2026-04-30. На вебе теперь есть круглый блок аватара контакта с загрузкой, превью и удалением. Фото автоматически сжимается до 1200 пикселей качество 85% — паритет с мобильным.</div>
 </div>
 
 <h2>Список известных проблем</h2>
@@ -126,15 +126,15 @@
 <table class="td-table">
   <tr><th style="width: 60px;">Номер</th><th>Описание</th><th style="width: 90px;">Приоритет</th></tr>
   <tr><td>TD-098</td><td>Нет ограничения на тип контакта в базе</td><td class="priority-low">Низкий</td></tr>
-  <tr><td>TD-099</td><td>Агент не видит клиентов из своих бронирований</td><td class="priority-medium">Средний</td></tr>
-  <tr><td>TD-100</td><td>Фото без сжатия</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-099</td><td>✅ Закрыт 2026-04-28 — миграция 20260428000001, политика "contacts: agent reads booking clients"</td><td>✅ Закрыт</td></tr>
+  <tr><td>TD-100</td><td>✅ Закрыт 2026-04-30 — обе платформы сжимают фото до 1200px; миниатюры 150px — TD-064</td><td>✅ Закрыт</td></tr>
   <tr><td>TD-101</td><td>✅ ЗАКРЫТ 2026-04-27 — добавлен CHECK trim(name)≠'' миграцией 20260427000006</td><td>✅ Закрыт</td></tr>
   <tr><td>TD-102</td><td>Удалить can_manage_clients из проекта — снят 2026-04-30 (этап 2, агент всегда работает со своими контактами)</td><td>✅ СНЯТО</td></tr>
-  <tr><td>TD-103</td><td>Мобильный: нет документов</td><td class="priority-medium">Средний</td></tr>
-  <tr><td>TD-104</td><td>Веб: нет фото контакта</td><td class="priority-medium">Средний</td></tr>
-  <tr><td>TD-105</td><td>Нет предупреждения об объектах при удалении собственника</td><td class="priority-medium">Средний</td></tr>
-  <tr><td>TD-106</td><td>Нет предупреждения о бронированиях при удалении клиента</td><td class="priority-medium">Средний</td></tr>
-  <tr><td>TD-107</td><td>Веб: обходной путь для видимости клиентов — убрать после TD-099</td><td class="priority-low">Низкий</td></tr>
+  <tr><td>TD-103</td><td>✅ Закрыт 2026-04-30 — в мобильной форме контакта добавлен блок «Документы» с превью и сжатием</td><td>✅ Закрыт</td></tr>
+  <tr><td>TD-104</td><td>✅ Закрыт 2026-04-30 — на вебе добавлен круглый блок аватара контакта со сжатием</td><td>✅ Закрыт</td></tr>
+  <tr><td>TD-105</td><td>✅ Закрыт 2026-04-30 — обе платформы предупреждают о привязанных объектах при удалении собственника</td><td>✅ Закрыт</td></tr>
+  <tr><td>TD-106</td><td>✅ Закрыт 2026-04-30 — обе платформы предупреждают о привязанных бронированиях при удалении клиента</td><td>✅ Закрыт</td></tr>
+  <tr><td>TD-107</td><td>✅ Закрыт 2026-04-29 — обходной путь в WebContactsScreen удалён, единая логика через RLS</td><td>✅ Закрыт</td></tr>
 </table>
 
 <div class="footer">

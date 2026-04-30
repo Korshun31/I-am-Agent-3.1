@@ -66,11 +66,11 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 ## Auth & Session
 
 - ⏳ TD-001 — `users_profile.role` мусор (миграция есть, UPDATE неполный)
-- ⬜ TD-014 — нет flow «Забыл пароль»
+- ✅ TD-014 — полный recovery flow: ссылка на Login → ForgotPassword (`resetPasswordForEmail` с `redirectTo`) → email → клик → listener `PASSWORD_RECOVERY` в App.js → UpdatePassword (`setNewPassword`) → выход и возврат на Login (2026-04-30). Deep-link в нативное приложение — отдельный TD при необходимости.
 - ⏳ TD-015 — email confirmation (есть `email_confirmed_at` в миграции, экран «Проверьте почту» не сделан)
 - ✅ TD-017 — миграция `handle_new_user` (миграции `20260415000001`, `20260427000003`)
 - ✅ TD-018 — хардкод `korshun31@list.ru` удалён из `signUp()` и `WebInviteAcceptScreen` (2026-04-27, коммит `1c1ba40`)
-- ⬜ TD-019 — Web Login мелькает вместо Preloader
+- ✅ TD-019 — Web Login мелькание устранено: `App.js` рендерит `<Preloader />` на стадии `preloader` для обеих платформ (2026-04-30).
 - ✅ TD-031 — пароль 8 символов + common passwords (коммит `9f4ffec`)
 - ✅ TD-032 — клиентская защита от brute-force на Login: 3 попытки → блокировка кнопки на 60 сек, переживает reload (AsyncStorage). Серверный rate-limit + CAPTCHA — отдельный security TD на потом (2026-04-27, коммит `28bcbd3`)
 - ✅ TD-033 — снят 2026-04-30: OAuth-кнопки уходят из продукта, PKCE настраивать для удаляемой функции бессмысленно. Чистка остатков OAuth-кода — TD-116.
@@ -78,7 +78,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ⬜ TD-036 — `signInWithGoogle/Facebook` дублируют код
 - ⬜ TD-037 — нет «Выйти со всех устройств»
 - ✅ TD-038 — «Удалить аккаунт» (миграция `20260415000010`, коммиты `903ffb4`, `7b313c9`)
-- ⬜ TD-039 — Login.js нет индикатора загрузки
+- ✅ TD-039 — Login.js: `loading` state + `disabled` + переключение текста на `saving` (2026-04-30).
 - ⬜ TD-041 — OAuth не проверяет pending-приглашения
 
 ## Company & Team
@@ -103,7 +103,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ✅ TD-007 — `properties.updated_at` (в проде с 2026-04-22, миграция `7fe1238`)
 - ✅ TD-008 — backfill `property_rejection_history` (миграция от 2026-03-28)
 - ✅ TD-009 — снято в пользу простоты (этап 2 simple-perms): модерации больше нет, роль «помощник админа» неактуальна
-- ⬜ TD-013 — `KeyboardAvoidingView` в Wizard над клавиатурой
+- ✅ TD-013 — `<KeyboardAvoidingView behavior="padding">` уже стоит в `PropertyEditWizard.js:1275`. iOS работает (2026-04-30). Хвост: для Android при будущем тестировании может потребоваться `behavior="height"`.
 - ✅ TD-025 — миграция `auto_set_property_company` (`20260415000003`)
 - ⬜ TD-043 — `properties.resort_id` → `parent_id` (78 вхождений)
 - ✅ TD-044 — мобильный wizard валидация локации/района (коммит `c354c72`)
@@ -167,14 +167,14 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ✅ TD-002 — `company_id` в `contacts` + RLS (миграция `20260327130000`)
 - ✅ TD-098 — CHECK `contacts.type IN ('clients','owners')` (миграция применена)
 - ✅ TD-099 — RLS contacts по `booking_agent_id` (2026-04-28, миграция `20260428000001`, коммит `2dafc75`). Политика `contacts: agent reads booking clients` — агент читает клиентов из своих броней.
-- ⬜ TD-100 — фото контактов сжатие
+- ✅ TD-100 — мобильный AddContactModal и веб WebContactEditPanel сжимают фото-аватар до 1200px JPEG 0.85 (2026-04-30, закрыто вместе с TD-104). Миниатюры 150px — TD-064.
 - ✅ TD-101 — CHECK `trim(contacts.name) <> ''` (2026-04-27, миграция `20260427000006`, коммит `8842f13`)
 - ✅ TD-102 — удалён `can_manage_clients` (коммит `2d30d4a`)
-- ⬜ TD-103 — мобильный документы к контакту
-- ⬜ TD-104 — Веб фото контакта
-- ⬜ TD-105 — предупреждение при удалении owner с объектами
-- ⬜ TD-106 — предупреждение при удалении client с бронированиями
-- ⏳ TD-107 — Веб агент клиенты через JS (зависит от TD-099)
+- ✅ TD-103 — мобильный AddContactModal: блок «Документы» с гридом превьюшек, добавлением через image-picker (сжатие 1200px JPEG 0.85) и удалением по крестику (2026-04-30). Паритет с вебом.
+- ✅ TD-104 — Веб фото контакта добавлено в WebContactEditPanel (2026-04-30): круглый аватар-блок с превью, загрузкой и удалением; canvas-сжатие 1200px JPEG 0.85; bucket `contact-photos/avatars/`; поле `photoUri` в payload.
+- ✅ TD-105 — предупреждение при удалении owner с объектами (обе платформы, 2026-04-30). Подсчёт через `properties.owner_id`/`owner_id_2`, i18n `deleteOwnerWithPropertiesMessage`.
+- ✅ TD-106 — предупреждение при удалении client с бронированиями (обе платформы, 2026-04-30). Подсчёт через `bookings.contact_id`, i18n `deleteClientWithBookingsMessage`.
+- ✅ TD-107 — Веб агент клиенты через JS-костыль удалён 2026-04-29 (коммит `26fdc0d`). После TD-099 единый путь через `getContacts()` + RLS.
 
 ## Calendar Events
 

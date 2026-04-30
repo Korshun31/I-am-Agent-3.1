@@ -171,7 +171,17 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
   };
 
   const handleDelete = () => {
-    Alert.alert(t('deleteContactConfirmTitle'), t('deleteContactConfirmMessage'), [
+    // TD-105 / TD-106: считаем привязанные объекты (для собственника) или брони (для клиента),
+    // и если связи есть — показываем расширенное предупреждение с количеством.
+    const linkedCount = isOwner
+      ? properties.filter(p => p.owner_id === c.id || p.owner_id_2 === c.id).length
+      : bookings.length;
+    const message = linkedCount > 0
+      ? (isOwner ? t('deleteOwnerWithPropertiesMessage') : t('deleteClientWithBookingsMessage'))
+          .replace('{count}', String(linkedCount))
+      : t('deleteContactConfirmMessage');
+
+    Alert.alert(t('deleteContactConfirmTitle'), message, [
       { text: t('no'), style: 'cancel' },
       {
         text: t('yes'),

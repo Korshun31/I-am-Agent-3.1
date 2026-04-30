@@ -13,6 +13,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
 import ContactPicker from './ContactPicker';
 import WebContactEditPanel from './WebContactEditPanel';
+import { resizeImageFile } from '../utils/resizeImageFile';
 
 const ICON_TAB_MAIN      = require('../../../assets/icon-tab-main.png');
 const ICON_TAB_PRICES    = require('../../../assets/icon-tab-prices.png');
@@ -22,35 +23,6 @@ const ICON_TAB_PHOTOS    = require('../../../assets/icon-tab-photos.png');
 const ICON_TOGGLE_PETS    = require('../../../assets/icon-toggle-pets.png');
 const ICON_TOGGLE_BOOKING = require('../../../assets/icon-toggle-booking.png');
 const PHOTOS_BUCKET      = 'property-photos';
-
-async function resizeImageFile(file, maxSize = 1200, quality = 0.85) {
-  return new Promise((resolve) => {
-    const img = new window.Image();
-    img.onload = () => {
-      let { width, height } = img;
-      if (width <= maxSize && height <= maxSize) {
-        resolve(file);
-        return;
-      }
-      if (width > height) {
-        height = Math.round(height * maxSize / width);
-        width = maxSize;
-      } else {
-        width = Math.round(width * maxSize / height);
-        height = maxSize;
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob((blob) => {
-        resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }));
-      }, 'image/jpeg', quality);
-    };
-    img.src = URL.createObjectURL(file);
-  });
-}
 
 const ACCENT = '#3D7D82';
 const C = {

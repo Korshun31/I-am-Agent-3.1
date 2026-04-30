@@ -17,9 +17,29 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
-import { uploadContactPhoto } from '../services/contactsService';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { uploadContactPhoto } from '../services/contactsService';
+
+// TD-100: сжатие фото-аватара контакта до 1200px по большей стороне, JPEG 0.85 —
+// снижает размер файла в 10-20 раз без видимой потери качества для мобильного экрана.
+const PHOTO_MAX_SIDE = 1200;
+const PHOTO_QUALITY = 0.85;
+
+async function resizeContactPhoto(uri) {
+  if (!uri || uri.startsWith('http')) return uri;
+  try {
+    const { uri: resized } = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: PHOTO_MAX_SIDE } }],
+      { compress: PHOTO_QUALITY, format: ImageManipulator.SaveFormat.JPEG }
+    );
+    return resized;
+  } catch {
+    return uri;
+  }
+}
 
 const COLORS = {
   boxBg: 'rgba(255,255,255,0.72)',
@@ -41,6 +61,8 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
   const [nationality, setNationality] = useState('');
   const [birthday, setBirthday] = useState('');
   const [photoUri, setPhotoUri] = useState('');
+  const [documents, setDocuments] = useState([]);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
   const [extraPhones, setExtraPhones] = useState([]);
   const [extraEmails, setExtraEmails] = useState([]);
   const [extraTelegrams, setExtraTelegrams] = useState([]);
@@ -69,6 +91,7 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
         setNationality(editContact.nationality || '');
         setBirthday(editContact.birthday || '');
         setPhotoUri(editContact.photoUri || '');
+        setDocuments(Array.isArray(editContact.documents) ? [...editContact.documents] : []);
         setExtraPhones(Array.isArray(editContact.extraPhones) ? [...editContact.extraPhones] : []);
         setExtraEmails(Array.isArray(editContact.extraEmails) ? [...editContact.extraEmails] : []);
         setExtraTelegrams(Array.isArray(editContact.extraTelegrams) ? [...editContact.extraTelegrams] : (editContact.telegram ? [editContact.telegram] : []));
@@ -82,6 +105,7 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
         setNationality('');
         setBirthday('');
         setPhotoUri('');
+        setDocuments([]);
         setExtraPhones([]);
         setExtraEmails([]);
         setExtraTelegrams([]);
@@ -102,14 +126,11 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
     if (finalPhotoUri && !finalPhotoUri.startsWith('http')) {
       setUploadingPhoto(true);
       try {
+        finalPhotoUri = await resizeContactPhoto(finalPhotoUri);
         finalPhotoUri = await uploadContactPhoto(finalPhotoUri);
       } catch (uploadErr) {
         setUploadingPhoto(false);
-        Alert.alert(
-          'Ошибка загрузки фото',
-          uploadErr.message + '\n\nПроверьте что bucket "contact-photos" создан в Supabase Storage.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert(t('error'), uploadErr.message || t('errorUpload'), [{ text: 'OK' }]);
         return;
       }
       setUploadingPhoto(false);
@@ -124,6 +145,7 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
       nationality: nationality.trim(),
       birthday: birthday.trim(),
       photoUri: finalPhotoUri,
+      documents,
       extraPhones: extraPhones.filter((p) => (p || '').trim()),
       extraEmails: extraEmails.filter((e) => (e || '').trim()),
       extraTelegrams: extraTelegrams.filter((t) => (t || '').trim()),
@@ -131,6 +153,40 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
       type: contactType,
     });
     onClose?.();
+  };
+
+  // TD-103: добавить документ к контакту (фото из галереи или съёмка). Сжатие 1200px JPEG 0.85.
+  const pickDocument = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(t('galleryAccess'), t('galleryAccessMessage'), [{ text: 'OK' }]);
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.9,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      let uri = result.assets[0].uri;
+      setUploadingDocument(true);
+      try {
+        uri = await resizeContactPhoto(uri);
+        const publicUrl = await uploadContactPhoto(uri);
+        setDocuments(prev => [...prev, publicUrl]);
+      } catch (uploadErr) {
+        Alert.alert(t('error'), uploadErr.message, [{ text: 'OK' }]);
+      } finally {
+        setUploadingDocument(false);
+      }
+    } catch (e) {
+      Alert.alert(t('error'), e.message, [{ text: 'OK' }]);
+    }
+  };
+
+  const removeDocument = (idx) => {
+    setDocuments(prev => prev.filter((_, i) => i !== idx));
   };
 
   const pickImage = async () => {
@@ -141,7 +197,7 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -446,16 +502,34 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
                     </Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* TD-103: документы контакта (паспорт, договор и пр.) */}
+                <View style={styles.docsSection}>
+                  <Text style={styles.docsLabel}>{t('ctDocsSection') || 'Documents'}</Text>
+                  <View style={styles.docsGrid}>
+                    {documents.map((uri, i) => (
+                      <View key={`${uri}-${i}`} style={styles.docTile}>
+                        <Image source={{ uri }} style={styles.docTileImg} resizeMode="cover" />
+                        <TouchableOpacity style={styles.docTileRemove} onPress={() => removeDocument(i)} activeOpacity={0.7}>
+                          <Text style={styles.docTileRemoveText}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                    <TouchableOpacity style={styles.docTileAdd} onPress={pickDocument} activeOpacity={0.7} disabled={uploadingDocument}>
+                      <Text style={styles.docTileAddText}>{uploadingDocument ? '⏳' : '+'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </ScrollView>
 
               <TouchableOpacity
-                style={[styles.saveBtn, uploadingPhoto && { opacity: 0.7 }]}
+                style={[styles.saveBtn, (uploadingPhoto || uploadingDocument) && { opacity: 0.7 }]}
                 onPress={() => { Keyboard.dismiss(); handleSave(); }}
                 activeOpacity={0.7}
-                disabled={uploadingPhoto}
+                disabled={uploadingPhoto || uploadingDocument}
               >
                 <Text style={styles.saveBtnText}>
-                  {uploadingPhoto ? '⏳ Загрузка фото...' : t('save')}
+                  {(uploadingPhoto || uploadingDocument) ? t('saving') : t('save')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -781,4 +855,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.saveGreen,
   },
+  // TD-103: документы контакта
+  docsSection: { marginTop: 12, paddingHorizontal: 14 },
+  docsLabel:   { fontSize: 13, color: '#6C757D', marginBottom: 6 },
+  docsGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  docTile:     { width: 72, height: 72, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border, position: 'relative' },
+  docTileImg:  { width: '100%', height: '100%' },
+  docTileRemove:    { position: 'absolute', top: 3, right: 3, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  docTileRemoveText:{ fontSize: 10, color: '#FFF', fontWeight: '700' },
+  docTileAdd:  { width: 72, height: 72, borderRadius: 10, borderWidth: 2, borderColor: COLORS.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.inputBg },
+  docTileAddText:   { fontSize: 26, color: '#ADB5BD', fontWeight: '300' },
 });

@@ -24,6 +24,8 @@ import { AppDataProvider, useAppData } from './src/context/AppDataContext';
 import Preloader from './src/screens/Preloader';
 import Login from './src/screens/Login';
 import Registration from './src/screens/Registration';
+import ForgotPassword from './src/screens/ForgotPassword';
+import UpdatePassword from './src/screens/UpdatePassword';
 import MainNavigator from './src/navigation/MainNavigator';
 import WebMainScreen from './src/web/WebMainScreen';
 import { getCurrentUser, signOut } from './src/services/authService';
@@ -50,6 +52,13 @@ function AppContent() {
 
   useEffect(() => {
     async function checkSession() {
+      // TD-014: если URL содержит recovery-хеш от Supabase (?type=recovery), не идём
+      // в main — пусть listener PASSWORD_RECOVERY переключит на updatePassword.
+      if (Platform.OS === 'web' && typeof window !== 'undefined'
+          && window.location?.hash?.includes('type=recovery')) {
+        setScreen('updatePassword');
+        return;
+      }
       try {
         const userData = await getCurrentUser();
         if (userData) {
@@ -67,12 +76,18 @@ function AppContent() {
     checkSession();
   }, []);
 
-  // Auto sign-out when Supabase refresh token becomes invalid
+  // Реакция на события Supabase Auth:
+  //   SIGNED_OUT — выход (в т.ч. когда Supabase v2 сам логаутит при невалидном refresh-токене);
+  //   PASSWORD_RECOVERY — клик по recovery-ссылке → экран установки нового пароля (TD-014).
+  // Реальные события Supabase JS v2: INITIAL_SESSION, PASSWORD_RECOVERY, SIGNED_IN, SIGNED_OUT,
+  // TOKEN_REFRESHED, USER_UPDATED, MFA_CHALLENGE_VERIFIED. Никаких *_ERROR событий нет.
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED_ERROR') {
+      if (event === 'SIGNED_OUT') {
         resetUser();
         setScreen('login');
+      } else if (event === 'PASSWORD_RECOVERY') {
+        setScreen('updatePassword');
       }
     });
     return () => subscription.unsubscribe();
@@ -113,13 +128,33 @@ function AppContent() {
         />
       ) : (
         <>
-          {(screen === 'login' || (screen === 'preloader' && Platform.OS === 'web')) && (
+          {/* TD-019: на стадии 'preloader' показываем Preloader на обеих платформах,
+              чтобы веб не мерцал Login во время восстановления сессии. */}
+          {screen === 'preloader' && (
+            <Preloader />
+          )}
+          {screen === 'login' && (
             <Login
               onSignUp={() => setScreen('registration')}
+              onForgotPassword={() => setScreen('forgotPassword')}
               onLogin={(userData) => {
                 updateUser(userData);
                 if (userData?.language) setLanguage(userData.language);
                 setScreen('main');
+              }}
+            />
+          )}
+          {screen === 'forgotPassword' && (
+            <ForgotPassword onBack={() => setScreen('login')} />
+          )}
+          {screen === 'updatePassword' && (
+            <UpdatePassword
+              onDone={() => {
+                // signOut() в UpdatePassword уже триггерит SIGNED_OUT → listener выше сам
+                // делает resetUser() + setScreen('login'). Здесь только чистим recovery-хеш URL.
+                if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                  window.history.replaceState({}, '', '/');
+                }
               }}
             />
           )}
@@ -132,9 +167,6 @@ function AppContent() {
                 setScreen('main');
               }}
             />
-          )}
-          {screen === 'preloader' && Platform.OS !== 'web' && (
-            <Preloader />
           )}
           {screen === 'main' && (
             Platform.OS === 'web' ? (

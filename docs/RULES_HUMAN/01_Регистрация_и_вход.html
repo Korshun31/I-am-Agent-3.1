@@ -120,9 +120,9 @@
   <div class="rule-body">После <strong>5 неудачных попыток</strong> ввода пароля — вход должен блокироваться на 15-30 минут. Защита от подбора пароля.<br><br><em>Сейчас: бесконечные попытки.</em></div>
 </div>
 
-<div class="rule rule-warn">
-  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-039</span></div>
-  <div class="rule-body">Кнопка входа должна показывать индикатор загрузки при нажатии.<br><br><em>Сейчас: нет индикатора (на экране регистрации — есть).</em></div>
+<div class="rule">
+  <div class="rule-header"><span class="rule-icon">✅</span><span class="rule-id">TD-039</span></div>
+  <div class="rule-body">Закрыт 2026-04-30. Кнопка «Войти» теперь показывает текст «Сохранение…» и блокируется на время проверки пароля — нельзя нажать повторно. Паритет с экраном регистрации.</div>
 </div>
 
 <div class="rule rule-ok">
@@ -156,17 +156,17 @@
   <div class="rule-body">Если пользователь уже входил и не выходил — при открытии приложения попадает сразу на рабочий экран. Без повторного ввода пароля.</div>
 </div>
 
-<div class="rule rule-warn">
-  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-019</span></div>
-  <div class="rule-body">На вебе во время проверки сессии на долю секунды мелькает экран входа. Нужно показывать экран загрузки (как на мобильном).</div>
+<div class="rule">
+  <div class="rule-header"><span class="rule-icon">✅</span><span class="rule-id">TD-019</span></div>
+  <div class="rule-body">Закрыт 2026-04-30. На вебе при перезагрузке страницы теперь показывается тот же экран загрузки что и на мобильном — без мелькания формы входа.</div>
 </div>
 
 <!-- ============================================== -->
 <h2>1.5 Восстановление пароля</h2>
 
-<div class="rule rule-danger">
-  <div class="rule-header"><span class="rule-icon">🔴</span><span class="rule-id">TD-014</span></div>
-  <div class="rule-body">На экране входа должна быть ссылка <strong>«Забыл пароль»</strong>. По нажатию — ввод email → письмо со ссылкой → новый пароль.<br><br><em>Сейчас: такой функции нет вообще. Если забыл пароль — не можешь войти.</em></div>
+<div class="rule">
+  <div class="rule-header"><span class="rule-icon">✅</span><span class="rule-id">TD-014</span></div>
+  <div class="rule-body">Закрыт 2026-04-30. Под кнопкой входа добавлена ссылка «Забыли пароль?». Нажимаешь → вводишь email → получаешь письмо со ссылкой → клик переводит на экран установки нового пароля → после сохранения возврат к экрану входа. На телефоне ссылка открывается в браузере, новый пароль задаётся через веб.</div>
 </div>
 
 <!-- ============================================== -->
@@ -217,12 +217,12 @@
 <table class="td-table">
   <tr><th style="width: 60px;">Номер</th><th>Описание</th><th style="width: 90px;">Приоритет</th></tr>
   <tr><td>TD-001</td><td>Устаревшее поле «роль» в базе — содержит мусор, нужно удалить</td><td class="priority-critical">Критич.</td></tr>
-  <tr><td>TD-014</td><td>Нет функции «Забыл пароль»</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-014</td><td>✅ Закрыт 2026-04-30 — полный flow восстановления пароля: ссылка на Login, отправка email, экран установки нового пароля</td><td>✅ Закрыт</td></tr>
   <tr><td>TD-015</td><td>Нет подтверждения email при регистрации</td><td class="priority-critical">Критич.</td></tr>
   <tr><td>TD-016</td><td>Нет блокировки одноразовых почтовых адресов</td><td class="priority-medium">Средний</td></tr>
   <tr><td>TD-017</td><td>Триггер создания workspace не в файлах проекта — может потеряться</td><td class="priority-critical">Критич.</td></tr>
   <tr><td>TD-018</td><td>В коде жёстко прописан привилегированный email</td><td class="priority-medium">Средний</td></tr>
-  <tr><td>TD-019</td><td>Веб: мелькает экран входа при загрузке</td><td class="priority-low">Низкий</td></tr>
+  <tr><td>TD-019</td><td>✅ Закрыт 2026-04-30 — на вебе при перезагрузке показывается экран загрузки, без мелькания Login</td><td>✅ Закрыт</td></tr>
   <tr><td>TD-020</td><td>Обновление профиля не прокидывает системные поля</td><td class="priority-medium">Средний</td></tr>
   <tr><td>TD-031</td><td>Слабые требования к паролю (6 символов)</td><td class="priority-critical">Критич.</td></tr>
   <tr><td>TD-032</td><td>Нет защиты от подбора пароля</td><td class="priority-critical">Критич.</td></tr>
@@ -232,7 +232,7 @@
   <tr><td>TD-036</td><td>Дублирование кода входа через Google и Facebook</td><td class="priority-low">Низкий</td></tr>
   <tr><td>TD-037</td><td>Нет «Выйти со всех устройств»</td><td class="priority-medium">Средний</td></tr>
   <tr><td>TD-038</td><td>Нет удаления аккаунта (App Store, GDPR, PDPA)</td><td class="priority-critical">Критич.</td></tr>
-  <tr><td>TD-039</td><td>Нет индикатора загрузки на кнопке входа</td><td class="priority-low">Низкий</td></tr>
+  <tr><td>TD-039</td><td>✅ Закрыт 2026-04-30 — кнопка «Войти» показывает «Сохранение…» и блокируется во время входа</td><td>✅ Закрыт</td></tr>
   <tr><td>TD-040</td><td>Регистрация не проверяет приглашения</td><td class="priority-critical">Критич.</td></tr>
   <tr><td>TD-041</td><td>OAuth не проверяет приглашения</td><td class="priority-medium">Средний</td></tr>
 </table>

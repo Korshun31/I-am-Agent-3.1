@@ -328,6 +328,14 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
   const allTelegrams = contact.extraTelegrams?.length ? contact.extraTelegrams : (contact.telegram ? [contact.telegram] : []);
   const allWhatsapps = contact.extraWhatsapps?.length ? contact.extraWhatsapps : (contact.whatsapp ? [contact.whatsapp] : []);
 
+  // TD-105 / TD-106: количество привязанных объектов (для собственника) или броней (для клиента)
+  // — для расширенного предупреждения перед удалением.
+  const linkedCount = isOwner ? allOwned.length : bookings.length;
+  const confirmMessage = linkedCount > 0
+    ? (isOwner ? t('deleteOwnerWithPropertiesMessage') : t('deleteClientWithBookingsMessage'))
+        .replace('{count}', String(linkedCount))
+    : t('pdDeleteConfirm');
+
   return (
     <ScrollView style={s.detail} showsVerticalScrollIndicator={true} contentContainerStyle={s.detailContent}>
 
@@ -364,7 +372,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
       {/* ── Delete confirmation ── */}
       {confirmDelete && (
         <View style={s.confirmDeleteBar}>
-          <Text style={s.confirmDeleteText}>{t('pdDeleteConfirm')}</Text>
+          <Text style={s.confirmDeleteText}>{confirmMessage}</Text>
           <TouchableOpacity
             style={s.confirmDeleteYes}
             onPress={handleDelete}
