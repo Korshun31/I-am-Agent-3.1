@@ -138,9 +138,9 @@
   <div class="rule-body">Кнопки Google и Facebook <strong>временно скрыты</strong> до завершения проверки безопасности. Функции работают, просто не видны.</div>
 </div>
 
-<div class="rule rule-danger">
-  <div class="rule-header"><span class="rule-icon">🔴</span><span class="rule-id">TD-033</span></div>
-  <div class="rule-body">Мобильный вход через Google/Facebook использует устаревший небезопасный протокол. Нужно обновить до современного (PKCE).</div>
+<div class="rule">
+  <div class="rule-header"><span class="rule-icon">✅</span><span class="rule-id">TD-033</span></div>
+  <div class="rule-body">Снят 2026-04-30. OAuth-кнопки (вход через Google/Facebook) уходят из продукта — настраивать безопасный протокол PKCE для функции которая будет удалена нет смысла. Чистка остатков OAuth-кода — отдельный пункт TD-116.</div>
 </div>
 
 <div class="rule rule-warn">
@@ -226,7 +226,7 @@
   <tr><td>TD-020</td><td>Обновление профиля не прокидывает системные поля</td><td class="priority-medium">Средний</td></tr>
   <tr><td>TD-031</td><td>Слабые требования к паролю (6 символов)</td><td class="priority-critical">Критич.</td></tr>
   <tr><td>TD-032</td><td>Нет защиты от подбора пароля</td><td class="priority-critical">Критич.</td></tr>
-  <tr><td>TD-033</td><td>Мобильный OAuth — устаревший протокол</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-033</td><td>✅ Снят 2026-04-30 — OAuth-кнопки уходят из продукта; чистка остатков кода — TD-116</td><td>✅ Снят</td></tr>
   <tr><td>TD-034</td><td>Настройки при регистрации перезаписываются</td><td class="priority-medium">Средний</td></tr>
   <tr><td>TD-035</td><td>Загрузка профиля медленная (5 запросов)</td><td class="priority-medium">Средний</td></tr>
   <tr><td>TD-036</td><td>Дублирование кода входа через Google и Facebook</td><td class="priority-low">Низкий</td></tr>

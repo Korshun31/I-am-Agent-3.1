@@ -22,7 +22,7 @@
 > Прикидка по времени: ~31-43 рабочих дня = 6-9 недель.
 
 ### Фаза 1 — Безопасность и утечки данных (2-3 дня)
-TD-018 (хардкод email), TD-085 (агент видит чужое бронирование), TD-032 (brute-force Login), TD-033 (PKCE для mobile OAuth), TD-051 (whitelist в createPropertyFull), TD-101 (CHECK trim(name)).
+TD-018 (хардкод email), TD-085 (агент видит чужое бронирование), TD-032 (brute-force Login), TD-051 (whitelist в createPropertyFull), TD-101 (CHECK trim(name)). TD-033 снят 2026-04-30 (OAuth уходит из продукта).
 Зачем первой: уязвимости и утечки данных нельзя нести в prod. TD-018 — 2 строки удалить, мгновенный win.
 
 ### Фаза 2 — Контакты + RLS-фундамент (3-4 дня)
@@ -73,7 +73,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ⬜ TD-019 — Web Login мелькает вместо Preloader
 - ✅ TD-031 — пароль 8 символов + common passwords (коммит `9f4ffec`)
 - ✅ TD-032 — клиентская защита от brute-force на Login: 3 попытки → блокировка кнопки на 60 сек, переживает reload (AsyncStorage). Серверный rate-limit + CAPTCHA — отдельный security TD на потом (2026-04-27, коммит `28bcbd3`)
-- ⬜ TD-033 — OAuth mobile использует implicit flow
+- ✅ TD-033 — снят 2026-04-30: OAuth-кнопки уходят из продукта, PKCE настраивать для удаляемой функции бессмысленно. Чистка остатков OAuth-кода — TD-116.
 - ⬜ TD-034 — `signUp()` перезаписывает settings
 - ⬜ TD-036 — `signInWithGoogle/Facebook` дублируют код
 - ⬜ TD-037 — нет «Выйти со всех устройств»
@@ -149,7 +149,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ⬜ TD-082 — помесячная разбивка `monthly_breakdown`
 - ✅ TD-083 — Веб «Клиент собственника» скрывает финансы (коммит `0eda95e`)
 - ✅ TD-084 — RLS bookings убран permissive (коммит `fd9dc82`)
-- ✅ TD-085 — UX закрыт: агент видит только полоску занятости с именем компании, детали не открываются. `window.supabase` не глобален → простого DevTools-обхода нет (2026-04-27, проверено вживую). Column-level RLS (защита от продвинутого атакующего с access_token из localStorage) — отдельная задача в памяти `project_bookings_column_level.md`.
+- ✅ TD-085 — UX закрыт на обеих платформах: на чужой брони агент видит название компании вместо имени клиента, тап по полоске не открывает экран деталей. Веб закрыт 2026-04-27. Мобильный закрыт 2026-04-30 при проверке доски (агент мог свободно открыть детали чужой брони через `BookingCalendarScreen` → `BookingDetailScreen`, скрыты были только кнопки). `window.supabase` не глобален → простого DevTools-обхода нет. Column-level RLS (защита от продвинутого атакующего с access_token из localStorage) — отдельная задача в памяти `project_bookings_column_level.md`.
 - ✅ TD-086 — `booking_agent_id` инфраструктура (миграция `20260415000006`, апрель) + полная фича передачи брони с пикером, уведомлениями и каскадом (2026-04-28, коммиты `ebc0709`+`2f018b3`+`22ae879`). Попутно закрыты B1 (mapBooking) и B21 (deactivated в пикере).
 - ✅ TD-087 — снято в пользу простоты (этап 2 simple-perms): `can_delete_booking` объединён с `can_manage_bookings`
 - ✅ TD-088 — удалён `can_see_financials` (коммит `2d30d4a`)
@@ -205,6 +205,8 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ✅ TD-003 — `CONTEXT_FOR_AI.md` cleanup (2026-04-08)
 - ⬜ TD-020 — `UserContext.handleUserUpdate` системные поля
 - ⬜ TD-035 — `getUserProfile` 4-5 запросов → RPC `get_full_user_profile`
+- ⬜ TD-115 — В git нет CREATE TABLE для главных таблиц (`properties`, `locations`, `contacts`, `users_profile`/`agents`). Они существуют только в живой БД (создавались вручную). При пересоздании БД с нуля из git — невозможно. Снять полный schema dump из sandbox и положить как baseline-миграцию (например `supabase/migrations/00000000000000_baseline_schema.sql`). Найдено 2026-04-30 при чистке legacy-папки `supabase_migrations/`.
+- ⬜ TD-116 — Полная чистка OAuth-кода. Удалить из проекта: функции `signInWithGoogle`/`signInWithFacebook` в `authService.js`, обработчики `handleGoogleLogin`/`handleFacebookLogin` в `Login.js`, закомментированный JSX социальных кнопок в `Login.js` строки 220-232, стили `socialBtn`/`socialBtnFacebook`/`socialIconGoogle`/`socialIconFacebook` в `Login.js`, перевод `orSignIn` в трёх языках (en/th/ru), все правила AU-OAUTH-* в `docs/MODULE_RULES/auth.md`, упоминание OAuth в `docs/RULES_HUMAN/01_Регистрация_и_вход.html`. Заведено 2026-04-30 после снятия TD-033 — OAuth-кнопки уходят из продукта целиком.
 
 ---
 

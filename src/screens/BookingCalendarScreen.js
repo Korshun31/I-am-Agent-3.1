@@ -544,6 +544,13 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   }, []);
 
   const handleBookingPress = useCallback((booking, property) => {
+    // TD-085: агент видит только свои брони. Чужие (другого агента или брони компании)
+    // открывать нельзя — детали с именем клиента, телефоном, ценой и комиссиями скрыты.
+    const isAgent = !!user?.teamMembership;
+    if (isAgent && booking?.responsibleAgentId !== user?.id) {
+      return;
+    }
+
     setInitialMonth(null);
     setEditModalVisible(false);
 
@@ -578,7 +585,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     setSelectedBooking(booking);
     setSelectedProperty(property);
     setDetailVisible(true);
-  }, [properties, contacts]);
+  }, [properties, contacts, user]);
 
   const handleSaved = () => {
     loadData(false);
@@ -829,6 +836,9 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                           onCellPress={canAddBooking ? handleAddPress : undefined}
                           onBookingPress={handleBookingPress}
                           ownerLabels={{ full: t('ownerCustomer'), mid: t('ownerCustomerShort'), min: t('ownerCustomerMin') }}
+                          isAgentMode={isAgent}
+                          currentUserId={user?.id}
+                          companyName={user?.companyInfo?.name || user?.teamMembership?.companyName || ''}
                         />
                       );
                     });
@@ -1041,6 +1051,9 @@ const CalendarRow = React.memo(function CalendarRow({
   ownerLabels,
   currentYear,
   currentMonth,
+  isAgentMode,
+  currentUserId,
+  companyName,
 }) {
   const [contactNames, setContactNames] = useState({});
 
@@ -1117,9 +1130,13 @@ const CalendarRow = React.memo(function CalendarRow({
         const widthPx = Math.max(2, rightPx - leftPx);
         const rawColor = b.notMyCustomer ? COLORS.ownerBar : (globalColorMap[b.id] || PASTEL_COLORS[0]);
         const barColor = b.notMyCustomer ? rawColor : rawColor.replace(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i, (_, r, g, b) => `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, 0.6)`);
+        // TD-085: на чужой брони агент видит название компании вместо имени клиента.
+        const isForeignToAgent = isAgentMode && b.responsibleAgentId !== currentUserId;
         const label = b.notMyCustomer
           ? getOwnerLabel(widthPx - 8, ownerLabels)
-          : (contactNames[b.id] || '');
+          : isForeignToAgent
+            ? companyName
+            : (contactNames[b.id] || '');
         const dayIn = `${String(cin.date()).padStart(2, '0')}.${String(cin.month() + 1).padStart(2, '0')}`;
         const dayOut = `${String(cout.date()).padStart(2, '0')}.${String(cout.month() + 1).padStart(2, '0')}`;
         const spaceForDates = 50;
@@ -1143,11 +1160,11 @@ const CalendarRow = React.memo(function CalendarRow({
                 zIndex: 10,
               },
             ]}
-            onPress={onBookingPress ? (e) => {
+            onPress={(onBookingPress && !isForeignToAgent) ? (e) => {
               e.stopPropagation();
               onBookingPress(b, unit);
             } : undefined}
-            activeOpacity={onBookingPress ? 0.8 : 1}
+            activeOpacity={(onBookingPress && !isForeignToAgent) ? 0.8 : 1}
           >
             <View style={rowStyles.barInner}>
               {canShowDates && <Text style={[rowStyles.barDateText, rowStyles.barDateIn]}>{dayIn}</Text>}
