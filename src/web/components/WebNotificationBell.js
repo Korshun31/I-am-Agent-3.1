@@ -235,20 +235,6 @@ const s = StyleSheet.create({
   closeBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
   closeBtnText: { fontSize: 13, color: C.muted, fontWeight: '700' },
 
-  actionErrorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFF5F5',
-    borderBottomWidth: 1,
-    borderBottomColor: '#FFCDD2',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  actionErrorText: { flex: 1, fontSize: 13, color: C.danger, fontWeight: '600', lineHeight: 18 },
-  actionErrorClose: { fontSize: 14, color: C.danger, fontWeight: '700' },
-
   list: { maxHeight: 440 },
 
   item: {
@@ -272,9 +258,6 @@ const s = StyleSheet.create({
     height: 10,
     borderRadius: 5,
   },
-  statusDotPending:  { backgroundColor: '#E53935' },
-  statusDotDone:     { backgroundColor: '#3D7D82' },
-  statusDotRejected: { backgroundColor: '#E53935' },
   statusDotInfo:     { backgroundColor: '#CED4DA' },
   statusDotRead:     { backgroundColor: '#B0B7C3' },
   itemBody: { flex: 1, gap: 3 },
@@ -284,67 +267,11 @@ const s = StyleSheet.create({
   itemTitleLinkRead: { color: '#2F343A', textDecorationColor: '#9AA1AA' },
   itemBodyText: { fontSize: 12, color: C.muted, lineHeight: 17 },
   itemBodyTextRead: { color: '#5F6670' },
-  reasonToggleText: { fontSize: 12, color: ACCENT, fontWeight: '600', lineHeight: 17 },
-  reasonToggleTextRejected: { color: '#C62828' },
-  reasonToggleTextRead: { color: '#5F6670' },
-  reasonExpandedBox: {
-    backgroundColor: '#FFF5F5',
-    borderWidth: 1,
-    borderColor: '#FFCDD2',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  reasonExpandedBoxRead: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#D6DAE0',
-  },
-  reasonExpandedText: { fontSize: 12, color: '#C62828', lineHeight: 17 },
-  reasonExpandedTextRead: { color: '#4F5661' },
   itemTime: { fontSize: 11, color: C.muted, marginTop: 2 },
   itemTimeRead: { color: '#7A828C' },
   itemDelete: { padding: 4 },
   itemDeleteText: { fontSize: 13, color: C.muted },
   itemDeleteTextRead: { color: '#8A919B' },
-
-  actionRow: { flexDirection: 'row', gap: 8, marginTop: 10, marginLeft: 48 },
-  // Одобрить — тиловый акцент (Primary системы, не зелёный)
-  approveBtn: { flex: 1, backgroundColor: '#EAF4F5', borderWidth: 1, borderColor: '#B2D8DB', borderRadius: 8, paddingVertical: 7, alignItems: 'center' },
-  approveBtnText: { fontSize: 13, fontWeight: '700', color: '#3D7D82' },
-  // Отклонить — тихий красный (честный сигнал без крика)
-  rejectBtn: { flex: 1, backgroundColor: '#FFF5F5', borderWidth: 1, borderColor: '#FFCDD2', borderRadius: 8, paddingVertical: 7, alignItems: 'center' },
-  rejectBtnText: { fontSize: 13, fontWeight: '700', color: '#C62828' },
-
-  rejectForm: { marginTop: 10, marginLeft: 48, gap: 8 },
-  rejectInput: { borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: C.text, outlineWidth: 0 },
-  rejectErrorText: { fontSize: 12, color: C.danger, fontWeight: '600' },
-  rejectFormActions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
-  rejectCancelBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.border },
-  rejectCancelText: { fontSize: 13, color: C.muted, fontWeight: '600' },
-  // Финальное подтверждение отклонения — тихий danger (не яркий красный фон)
-  rejectConfirmBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: '#FFF5F5', borderWidth: 1, borderColor: '#FFCDD2' },
-  rejectConfirmText: { fontSize: 13, color: '#C62828', fontWeight: '700' },
-  // Успешное действие — тиловый, не зелёный
-  actionDone: { marginTop: 8, marginLeft: 48, fontSize: 12, color: '#3D7D82', fontWeight: '600' },
-
-  // Pill-кнопка «Посмотреть изменения» для edit_submitted
-  diffBtn: {
-    marginLeft: 48,
-    marginTop: 8,
-    marginBottom: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#B2D8DB',
-    backgroundColor: '#EAF4F5',
-    alignSelf: 'flex-start',
-  },
-  diffBtnText: {
-    fontSize: 12,
-    color: '#3D7D82',
-    fontWeight: '600',
-  },
 
   emptyWrap: { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyIcon: { fontSize: 36 },
