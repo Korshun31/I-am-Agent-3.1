@@ -5,11 +5,11 @@ import { deletePhotoFromStorage } from './storageService';
 import { sendNotification } from './notificationsService';
 
 // TD-051: whitelist of fields the client is allowed to write to `properties`.
-// Server-only fields (id, user_id, company_id, property_status, submitted_by,
-// rejection_reason, created_at, updated_at) are explicitly NOT here — they
-// are set by the service layer or DB. responsible_agent_id is included
-// because admins legitimately set it from the UI; agent-role guard for
-// reassignment lives in the role check (see TD-049 / role audit).
+// Server-only fields (id, user_id, company_id, created_at, updated_at) are
+// explicitly NOT here — they are set by the service layer or DB.
+// responsible_agent_id is included because admins legitimately set it from
+// the UI; agent-role guard for reassignment lives in the role check
+// (see TD-049 / role audit).
 const ALLOWED_CLIENT_FIELDS = [
   'name', 'code', 'code_suffix', 'type',
   'location_id', 'city', 'district', 'google_maps_link', 'website_url', 'address',

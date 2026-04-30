@@ -300,9 +300,8 @@ export async function revokeInvitation(invitationId) {
 
 /**
  * Обновить разрешения участника команды.
- * Принимает только две галочки упрощённой модели прав; старые ключи
- * (can_add_property/can_edit_info/can_edit_prices/can_book/can_delete_booking)
- * перетираются и в дальнейшем не читаются. Этап 3 удалит их физически.
+ * Принимает две галочки упрощённой модели прав: can_manage_property и can_manage_bookings.
+ * Старые ключи прав физически удалены этапом 3 (cleanup-миграция).
  */
 export async function updateMemberPermissions(memberId, permissions) {
   const next = {
