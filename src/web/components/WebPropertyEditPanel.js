@@ -4,7 +4,7 @@ import {
   TextInput, Switch, Animated, Modal, ActivityIndicator, Image, Platform,
 } from 'react-native';
 import { updateProperty, createPropertyFull, createProperty, updatePropertyResponsible } from '../../services/propertiesService';
-import { getCompanyLocations, getLocationsForAgent, getLocationDistricts } from '../../services/locationsService';
+import { getCompanyLocations, getLocationsForAgent, getLocationDistricts, addLocationDistrict } from '../../services/locationsService';
 import { getContacts } from '../../services/contactsService';
 import { getActiveTeamMembers } from '../../services/companyService';
 import { supabase } from '../../services/supabase';
@@ -444,6 +444,8 @@ export default function WebPropertyEditPanel({
   const [form, setForm] = useState(() => buildForm(property, parentProperty));
   const [locations, setLocations] = useState([]);
   const [districts, setDistricts] = useState([]);
+  const [newDistrictInput, setNewDistrictInput] = useState('');
+  const [addingDistrict, setAddingDistrict] = useState(false);
   const [owners, setOwners] = useState([]);
   const [panelTeamMembers, setPanelTeamMembers] = useState([]);
 
@@ -534,6 +536,31 @@ export default function WebPropertyEditPanel({
   }, [visible, property?.id]);
 
   const set = readOnly ? () => {} : (key, val) => setForm(f => ({ ...f, [key]: val }));
+
+  // TD-070: добавить новый район в location_districts и выбрать его. Доступно и админу, и агенту.
+  // Использует addLocationDistrict (атомарный INSERT ON CONFLICT) — безопасно при одновременных
+  // вызовах разными пользователями.
+  const handleAddNewDistrict = async () => {
+    const trimmed = (newDistrictInput || '').trim();
+    if (!trimmed || !form.location_id || addingDistrict) return;
+    if (districts.includes(trimmed)) {
+      set('district', trimmed);
+      setNewDistrictInput('');
+      return;
+    }
+    setAddingDistrict(true);
+    try {
+      await addLocationDistrict(form.location_id, trimmed);
+      setDistricts(prev => [...new Set([...prev, trimmed])].sort());
+      set('district', trimmed);
+      setNewDistrictInput('');
+    } catch (e) {
+      // Показываем причину сбоя в консоль, чтобы видеть в Sentry/devtools.
+      console.warn('[addLocationDistrict] failed:', e?.message);
+    } finally {
+      setAddingDistrict(false);
+    }
+  };
   const setAmenity = readOnly ? () => {} : (key, val) => setForm(f => ({ ...f, amenities: { ...f.amenities, [key]: val } }));
 
   // Inline создание контакта-собственника прямо из формы объекта.
@@ -809,14 +836,38 @@ export default function WebPropertyEditPanel({
                 <Text style={s.fieldInputReadonlyHint}>🔒</Text>
               </View>
             ) : (
-              <FieldDropdown
-                value={form.district}
-                options={districts.map(d => ({ value: d, label: d }))}
-                onChange={v => set('district', v)}
-                placeholder={districts.length ? (t('filterDistrict') + '...') : '—'}
-                disabled={!form.location_id || districts.length === 0}
-                readOnly={readOnly}
-              />
+              <>
+                <FieldDropdown
+                  value={form.district}
+                  options={districts.map(d => ({ value: d, label: d }))}
+                  onChange={v => set('district', v)}
+                  placeholder={districts.length ? (t('filterDistrict') + '...') : '—'}
+                  disabled={!form.location_id || districts.length === 0}
+                  readOnly={readOnly}
+                />
+                {/* TD-070: добавить новый район — доступно и админу, и агенту. */}
+                {!readOnly && form.location_id && (
+                  <View style={s.addDistrictRow}>
+                    <TextInput
+                      style={s.addDistrictInput}
+                      placeholder={t('addNewDistrictPlaceholder')}
+                      placeholderTextColor={C.light}
+                      value={newDistrictInput}
+                      onChangeText={setNewDistrictInput}
+                      editable={!addingDistrict}
+                      onSubmitEditing={handleAddNewDistrict}
+                    />
+                    <TouchableOpacity
+                      style={[s.addDistrictBtn, (!newDistrictInput.trim() || addingDistrict) && s.addDistrictBtnDisabled]}
+                      onPress={handleAddNewDistrict}
+                      disabled={!newDistrictInput.trim() || addingDistrict}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={s.addDistrictBtnText}>{addingDistrict ? '…' : t('addDistrictBtn')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
             )}
           </FieldRow>
         </View>
@@ -1525,4 +1576,18 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   saveBtnText: { fontSize: 14, fontWeight: '700', color: ACCENT },
+  // TD-070: добавление нового района прямо в форме объекта.
+  addDistrictRow:        { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 },
+  addDistrictInput:      {
+    flex: 1, paddingVertical: 8, paddingHorizontal: 10,
+    borderRadius: 8, borderWidth: 1, borderColor: C.border,
+    fontSize: 13, color: C.text, backgroundColor: C.surface,
+  },
+  addDistrictBtn:        {
+    paddingVertical: 8, paddingHorizontal: 12,
+    borderRadius: 8, backgroundColor: C.accentBg,
+    borderWidth: 1, borderColor: ACCENT,
+  },
+  addDistrictBtnDisabled:{ opacity: 0.4 },
+  addDistrictBtnText:    { fontSize: 13, color: ACCENT, fontWeight: '600' },
 });

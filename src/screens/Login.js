@@ -139,6 +139,9 @@ export default function Login({ onSignUp, onLogin, onForgotPassword }) {
         setLoginError(t('wrongPassword'));
       } else if (msg === 'PROFILE_NOT_FOUND') {
         setLoginError(t('loginProfileNotFound'));
+      } else if (msg === 'EMAIL_NOT_CONFIRMED') {
+        // TD-015: юзер пытается войти, но не подтвердил email через письмо.
+        setLoginError(t('emailNotConfirmedHint'));
       } else {
         setLoginError(msg || t('saveFailed'));
       }

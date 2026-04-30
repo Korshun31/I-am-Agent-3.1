@@ -117,6 +117,31 @@ export async function getLocationDistricts(locationId) {
   return (data || []).map((r) => r.district);
 }
 
+/**
+ * Атомарно добавить один район в локацию. Безопасно при одновременных вызовах
+ * нескольких пользователей: INSERT ... ON CONFLICT DO NOTHING полагается на
+ * UNIQUE(location_id, district) constraint в БД (миграция 20250101000001).
+ * В отличие от setLocationDistricts (delete-then-insert), здесь нет race
+ * condition — два параллельных вызова с разными district просто оба пройдут.
+ */
+export async function addLocationDistrict(locationId, district) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('Not authenticated');
+  const trimmed = (district || '').trim();
+  if (!locationId || !trimmed) throw new Error('locationId and district are required');
+
+  const { error } = await supabase
+    .from('location_districts')
+    .insert({ location_id: locationId, district: trimmed })
+    .select();
+
+  // 23505 = unique_violation — район уже есть, ничего страшного, просто игнорируем.
+  if (error && error.code !== '23505') {
+    throw new Error(error.message);
+  }
+  syncIfEnabled();
+}
+
 export async function setLocationDistricts(locationId, districts) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');

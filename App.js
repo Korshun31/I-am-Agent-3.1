@@ -26,6 +26,8 @@ import Login from './src/screens/Login';
 import Registration from './src/screens/Registration';
 import ForgotPassword from './src/screens/ForgotPassword';
 import UpdatePassword from './src/screens/UpdatePassword';
+import EmailConfirmationPending from './src/screens/EmailConfirmationPending';
+import EmailConfirmedSuccess from './src/screens/EmailConfirmedSuccess';
 import MainNavigator from './src/navigation/MainNavigator';
 import WebMainScreen from './src/web/WebMainScreen';
 import { getCurrentUser, signOut } from './src/services/authService';
@@ -42,6 +44,7 @@ function AppContent() {
   const { user, updateUser, resetUser, handleUserUpdate } = useUser();
   const { setLanguage } = useLanguage();
   const [screen, setScreen] = useState('preloader');
+  const [pendingEmail, setPendingEmail] = useState('');
   const [inviteToken, setInviteToken] = useState(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -57,6 +60,13 @@ function AppContent() {
       if (Platform.OS === 'web' && typeof window !== 'undefined'
           && window.location?.hash?.includes('type=recovery')) {
         setScreen('updatePassword');
+        return;
+      }
+      // TD-015: после клика по confirmation-ссылке Supabase редиректит на сайт
+      // с хешем type=signup. Не уводим в main — показываем «Почта подтверждена».
+      if (Platform.OS === 'web' && typeof window !== 'undefined'
+          && window.location?.hash?.includes('type=signup')) {
+        setScreen('confirmedSuccess');
         return;
       }
       try {
@@ -165,6 +175,30 @@ function AppContent() {
                 updateUser(userData);
                 if (userData?.language) setLanguage(userData.language);
                 setScreen('main');
+              }}
+              onPendingConfirmation={(email) => {
+                setPendingEmail(email);
+                setScreen('emailConfirmation');
+              }}
+            />
+          )}
+          {screen === 'emailConfirmation' && (
+            <EmailConfirmationPending
+              email={pendingEmail}
+              onBack={() => { setPendingEmail(''); setScreen('login'); }}
+            />
+          )}
+          {screen === 'confirmedSuccess' && (
+            <EmailConfirmedSuccess
+              onGoToLogin={async () => {
+                // Юзер уже логинен Supabase'ом через хеш-токен. Сбрасываем эту
+                // авто-сессию и кидаем на Login, чтобы он зашёл паролем как обычно.
+                try { await signOut(); } catch {}
+                resetUser();
+                if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                  window.history.replaceState({}, '', '/');
+                }
+                setScreen('login');
               }}
             />
           )}

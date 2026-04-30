@@ -310,8 +310,7 @@ TD-002: ✅ ЗАКРЫТ — company_id добавлен в contacts, RLS нас
 
 TD-003: ✅ ЗАКРЫТ — CONTEXT_FOR_AI.md очищен от устаревших планов (2026-04-08)
 
-TD-015: Нет верификации email при регистрации — пользователь попадает в main screen без подтверждения email
-Что сделать: включить email confirmations в Supabase Dashboard, добавить экран "Проверьте почту" после signUp, не пускать в main до email_confirmed_at != null
+TD-015: ✅ ЗАКРЫТ 2026-04-30 — email-confirmation flow: `signUp` возвращает `{ pendingConfirmation: true, email }` если Supabase не выдал session (т.е. в Dashboard включена галочка confirmation). Registration переключает на экран `EmailConfirmationPending` с email-ом юзера. После клика по confirm-ссылке Supabase редиректит на сайт с хешем `type=signup` → App.js в checkSession показывает `EmailConfirmedSuccess` с инструкцией для веба и мобайла. signIn ловит «Email not confirmed» и показывает `t('emailNotConfirmedHint')`. На мобильном recovery-ссылка пока открывается в браузере — нативный deep link это отдельная задача TD-118.
 
 TD-017: DB-триггер handle_new_user() (создаёт profile + workspace + company_member) существует в live-базе, но отсутствует в файлах миграций
 Что сделать: создать миграцию supabase/migrations/YYYYMMDD_handle_new_user_trigger.sql с телом функции и триггера
@@ -592,8 +591,7 @@ TD-046: Мобильный: не хранит currency на объекте (на
 TD-047: Веб: нет поля address в WebPropertyEditPanel
 Что сделать: добавить поле address в buildForm и в UI панели (как на мобильном)
 
-TD-070: Веб WebPropertyEditPanel — агент не может добавить новый район при создании/редактировании объекта
-Что сделать: добавить поле "+ новый район" в WebPropertyEditPanel для агентов (как в мобильном PropertyEditWizard)
+TD-070: ✅ ЗАКРЫТ 2026-04-30 — в `WebPropertyEditPanel` под dropdown'ом района добавлен inline-input «+ Добавить» с кнопкой. Доступно и админу, и агенту. По нажатию: `getLocationDistricts(location_id)` → `setLocationDistricts(location_id, [...current, новый])` → state `districts` обновляется → район автоматически выбирается в форме. i18n-ключи `addNewDistrictPlaceholder` / `addDistrictBtn` × 3 языка.
 
 TD-071: Мобильный PropertyDetailScreen — агент видит строку "Ответственный" в деталях объекта (на вебе скрыта для агента)
 Что сделать: обернуть блок responsibleName в условие isAdmin, скрыть для агентов (как на вебе WebPropertiesScreen строка 429: isCompanyAdmin)

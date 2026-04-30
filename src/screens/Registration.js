@@ -44,7 +44,7 @@ const buttonShadow = {
 // Увеличенный размер стикеров, чтобы «Password» и иконка глаза помещались
 const STICKER_LABEL_SIZE = { width: 108, height: 36 };
 
-export default function Registration({ onBack, onSuccess }) {
+export default function Registration({ onBack, onSuccess, onPendingConfirmation }) {
   const { t } = useLanguage();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -70,7 +70,12 @@ export default function Registration({ onBack, onSuccess }) {
     setLoading(true);
     try {
       const userData = await signUp({ email: em, password: pw, name: (name || '').trim() });
-      onSuccess?.(userData);
+      // TD-015: signUp вернул флаг — Supabase ждёт подтверждения email через письмо.
+      if (userData?.pendingConfirmation) {
+        onPendingConfirmation?.(userData.email || em);
+      } else {
+        onSuccess?.(userData);
+      }
     } catch (err) {
       setRegError(err?.message || t('saveFailed'));
     } finally {

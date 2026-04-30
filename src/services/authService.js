@@ -12,6 +12,15 @@ export async function signUp({ email, password, name }) {
   const user = authData.user;
   if (!user) throw new Error('Registration failed');
 
+  // TD-015: если в Supabase Dashboard включена email-confirmation, signUp
+  // не возвращает session — юзер должен подтвердить почту через письмо.
+  // Возвращаем спец-объект, чтобы UI показал экран «Проверьте почту»
+  // вместо main. Профиль не создаём здесь: триггер handle_new_user в БД
+  // делает это сам, а users_profile пуст до подтверждения — это норма.
+  if (!authData.session) {
+    return { pendingConfirmation: true, email };
+  }
+
   const { error: profileError } = await supabase
     .from('users_profile')
     .upsert({
@@ -36,7 +45,16 @@ export async function signIn({ email, password }) {
     password,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // TD-015: Supabase возвращает «Email not confirmed» для непрошедших
+    // подтверждение. Прокидываем спец-код, чтобы UI показал понятный текст.
+    const msg = error.message || '';
+    if (msg.toLowerCase().includes('email not confirmed')
+        || msg.toLowerCase().includes('email not verified')) {
+      throw new Error('EMAIL_NOT_CONFIRMED');
+    }
+    throw new Error(msg);
+  }
 
   const profile = await getUserProfile(data.user.id);
   if (!profile) {

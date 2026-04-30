@@ -1,4 +1,4 @@
-# Progress Plan — приведение проекта в порядок
+2309# Progress Plan — приведение проекта в порядок
 
 > Единая «доска задач» для ветки `dev`. Только статусы и ссылки на детальные описания.
 > - Описание каждого `TD-XXX` — в `CURSOR_RULES.md` раздел 7.
@@ -67,7 +67,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 
 - ⏳ TD-001 — `users_profile.role` мусор (миграция есть, UPDATE неполный)
 - ✅ TD-014 — полный recovery flow: ссылка на Login → ForgotPassword (`resetPasswordForEmail` с `redirectTo`) → email → клик → listener `PASSWORD_RECOVERY` в App.js → UpdatePassword (`setNewPassword`) → выход и возврат на Login (2026-04-30). Deep-link в нативное приложение — отдельный TD при необходимости.
-- ⏳ TD-015 — email confirmation (есть `email_confirmed_at` в миграции, экран «Проверьте почту» не сделан)
+- ✅ TD-015 — email confirmation flow (2026-04-30): signUp возвращает pendingConfirmation если Supabase не выдал session → Registration переключает на экран `EmailConfirmationPending`. После клика по confirm-ссылке Supabase редиректит на сайт с хешем `type=signup` → App.js показывает `EmailConfirmedSuccess`. signIn ловит ошибку «Email not confirmed» и показывает понятный текст. Native deep link для мобильного — TD-118.
 - ✅ TD-017 — миграция `handle_new_user` (миграции `20260415000001`, `20260427000003`)
 - ✅ TD-018 — хардкод `korshun31@list.ru` удалён из `signUp()` и `WebInviteAcceptScreen` (2026-04-27, коммит `1c1ba40`)
 - ✅ TD-019 — Web Login мелькание устранено: `App.js` рендерит `<Preloader />` на стадии `preloader` для обеих платформ (2026-04-30).
@@ -131,7 +131,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ⬜ TD-067 — удаление локации с привязанными объектами
 - ⬜ TD-068 — UNIQUE на (company_id, country, region, city)
 - ✅ TD-069 — обязательность всех полей локации (коммит `c354c72`)
-- ⬜ TD-070 — Веб агент не может добавить новый район
+- ✅ TD-070 — Веб: в WebPropertyEditPanel под dropdown'ом района добавлен inline-input «+ Добавить» через `setLocationDistricts`. Доступно и админу, и агенту. Паритет с мобильным (2026-04-30).
 - ✅ TD-071 — мобильный показывает «Ответственный» агенту (коммит `c354c72`)
 
 ## Bookings
@@ -207,6 +207,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ⬜ TD-035 — `getUserProfile` 4-5 запросов → RPC `get_full_user_profile`
 - ⬜ TD-115 — В git нет CREATE TABLE для главных таблиц (`properties`, `locations`, `contacts`, `users_profile`/`agents`). Они существуют только в живой БД (создавались вручную). При пересоздании БД с нуля из git — невозможно. Снять полный schema dump из sandbox и положить как baseline-миграцию (например `supabase/migrations/00000000000000_baseline_schema.sql`). Найдено 2026-04-30 при чистке legacy-папки `supabase_migrations/`.
 - ⬜ TD-116 — Полная чистка OAuth-кода. Удалить из проекта: функции `signInWithGoogle`/`signInWithFacebook` в `authService.js`, обработчики `handleGoogleLogin`/`handleFacebookLogin` в `Login.js`, закомментированный JSX социальных кнопок в `Login.js` строки 220-232, стили `socialBtn`/`socialBtnFacebook`/`socialIconGoogle`/`socialIconFacebook` в `Login.js`, перевод `orSignIn` в трёх языках (en/th/ru), все правила AU-OAUTH-* в `docs/MODULE_RULES/auth.md`, упоминание OAuth в `docs/RULES_HUMAN/01_Регистрация_и_вход.html`. Заведено 2026-04-30 после снятия TD-033 — OAuth-кнопки уходят из продукта целиком.
+- ⬜ TD-118 — Native deep links (Universal Links на iOS, App Links на Android) для confirmation/recovery-ссылок. Сейчас при клике на ссылку из письма на телефоне открывается браузер вместо приложения; юзер видит экран «Почта подтверждена» в Safari/Chrome и должен сам вернуться в приложение и войти. Чтобы система предлагала «Открыть в I am Agent?», нужно: associated domain в Apple Developer Console + файл `apple-app-site-association` на сайте; App Links в Google Play + `assetlinks.json`; схемы в Expo `app.json`; redirectTo в Supabase. Заведено 2026-04-30 — отдельная задача от TD-014 и TD-015.
 
 ---
 

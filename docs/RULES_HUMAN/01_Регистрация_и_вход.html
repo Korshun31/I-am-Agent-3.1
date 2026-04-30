@@ -77,9 +77,9 @@
   <div class="rule-body">Пароль и подтверждение пароля должны совпадать.</div>
 </div>
 
-<div class="rule rule-danger">
-  <div class="rule-header"><span class="rule-icon">🔴</span><span class="rule-id">TD-015</span></div>
-  <div class="rule-body">После регистрации должно прийти <strong>письмо для подтверждения email</strong>. Пока не подтверждён — вход запрещён.<br><br><em>Сейчас: пользователь сразу попадает в систему без подтверждения.</em></div>
+<div class="rule">
+  <div class="rule-header"><span class="rule-icon">✅</span><span class="rule-id">TD-015</span></div>
+  <div class="rule-body">Закрыт 2026-04-30. После регистрации показывается экран «Проверьте почту» с email-ом юзера. По клику на ссылку из письма — открывается экран «Почта подтверждена» с инструкциями для веба и телефона. Без подтверждения вход не пускает — выдаётся понятное сообщение. На мобильном пока ссылка открывается в браузере — для нативного открытия в приложении заведена отдельная задача TD-118.</div>
 </div>
 
 <div class="rule rule-warn">
@@ -218,7 +218,7 @@
   <tr><th style="width: 60px;">Номер</th><th>Описание</th><th style="width: 90px;">Приоритет</th></tr>
   <tr><td>TD-001</td><td>Устаревшее поле «роль» в базе — содержит мусор, нужно удалить</td><td class="priority-critical">Критич.</td></tr>
   <tr><td>TD-014</td><td>✅ Закрыт 2026-04-30 — полный flow восстановления пароля: ссылка на Login, отправка email, экран установки нового пароля</td><td>✅ Закрыт</td></tr>
-  <tr><td>TD-015</td><td>Нет подтверждения email при регистрации</td><td class="priority-critical">Критич.</td></tr>
+  <tr><td>TD-015</td><td>✅ Закрыт 2026-04-30 — экраны «Проверьте почту» и «Почта подтверждена», обработка в signUp/signIn</td><td>✅ Закрыт</td></tr>
   <tr><td>TD-016</td><td>Нет блокировки одноразовых почтовых адресов</td><td class="priority-medium">Средний</td></tr>
   <tr><td>TD-017</td><td>Триггер создания workspace не в файлах проекта — может потеряться</td><td class="priority-critical">Критич.</td></tr>
   <tr><td>TD-018</td><td>В коде жёстко прописан привилегированный email</td><td class="priority-medium">Средний</td></tr>

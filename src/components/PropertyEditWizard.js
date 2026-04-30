@@ -25,7 +25,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrentUser } from '../services/authService';
 import { getPhotoLimitForProperty } from '../constants/roleFeatures';
-import { getLocations, getLocationsForAgent, getLocationDistricts, setLocationDistricts } from '../services/locationsService';
+import { getLocations, getLocationsForAgent, getLocationDistricts, addLocationDistrict } from '../services/locationsService';
 import { getContacts, createContact } from '../services/contactsService';
 import { getActiveTeamMembers } from '../services/companyService';
 import { uploadPhoto, isLocalUri } from '../services/storageService';
@@ -1239,8 +1239,9 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
           locations={filteredLocations}
           locationDistricts={locationDistricts}
           onDistrictAdded={async (locationId, district) => {
-            const current = await getLocationDistricts(locationId);
-            await setLocationDistricts(locationId, [...current, district]);
+            // TD-070: атомарный INSERT ... ON CONFLICT — безопасно при параллельном
+            // добавлении одной локации разными пользователями.
+            await addLocationDistrict(locationId, district);
             setLocationDistrictsState((prev) => [...new Set([...prev, district])].sort());
           }}
           owners={owners}
