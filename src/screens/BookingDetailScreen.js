@@ -401,8 +401,8 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
             <DetailRow label={t('bookingTotalPrice')} value={b.totalPrice != null ? formatPrice(b.totalPrice, bookingSym) : null} />
             <DetailRow label={t('pdBookingDeposit')} value={b.bookingDeposit != null ? formatPrice(b.bookingDeposit, bookingSym) : null} />
             <DetailRow label={t('pdSaveDeposit')} value={b.saveDeposit != null ? formatPrice(b.saveDeposit, bookingSym) : null} />
-            <DetailRow label={t('ownerCommissionOneTime')} value={b.ownerCommissionOneTime != null ? formatPrice(b.ownerCommissionOneTime, bookingSym) : null} />
-            <DetailRow label={t('ownerCommissionMonthly')} value={b.ownerCommissionMonthly != null ? formatPrice(b.ownerCommissionMonthly, bookingSym) : null} />
+            <DetailRow label={t('ownerCommissionOneTime')} value={b.ownerCommissionOneTime != null ? (b.ownerCommissionOneTimeIsPercent && b.priceMonthly ? `${formatPrice(Math.round((Number(b.ownerCommissionOneTime) / 100) * Number(b.priceMonthly)), bookingSym)} (${Number(b.ownerCommissionOneTime).toLocaleString()}%)` : formatPrice(b.ownerCommissionOneTime, bookingSym)) : null} />
+            <DetailRow label={t('ownerCommissionMonthly')} value={b.ownerCommissionMonthly != null ? (b.ownerCommissionMonthlyIsPercent && b.priceMonthly ? `${formatPrice(Math.round((Number(b.ownerCommissionMonthly) / 100) * Number(b.priceMonthly)), bookingSym)} (${Number(b.ownerCommissionMonthly).toLocaleString()}%)` : formatPrice(b.ownerCommissionMonthly, bookingSym)) : null} />
             <DetailRow label={t('pdCommission')} value={b.commission != null ? formatPrice(b.commission, bookingSym) : null} />
           </View>
         ) : null}

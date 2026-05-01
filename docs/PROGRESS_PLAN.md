@@ -153,7 +153,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ✅ TD-086 — `booking_agent_id` инфраструктура (миграция `20260415000006`, апрель) + полная фича передачи брони с пикером, уведомлениями и каскадом (2026-04-28, коммиты `ebc0709`+`2f018b3`+`22ae879`). Попутно закрыты B1 (mapBooking) и B21 (deactivated в пикере).
 - ✅ TD-087 — снято в пользу простоты (этап 2 simple-perms): `can_delete_booking` объединён с `can_manage_bookings`
 - ✅ TD-088 — удалён `can_see_financials` (коммит `2d30d4a`)
-- ⬜ TD-089 — мобильный AddBookingModal переключатель %/сумма
+- ✅ TD-089 — мобильный AddBookingModal переключатель %/сумма (фаза 5 закрыта 2026-05-01)
 - ✅ TD-091 — Веб dormant `viewMode` код (коммит `2d30d4a`)
 - ✅ TD-092 — Веб multi-select dropdown «Город» в WebBookingsScreen toolbar (2026-04-30, коммит `9f7800d`)
 - ✅ TD-093 — Веб multi-select dropdown «Тип» (house/resort/condo) (2026-04-30)

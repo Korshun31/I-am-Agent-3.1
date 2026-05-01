@@ -125,7 +125,14 @@ export default function WebDashboardScreen({ user, refreshKey }) {
       const allComms = [];
       bookings.forEach(b => {
         if (b.ownerCommissionOneTime || b.ownerCommissionMonthly) {
-          const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, b.ownerCommissionOneTime, b.ownerCommissionMonthly);
+          const pm = Number(b.priceMonthly) || 0;
+          const oneTimeEff = b.ownerCommissionOneTimeIsPercent && pm > 0
+            ? Math.round((Number(b.ownerCommissionOneTime) / 100) * pm)
+            : b.ownerCommissionOneTime;
+          const monthlyEff = b.ownerCommissionMonthlyIsPercent && pm > 0
+            ? Math.round((Number(b.ownerCommissionMonthly) / 100) * pm)
+            : b.ownerCommissionMonthly;
+          const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTimeEff, monthlyEff);
           const prop = properties.find(p => p.id === b.propertyId);
           dates.forEach(d => {
             allComms.push({

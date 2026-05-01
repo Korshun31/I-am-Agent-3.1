@@ -357,16 +357,16 @@ const canDeleteBooking = !user?.teamMembership || booking?.responsibleAgentId ==
           <InfoRow
             label={t('bookingOwnerCommOnce')}
             value={booking.ownerCommissionOneTime != null
-              ? (property?.owner_commission_one_time_is_percent
-                  ? `${Number(booking.ownerCommissionOneTime).toLocaleString()}%`
+              ? (booking.ownerCommissionOneTimeIsPercent && booking.priceMonthly
+                  ? `${fmt(Math.round((Number(booking.ownerCommissionOneTime) / 100) * Number(booking.priceMonthly)), psym)} (${Number(booking.ownerCommissionOneTime).toLocaleString()}%)`
                   : fmt(booking.ownerCommissionOneTime, psym))
               : null}
           />
           <InfoRow
             label={t('bookingOwnerCommMonthly')}
             value={booking.ownerCommissionMonthly != null
-              ? (property?.owner_commission_monthly_is_percent
-                  ? `${Number(booking.ownerCommissionMonthly).toLocaleString()}%`
+              ? (booking.ownerCommissionMonthlyIsPercent && booking.priceMonthly
+                  ? `${fmt(Math.round((Number(booking.ownerCommissionMonthly) / 100) * Number(booking.priceMonthly)), psym)} (${Number(booking.ownerCommissionMonthly).toLocaleString()}%)`
                   : fmt(booking.ownerCommissionMonthly, psym))
               : null}
           />

@@ -163,6 +163,53 @@ function CheckRow({ label, checked, onPress }) {
   );
 }
 
+function PercentMoneyField({ label, sym, priceMonthly, value, onChangeValue, isPercent, onChangePercent }) {
+  const numericValue = isPercent ? parseFloat((value || '').toString().replace(/[^0-9.]/g, '')) : null;
+  const pmValue = parseMoneyValue(priceMonthly);
+  const computed = isPercent && numericValue && pmValue ? Math.round((numericValue / 100) * pmValue) : null;
+  const handlePercentInput = (v) => {
+    const cleaned = v.replace(/[^0-9.]/g, '');
+    if (cleaned === '') return onChangeValue('');
+    const n = parseFloat(cleaned);
+    if (isNaN(n)) return onChangeValue('');
+    if (n > 100) return onChangeValue('100');
+    onChangeValue(cleaned);
+  };
+  const handleToggle = (next) => {
+    if (next === isPercent) return;
+    onChangeValue('');
+    onChangePercent(next);
+  };
+  return (
+    <>
+      <Text style={s.fieldLabel}>{label} {isPercent ? '%' : sym}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <TextInput
+          style={[s.input, { flex: 1, marginBottom: 0 }]}
+          value={value}
+          onChangeText={(v) => isPercent ? handlePercentInput(v) : onChangeValue(formatMoneyDisplay(v))}
+          placeholder={isPercent ? '10' : '0'}
+          placeholderTextColor="#999"
+          keyboardType="numeric"
+        />
+        <View style={{ flexDirection: 'row', borderRadius: 7, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' }}>
+          <TouchableOpacity onPress={() => handleToggle(false)} style={{ paddingHorizontal: 12, paddingVertical: 13, backgroundColor: !isPercent ? '#3D7D82' : COLORS.inputBg }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: !isPercent ? '#FFF' : '#666' }}>{sym}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => handleToggle(true)} style={{ paddingHorizontal: 12, paddingVertical: 13, backgroundColor: isPercent ? '#3D7D82' : COLORS.inputBg }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: isPercent ? '#FFF' : '#666' }}>%</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      {isPercent && (
+        <Text style={{ fontSize: 12, color: '#6B6B6B', fontStyle: 'italic', marginTop: 4, marginLeft: 2, marginBottom: 8 }}>
+          {computed != null ? `≈ ${formatMoneyDisplay(String(computed))} ${sym}` : `— ${sym}`}
+        </Text>
+      )}
+    </>
+  );
+}
+
 const CALENDAR_LOCALES = {
   en: { monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], dayNames: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], today: 'Today', year: '' },
   ru: { monthNames: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], dayNames: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], today: 'Сегодня', year: '' },
@@ -522,7 +569,14 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
             await scheduleBookingReminders(editBooking.id, payload.checkIn, reminderDays, property?.name || houseCode, settings);
           }
         }
-        const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, parseMoneyValue(ownerCommissionOneTime), parseMoneyValue(ownerCommissionMonthly));
+        const pmNum = parseMoneyValue(priceMonthly) || 0;
+        const oneTimeEff = ownerCommissionOneTimeIsPercent && pmNum > 0
+          ? Math.round((parseMoneyValue(ownerCommissionOneTime) / 100) * pmNum)
+          : parseMoneyValue(ownerCommissionOneTime);
+        const monthlyEff = ownerCommissionMonthlyIsPercent && pmNum > 0
+          ? Math.round((parseMoneyValue(ownerCommissionMonthly) / 100) * pmNum)
+          : parseMoneyValue(ownerCommissionMonthly);
+        const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, oneTimeEff, monthlyEff);
         if (commDateAmounts.length > 0) {
           const granted = await requestReminderPermissions();
           if (granted) {
@@ -542,7 +596,14 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
             if (reminderDays.length > 0) {
               await scheduleBookingReminders(created.id, payload.checkIn, reminderDays, property?.name || houseCode, settings);
             }
-            const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, parseMoneyValue(ownerCommissionOneTime), parseMoneyValue(ownerCommissionMonthly));
+            const pmNum2 = parseMoneyValue(priceMonthly) || 0;
+            const oneTimeEff2 = ownerCommissionOneTimeIsPercent && pmNum2 > 0
+              ? Math.round((parseMoneyValue(ownerCommissionOneTime) / 100) * pmNum2)
+              : parseMoneyValue(ownerCommissionOneTime);
+            const monthlyEff2 = ownerCommissionMonthlyIsPercent && pmNum2 > 0
+              ? Math.round((parseMoneyValue(ownerCommissionMonthly) / 100) * pmNum2)
+              : parseMoneyValue(ownerCommissionMonthly);
+            const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, oneTimeEff2, monthlyEff2);
             if (commDateAmounts.length > 0) {
               await scheduleCommissionReminders(created.id, commDateAmounts, property?.name || houseCode, settings);
             }
@@ -914,24 +975,24 @@ isMonthFirst
                       keyboardType="numeric"
                     />
 
-                    <Text style={s.fieldLabel}>{t('ownerCommissionOneTime')} {sym}</Text>
-                    <TextInput
-                      style={s.input}
+                    <PercentMoneyField
+                      label={t('ownerCommissionOneTime')}
+                      sym={sym}
+                      priceMonthly={priceMonthly}
                       value={ownerCommissionOneTime}
-                      onChangeText={(v) => setOwnerCommissionOneTime(formatMoneyDisplay(v))}
-                      placeholder="0"
-                      placeholderTextColor="#999"
-                      keyboardType="numeric"
+                      onChangeValue={setOwnerCommissionOneTime}
+                      isPercent={ownerCommissionOneTimeIsPercent}
+                      onChangePercent={setOwnerCommissionOneTimeIsPercent}
                     />
 
-                    <Text style={s.fieldLabel}>{t('ownerCommissionMonthly')} {sym}</Text>
-                    <TextInput
-                      style={s.input}
+                    <PercentMoneyField
+                      label={t('ownerCommissionMonthly')}
+                      sym={sym}
+                      priceMonthly={priceMonthly}
                       value={ownerCommissionMonthly}
-                      onChangeText={(v) => setOwnerCommissionMonthly(formatMoneyDisplay(v))}
-                      placeholder="0"
-                      placeholderTextColor="#999"
-                      keyboardType="numeric"
+                      onChangeValue={setOwnerCommissionMonthly}
+                      isPercent={ownerCommissionMonthlyIsPercent}
+                      onChangePercent={setOwnerCommissionMonthlyIsPercent}
                     />
 
                     <Text style={s.fieldLabel}>{t('pdCommission')} {sym}</Text>
