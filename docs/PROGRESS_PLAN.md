@@ -155,12 +155,12 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ✅ TD-088 — удалён `can_see_financials` (коммит `2d30d4a`)
 - ⬜ TD-089 — мобильный AddBookingModal переключатель %/сумма
 - ✅ TD-091 — Веб dormant `viewMode` код (коммит `2d30d4a`)
-- ⬜ TD-092 — Веб фильтр по городу
-- ⬜ TD-093 — Веб фильтр по типу
-- ⬜ TD-094 — Веб фильтр по цене
-- ⬜ TD-095 — Веб фильтр по удобствам
-- ⬜ TD-096 — Веб поиск по полям
-- ⬜ TD-097 — Веб пикер года для Gantt
+- ✅ TD-092 — Веб multi-select dropdown «Город» в WebBookingsScreen toolbar (2026-04-30, коммит `9f7800d`)
+- ✅ TD-093 — Веб multi-select dropdown «Тип» (house/resort/condo) (2026-04-30)
+- ✅ TD-094 — Веб два TextInput «Min»/«Max» для price_monthly (2026-04-30)
+- ✅ TD-095 — Веб multi-select dropdown «Удобства» (4 удобства), фильтрация по объекту amenities (2026-04-30)
+- ✅ TD-096 — Веб поиск по коду/имени/собственнику (owner_id + owner_id_2) (2026-04-30)
+- ✅ TD-097 — Веб расширено окно таймлайна до ±36 месяцев + dropdown «Год» (2026-04-30)
 
 ## Contacts
 
