@@ -15,6 +15,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  Switch,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { BlurView } from 'expo-blur';
@@ -25,6 +26,7 @@ import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
 import { createContact, getContactById } from '../services/contactsService';
+import { computeTotalPrice, computeMonthlyBreakdown } from '../utils/bookingPricing';
 import { createBooking, updateBooking } from '../services/bookingsService';
 import { getActiveTeamMembers } from '../services/companyService';
 import { useAppData } from '../context/AppDataContext';
@@ -138,34 +140,7 @@ function formatDateDisplay(d) {
   return `${day}.${m}.${y}`;
 }
 
-function computeTotalPrice(checkIn, checkOut, priceMonthly) {
-  if (!checkIn || !checkOut || !priceMonthly || priceMonthly <= 0) return null;
-  const p = Number(priceMonthly);
-  const start = checkIn instanceof Date ? checkIn : new Date(checkIn);
-  const end = checkOut instanceof Date ? checkOut : new Date(checkOut);
-  if (start >= end) return null;
-
-  let total = 0;
-  let current = new Date(start);
-
-  while (current < end) {
-    const nextMonth = new Date(current.getFullYear(), current.getMonth() + 1, current.getDate());
-
-    if (nextMonth <= end) {
-      // Полный месяц
-      total += p;
-      current = nextMonth;
-    } else {
-      // Неполный остаток — пропорционально дням в текущем месяце
-      const daysInMonth = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
-      const daysRemaining = Math.round((end - current) / 86400000);
-      total += Math.round(p / daysInMonth * daysRemaining);
-      current = end;
-    }
-  }
-
-  return total;
-}
+// computeTotalPrice вынесен в src/utils/bookingPricing.js — единый алгоритм для веб и мобильного.
 
 const COLORS = {
   boxBg: 'rgba(255,255,255,0.72)',
@@ -238,6 +213,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
   const [photoProcessing, setPhotoProcessing] = useState(false);
   const [reminderDays, setReminderDays] = useState([]);
   const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
+  const [monthlyBreakdown, setMonthlyBreakdown] = useState([]); // TD-082
   const [saving, setSaving] = useState(false);
   // Responsible agent picker (admin only)
   const [responsibleAgentId, setResponsibleAgentId] = useState(null);
@@ -304,6 +280,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         setComments(editBooking.comments || '');
         setPhotos(Array.isArray(editBooking.photos) ? [...editBooking.photos] : []);
         setReminderDays(Array.isArray(editBooking.reminderDays) ? [...editBooking.reminderDays] : []);
+        setMonthlyBreakdown(Array.isArray(editBooking.monthlyBreakdown) ? [...editBooking.monthlyBreakdown] : []);
         setResponsibleAgentId(editBooking.responsibleAgentId ?? null);
       } else {
         setNotMyCustomer(false);
@@ -321,6 +298,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         setCheckOutTime('12:00');
         setPhotos([]);
         setReminderDays([]);
+        setMonthlyBreakdown([]);
       }
     }
   }, [visible, editBooking?.id, initialMonth?.year, initialMonth?.month]);
@@ -340,10 +318,16 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
 
   const computedTotal = computeTotalPrice(checkIn, checkOut, parseMoneyValue(priceMonthly));
   useEffect(() => {
+    // Если включена помесячная разбивка — total = сумма amount по месяцам.
+    if (Array.isArray(monthlyBreakdown) && monthlyBreakdown.length > 0) {
+      const sum = monthlyBreakdown.reduce((acc, m) => acc + (Number(m.amount) || 0), 0);
+      setTotalPrice(formatMoneyDisplay(String(sum)));
+      return;
+    }
     if (!editBooking && computedTotal != null) {
       setTotalPrice(formatMoneyDisplay(String(Math.round(computedTotal))));
     }
-  }, [computedTotal, !!editBooking]);
+  }, [computedTotal, !!editBooking, monthlyBreakdown]);
 
   useEffect(() => {
     if (clientPickerVisible) {
@@ -523,6 +507,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         comments: comments.trim() || null,
         photos: photoUrls.length > 0 ? photoUrls : null,
         reminderDays: reminderDays.length > 0 ? reminderDays : [],
+        monthlyBreakdown: Array.isArray(monthlyBreakdown) ? monthlyBreakdown : [],
         currency: activeCurrency,
       };
       if (editBooking?.id) {
@@ -856,6 +841,58 @@ isMonthFirst
                       placeholderTextColor="#999"
                       keyboardType="numeric"
                     />
+
+                    {/* TD-082: помесячная разбивка стоимости */}
+                    <View style={s.breakdownBlock}>
+                      <View style={s.breakdownHeader}>
+                        <Text style={s.breakdownTitle}>{t('breakdownTitle')}</Text>
+                        <Switch
+                          value={monthlyBreakdown.length > 0}
+                          onValueChange={(on) => {
+                            if (on) {
+                              const auto = computeMonthlyBreakdown(checkIn, checkOut, parseMoneyValue(priceMonthly));
+                              setMonthlyBreakdown(auto);
+                            } else {
+                              setMonthlyBreakdown([]);
+                            }
+                          }}
+                        />
+                      </View>
+                      {monthlyBreakdown.length > 0 && (
+                        <>
+                          {monthlyBreakdown.map((row, idx) => (
+                            <View key={`${row.month}-${idx}`} style={s.breakdownRow}>
+                              <Text style={s.breakdownMonth}>{dayjs(row.month + '-01').format('MMMM YYYY')}</Text>
+                              <TextInput
+                                style={[s.input, s.breakdownAmountInput]}
+                                value={row.amount != null ? String(row.amount) : ''}
+                                onChangeText={(v) => {
+                                  const cleaned = v.replace(/[^0-9]/g, '');
+                                  const next = monthlyBreakdown.map((r, i) =>
+                                    i === idx ? { ...r, amount: cleaned ? Number(cleaned) : 0 } : r
+                                  );
+                                  setMonthlyBreakdown(next);
+                                }}
+                                keyboardType="numeric"
+                                placeholder="0"
+                                placeholderTextColor="#999"
+                              />
+                              <Text style={s.breakdownCurrency}>{sym}</Text>
+                            </View>
+                          ))}
+                          <TouchableOpacity
+                            style={s.breakdownRecalcBtn}
+                            onPress={() => {
+                              const auto = computeMonthlyBreakdown(checkIn, checkOut, parseMoneyValue(priceMonthly));
+                              setMonthlyBreakdown(auto);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={s.breakdownRecalcText}>↻ {t('breakdownRecalc')}</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
+                    </View>
 
                     <Text style={s.fieldLabel}>{t('pdBookingDeposit')} {sym}</Text>
                     <TextInput
@@ -1674,4 +1711,14 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(46, 125, 50, 0.06)',
   },
   selectBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.saveGreen },
+  // TD-082: помесячная разбивка
+  breakdownBlock:        { marginTop: 12, marginBottom: 12, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: 'rgba(255,255,255,0.5)' },
+  breakdownHeader:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  breakdownTitle:        { fontSize: 14, fontWeight: '600', color: COLORS.title },
+  breakdownRow:          { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  breakdownMonth:        { flex: 1, fontSize: 13, color: COLORS.title, textTransform: 'capitalize' },
+  breakdownAmountInput:  { flex: 1, marginTop: 0 },
+  breakdownCurrency:     { fontSize: 13, color: '#888', minWidth: 28 },
+  breakdownRecalcBtn:    { marginTop: 12, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.saveGreen, alignSelf: 'flex-start' },
+  breakdownRecalcText:   { fontSize: 13, color: COLORS.saveGreen, fontWeight: '600' },
 });

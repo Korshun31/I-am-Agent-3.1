@@ -12,6 +12,8 @@ import ContactPicker from './ContactPicker';
 import { supabase } from '../../services/supabase';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
+import { resizeImageFile } from '../utils/resizeImageFile';
+import { computeTotalPrice, computeMonthlyBreakdown } from '../../utils/bookingPricing';
 
 const ACCENT = '#3D7D82';
 const C = {
@@ -74,6 +76,7 @@ function buildForm(booking, property) {
       comments:               booking.comments || '',
       photos:                 booking.photos || [],
       reminderDays:           booking.reminderDays || [],
+      monthlyBreakdown:       Array.isArray(booking.monthlyBreakdown) ? booking.monthlyBreakdown : [],
     };
   }
   return {
@@ -101,6 +104,7 @@ function buildForm(booking, property) {
     comments:               '',
     photos:                 [],
     reminderDays:           [],
+    monthlyBreakdown:       [],
   };
 }
 
@@ -410,35 +414,20 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     }
   }, [form.contactId, form.notMyCustomer, localContacts]);
 
-  // Auto-compute total price (monthly calculation with real days)
+  // Авторасчёт total price. Если включена помесячная разбивка — total = сумма
+  // amount по месяцам (юзер может вручную править суммы); иначе — стандартный
+  // computeTotalPrice по price_monthly с пропорцией для неполного месяца.
   useEffect(() => {
-    if (form.priceMonthly && form.checkIn && form.checkOut) {
-      const monthly = numOrNull(form.priceMonthly);
-      if (!monthly || monthly <= 0) return;
-      const start = new Date(form.checkIn);
-      const end = new Date(form.checkOut);
-      if (start >= end) return;
-
-      let total = 0;
-      let current = new Date(start);
-
-      while (current < end) {
-        const nextMonth = new Date(current.getFullYear(), current.getMonth() + 1, current.getDate());
-
-        if (nextMonth <= end) {
-          total += monthly;
-          current = nextMonth;
-        } else {
-          const daysInMonth = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
-          const daysRemaining = Math.round((end - current) / 86400000);
-          total += Math.round(monthly / daysInMonth * daysRemaining);
-          current = end;
-        }
-      }
-
-      setForm(f => ({ ...f, totalPrice: String(total) }));
+    const breakdown = Array.isArray(form.monthlyBreakdown) ? form.monthlyBreakdown : [];
+    if (breakdown.length > 0) {
+      const sum = breakdown.reduce((acc, m) => acc + (Number(m.amount) || 0), 0);
+      setForm(f => ({ ...f, totalPrice: String(sum) }));
+      return;
     }
-  }, [form.priceMonthly, form.checkIn, form.checkOut]);
+    const monthly = numOrNull(form.priceMonthly);
+    const total = computeTotalPrice(form.checkIn, form.checkOut, monthly);
+    if (total != null) setForm(f => ({ ...f, totalPrice: String(total) }));
+  }, [form.priceMonthly, form.checkIn, form.checkOut, form.monthlyBreakdown]);
 
   // Web file input handler
   useEffect(() => {
@@ -453,10 +442,12 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
       if (!files.length) return;
       setUploadingPhoto(true);
       try {
+        // TD-074: сжатие фото бронирования до 1200px JPEG 0.85 перед загрузкой —
+        // паритет с мобильным AddBookingModal, экономит место в Storage и время.
         const urls = await Promise.all(files.map(async file => {
-          const ext = file.name.split('.').pop();
-          const path = `bookings/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-          const { error: upErr } = await supabase.storage.from('property-photos').upload(path, file);
+          const resized = await resizeImageFile(file, 1200, 0.85);
+          const path = `bookings/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+          const { error: upErr } = await supabase.storage.from('property-photos').upload(path, resized);
           if (upErr) throw upErr;
           const { data } = supabase.storage.from('property-photos').getPublicUrl(path);
           return data.publicUrl;
@@ -532,6 +523,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
         comments:               form.comments || null,
         photos:                 form.photos || [],
         reminderDays:           form.reminderDays || [],
+        monthlyBreakdown:       form.monthlyBreakdown || [],
         currency:               activeCurrency,
       };
 
@@ -771,6 +763,63 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                       <FInput value={form.totalPrice} onChangeText={v => set('totalPrice', v)} placeholder={t('bkAuto')} numeric />
                     </Field>
                   </View>
+
+                  {/* TD-082: помесячная разбивка стоимости */}
+                  <View style={s.breakdownBlock}>
+                    <View style={s.breakdownHeader}>
+                      <Text style={s.breakdownTitle}>{t('breakdownTitle')}</Text>
+                      <Switch
+                        value={(form.monthlyBreakdown || []).length > 0}
+                        onValueChange={(on) => {
+                          if (on) {
+                            const auto = computeMonthlyBreakdown(form.checkIn, form.checkOut, numOrNull(form.priceMonthly));
+                            set('monthlyBreakdown', auto);
+                          } else {
+                            set('monthlyBreakdown', []);
+                          }
+                        }}
+                      />
+                    </View>
+                    {(form.monthlyBreakdown || []).length > 0 && (
+                      <>
+                        <View style={s.breakdownRows}>
+                          {form.monthlyBreakdown.map((row, idx) => (
+                            <View key={`${row.month}-${idx}`} style={s.breakdownRow}>
+                              <Text style={s.breakdownMonth}>{dayjs(row.month + '-01').format('MMMM YYYY')}</Text>
+                              <View style={[s.inputWrap, s.breakdownAmountWrap]}>
+                                <TextInput
+                                  style={s.input}
+                                  value={row.amount != null ? String(row.amount) : ''}
+                                  onChangeText={(v) => {
+                                    const cleaned = v.replace(/[^0-9]/g, '');
+                                    const next = form.monthlyBreakdown.map((r, i) =>
+                                      i === idx ? { ...r, amount: cleaned ? Number(cleaned) : 0 } : r
+                                    );
+                                    set('monthlyBreakdown', next);
+                                  }}
+                                  keyboardType="numeric"
+                                  placeholder="0"
+                                  placeholderTextColor={C.light}
+                                />
+                              </View>
+                              <Text style={s.breakdownCurrency}>{sym}</Text>
+                            </View>
+                          ))}
+                        </View>
+                        <TouchableOpacity
+                          style={s.breakdownRecalcBtn}
+                          onPress={() => {
+                            const auto = computeMonthlyBreakdown(form.checkIn, form.checkOut, numOrNull(form.priceMonthly));
+                            set('monthlyBreakdown', auto);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={s.breakdownRecalcText}>↻ {t('breakdownRecalc')}</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+
                   <View style={s.row2}>
                     <Field label={L('propBookingDeposit2')} half>
                       <FInput value={form.bookingDeposit} onChangeText={v => set('bookingDeposit', v)} placeholder="5 000" numeric />
@@ -1216,4 +1265,15 @@ const s = StyleSheet.create({
   },
   dateBtnText: { fontSize: 14, color: '#212529' },
   dateBtnPlaceholder: { fontSize: 14, color: '#ADB5BD' },
+  // TD-082: помесячная разбивка
+  breakdownBlock:        { marginTop: 8, marginBottom: 16, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#E9ECEF', backgroundColor: '#FAFBFC' },
+  breakdownHeader:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  breakdownTitle:        { fontSize: 14, fontWeight: '600', color: '#212529' },
+  breakdownRows:         { marginTop: 12, gap: 8 },
+  breakdownRow:          { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  breakdownMonth:        { flex: 1, fontSize: 13, color: '#495057', textTransform: 'capitalize' },
+  breakdownAmountWrap:   { flex: 1 },
+  breakdownCurrency:     { fontSize: 13, color: '#6C757D', minWidth: 28 },
+  breakdownRecalcBtn:    { marginTop: 12, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: ACCENT, alignSelf: 'flex-start' },
+  breakdownRecalcText:   { fontSize: 13, color: ACCENT, fontWeight: '600' },
 });

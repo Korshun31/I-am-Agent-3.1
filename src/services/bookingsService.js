@@ -160,6 +160,7 @@ export async function createBooking(booking) {
     photos: Array.isArray(booking.photos) && booking.photos.length > 0 ? booking.photos : null,
     reminder_days: Array.isArray(booking.reminderDays) && booking.reminderDays.length > 0 ? booking.reminderDays : null,
     currency: booking.currency || 'THB',
+    monthly_breakdown: Array.isArray(booking.monthlyBreakdown) ? booking.monthlyBreakdown : [],
   };
 
   const { data, error } = await supabase
@@ -295,6 +296,7 @@ export async function updateBooking(id, booking) {
     photos: Array.isArray(booking.photos) && booking.photos.length > 0 ? booking.photos : null,
     reminder_days: Array.isArray(booking.reminderDays) && booking.reminderDays.length > 0 ? booking.reminderDays : [],
     currency: booking.currency || 'THB',
+    monthly_breakdown: Array.isArray(booking.monthlyBreakdown) ? booking.monthlyBreakdown : [],
   });
   updates.updated_at = new Date().toISOString();
 
@@ -449,5 +451,6 @@ function mapBooking(row) {
     photos: Array.isArray(row.photos) ? row.photos : [],
     reminderDays: Array.isArray(row.reminder_days) ? row.reminder_days : [],
     currency: row.currency || 'THB',
+    monthlyBreakdown: Array.isArray(row.monthly_breakdown) ? row.monthly_breakdown : [],
   };
 }

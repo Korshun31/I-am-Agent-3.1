@@ -136,12 +136,12 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 
 ## Bookings
 
-- ⬜ TD-072 — Веб занятые даты в booking-picker
+- ✅ TD-072 — Веб `WebBookingCalendarPicker` подсвечивает занятые даты и блокирует выбор пересекающихся диапазонов (закрыто ранее, подтверждено 2026-05-01). Мобильный — через `occupiedDates` в `AddBookingModal`. Унификация интерфейсов — TD-119.
 - ✅ TD-073 — контакт обязателен или `not_my_customer` (коммит `c354c72`)
 - ⬜ TD-074 — Веб сжатие фото бронирования
 - ✅ TD-075 — Веб пикер напоминаний reminder_days (коммит `b1e4d33`)
-- ⬜ TD-076 — Веб `scheduleCommissionReminders` не вызывается
-- ⏳ TD-077 — Веб отмена напоминаний (есть только в Mobile)
+- ✅ TD-076 — Веб: продуктовое решение владельца — локальные push не нужны. Комиссии отображаются в `WebCalendarStrip` (подсветка дат) и `WebDashboardScreen` (дневная agenda с подписью). Закрыто 2026-05-01.
+- ✅ TD-077 — Веб: отменять нечего, локальные push не используются (закрыто 2026-05-01 вместе с TD-076). Отображение комиссий пересчитывается из текущего состояния броней.
 - ✅ TD-078 — мобильный время по дефолту 14:00/12:00 (коммит `c354c72`)
 - ✅ TD-079 — `bookingRemindersService` `SchedulableTriggerInputTypes.DATE` (коммит `4f0efdc`)
 - ✅ TD-080 — формула стоимости помесячный расчёт (коммит `c1483fd`)
@@ -208,6 +208,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ⬜ TD-115 — В git нет CREATE TABLE для главных таблиц (`properties`, `locations`, `contacts`, `users_profile`/`agents`). Они существуют только в живой БД (создавались вручную). При пересоздании БД с нуля из git — невозможно. Снять полный schema dump из sandbox и положить как baseline-миграцию (например `supabase/migrations/00000000000000_baseline_schema.sql`). Найдено 2026-04-30 при чистке legacy-папки `supabase_migrations/`.
 - ⬜ TD-116 — Полная чистка OAuth-кода. Удалить из проекта: функции `signInWithGoogle`/`signInWithFacebook` в `authService.js`, обработчики `handleGoogleLogin`/`handleFacebookLogin` в `Login.js`, закомментированный JSX социальных кнопок в `Login.js` строки 220-232, стили `socialBtn`/`socialBtnFacebook`/`socialIconGoogle`/`socialIconFacebook` в `Login.js`, перевод `orSignIn` в трёх языках (en/th/ru), все правила AU-OAUTH-* в `docs/MODULE_RULES/auth.md`, упоминание OAuth в `docs/RULES_HUMAN/01_Регистрация_и_вход.html`. Заведено 2026-04-30 после снятия TD-033 — OAuth-кнопки уходят из продукта целиком.
 - ⬜ TD-118 — Native deep links (Universal Links на iOS, App Links на Android) для confirmation/recovery-ссылок. Сейчас при клике на ссылку из письма на телефоне открывается браузер вместо приложения; юзер видит экран «Почта подтверждена» в Safari/Chrome и должен сам вернуться в приложение и войти. Чтобы система предлагала «Открыть в I am Agent?», нужно: associated domain в Apple Developer Console + файл `apple-app-site-association` на сайте; App Links в Google Play + `assetlinks.json`; схемы в Expo `app.json`; redirectTo в Supabase. Заведено 2026-04-30 — отдельная задача от TD-014 и TD-015.
+- ⬜ TD-119 — Унификация picker'а занятых дат (booking calendar) между веб и мобильным. Сейчас веб (`WebBookingCalendarPicker`) принимает `bookedRanges` как массив `{checkIn, checkOut}` и сам строит `occupiedSet`; мобильный (`AddBookingModal`) принимает `occupiedDates` как готовый массив строк дат. Поведение одинаковое (юзер не выбирает занятые дни), но интерфейс разный — баг-фикс надо делать дважды. Привести к единому формату (рекомендуется `bookedRanges` как ranges — компактнее в БД-ответе). Заведено 2026-05-01. Делать в фазу 9 «технический долг кода» — функционально обе платформы работают, это рефакторинг для чистоты.
 
 ---
 
