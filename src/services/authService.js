@@ -67,6 +67,13 @@ export async function signIn({ email, password }) {
 }
 
 export async function signOut() {
+  // Очищаем DataUpload-конфиг при выходе — иначе на устройстве может остаться
+  // настройка от предыдущего юзера, и следующий вход будет триггерить чужой sync.
+  try {
+    const { stopUpload } = require('./dataUploadService');
+    await stopUpload();
+  } catch {}
+
   const { error } = await supabase.auth.signOut();
   if (error) throw new Error(error.message);
 }

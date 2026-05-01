@@ -67,10 +67,25 @@ export async function stopUpload() {
 /**
  * Check if upload is enabled. If so, trigger sync.
  * Call this after any data mutation (create/update/delete).
+ *
+ * Sync разрешён только пользователям с тарифом `korshun`. Раньше config
+ * хранился в локальном AsyncStorage без привязки к юзеру — после смены
+ * аккаунта на устройстве чужой config продолжал работать (баг изоляции).
+ * Теперь проверяем тариф текущей сессии перед каждым sync.
  */
 export async function syncIfEnabled() {
   const config = await getUploadConfig();
   if (!config?.enabled || !config?.url || !config?.serviceRoleKey) return;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return;
+
+  const { data: profile } = await supabase
+    .from('users_profile')
+    .select('plan')
+    .eq('id', session.user.id)
+    .maybeSingle();
+  if (profile?.plan !== 'korshun') return;
 
   try {
     await syncToTarget(config.url, config.serviceRoleKey);
