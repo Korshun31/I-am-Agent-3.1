@@ -25,7 +25,7 @@ const ALLOWED_CLIENT_FIELDS = [
   'electricity_price', 'water_price', 'water_price_type', 'gas_price',
   'internet_price', 'cleaning_price', 'exit_cleaning_price',
   'air_conditioners', 'internet_speed', 'pets_allowed', 'long_term_booking',
-  'amenities', 'photos', 'videos', 'video_url',
+  'amenities', 'photos', 'photos_thumb', 'videos', 'video_url',
   'resort_id',
   'owner_id', 'owner_id_2',
   'responsible_agent_id',
@@ -274,18 +274,20 @@ export async function deleteProperty(id) {
   try {
     const { data: propPhotos } = await supabase
       .from('properties')
-      .select('photos')
+      .select('photos, photos_thumb')
       .eq('id', id)
       .maybeSingle();
 
     const { data: childPhotos } = await supabase
       .from('properties')
-      .select('photos')
+      .select('photos, photos_thumb')
       .eq('resort_id', id);
 
+    const collect = (arr) => (arr || []).filter(u => u && typeof u === 'string');
     const allPhotos = [
-      ...((propPhotos?.photos || []).filter(url => url && typeof url === 'string')),
-      ...((childPhotos || []).flatMap(c => (c.photos || []).filter(url => url && typeof url === 'string'))),
+      ...collect(propPhotos?.photos),
+      ...collect(propPhotos?.photos_thumb),
+      ...((childPhotos || []).flatMap(c => [...collect(c.photos), ...collect(c.photos_thumb)])),
     ];
 
     for (const url of allPhotos) {

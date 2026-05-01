@@ -6,6 +6,7 @@ import {
 import dayjs from 'dayjs';
 import { getContactById } from '../../services/contactsService';
 import { useLanguage } from '../../context/LanguageContext';
+import WebPhotoGalleryModal from './WebPhotoGalleryModal';
 
 const ICON_PHONE    = require('../../../assets/icon-contact-phone.png');
 const ICON_WHATSAPP = require('../../../assets/icon-contact-whatsapp.png');
@@ -55,6 +56,7 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const mountedRef   = useRef(false);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [owner, setOwner] = useState(null);
 
   // Reset photo index and load owner when property changes
@@ -134,7 +136,9 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
             const idx    = Math.min(photoIndex, total - 1);
             return (
               <View style={st.photoWrap}>
-                <Image source={{ uri: photos[idx] }} style={st.photo} resizeMode="cover" />
+                <TouchableOpacity activeOpacity={0.95} onPress={() => setGalleryOpen(true)} style={{ width: '100%', height: '100%' }}>
+                  <Image source={{ uri: photos[idx] }} style={st.photo} resizeMode="cover" />
+                </TouchableOpacity>
 
                 {/* Arrows — only if more than 1 photo */}
                 {total > 1 && (
@@ -367,6 +371,14 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
           <View style={{ height: 16 }} />
         </ScrollView>
       </Animated.View>
+
+      <WebPhotoGalleryModal
+        visible={galleryOpen}
+        photos={property?.photos || []}
+        initialIndex={photoIndex}
+        canDelete={false}
+        onClose={() => setGalleryOpen(false)}
+      />
     </>
   );
 }

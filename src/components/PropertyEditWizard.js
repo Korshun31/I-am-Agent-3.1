@@ -28,7 +28,7 @@ import { getPhotoLimitForProperty } from '../constants/roleFeatures';
 import { getLocations, getLocationsForAgent, getLocationDistricts, addLocationDistrict } from '../services/locationsService';
 import { getContacts, createContact } from '../services/contactsService';
 import { getActiveTeamMembers } from '../services/companyService';
-import { uploadPhoto, isLocalUri } from '../services/storageService';
+import { uploadPhotoWithThumb, isLocalUri } from '../services/storageService';
 import AddContactModal from './AddContactModal';
 import { useAppData } from '../context/AppDataContext';
 
@@ -647,7 +647,11 @@ function StepMedia({ data, setData, t, maxPhotos }) {
           const uri = await resizePhotoIfNeeded(a.uri, a.width, a.height);
           uris.push(uri);
         }
-        setData(d => ({ ...d, photos: [...(d.photos || []), ...uris].slice(0, limit) }));
+        setData(d => ({
+          ...d,
+          photos: [...(d.photos || []), ...uris].slice(0, limit),
+          photos_thumb: [...(d.photos_thumb || []), ...uris.map(() => '')].slice(0, limit),
+        }));
       } finally {
         setProcessing(false);
       }
@@ -657,8 +661,10 @@ function StepMedia({ data, setData, t, maxPhotos }) {
   const removePhoto = (index) => {
     setData(d => {
       const next = [...(d.photos || [])];
+      const nextThumb = [...(d.photos_thumb || [])];
       next.splice(index, 1);
-      return { ...d, photos: next };
+      nextThumb.splice(index, 1);
+      return { ...d, photos: next, photos_thumb: nextThumb };
     });
   };
 
@@ -989,6 +995,7 @@ function buildInitialData(p, parentResort) {
     comments: p.comments || '',
     website_url: p.website_url || '',
     photos: Array.isArray(p.photos) ? p.photos : [],
+    photos_thumb: Array.isArray(p.photos_thumb) ? p.photos_thumb : [],
     videos: Array.isArray(p.videos) ? p.videos : [],
     amenities: p.amenities || {},
     air_conditioners: toStr(p.air_conditioners),
@@ -1055,6 +1062,7 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
     comments: data.comments.trim(),
     website_url: (data.website_url || '').trim(),
     photos: (data.photos || []).slice(0, maxPhotos),
+    photos_thumb: (data.photos_thumb || []).slice(0, maxPhotos),
     videos: data.videos || [],
     amenities: data.amenities,
     air_conditioners: toNum(data.air_conditioners),
@@ -1201,18 +1209,30 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
     setSaving(true);
     try {
       const photos = data.photos || [];
-      const localPhotos = photos.filter(isLocalUri);
-      const remotePhotos = photos.filter(u => !isLocalUri(u));
+      const thumbs = data.photos_thumb || [];
+      const remotePhotos = [];
+      const remoteThumbs = [];
+      const localPhotos = [];
+      photos.forEach((u, i) => {
+        if (isLocalUri(u)) localPhotos.push(u);
+        else { remotePhotos.push(u); remoteThumbs.push(thumbs[i] || ''); }
+      });
 
       if (localPhotos.length > 0) {
         setUploadProgress(`0/${localPhotos.length}`);
-        const uploaded = [];
+        const uploadedUrls = [];
+        const uploadedThumbs = [];
         for (let i = 0; i < localPhotos.length; i++) {
-          const url = await uploadPhoto(localPhotos[i]);
-          uploaded.push(url);
+          const { url, thumbUrl } = await uploadPhotoWithThumb(localPhotos[i]);
+          uploadedUrls.push(url);
+          uploadedThumbs.push(thumbUrl);
           setUploadProgress(`${i + 1}/${localPhotos.length}`);
         }
-        data.photos = [...remotePhotos, ...uploaded];
+        data.photos = [...remotePhotos, ...uploadedUrls];
+        data.photos_thumb = [...remoteThumbs, ...uploadedThumbs];
+      } else {
+        data.photos = remotePhotos;
+        data.photos_thumb = remoteThumbs;
       }
       setUploadProgress('');
 

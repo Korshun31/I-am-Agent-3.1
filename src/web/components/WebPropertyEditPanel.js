@@ -14,6 +14,7 @@ import { getCurrencySymbol } from '../../utils/currency';
 import ContactPicker from './ContactPicker';
 import WebContactEditPanel from './WebContactEditPanel';
 import { resizeImageFile } from '../utils/resizeImageFile';
+import WebPhotoGalleryModal from './WebPhotoGalleryModal';
 
 const ICON_TAB_MAIN      = require('../../../assets/icon-tab-main.png');
 const ICON_TAB_PRICES    = require('../../../assets/icon-tab-prices.png');
@@ -373,6 +374,7 @@ function buildForm(property, parentProperty) {
       long_term_booking: property.long_term_booking ?? null,
       amenities: property.amenities || {},
       photos: property.photos || [],
+      photos_thumb: property.photos_thumb || [],
       video_url: property.video_url || '',
       currency: property.currency || 'THB',
     };
@@ -411,6 +413,7 @@ function buildForm(property, parentProperty) {
     long_term_booking: parentProperty?.long_term_booking ?? null,
     amenities: parentProperty?.amenities ? { ...parentProperty.amenities } : {},
     photos: [],
+    photos_thumb: [],
     video_url: '',
     currency: 'THB',
   };
@@ -494,6 +497,8 @@ export default function WebPropertyEditPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
   const slideAnim    = useRef(new Animated.Value(540)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(false);
@@ -662,6 +667,7 @@ export default function WebPropertyEditPanel({
       long_term_booking: form.long_term_booking,
       amenities: form.amenities,
       photos: form.photos || [],
+      photos_thumb: form.photos_thumb || [],
       video_url: form.video_url.trim() || null,
       currency: activeCurrency,
       // TD-048: agent тоже задаёт owner при создании объекта (PR-CR-12 / CT-VIS-2).
@@ -678,6 +684,21 @@ export default function WebPropertyEditPanel({
       let saved;
 
       if (mode === 'edit') {
+        // TD-063: удаляем из storage те фото и миниатюры, которых больше нет в форме.
+        const oldPhotos = Array.isArray(property?.photos) ? property.photos : [];
+        const oldThumbs = Array.isArray(property?.photos_thumb) ? property.photos_thumb : [];
+        const newPhotosSet = new Set(updates.photos || []);
+        const newThumbsSet = new Set(updates.photos_thumb || []);
+        for (const url of oldPhotos) {
+          if (url && !newPhotosSet.has(url)) {
+            try { await deletePhotoFromStorage(url); } catch {}
+          }
+        }
+        for (const url of oldThumbs) {
+          if (url && !newThumbsSet.has(url)) {
+            try { await deletePhotoFromStorage(url); } catch {}
+          }
+        }
         saved = await updateProperty(property.id, updates);
         if (isCompanyAdmin && isParent) {
           await updatePropertyResponsible(property.id, form.responsible_agent_id || null, true);
@@ -722,19 +743,37 @@ export default function WebPropertyEditPanel({
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const newUrls = [];
+        const newThumbs = [];
         for (const file of files) {
           const resized = await resizeImageFile(file, 1200, 0.85);
-          const ext = 'jpg';
-          const fileName = `${session.user.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const thumb = await resizeImageFile(file, 150, 0.85);
+          const baseName = `${session.user.id}/${Date.now()}_${Math.random().toString(36).slice(2)}`;
+          const fullPath = `${baseName}.jpg`;
+          const thumbPath = `${baseName}_thumb.jpg`;
           const { error: upErr } = await supabase.storage
             .from(PHOTOS_BUCKET)
-            .upload(fileName, resized, { upsert: true, contentType: 'image/jpeg' });
+            .upload(fullPath, resized, { upsert: true, contentType: 'image/jpeg' });
           if (upErr) { setError(`${t('errorPrefix')} ${upErr.message}`); continue; }
-          const { data: pub } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(fileName);
+          const { error: thumbErr } = await supabase.storage
+            .from(PHOTOS_BUCKET)
+            .upload(thumbPath, thumb, { upsert: true, contentType: 'image/jpeg' });
+          if (thumbErr) {
+            // Не оставляем оригинал-сирту в Storage если миниатюра не залилась.
+            try { await supabase.storage.from(PHOTOS_BUCKET).remove([fullPath]); } catch {}
+            setError(`${t('errorPrefix')} ${thumbErr.message}`);
+            continue;
+          }
+          const { data: pub } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(fullPath);
+          const { data: pubThumb } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(thumbPath);
           newUrls.push(pub.publicUrl);
+          newThumbs.push(pubThumb.publicUrl);
         }
         if (newUrls.length) {
-          setForm(f => ({ ...f, photos: [...(f.photos || []), ...newUrls] }));
+          setForm(f => ({
+            ...f,
+            photos: [...(f.photos || []), ...newUrls],
+            photos_thumb: [...(f.photos_thumb || []), ...newThumbs],
+          }));
         }
       } catch (e) {
         setError(`${t('errorUpload')}: ${e.message}`);
@@ -745,16 +784,12 @@ export default function WebPropertyEditPanel({
     input.click();
   };
 
-  const handleRemovePhoto = async (idx) => {
-    const url = form.photos[idx];
-    setForm(f => ({ ...f, photos: f.photos.filter((_, i) => i !== idx) }));
-    if (url && url.startsWith('http')) {
-      try {
-        await deletePhotoFromStorage(url);
-      } catch (e) {
-        console.warn('Failed to delete photo from storage:', e.message);
-      }
-    }
+  const handleRemovePhoto = (idx) => {
+    setForm(f => ({
+      ...f,
+      photos: f.photos.filter((_, i) => i !== idx),
+      photos_thumb: (f.photos_thumb || []).filter((_, i) => i !== idx),
+    }));
   };
 
   const title = mode === 'edit'
@@ -1203,7 +1238,9 @@ export default function WebPropertyEditPanel({
       <View style={s.photosGrid}>
         {(form.photos || []).map((uri, idx) => (
           <View key={idx} style={s.photoThumb}>
-            <Image source={{ uri }} style={s.photoThumbImg} resizeMode="cover" />
+            <TouchableOpacity activeOpacity={0.85} onPress={() => { setGalleryIndex(idx); setGalleryOpen(true); }} style={{ width: '100%', height: '100%' }}>
+              <Image source={{ uri: (form.photos_thumb || [])[idx] || uri }} style={s.photoThumbImg} resizeMode="cover" />
+            </TouchableOpacity>
             {!readOnly && (
               <TouchableOpacity style={s.photoRemoveBtn} onPress={() => handleRemovePhoto(idx)}>
                 <Text style={s.photoRemoveText}>✕</Text>
@@ -1374,6 +1411,15 @@ export default function WebPropertyEditPanel({
         })()}
         onClose={() => setNewOwnerVisible(false)}
         onSaved={handleNewOwnerSaved}
+      />
+
+      <WebPhotoGalleryModal
+        visible={galleryOpen}
+        photos={form.photos || []}
+        initialIndex={galleryIndex}
+        canDelete={!readOnly}
+        onClose={() => setGalleryOpen(false)}
+        onDelete={(_next, _url, idx) => handleRemovePhoto(idx)}
       />
     </Modal>
   );

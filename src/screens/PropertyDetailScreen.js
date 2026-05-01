@@ -1234,8 +1234,14 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       setGalleryIndex(Math.min(galleryIndex, newPhotos.length - 1));
     }
     try {
+      const oldThumbs = Array.isArray(p.photos_thumb) ? p.photos_thumb : [];
+      const oldPhotos = Array.isArray(p.photos) ? p.photos : [];
+      const deletedIdx = oldPhotos.indexOf(deletedUrl);
+      const deletedThumb = deletedIdx >= 0 ? oldThumbs[deletedIdx] : null;
+      const newThumbs = oldThumbs.filter((_, i) => i !== deletedIdx);
       await deletePhotoFromStorage(deletedUrl);
-      const updated = await updateProperty(p.id, { photos: newPhotos });
+      if (deletedThumb) await deletePhotoFromStorage(deletedThumb);
+      const updated = await updateProperty(p.id, { photos: newPhotos, photos_thumb: newThumbs });
       setP(prev => ({ ...prev, ...updated }));
       onPropertyUpdated?.();
     } catch (e) {
@@ -1297,6 +1303,13 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       const newPhotos = Array.isArray(updates.photos) ? updates.photos : [];
       for (const url of oldPhotos) {
         if (!newPhotos.includes(url)) {
+          await deletePhotoFromStorage(url);
+        }
+      }
+      const oldThumbs = Array.isArray(p.photos_thumb) ? p.photos_thumb : [];
+      const newThumbs = Array.isArray(updates.photos_thumb) ? updates.photos_thumb : [];
+      for (const url of oldThumbs) {
+        if (url && !newThumbs.includes(url)) {
           await deletePhotoFromStorage(url);
         }
       }

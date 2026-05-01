@@ -42,6 +42,7 @@ const AMENITY_ICONS = {
 import { getProperties, createProperty, deleteProperty } from '../../services/propertiesService';
 import { getActiveTeamMembers } from '../../services/companyService';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
+import WebPhotoGalleryModal from '../components/WebPhotoGalleryModal';
 import { getContacts } from '../../services/contactsService';
 import { getBookings } from '../../services/bookingsService';
 
@@ -226,7 +227,7 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
       {/* Thumbnail */}
       <View style={s.cardThumbWrap}>
         {hasPhoto ? (
-          <Image source={{ uri: item.photos[0] }} style={s.cardThumb} resizeMode="cover" />
+          <Image source={{ uri: item.photos_thumb?.[0] || item.photos[0] }} style={s.cardThumb} resizeMode="cover" />
         ) : (
           <View style={[s.cardThumbPlaceholder, { backgroundColor: meta.bg }]}>
             {meta.img
@@ -294,6 +295,8 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   const [currentResponsible, setCurrentResponsible] = useState(property.responsible_agent_id ?? null);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [deleteCascadeConfirmVisible, setDeleteCascadeConfirmVisible] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   React.useEffect(() => {
     setCurrentResponsible(property.responsible_agent_id ?? null);
@@ -357,12 +360,16 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         {property.photos?.length > 0 ? (
           property.photos.length === 1 ? (
             <View style={s.gallerySingle}>
-              <Image source={{ uri: property.photos[0] }} style={s.gallerySinglePhoto} resizeMode="cover" />
+              <TouchableOpacity activeOpacity={0.95} onPress={() => { setGalleryIndex(0); setGalleryOpen(true); }} style={{ width: '100%', height: '100%' }}>
+                <Image source={{ uri: property.photos[0] }} style={s.gallerySinglePhoto} resizeMode="cover" />
+              </TouchableOpacity>
             </View>
           ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.gallery} contentContainerStyle={s.galleryContent}>
             {property.photos.map((uri, i) => (
-              <Image key={i} source={{ uri }} style={s.galleryPhoto} resizeMode="cover" />
+              <TouchableOpacity key={i} activeOpacity={0.95} onPress={() => { setGalleryIndex(i); setGalleryOpen(true); }}>
+                <Image source={{ uri }} style={s.galleryPhoto} resizeMode="cover" />
+              </TouchableOpacity>
             ))}
           </ScrollView>
           )
@@ -684,7 +691,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                     <View style={s.childCardPhoto}>
                       {hasPhoto ? (
                         <Image
-                          source={{ uri: child.photos[0] }}
+                          source={{ uri: child.photos_thumb?.[0] || child.photos[0] }}
                           style={s.childCardImg}
                           resizeMode="cover"
                         />
@@ -834,6 +841,14 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         </View>
       </View>
     </Modal>
+
+    <WebPhotoGalleryModal
+      visible={galleryOpen}
+      photos={property.photos || []}
+      initialIndex={galleryIndex}
+      canDelete={false}
+      onClose={() => setGalleryOpen(false)}
+    />
     </View>
   );
 }
