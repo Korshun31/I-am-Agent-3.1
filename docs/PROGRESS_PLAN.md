@@ -185,7 +185,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ⬜ TD-090 — Веб браузерные push-уведомления (= P3-003)
 - ✅ TD-111 — снято в пользу простоты (этап 2 simple-perms): уведомлений с `action_taken` больше нет
 - ✅ TD-112 — снято в пользу простоты (этап 2 simple-perms): кнопки модерации убраны принципиально
-- ⬜ TD-113 — мобильный realtime бейдж уведомлений
+- ✅ TD-113 — мобильный realtime-бейдж уведомлений (закрыт ранее, подтверждено пользователем 2026-05-02). Подписка на `notifications` с фильтром `recipient_id=eq.user.id` уже подключена в `RealEstateScreen.js:154-177`, `AgentCalendarScreen.js:333`, `BookingCalendarScreen.js:333`; при INSERT/UPDATE/DELETE счётчик пересчитывается без перезахода.
 
 ## Statistics
 
