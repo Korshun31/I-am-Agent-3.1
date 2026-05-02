@@ -6,9 +6,14 @@ import { useLanguage } from '../../context/LanguageContext';
 import { getBookings } from '../../services/bookingsService';
 import { getProperties } from '../../services/propertiesService';
 import { getContacts } from '../../services/contactsService';
-import { getCalendarEvents, eventOccursOnDate } from '../../services/calendarEventsService';
-import { getCommissionDateAmounts } from '../../services/commissionRemindersService';
+import { getCalendarEvents } from '../../services/calendarEventsService';
 import { supabase } from '../../services/supabase';
+import {
+  computeBaseStats,
+  computeAgentStats,
+  buildCommissionEvents,
+  computeAgendaForDate,
+} from '../../utils/dashboardStats';
 import WebCalendarStrip from '../components/WebCalendarStrip';
 import WebAddCalendarEventModal from '../components/WebAddCalendarEventModal';
 
@@ -17,48 +22,6 @@ const ICON_TELEGRAM = require('../../../assets/icon-contact-telegram.png');
 const ICON_WHATSAPP = require('../../../assets/icon-contact-whatsapp.png');
 
 dayjs.extend(isBetween);
-
-const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
-
-function buildPropertiesMap(properties) {
-  const m = {};
-  (properties || []).forEach((p) => { m[p.id] = p; });
-  return m;
-}
-
-function isRentableUnit(p) {
-  return !!(p && HOUSE_LIKE_TYPES.has(p.type));
-}
-
-/** @returns {'houses'|'resortHouses'|'apartments'|null} */
-function categoryKeyRentable(p, propsMap) {
-  if (!isRentableUnit(p)) return null;
-  if (!p.resort_id) return 'houses';
-  const parent = propsMap[p.resort_id];
-  if (parent?.type === 'resort') return 'resortHouses';
-  if (parent?.type === 'condo') return 'apartments';
-  return null;
-}
-
-function breakdownByCategory(properties, propsMap, filterFn) {
-  let houses = 0;
-  let resortHouses = 0;
-  let apartments = 0;
-  (properties || []).forEach((p) => {
-    if (filterFn && !filterFn(p)) return;
-    const key = categoryKeyRentable(p, propsMap);
-    if (!key) return;
-    if (key === 'houses') houses += 1;
-    else if (key === 'resortHouses') resortHouses += 1;
-    else apartments += 1;
-  });
-  return {
-    houses,
-    resortHouses,
-    apartments,
-    total: houses + resortHouses + apartments,
-  };
-}
 
 // ─── Новая палитра ──────────────────────────────────────
 const CLR = {
@@ -121,140 +84,13 @@ export default function WebDashboardScreen({ user, refreshKey }) {
       setAllContacts(contacts);
       setAllCalendarEvents(calendarEvents);
 
-      // Расчет всех комиссионных событий
-      const allComms = [];
-      bookings.forEach(b => {
-        if (b.ownerCommissionOneTime || b.ownerCommissionMonthly) {
-          const pm = Number(b.priceMonthly) || 0;
-          const oneTimeEff = b.ownerCommissionOneTimeIsPercent && pm > 0
-            ? Math.round((Number(b.ownerCommissionOneTime) / 100) * pm)
-            : b.ownerCommissionOneTime;
-          const monthlyEff = b.ownerCommissionMonthlyIsPercent && pm > 0
-            ? Math.round((Number(b.ownerCommissionMonthly) / 100) * pm)
-            : b.ownerCommissionMonthly;
-          const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTimeEff, monthlyEff);
-          const prop = properties.find(p => p.id === b.propertyId);
-          dates.forEach(d => {
-            allComms.push({
-              ...d,
-              id: `comm-${b.id}-${d.date}`,
-              bookingId: b.id,
-              propertyId: b.propertyId,
-              propertyCode: prop?.code || '—',
-              propertyName: prop?.name || '—',
-              currency: prop?.currency || 'THB',
-              type: 'COMMISSION'
-            });
-          });
-        }
-      });
-      setAllCommissionEvents(allComms);
+      const commissionEvents = buildCommissionEvents({ bookings, properties });
+      setAllCommissionEvents(commissionEvents);
 
-      const now = dayjs();
-      const endOfMonth = now.endOf('month');
-      const isTeamMemberStats = !!(user?.teamMembership);
-      const propsMapStats = buildPropertiesMap(properties);
+      setStats(computeBaseStats({ properties, bookings, user }));
+      setAgentStats(computeAgentStats({ properties, bookings, user }));
 
-      const statsObjectFilter = isTeamMemberStats
-        ? (p) => p.responsible_agent_id === user.id
-        : null;
-      const categoryBreakdown = breakdownByCategory(properties, propsMapStats, statsObjectFilter);
-
-      // 2. Статистика занятости (для агента: только свои бронирования)
-      let myClientsCount = 0;
-      let otherClientsCount = 0;
-      const bookingsForStats = isTeamMemberStats
-        ? bookings.filter(b => b.responsibleAgentId === user.id)
-        : bookings;
-
-      const occupiedCount = bookingsForStats.filter(b => {
-        const start = dayjs(b.checkIn);
-        const end = dayjs(b.checkOut);
-        const isOccupied = now.isAfter(start) && now.isBefore(end);
-        if (isOccupied) {
-          if (b.notMyCustomer) otherClientsCount++;
-          else myClientsCount++;
-        }
-        return isOccupied;
-      }).length;
-
-      const upcomingBookings = bookingsForStats.filter(b => dayjs(b.checkIn).isAfter(now));
-      const thisMonthCount = upcomingBookings.filter(b => dayjs(b.checkIn).isBefore(endOfMonth)).length;
-
-      setStats({
-        total: categoryBreakdown.total,
-        houses: categoryBreakdown.houses,
-        resortHouses: categoryBreakdown.resortHouses,
-        apartments: categoryBreakdown.apartments,
-        occupied: occupiedCount,
-        myClients: myClientsCount,
-        otherClients: otherClientsCount,
-        upcoming: upcomingBookings.length,
-        thisMonth: thisMonthCount,
-        later: upcomingBookings.length - thisMonthCount
-      });
-
-      // Доп. статистика для участников команды (агентов)
-      if (isTeamMemberStats) {
-        const companyBd = breakdownByCategory(properties, propsMapStats, null);
-        const myBd = breakdownByCategory(properties, propsMapStats, (p) => p.responsible_agent_id === user?.id);
-
-        // Бронирования (активные сейчас)
-        let companyAgencyActive = 0, companyOwnerActive = 0, myAgencyActive = 0;
-        bookings.forEach(b => {
-          const start = dayjs(b.checkIn);
-          const end = dayjs(b.checkOut);
-          if (!now.isAfter(start) || !now.isBefore(end)) return;
-          if (b.notMyCustomer) { companyOwnerActive++; }
-          else {
-            companyAgencyActive++;
-            if (b.responsibleAgentId === user.id) myAgencyActive++;
-          }
-        });
-
-        // Предстоящие заселения
-        const allFutureAgency = bookings.filter(b => !b.notMyCustomer && dayjs(b.checkIn).isAfter(now));
-        const myFutureAgency = allFutureAgency.filter(b => b.responsibleAgentId === user.id);
-        const companyUpcomingCount = allFutureAgency.length;
-        const myUpcomingCount = myFutureAgency.length;
-        const myThisMonth = myFutureAgency.filter(b => dayjs(b.checkIn).isBefore(endOfMonth)).length;
-        const myLater = myUpcomingCount - myThisMonth;
-
-        // Заселения агента: сегодня / эта неделя / этот месяц
-        const todayStr = now.format('YYYY-MM-DD');
-        const endOfWeek = now.endOf('week');
-        const myBookings = bookings.filter(b => b.responsibleAgentId === user.id && !b.notMyCustomer);
-        const myCheckInToday = myBookings.filter(b => b.checkIn === todayStr).length;
-        const myCheckInWeek = myBookings.filter(b => {
-          const d = dayjs(b.checkIn);
-          return d.isAfter(now.startOf('day').subtract(1, 'ms')) && d.isBefore(endOfWeek.add(1, 'ms'));
-        }).length;
-        const myCheckInMonth = myBookings.filter(b => {
-          const d = dayjs(b.checkIn);
-          return d.isAfter(now.startOf('month').subtract(1, 'ms')) && d.isBefore(endOfMonth.add(1, 'ms'));
-        }).length;
-
-        setAgentStats({
-          companyTotal: companyBd.total,
-          companyHouses: companyBd.houses,
-          companyResorts: companyBd.resortHouses,
-          companyCondos: companyBd.apartments,
-          myTotal: myBd.total,
-          myHouses: myBd.houses,
-          myResorts: myBd.resortHouses,
-          myCondos: myBd.apartments,
-          companyAgencyActive, companyOwnerActive, myAgencyActive,
-          companyTotalActive: companyAgencyActive + companyOwnerActive,
-          companyUpcoming: companyUpcomingCount,
-          myUpcoming: myUpcomingCount,
-          myThisMonth, myLater,
-          myCheckInToday, myCheckInWeek, myCheckInMonth,
-        });
-      } else {
-        setAgentStats(null);
-      }
-
-      updateEventsForDate(selectedDate, bookings, properties, contacts, calendarEvents, allComms);
+      updateEventsForDate(selectedDate, bookings, properties, contacts, calendarEvents, commissionEvents);
     } catch (e) {
       console.error('Dashboard load error:', e);
     } finally {
@@ -274,60 +110,17 @@ export default function WebDashboardScreen({ user, refreshKey }) {
   });
 
 
-  const updateEventsForDate = (date, bookings, properties, contacts, calendarEvents, allComms) => {
-    const dateStr = date.format('YYYY-MM-DD');
-    const isTeamMember = !!(user?.teamMembership);
-    const propsMap = {};
-    properties.forEach(p => { propsMap[p.id] = p; });
-
-    const enrich = (b) => {
-      const prop = propsMap[b.propertyId];
-      const client = contacts.find(c => c.id === b.contactId);
-      return {
-        ...b,
-        propertyName: prop?.name || t('noName'),
-        propertyCode: prop?.code || '—',
-        clientName: client ? `${client.name} ${client.lastName}` : '—',
-        clientPhone: client?.phone || '',
-        clientTelegram: client?.telegram || '',
-      };
-    };
-
-    // Заселения: свои клиенты (не клиенты собственника) из своих объектов
-    const ins = bookings.filter(b => {
-      if (b.checkIn !== dateStr || b.notMyCustomer) return false;
-      if (isTeamMember) return propsMap[b.propertyId]?.responsible_agent_id === user.id;
-      return true;
-    }).map(enrich);
-
-    // Выселения: все бронирования из своих объектов (включая клиентов собственника)
-    const outs = bookings.filter(b => {
-      if (b.checkOut !== dateStr) return false;
-      if (isTeamMember) return propsMap[b.propertyId]?.responsible_agent_id === user.id;
-      return true;
-    }).map(enrich);
-
-    // Комиссии: только из своих объектов
-    const commissions = allComms.filter(c => {
-      if (c.date !== dateStr) return false;
-      if (isTeamMember) return propsMap[c.propertyId]?.responsible_agent_id === user.id;
-      return true;
-    });
-
-    // Личные события всегда видны (они созданы самим пользователем)
-    const personal = calendarEvents
-      .filter(e => eventOccursOnDate(e, dateStr))
-      .map(e => ({ 
-        ...e, 
-        type: 'PERSONAL',
-        time: e.eventTime
-      }));
-
-    setFilteredEvents({ 
-      checkIns: ins, 
-      checkOuts: outs, 
-      personal: [...personal, ...commissions] 
-    });
+  const updateEventsForDate = (date, bookings, properties, contacts, calendarEvents, commissionEvents) => {
+    setFilteredEvents(computeAgendaForDate({
+      date,
+      user,
+      properties,
+      bookings,
+      contacts,
+      calendarEvents,
+      commissionEvents,
+      noNameFallback: t('noName'),
+    }));
   };
 
   const handleDateSelect = (date) => {
