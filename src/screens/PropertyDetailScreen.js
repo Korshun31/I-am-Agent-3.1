@@ -1369,6 +1369,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     district: p.district || '',
     google_maps_link: p.google_maps_link || '',
     address: p.address || '',
+    currency: p.currency || null,
   };
 
   const draftApartmentInCondo = {
@@ -1383,6 +1384,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     district: p.district || '',
     google_maps_link: p.google_maps_link || '',
     address: p.address || '',
+    currency: p.currency || null,
   };
 
   const handleAddHouseSave = async (updates) => {

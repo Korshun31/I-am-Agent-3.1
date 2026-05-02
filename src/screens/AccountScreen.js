@@ -225,6 +225,7 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
       setLanguage(lang);
       setNotificationSettings(profile.notificationSettings || {});
       setSelectedCurrency(curr);
+      setCurrency(curr);
     }).catch(() => {});
     loadLocations();
   }, [email]); // eslint-disable-line react-hooks/exhaustive-deps

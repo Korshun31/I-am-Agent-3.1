@@ -23,6 +23,7 @@ import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useLanguage } from '../context/LanguageContext';
+import { getCurrencySymbol } from '../utils/currency';
 import { getCurrentUser } from '../services/authService';
 import { getPhotoLimitForProperty } from '../constants/roleFeatures';
 import { getLocations, getLocationsForAgent, getLocationDistricts, addLocationDistrict } from '../services/locationsService';
@@ -1100,7 +1101,9 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
 }
 
 export default function PropertyEditWizard({ visible, property, onClose, onSave, parentResort, mode = 'edit', initialType = 'house' }) {
-  const { t, currency, currencySymbol: sym } = useLanguage();
+  const { t, currency } = useLanguage();
+  const activeCurrency = mode === 'edit' ? (property?.currency || currency) : currency;
+  const sym = getCurrencySymbol(activeCurrency);
   const [step, setStep] = useState(0);
   const [data, setData] = useState({});
   const [saving, setSaving] = useState(false);
@@ -1245,7 +1248,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
 
       const propRef = mode === 'create' ? { type: propertyType } : property;
       const resortRef = mode === 'create' ? null : parentResort;
-      const updates = buildUpdates(data, propRef, resortRef, maxPhotos, currency);
+      const updates = buildUpdates(data, propRef, resortRef, maxPhotos, activeCurrency);
       await onSave(updates);
     } catch (e) {
       const msg = e?.code === 'DUPLICATE_PROPERTY_CODE'

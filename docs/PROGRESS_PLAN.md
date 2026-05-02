@@ -106,7 +106,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ⬜ TD-043 — `properties.resort_id` → `parent_id` (78 вхождений)
 - ✅ TD-044 — мобильный wizard валидация локации/района (коммит `c354c72`)
 - ⏳ TD-045 — Веб `video_url` → `videos` массив (есть `video_url`, не массив)
-- ⬜ TD-046 — мобильный не хранит currency на объекте
+- ✅ TD-046 — currency на мобильном (2026-05-02). Запись в БД уже была, но (а) при редактировании валюта объекта затиралась на текущую валюту пользователя из контекста (`useLanguage().currency`), (б) форма редактирования рисовала символ валюты пользователя, а не валюты объекта, (в) при свежем логине `LanguageContext` подтягивал валюту только из `AsyncStorage`, не из `users_profile.settings.selectedCurrency` — отсюда расхождение «галочка USD в настройках, форма в ฿». Фиксы: `PropertyEditWizard.js` — `activeCurrency = mode === 'edit' ? (property?.currency || currency) : currency`, символ строится через `getCurrencySymbol(activeCurrency)` и идёт и в отображение, и в `buildUpdates`. `PropertyDetailScreen.js` — драфты `draftHouseInResort`/`draftApartmentInCondo` получили `currency: p.currency`, чтобы новый юнит наследовал валюту родителя. `AccountScreen.js` — после загрузки профиля рядом с `setSelectedCurrency(curr)` вызывается `setCurrency(curr)` для синхронизации общего контекста.
 - ⏳ TD-047 — Веб поле `address` (есть в form, не в UI)
 - ✅ TD-048 — Веб загружает owners для агента (коммит `0eda95e`)
 - ✅ TD-049 — мобильный wizard скрыть «Ответственный» агенту (коммит `c354c72`)
