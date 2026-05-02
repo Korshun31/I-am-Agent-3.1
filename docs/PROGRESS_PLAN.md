@@ -1,4 +1,4 @@
-2309# Progress Plan — приведение проекта в порядок
+# Progress Plan — приведение проекта в порядок
 
 > Единая «доска задач» для ветки `dev`. Только статусы и ссылки на детальные описания.
 > - Описание каждого `TD-XXX` — в `CURSOR_RULES.md` раздел 7.
@@ -11,7 +11,7 @@
 > - ⬜ не начато
 > - 🔁 заблокировано / зависит от другого пункта
 >
-> Последнее обновление: 2026-05-01 (фаза 6 «фото-галерея» закрыта: TD-063, TD-064, TD-065, TD-066)
+> Последнее обновление: 2026-05-02 (фаза 7 «предупреждения при удалении» закрыта: TD-054, TD-061, TD-067, TD-068)
 
 ---
 
@@ -44,9 +44,8 @@ TD-072 (занятые даты в picker), TD-074 (сжатие фото), TD-0
 ### Фаза 6 — Фото-галерея (3-4 дня) — ЗАКРЫТА 2026-05-01
 TD-064 (миниатюры 150px), TD-065 (полноэкранная галерея web) → TD-066 (кнопки save/delete в галерее), TD-063 (delete из storage при edit). ✅ Все четыре закрыты 2026-05-01. Один новый компонент `WebPhotoGalleryModal` + новая утилита `uploadPhotoWithThumb` + миграция `20260501000001_properties_photos_thumb.sql`.
 
-### Фаза 7 — Шаблон «предупреждения при удалении» (1 день)
-TD-061 (объект с бронированиями), TD-067 (локация с объектами), TD-068 (UNIQUE на city), TD-054 (UNIQUE на code).
-Зачем вместе: один UI-шаблон confirm-dialog с count-проверкой — пишется 1 раз, переиспользуется.
+### Фаза 7 — Шаблон «предупреждения при удалении» (1 день) — ЗАКРЫТА 2026-05-02
+TD-061 (объект с бронированиями), TD-067 (локация с объектами), TD-068 (UNIQUE на city), TD-054 (UNIQUE на code). ✅ Все четыре закрыты 2026-05-02. Миграция `20260502000000_properties_locations_uniques.sql` (partial unique index по `(company_id, code, code_suffix)` + UNIQUE по `(company_id, country, region, city)`). Новые helper'ы `getBookingsCountForProperty` / `getPropertiesCountByLocation` + правки в UI на обеих платформах.
 
 ### Фаза 8 — Mobile паритет (5-7 дней)
 TD-022 (mobile UI «Команда»), TD-021 (mobile invite accept экран), TD-114 (StatisticsScreen parity), TD-046 (currency на объекте), TD-113 (realtime бейдж), TD-041 (OAuth pending invitations). _(TD-059, TD-111 сняты в этапе 2 simple-perms.)_
@@ -115,20 +114,20 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ✅ TD-051 — whitelist полей в `createPropertyFull`/`updateProperty`/`approvePropertyDraft` + фикс авто-принятия (2026-04-27, коммит `445d9c9`)
 - ✅ TD-052 — снято в пользу простоты (этап 2 simple-perms): статус `submitted` больше не используется, мёртвый код в триггере уйдёт в этапе 3 (cleanup)
 - ✅ TD-053 — фото в Storage не удаляются при delete (коммит `c048ded`)
-- ⬜ TD-054 — UNIQUE constraint на `code`
+- ✅ TD-054 — UNIQUE на `(company_id, UPPER(TRIM(code)), UPPER(COALESCE(TRIM(code_suffix), '')))` через partial index (2026-05-02, миграции `20260502000000` + `20260502000001`). Пустой/NULL код пропускается, дочерние юниты различаются по `code_suffix`. Case-insensitive: `Test 1` и `TEST 1` считаются одним. UI на обеих платформах приводит code/code_suffix к UPPER. При попытке создать дубль сервис бросает `error.code='DUPLICATE_PROPERTY_CODE'`, UI показывает понятный текст красным жирным.
 - ✅ TD-055 — снято в пользу простоты (этап 2 simple-perms): черновиков объектов больше нет
 - ✅ TD-056 — снято в пользу простоты (этап 2 simple-perms): `needsApproval`-логики больше не существует
 - ✅ TD-058 — снято в пользу простоты (этап 2 simple-perms): раздельное сохранение `info`/`prices` неактуально, `can_manage_property` управляет всем
 - ✅ TD-059 — снято в пользу простоты (этап 2 simple-perms): статуса `rejected` больше нет
 - ⬜ TD-060 — Веб каскадное обновление района дочерних
-- ⬜ TD-061 — предупреждение при удалении объекта с бронированиями
+- ✅ TD-061 — предупреждение при удалении объекта с бронированиями (2026-05-02). Helper `bookingsService.getBookingsCountForProperty` (учитывает дочерние юниты в резорте/кондо). На вебе `WebPropertiesScreen.PropertyDetail` — текст модалки меняется на «у объекта N броней, они тоже удалятся». На мобайле `PropertyDetailScreen.handleDeletePress` — async с alert'ом про count перед onDelete/handleDirectDelete.
 - ✅ TD-062 — Веб сжатие фото (1200px JPEG 0.85, `WebPropertyEditPanel.js:25`)
 - ✅ TD-063 — Веб удалённые фото из Storage (2026-05-01). `WebPropertyEditPanel.handleRemovePhoto` больше не зовёт `deletePhotoFromStorage` мгновенно — крестик только обновляет state. Реальное удаление файлов (оригинал + миниатюра) происходит в `handleSave` через diff `property.photos/photos_thumb` vs `updates.photos/photos_thumb`. Закрытие панели без save теперь не теряет фото — паритет с мобильным.
 - ✅ TD-064 — миниатюры фотографий 150px (2026-05-01). Миграция `20260501000001_properties_photos_thumb.sql` (колонка `photos_thumb text[]`). При загрузке фото генерируется два файла `_thumb.jpg` (150px) и оригинал (1200px); веб через `resizeImageFile`, мобайл через новую `uploadPhotoWithThumb` в `storageService.js` (использует `expo-image-manipulator`). Списки/карточки используют миниатюру с fallback на оригинал: `WebPropertiesScreen` (cardThumb, child unit), `WebPropertyEditPanel` (грид превью), `PropertyItem` (мобильный expandedPhoto). Storage-cleanup при удалении (handleRemovePhoto, handlePhotoDelete, handleSave, deleteProperty) чистит и thumb-URL. Whitelist `propertiesService.ALLOWED_CLIENT_FIELDS` расширен на `photos_thumb`.
 - ✅ TD-065 — Веб полноэкранная галерея (2026-05-01). Новый компонент `src/web/components/WebPhotoGalleryModal.js`: чёрный backdrop, навигация стрелками ‹/› + клавишами ←/→, Escape закрывает, клик на backdrop закрывает, счётчик «N / M». Подключён в трёх местах: карусель `WebPropertyDetailPanel` (read-only), большая галерея на странице «База» в `WebPropertiesScreen.PropertyDetail` (read-only), грид редактора `WebPropertyEditPanel` (с правом удаления).
 - ✅ TD-066 — кнопки сохранить/удалить в галерее (2026-05-01, в составе TD-065). Кнопка ↓ открывает меню «Save this photo / Save all (N)» (паритет с мобильным `PropertyDetailScreen.PhotoGalleryModal`). Скачивание через fetch+blob+`<a download>` (cross-origin Supabase → localhost). Кнопка корзины 🗑 видна только при `canDelete=true` (только в редакторе), удаление через `window.confirm`.
-- ⬜ TD-067 — удаление локации с привязанными объектами
-- ⬜ TD-068 — UNIQUE на (company_id, country, region, city)
+- ✅ TD-067 — удаление локации с привязанными объектами блокируется (2026-05-02). Helper `propertiesService.getPropertiesCountByLocation`. На вебе `WebLocationsModal.handleDelete` и на мобайле `AddLocationsModal.handleDelete` — если count > 0, показывается «нельзя удалить, у локации N объектов».
+- ✅ TD-068 — UNIQUE на `(company_id, UPPER(TRIM(country)), UPPER(TRIM(region)), UPPER(TRIM(city)))` для locations (2026-05-02, миграции `20260502000000` + `20260502000001`). Case-insensitive. Дубль в сервисе — `error.code='DUPLICATE_LOCATION'`, UI показывает красным. Плюс case-insensitive проверка дубля района при добавлении (помимо UNIQUE на subtable `location_districts`) — на UI красная ошибка под input'ом, при клике «Сохранить» с не-добавленным районом он автоматически добавляется/проверяется.
 - ✅ TD-069 — обязательность всех полей локации (коммит `c354c72`)
 - ✅ TD-070 — Веб: в WebPropertyEditPanel под dropdown'ом района добавлен inline-input «+ Добавить» через `setLocationDistricts`. Доступно и админу, и агенту. Паритет с мобильным (2026-04-30).
 - ✅ TD-071 — мобильный показывает «Ответственный» агенту (коммит `c354c72`)
@@ -235,6 +234,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ⬜ Сверка ветки `dev` с правилами всех модулей (`docs/MODULE_RULES/`).
 - ⬜ Обновить `docs/RULES_HUMAN/` — все правила человеческим языком (просьба от 2026-04-14).
 - ⬜ Property type cleanup в prod — 132 объекта (см. `project_properties_type_cleanup.md`).
+- ⬜ Нормализация code/code_suffix в prod к UPPER(TRIM(...)) ДО наката миграции `20260502000001` — иначе индекс упадёт на дублях. SQL: `SELECT company_id, UPPER(TRIM(code)), UPPER(COALESCE(TRIM(code_suffix),'')), COUNT(*) FROM properties WHERE code IS NOT NULL AND TRIM(code)<>'' GROUP BY 1,2,3 HAVING COUNT(*)>1;` если есть строки — почистить руками, потом `UPDATE properties SET code=UPPER(TRIM(code)), code_suffix=NULLIF(UPPER(TRIM(code_suffix)),'') WHERE code IS NOT NULL AND TRIM(code)<>'';`. Аналогично для `locations.country/region/city`.
 - ⬜ Хвосты по `properties.updated_at`: создать файл миграции в git, обновить TD-007 в CURSOR_RULES, отменить ADR-002.
 - ⬜ Backup prod базы перед миграцией.
 - ⬜ Накат всех новых миграций в prod (`20260427000000`..`20260427000005` плюс возможные новые).

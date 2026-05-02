@@ -313,6 +313,9 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   const children = allProperties.filter(p => p.resort_id === property.id);
   const isParentContainer = (property.type === 'resort' || property.type === 'condo') && !property.resort_id;
   const needsSecondDeleteConfirm = isAdminRole && isParentContainer && children.length > 0;
+  // TD-061: считаем брони объекта + всех его дочерних юнитов из уже загруженного списка bookings.
+  const relevantPropertyIds = new Set([property.id, ...children.map(c => c.id)]);
+  const bookingsCount = (bookings || []).filter(b => relevantPropertyIds.has(b.propertyId || b.property_id)).length;
   const occupied = isOccupiedNow(bookings, property.id);
   const code = property.code + (property.code_suffix ? `-${property.code_suffix}` : '');
   const effectiveType = property.resort_id && parent ? parent.type : property.type;
@@ -785,7 +788,11 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
       <View style={s.modalOverlay}>
         <View style={s.deleteConfirmBox}>
           <Text style={s.deleteConfirmTitle}>{t('deletePropertyTitle')}</Text>
-          <Text style={s.deleteConfirmText}>{t('deletePropertyConfirmText')}</Text>
+          <Text style={s.deleteConfirmText}>
+            {bookingsCount > 0
+              ? t('deletePropertyWithBookingsText').replace('{count}', String(bookingsCount))
+              : t('deletePropertyConfirmText')}
+          </Text>
           <View style={s.deleteConfirmActions}>
             <TouchableOpacity
               style={s.deleteConfirmCancelBtn}

@@ -14,6 +14,7 @@ import {
   Alert,
 } from 'react-native';
 import { getLocationDistricts, setLocationDistricts, updateDistrictName, removeDistrict } from '../services/locationsService';
+import { getPropertiesCountByLocation } from '../services/propertiesService';
 import { BlurView } from 'expo-blur';
 import { useLanguage } from '../context/LanguageContext';
 import { useAppData } from '../context/AppDataContext';
@@ -196,13 +197,26 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
 
   const handleSave = () => {
     if (!country?.name) return;
+
+    // Если юзер ввёл район в input, но не подтвердил — добавляем сами перед сохранением.
+    let finalDistricts = districts;
+    const pending = newDistrictValue.trim();
+    if (pending) {
+      if (districts.some(d => String(d).toLowerCase() === pending.toLowerCase())) {
+        Alert.alert(t('error') || 'Error', t('duplicateDistrictError'));
+        return;
+      }
+      finalDistricts = [...districts, pending].sort();
+      setDistricts(finalDistricts);
+    }
+
     setShowAddDistrictInput(false);
     setNewDistrictValue('');
     onSave?.({
       country: country.name,
       region: region?.name || '',
       city: city?.name || '',
-      districts: [...districts],
+      districts: [...finalDistricts],
     });
   };
 
@@ -213,7 +227,8 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
       setNewDistrictValue('');
       return;
     }
-    if (districts.includes(trimmed)) {
+    if (districts.some(d => String(d).toLowerCase() === trimmed.toLowerCase())) {
+      Alert.alert(t('error') || 'Error', t('duplicateDistrictError'));
       setNewDistrictValue('');
       return;
     }
@@ -297,7 +312,22 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
     setCity(null);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    // TD-067: блокируем удаление, если у локации есть привязанные объекты.
+    const locationId = editLocationData?.id;
+    let propsCount = 0;
+    if (locationId) {
+      try { propsCount = await getPropertiesCountByLocation(locationId); } catch {}
+    }
+    if (propsCount > 0) {
+      const blockedMsg = t('deleteLocationBlockedText').replace('{count}', String(propsCount));
+      if (Platform.OS === 'web' || typeof Alert?.alert !== 'function') {
+        if (typeof window !== 'undefined') window.alert(`${t('deleteLocationBlockedTitle')}\n\n${blockedMsg}`);
+      } else {
+        Alert.alert(t('deleteLocationBlockedTitle'), blockedMsg, [{ text: 'OK', style: 'default' }]);
+      }
+      return;
+    }
     const msg = t('deleteLocationConfirm') + '\n\n' + t('deleteLocationConfirmMessage');
     if (Platform.OS === 'web' || typeof Alert?.alert !== 'function') {
       if (typeof window !== 'undefined' && window.confirm?.(msg)) {

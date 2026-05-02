@@ -26,7 +26,7 @@ import { getProperties, updateProperty, createProperty, deleteProperty, updateRe
 import { getActiveTeamMembers } from '../services/companyService';
 import { deletePhotoFromStorage } from '../services/storageService';
 import { getContacts } from '../services/contactsService';
-import { getBookings, deleteBooking } from '../services/bookingsService';
+import { getBookings, deleteBooking, getBookingsCountForProperty } from '../services/bookingsService';
 import { cancelBookingReminders } from '../services/bookingRemindersService';
 import PropertyEditWizard from '../components/PropertyEditWizard';
 import AddBookingModal from '../components/AddBookingModal';
@@ -1263,39 +1263,57 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     }
   }, [p?.id, onPropertyUpdated, onBack, t]);
 
-  const handleDeletePress = useCallback(() => {
+  const handleDeletePress = useCallback(async () => {
+    // TD-061: для не-контейнера подтверждение делает родитель через onDelete (Alert с pdDeleteConfirm).
+    // Здесь добавляем предварительный alert с count броней, если они есть.
+    let bookingsCount = 0;
+    try { bookingsCount = await getBookingsCountForProperty(p.id); } catch {}
+
+    const showBookingsAlertIfAny = (afterConfirm) => {
+      if (bookingsCount > 0) {
+        Alert.alert(
+          t('deletePropertyTitle'),
+          t('deletePropertyWithBookingsText').replace('{count}', String(bookingsCount)),
+          [
+            { text: t('cancel'), style: 'cancel' },
+            { text: t('deleteAction'), style: 'destructive', onPress: afterConfirm },
+          ]
+        );
+      } else {
+        afterConfirm();
+      }
+    };
+
     if (!needsSecondDeleteConfirm) {
-      onDelete?.();
+      showBookingsAlertIfAny(() => onDelete?.());
       return;
     }
-    Alert.alert(
-      t('deletePropertyTitle'),
-      t('pdDeleteConfirm'),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('deleteAction'),
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              t('deleteContainerWithUnitsTitle'),
-              t('deleteContainerWithUnitsText'),
-              [
-                { text: t('cancel'), style: 'cancel' },
-                {
-                  text: t('deleteAction'),
-                  style: 'destructive',
-                  onPress: async () => {
-                    await handleDirectDelete();
-                  },
-                },
-              ]
-            );
+
+    // Контейнер с детьми: сохраняем двойное подтверждение (pdDeleteConfirm → deleteContainerWithUnitsText).
+    showBookingsAlertIfAny(() => {
+      Alert.alert(
+        t('deletePropertyTitle'),
+        t('pdDeleteConfirm'),
+        [
+          { text: t('cancel'), style: 'cancel' },
+          {
+            text: t('deleteAction'),
+            style: 'destructive',
+            onPress: () => {
+              Alert.alert(
+                t('deleteContainerWithUnitsTitle'),
+                t('deleteContainerWithUnitsText'),
+                [
+                  { text: t('cancel'), style: 'cancel' },
+                  { text: t('deleteAction'), style: 'destructive', onPress: async () => { await handleDirectDelete(); } },
+                ]
+              );
+            },
           },
-        },
-      ]
-    );
-  }, [needsSecondDeleteConfirm, onDelete, t, handleDirectDelete]);
+        ]
+      );
+    });
+  }, [p?.id, needsSecondDeleteConfirm, onDelete, t, handleDirectDelete]);
 
   const handleWizardSave = async (updates) => {
     try {

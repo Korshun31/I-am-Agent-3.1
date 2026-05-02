@@ -40,6 +40,17 @@ function pickAllowed(updates) {
   return out;
 }
 
+// TD-067: количество объектов в локации. HEAD-запрос count='exact' — без выгрузки.
+export async function getPropertiesCountByLocation(locationId) {
+  if (!locationId) return 0;
+  const { count, error } = await supabase
+    .from('properties')
+    .select('id', { count: 'exact', head: true })
+    .eq('location_id', locationId);
+  if (error) return 0;
+  return count || 0;
+}
+
 export async function getProperties(agentId = null) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return [];
@@ -160,7 +171,14 @@ export async function createProperty({ name, code, type, location_id, owner_id, 
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === '23505') {
+      const e = new Error('Property code must be unique within the company');
+      e.code = 'DUPLICATE_PROPERTY_CODE';
+      throw e;
+    }
+    throw new Error(error.message);
+  }
 
   if (agentMember) {
     const adminId = await resolveCompanyOwnerId(effectiveCompanyId);
@@ -198,7 +216,14 @@ export async function createPropertyFull(updates) {
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === '23505') {
+      const e = new Error('Property code must be unique within the company');
+      e.code = 'DUPLICATE_PROPERTY_CODE';
+      throw e;
+    }
+    throw new Error(error.message);
+  }
 
   if (agentMember) {
     const adminId = await resolveCompanyOwnerId(effectiveCompanyId);
@@ -238,7 +263,14 @@ export async function updateProperty(id, updates) {
     .eq('id', id)
     .select();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === '23505') {
+      const e = new Error('Property code must be unique within the company');
+      e.code = 'DUPLICATE_PROPERTY_CODE';
+      throw e;
+    }
+    throw new Error(error.message);
+  }
   const saved = data?.[0] ?? null;
 
   // Notify the newly-assigned responsible agent (best-effort).

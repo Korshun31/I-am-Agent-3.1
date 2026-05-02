@@ -549,9 +549,10 @@ export default function WebPropertyEditPanel({
   const handleAddNewDistrict = async () => {
     const trimmed = (newDistrictInput || '').trim();
     if (!trimmed || !form.location_id || addingDistrict) return;
-    if (districts.includes(trimmed)) {
-      set('district', trimmed);
-      setNewDistrictInput('');
+    // Case-insensitive проверка локально перед запросом.
+    const lower = trimmed.toLowerCase();
+    if (districts.some(d => d.toLowerCase() === lower)) {
+      setAddDistrictError(t('duplicateDistrictError'));
       return;
     }
     setAddingDistrict(true);
@@ -563,7 +564,7 @@ export default function WebPropertyEditPanel({
       setNewDistrictInput('');
     } catch (e) {
       console.warn('[addLocationDistrict] failed:', e?.message);
-      setAddDistrictError(e?.message || t('errorUpload'));
+      setAddDistrictError(e?.code === 'DUPLICATE_DISTRICT' ? t('duplicateDistrictError') : (e?.message || t('errorUpload')));
     } finally {
       setAddingDistrict(false);
     }
@@ -625,7 +626,7 @@ export default function WebPropertyEditPanel({
     let updates = {
       name: form.name.trim(),
       code: form.code.trim().toUpperCase(),
-      code_suffix: form.code_suffix.trim() || null,
+      code_suffix: form.code_suffix.trim().toUpperCase() || null,
       type: targetType,
       location_id: form.location_id || null,
       city: cityValue || null,
@@ -724,7 +725,12 @@ export default function WebPropertyEditPanel({
       }
       onSaved(saved);
     } catch (e) {
-      setError(e.message || t('errorSave'));
+      if (e?.code === 'DUPLICATE_PROPERTY_CODE') {
+        setError(t('duplicatePropertyCodeError'));
+        setTab('main');
+      } else {
+        setError(e.message || t('errorSave'));
+      }
     } finally {
       setSaving(false);
     }
@@ -1611,7 +1617,7 @@ const s = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: C.border,
     gap: 8,
   },
-  footerError: { fontSize: 13, color: ACCENT },
+  footerError: { fontSize: 14, color: '#E53935', fontWeight: '700' },
   footerBtns: { flexDirection: 'row', gap: 10 },
   cancelBtn: {
     flex: 1, height: 44, borderRadius: 14,
@@ -1641,5 +1647,5 @@ const s = StyleSheet.create({
   },
   addDistrictBtnDisabled:{ opacity: 0.4 },
   addDistrictBtnText:    { fontSize: 13, color: ACCENT, fontWeight: '600' },
-  addDistrictError:      { fontSize: 12, color: '#C62828', marginTop: 4, marginLeft: 2 },
+  addDistrictError:      { fontSize: 14, color: '#E53935', fontWeight: '700', marginTop: 4, marginLeft: 2 },
 });

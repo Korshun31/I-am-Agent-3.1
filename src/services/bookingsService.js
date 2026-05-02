@@ -48,6 +48,23 @@ async function loadBookingNotificationContext(row) {
   }
 }
 
+// TD-061: считает брони для объекта (включая бронирования всех его дочерних юнитов,
+// если объект — контейнер resort/condo). Использует HEAD-запрос count='exact' — без выгрузки данных.
+export async function getBookingsCountForProperty(propertyId) {
+  if (!propertyId) return 0;
+  const { data: children } = await supabase
+    .from('properties')
+    .select('id')
+    .eq('resort_id', propertyId);
+  const ids = [propertyId, ...((children || []).map(c => c.id))];
+  const { count, error } = await supabase
+    .from('bookings')
+    .select('id', { count: 'exact', head: true })
+    .in('property_id', ids);
+  if (error) return 0;
+  return count || 0;
+}
+
 export async function getBookings(propertyId = null, contactId = null, agentId = null) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return [];

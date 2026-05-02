@@ -119,11 +119,18 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
   const handleAddNewDistrict = async () => {
     const trimmed = newDistrict.trim();
     if (!trimmed) return;
+    // Case-insensitive локальная проверка перед запросом.
+    const lower = trimmed.toLowerCase();
+    if ((locationDistricts || []).some(d => String(d).toLowerCase() === lower)) {
+      Alert.alert(t('error') || 'Error', t('duplicateDistrictError'));
+      return;
+    }
     if (data.location_id && onDistrictAdded) {
       try {
         await onDistrictAdded(data.location_id, trimmed);
       } catch (e) {
-        Alert.alert('Error', e.message || 'Error');
+        const msg = e?.code === 'DUPLICATE_DISTRICT' ? t('duplicateDistrictError') : (e.message || 'Error');
+        Alert.alert(t('error') || 'Error', msg);
         return;
       }
     }
@@ -1037,8 +1044,8 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
   const ownerId = isHouseInResort && parentResort ? (parentResort.owner_id || null) : (data.owner_id || null);
   return {
     name: data.name.trim(),
-    code: data.code.trim(),
-    code_suffix: (data.code_suffix || '').trim(),
+    code: data.code.trim().toUpperCase(),
+    code_suffix: (data.code_suffix || '').trim().toUpperCase(),
     type: property?.type || 'house',
     city: isHouseInResort && parentResort ? parentCity : data.city.trim(),
     location_id: data.location_id || null,
@@ -1241,7 +1248,10 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       const updates = buildUpdates(data, propRef, resortRef, maxPhotos, currency);
       await onSave(updates);
     } catch (e) {
-      Alert.alert(t('error'), e.message || 'Error');
+      const msg = e?.code === 'DUPLICATE_PROPERTY_CODE'
+        ? t('duplicatePropertyCodeError')
+        : (e.message || 'Error');
+      Alert.alert(t('error'), msg);
     } finally {
       setSaving(false);
       setUploadProgress('');

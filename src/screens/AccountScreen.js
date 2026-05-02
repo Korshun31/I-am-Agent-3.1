@@ -738,7 +738,8 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
           setEditLocationData(null);
           loadLocations();
         } catch (e) {
-          Alert.alert('Error', e.message);
+          const msg = e?.code === 'DUPLICATE_LOCATION' ? t('duplicateLocationError') : e.message;
+          Alert.alert('Error', msg);
         }
       }}
     />
