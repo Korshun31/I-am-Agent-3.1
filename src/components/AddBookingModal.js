@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
 import { createContact, getContactById } from '../services/contactsService';
 import { computeTotalPrice, computeMonthlyBreakdown } from '../utils/bookingPricing';
+import { buildOccupancyArrays, hasOccupiedInRange } from '../utils/bookingOccupancy';
 import { createBooking, updateBooking } from '../services/bookingsService';
 import { getActiveTeamMembers } from '../services/companyService';
 import { useAppData } from '../context/AppDataContext';
@@ -69,45 +70,9 @@ function formatMoneyDisplay(val) {
   const s = String(val ?? '').replace(/\D/g, '');
   return s.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
-/** Compute all occupied dates (YYYY-MM-DD) from existing bookings */
-function getOccupiedDates(bookings) {
-  const set = new Set();
-  (bookings || []).forEach((b) => {
-    if (!b.checkIn || !b.checkOut) return;
-    const start = dayjs(b.checkIn);
-    const end = dayjs(b.checkOut);
-    let d = start;
-    while (d.isBefore(end) || d.isSame(end, 'day')) {
-      set.add(d.format('YYYY-MM-DD'));
-      d = d.add(1, 'day');
-    }
-  });
-  return Array.from(set);
-}
-
-/** Dates that are check-in for some booking */
-function getOccupiedCheckInDates(bookings) {
-  return (bookings || []).filter((b) => b.checkIn).map((b) => dayjs(b.checkIn).format('YYYY-MM-DD'));
-}
-
-/** Dates that are check-out for some booking */
-function getOccupiedCheckOutDates(bookings) {
-  return (bookings || []).filter((b) => b.checkOut).map((b) => dayjs(b.checkOut).format('YYYY-MM-DD'));
-}
-
-/** Check if range [checkIn, checkOut] overlaps with occupied dates */
-function hasOverlapWithOccupied(checkIn, checkOut, occupiedDates) {
-  if (!checkIn || !checkOut || !occupiedDates?.length) return false;
-  const start = dayjs(checkIn);
-  const end = dayjs(checkOut);
-  const occSet = new Set(occupiedDates);
-  let d = start;
-  while (d.isBefore(end) || d.isSame(end, 'day')) {
-    if (occSet.has(d.format('YYYY-MM-DD'))) return true;
-    d = d.add(1, 'day');
-  }
-  return false;
-}
+// TD-119: расчёт занятости вынесен в общий util src/utils/bookingOccupancy.js,
+// единый для веба и мобайла. День выезда (checkOut) не считается занятым —
+// можно поставить заезд новому гостю в этот же день.
 
 /** Parse formatted money string to number */
 function parseMoneyValue(val) {
@@ -239,9 +204,10 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
   const [checkInTime, setCheckInTime] = useState('14:00');
   const [checkOutTime, setCheckOutTime] = useState('12:00');
   const [timePickerFor, setTimePickerFor] = useState(null); // 'checkIn' | 'checkOut'
-  const [occupiedDates, setOccupiedDates] = useState([]);
-  const [occupiedCheckInDates, setOccupiedCheckInDates] = useState([]);
-  const [occupiedCheckOutDates, setOccupiedCheckOutDates] = useState([]);
+  // TD-119: единый формат вместо трёх массивов. bookedRanges — [{checkIn, checkOut}, ...].
+  const [bookedRanges, setBookedRanges] = useState([]);
+  // Раскладка для CalendarRangePicker (требует три отдельных списка дат).
+  const calendarOccupancy = useMemo(() => buildOccupancyArrays(bookedRanges), [bookedRanges]);
   const [datePickerFor, setDatePickerFor] = useState(null); // 'checkIn' | 'checkOut' (legacy)
   const [priceMonthly, setPriceMonthly] = useState('');
   const [totalPrice, setTotalPrice] = useState('');
@@ -403,13 +369,9 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
     if (step === 2 && property?.id) {
       const propertyBookings = bookings.filter(b => b.propertyId === property.id);
       const toUse = editBooking?.id ? propertyBookings.filter(b => b.id !== editBooking.id) : propertyBookings;
-      setOccupiedDates(getOccupiedDates(toUse));
-      setOccupiedCheckInDates(getOccupiedCheckInDates(toUse));
-      setOccupiedCheckOutDates(getOccupiedCheckOutDates(toUse));
+      setBookedRanges(toUse.map(b => ({ checkIn: b.checkIn, checkOut: b.checkOut })));
     } else {
-      setOccupiedDates([]);
-      setOccupiedCheckInDates([]);
-      setOccupiedCheckOutDates([]);
+      setBookedRanges([]);
     }
   }, [step, property?.id, editBooking?.id]);
 
@@ -448,7 +410,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
       Alert.alert(t('error'), t('bookingCheckIn') + ' / ' + t('bookingCheckOut'));
       return;
     }
-    if (hasOverlapWithOccupied(checkIn, checkOut, occupiedDates)) {
+    if (hasOccupiedInRange(checkIn, checkOut, bookedRanges)) {
       Alert.alert(t('error'), t('bookingDatesOccupied'));
       return;
     }
@@ -513,7 +475,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
       Alert.alert(t('error'), t('bookingCheckIn') + ' / ' + t('bookingCheckOut'));
       return;
     }
-    if (hasOverlapWithOccupied(checkIn, checkOut, occupiedDates)) {
+    if (hasOccupiedInRange(checkIn, checkOut, bookedRanges)) {
       Alert.alert(t('error'), t('bookingDatesOccupied'));
       return;
     }
@@ -669,9 +631,9 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
                       locale={CALENDAR_LOCALES[language] || CALENDAR_LOCALES.en}
                       startDate={checkIn ? formatDateYMD(checkIn) : null}
                       endDate={checkOut ? formatDateYMD(checkOut) : null}
-                      disabledDates={occupiedDates}
-                        occupiedCheckInDates={occupiedCheckInDates}
-                        occupiedCheckOutDates={occupiedCheckOutDates}
+                      disabledDates={calendarOccupancy.disabledDates}
+                        occupiedCheckInDates={calendarOccupancy.checkInDates}
+                        occupiedCheckOutDates={calendarOccupancy.checkOutDates}
                       onChange={({ startDate, endDate }) => {
                         if (startDate) setCheckIn(new Date(startDate));
                         if (endDate) setCheckOut(new Date(endDate));
