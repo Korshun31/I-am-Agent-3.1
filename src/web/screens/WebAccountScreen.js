@@ -139,12 +139,21 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
     loadData();
   }, [loadData]);
 
-  const handleLogout = async () => {
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = () => setLogoutModalVisible(true);
+
+  const performLogout = async (scope) => {
+    setLoggingOut(true);
     try {
-      await signOut();
+      await signOut({ scope });
       onLogout?.();
     } catch (e) {
       console.error('Logout error:', e);
+    } finally {
+      setLoggingOut(false);
+      setLogoutModalVisible(false);
     }
   };
 
@@ -515,6 +524,46 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
         onClose={() => setSettingsModal(prev => ({ ...prev, visible: false }))}
         onSaved={setUser}
       />
+      {logoutModalVisible && (
+        <View style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center',
+          zIndex: 9999,
+        }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 24, width: 360, maxWidth: '90%' }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#2C2C2C', marginBottom: 8, textAlign: 'center' }}>
+              {t('logoutConfirmTitle')}
+            </Text>
+            <Text style={{ fontSize: 14, color: '#5A5A5A', marginBottom: 20, textAlign: 'center', lineHeight: 20 }}>
+              {t('logoutConfirmMessage')}
+            </Text>
+            <TouchableOpacity
+              style={{ backgroundColor: '#3D7D82', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 10, opacity: loggingOut ? 0.5 : 1 }}
+              onPress={() => performLogout('local')}
+              disabled={loggingOut}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>{t('logoutThisDevice')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ backgroundColor: '#C62828', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 10, opacity: loggingOut ? 0.5 : 1 }}
+              onPress={() => performLogout('global')}
+              disabled={loggingOut}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>{t('logoutAllDevices')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingVertical: 10, alignItems: 'center' }}
+              onPress={() => setLogoutModalVisible(false)}
+              disabled={loggingOut}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#6B6B6B', fontSize: 14 }}>{t('cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
       {deleteConfirmVisible && (
         <View style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,

@@ -103,8 +103,8 @@ function AppContent() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleLogout = async () => {
-    try { await signOut(); } catch {}
+  const handleLogout = async (opts) => {
+    try { await signOut(opts); } catch {}
     resetUser();
     setScreen('login');
   };
@@ -218,8 +218,8 @@ function AppContent() {
 }
 
 export default function App() {
-  const handleLogout = async () => {
-    try { await signOut(); } catch {}
+  const handleLogout = async (opts) => {
+    try { await signOut(opts); } catch {}
   };
 
   return (

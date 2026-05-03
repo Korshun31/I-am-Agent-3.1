@@ -247,8 +247,9 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
             style={styles.logoutBtn}
             onPress={() => {
               Alert.alert(t('logoutConfirmTitle'), t('logoutConfirmMessage'), [
-                { text: t('no'), style: 'cancel' },
-                { text: t('yes'), style: 'destructive', onPress: () => onLogout() },
+                { text: t('cancel'), style: 'cancel' },
+                { text: t('logoutAllDevices'), style: 'destructive', onPress: () => onLogout({ scope: 'global' }) },
+                { text: t('logoutThisDevice'), onPress: () => onLogout({ scope: 'local' }) },
               ]);
             }}
             activeOpacity={0.7}

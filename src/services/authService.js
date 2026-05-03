@@ -62,7 +62,8 @@ export async function signIn({ email, password }) {
   return profile;
 }
 
-export async function signOut() {
+// scope: 'local' (default) — только текущая сессия; 'global' — все устройства юзера.
+export async function signOut({ scope = 'local' } = {}) {
   // Очищаем DataUpload-конфиг при выходе — иначе на устройстве может остаться
   // настройка от предыдущего юзера, и следующий вход будет триггерить чужой sync.
   try {
@@ -70,7 +71,7 @@ export async function signOut() {
     await stopUpload();
   } catch {}
 
-  const { error } = await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut({ scope });
   if (error) throw new Error(error.message);
 }
 
