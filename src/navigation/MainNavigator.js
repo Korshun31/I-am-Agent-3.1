@@ -77,26 +77,58 @@ function AccountNavigator({ onLogout, onUserUpdate }) {
   );
 }
 
+// Прогрев экранов в фоне сразу после логина: PNG-иконки декодятся, модалки
+// парсятся, нативные модули инициализируются, Animated.Values создаются.
+// Когда юзер первый раз открывает вкладку или внутренний экран — настоящий
+// инстанс монтируется мгновенно, потому что ресурсы уже в кэше React Native.
+const NOOP = () => {};
+function ScreenWarmers() {
+  return (
+    <View
+      style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}
+      pointerEvents="none"
+      accessible={false}
+      importantForAccessibility="no-hide-descendants"
+    >
+      <AccountScreen
+        onLogout={NOOP}
+        onUserUpdate={NOOP}
+        onOpenCompany={NOOP}
+        onOpenContacts={NOOP}
+        onOpenStatistics={NOOP}
+        isVisible={false}
+      />
+      <ContactsScreen onBack={NOOP} />
+      <StatisticsScreen onBack={NOOP} />
+      <CompanyScreen onBack={NOOP} onUserUpdate={NOOP} onOpenTeam={NOOP} />
+      <TeamScreen onBack={NOOP} />
+    </View>
+  );
+}
+
 export default function MainNavigator({ onLogout, onUserUpdate }) {
   return (
-    <Tab.Navigator
-      lazy={true}
-      detachInactiveScreens={false}
-      tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: '#F5F2EB' },
-      }}
-    >
-      <Tab.Screen name="RealEstate" component={RealEstateScreen} />
-      <Tab.Screen name="Bookings" component={BookingCalendarScreen} />
-      <Tab.Screen name="Calendar" component={AgentCalendarScreen} />
-      <Tab.Screen
-        name="Account"
-        children={() => (
-          <AccountNavigator onLogout={onLogout} onUserUpdate={onUserUpdate} />
-        )}
-      />
-    </Tab.Navigator>
+    <View style={{ flex: 1 }}>
+      <Tab.Navigator
+        lazy={false}
+        detachInactiveScreens={false}
+        tabBar={(props) => <CustomTabBar {...props} />}
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: '#F5F2EB' },
+        }}
+      >
+        <Tab.Screen name="RealEstate" component={RealEstateScreen} />
+        <Tab.Screen name="Bookings" component={BookingCalendarScreen} />
+        <Tab.Screen name="Calendar" component={AgentCalendarScreen} />
+        <Tab.Screen
+          name="Account"
+          children={() => (
+            <AccountNavigator onLogout={onLogout} onUserUpdate={onUserUpdate} />
+          )}
+        />
+      </Tab.Navigator>
+      <ScreenWarmers />
+    </View>
   );
 }

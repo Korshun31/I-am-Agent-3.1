@@ -125,10 +125,17 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
     Linking.openURL('https://wa.me/' + digits);
   };
 
+  // Анимация запускается только при реальном изменении состояния (открыли/закрыли).
+  // На mount и при обновлении contentHeight (через onLayout) — мгновенный setValue,
+  // чтобы не блокировать JS-thread и не вызывать задержку при первом тапе на вкладку.
   useEffect(() => {
     const toValue = settingsOpen ? settingsContentHeight : 0;
     const wasOpen = settingsWasOpen.current;
     settingsWasOpen.current = settingsOpen;
+    if (wasOpen === settingsOpen) {
+      settingsHeight.setValue(toValue);
+      return;
+    }
     if (wasOpen && !settingsOpen) setSettingsClosing(true);
     Animated.timing(settingsHeight, {
       toValue,
@@ -143,6 +150,10 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
     const toValue = companySectionOpen ? companyContentHeight : 0;
     const wasOpen = companyWasOpen.current;
     companyWasOpen.current = companySectionOpen;
+    if (wasOpen === companySectionOpen) {
+      companyHeight.setValue(toValue);
+      return;
+    }
     if (wasOpen && !companySectionOpen) setCompanyClosing(true);
     Animated.timing(companyHeight, {
       toValue,
@@ -157,6 +168,10 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
     const toValue = locationsOpen ? locationsContentHeight + LOCATIONS_BOTTOM_PADDING : 0;
     const wasOpen = locationsWasOpen.current;
     locationsWasOpen.current = locationsOpen;
+    if (wasOpen === locationsOpen) {
+      locationsHeight.setValue(toValue);
+      return;
+    }
     if (wasOpen && !locationsOpen) setLocationsClosing(true);
     Animated.timing(locationsHeight, {
       toValue,
@@ -203,30 +218,32 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
     }
   };
 
+  // При возврате на вкладку — читаем настройки из user пропса (UserContext,
+  // грузится при логине, обновляется через realtime). Без сетевого запроса —
+  // вкладка открывается мгновенно. Свежесть прав агента уже идёт через
+  // companyChannel-подписку.
   useEffect(() => {
-    if (isVisible && !prevTabVisible.current) {
-      setCompanySectionOpen(false);
-      setSettingsOpen(false);
-      setLocationsOpen(false);
-      // Обновляем данные профиля при возврате на вкладку (синхронизация с вебом)
-      getCurrentUser().then((profile) => {
-        if (profile) onUserUpdate?.(profile);
-      }).catch(() => {});
+    if (!isVisible || prevTabVisible.current) {
+      prevTabVisible.current = isVisible;
+      return;
     }
-    prevTabVisible.current = isVisible;
-  }, [isVisible]);
-
-  useEffect(() => {
-    if (!email) return;
-    getCurrentUser().then((profile) => {
-      if (!profile) return;
-      const lang = ['en', 'th', 'ru'].includes(profile.language) ? profile.language : 'en';
-      const curr = ['USD', 'EUR', 'RUB', 'THB'].includes(profile.selectedCurrency) ? profile.selectedCurrency : 'USD';
+    setCompanySectionOpen(false);
+    setSettingsOpen(false);
+    setLocationsOpen(false);
+    if (user) {
+      const lang = ['en', 'th', 'ru'].includes(user.language) ? user.language : 'en';
+      const curr = ['USD', 'EUR', 'RUB', 'THB'].includes(user.selectedCurrency) ? user.selectedCurrency : 'USD';
       setLanguage(lang);
-      setNotificationSettings(profile.notificationSettings || {});
+      setNotificationSettings(user.notificationSettings || {});
       setSelectedCurrency(curr);
       setCurrency(curr);
-    }).catch(() => {});
+    }
+    prevTabVisible.current = isVisible;
+  }, [isVisible, user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Локации грузим один раз при появлении email (не каждый возврат на вкладку).
+  useEffect(() => {
+    if (!email) return;
     loadLocations();
   }, [email]); // eslint-disable-line react-hooks/exhaustive-deps
 
