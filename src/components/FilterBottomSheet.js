@@ -67,6 +67,7 @@ export default function FilterBottomSheet({
   onApply,
   cities = [],
   districts = [],
+  user,
 }) {
   const { t } = useLanguage();
   const [city, setCity] = useState(filter?.city ?? null);
@@ -82,6 +83,9 @@ export default function FilterBottomSheet({
   const [pets, setPets] = useState(filter?.pets ?? null);
   const [longTerm, setLongTerm] = useState(filter?.longTerm ?? null);
   const [selectedAmenities, setSelectedAmenities] = useState(new Set(filter?.amenities ?? []));
+  // myBookings: для агента «Мои бронирования», для админа «Бронирования компании».
+  // По умолчанию ВКЛ — это текущий префильтр, который показывает дома с актуальной бронью.
+  const [myBookings, setMyBookings] = useState(filter?.myBookings !== false);
   const [cityPickerVisible, setCityPickerVisible] = useState(false);
   const [citySearch, setCitySearch] = useState('');
   const [cityPickerSelected, setCityPickerSelected] = useState(null);
@@ -101,6 +105,7 @@ export default function FilterBottomSheet({
       setPets(filter?.pets ?? null);
       setLongTerm(filter?.longTerm ?? null);
       setSelectedAmenities(new Set(filter?.amenities ?? []));
+      setMyBookings(filter?.myBookings !== false);
     }
   }, [visible, filter]);
 
@@ -158,7 +163,19 @@ export default function FilterBottomSheet({
     setPets(null);
     setLongTerm(null);
     setSelectedAmenities(new Set());
-    onApply?.(null);
+    setMyBookings(false);
+    onApply?.({
+      city: null,
+      districts: [],
+      types: [],
+      bedrooms: null,
+      priceMin: null,
+      priceMax: null,
+      pets: null,
+      longTerm: null,
+      amenities: [],
+      myBookings: false,
+    });
     onClose?.();
   };
 
@@ -175,6 +192,7 @@ export default function FilterBottomSheet({
       pets: pets,
       longTerm: longTerm,
       amenities: [...selectedAmenities],
+      myBookings: myBookings,
     });
     onClose?.();
   };
@@ -209,6 +227,14 @@ export default function FilterBottomSheet({
             onScrollBeginDrag={Keyboard.dismiss}
             indicatorStyle="black"
           >
+            <View style={s.section}>
+              <CheckRow
+                label={user?.isAgentRole ? t('filterMyBookings') : t('filterCompanyBookings')}
+                checked={myBookings}
+                onPress={() => setMyBookings(v => !v)}
+              />
+            </View>
+
             {cities.length > 0 && (
               <View style={s.section}>
                 <Text style={s.sectionTitle}>{t('pdCity')}</Text>

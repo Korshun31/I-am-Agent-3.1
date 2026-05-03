@@ -240,7 +240,10 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const { listToShow, uniqueCities, uniqueDistricts, hasActiveFilter } = React.useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
 
-    const prefilterActive = !filterValues && propertyIdsWithActiveBooking !== null;
+    // Префильтр «Мои бронирования / Бронирования компании» по умолчанию ВКЛ.
+    // Юзер может выключить через чекбокс в модалке фильтров — тогда myBookings === false.
+    const myBookingsOn = !filterValues || filterValues.myBookings !== false;
+    const prefilterActive = myBookingsOn && propertyIdsWithActiveBooking !== null;
 
     let units = [];
     if (filterValues) {
@@ -315,7 +318,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       ...topLevel.map(p => p.district),
       ...children.map(p => (getParent(p.parent_id)?.district ?? p.district)),
     ].filter(Boolean);
-    const hasActive = Boolean(filterValues && (
+    const hasActive = Boolean(myBookingsOn || (filterValues && (
       filterValues.city ||
       (filterValues.districts?.length ?? 0) > 0 ||
       (filterValues.types?.length ?? 0) > 0 ||
@@ -325,7 +328,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       filterValues.pets === true ||
       filterValues.longTerm === true ||
       (filterValues.amenities?.length ?? 0) > 0
-    ));
+    )));
     return {
       listToShow: list,
       uniqueCities: [...new Set(allCities)].sort(),
@@ -865,6 +868,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         onApply={setFilterValues}
         cities={uniqueCities}
         districts={uniqueDistricts}
+        user={user}
       />
 
       {yearPickerVisible && (
