@@ -15,6 +15,7 @@ import {
   TextInput,
   unstable_batchedUpdates,
   Keyboard,
+  Animated,
 } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -141,7 +142,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const isFocused = useIsFocused();
   const effectiveVisible = embeddedInModal ? isVisible : isFocused;
   const { t, language } = useLanguage();
-  const { properties, bookings, contacts, propertiesLoading, refreshProperties, refreshBookings } = useAppData();
+  const { properties, bookings, contacts, propertiesLoading, bookingsLoading, refreshProperties, refreshBookings } = useAppData();
 
   useEffect(() => {
     onReady?.();
@@ -166,14 +167,18 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const [unreadCount, setUnreadCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [notifRefreshKey, setNotifRefreshKey] = useState(0);
-  const leftScrollRef = useRef(null);
   const rightScrollRef = useRef(null);
-  const rightVerticalRef = useRef(null);
   const timelineScrollXRef = useRef(0);
-  const scrollSyncRef = useRef(false);
   const prevVisibleRef = useRef(false);
   const hasScrolledOnceRef = useRef(false);
   const notifModalVisibleRef = useRef(false);
+
+  // TD: вертикальная синхронизация левой колонки с правым таймлайном через
+  // нативную анимацию (без bridge), чтобы левая ехала плавно на больших списках.
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const onVerticalScroll = useRef(
+    Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })
+  ).current;
 
   // После упрощения модели прав модерация снята — все объекты считаются одобренными.
   const topLevel = properties.filter(p => !p.resort_id);
@@ -215,21 +220,32 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return true;
   }, [filterValues]);
 
+  // Префильтр по умолчанию: дома где есть актуальная бронь (идущая сейчас или
+  // будущая). Применяется только пока юзер не открыл модалку и не применил
+  // свой фильтр (filterValues=null). Возвращает null пока брони ещё грузятся,
+  // чтобы не мигать «нет броней» (в этом случае показываем всё).
+  const propertyIdsWithActiveBooking = React.useMemo(() => {
+    if (bookingsLoading) return null;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const set = new Set();
+    (bookings || []).forEach((b) => {
+      if (!b.checkOut) return;
+      if (b.checkOut < todayStr) return;
+      set.add(b.propertyId);
+    });
+    return set;
+  }, [bookings, bookingsLoading]);
+
   const { listToShow, uniqueCities, uniqueDistricts, hasActiveFilter } = React.useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
 
+    const prefilterActive = !filterValues && propertyIdsWithActiveBooking !== null;
+
     let units = [];
-    if (!filterValues && q) {
-      // Только поиск, без фильтра — берём все объекты
-      topLevel.filter(p => HOUSE_LIKE_TYPES.has(p.type)).forEach(p => {
-        units.push({ ...p, _parentName: null, _parentCode: p.code });
-      });
-      children.forEach(p => {
-        const parent = getParent(p.resort_id);
-        units.push({ ...p, _parentName: parent?.name || '', _parentCode: parent?.code || '' });
-      });
-    } else {
-      // Фильтр активен — применяем filterFn
+    if (filterValues) {
+      // Юзер открыл модалку и применил фильтр — работает старая filterFn,
+      // префильтр по бронированиям выключается (юзер увидит ровно то, что
+      // выбрал).
       topLevel.filter(p => HOUSE_LIKE_TYPES.has(p.type)).forEach(p => {
         if (filterFn(p, null)) units.push({ ...p, _parentName: null, _parentCode: p.code });
       });
@@ -237,6 +253,25 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         const parent = getParent(p.resort_id);
         if (filterFn(p, parent)) units.push({ ...p, _parentName: parent?.name || '', _parentCode: parent?.code || '' });
       });
+    } else {
+      // Без ручного фильтра — берём все юниты. Дальше префильтр по
+      // бронированиям сузит, либо (если брони ещё грузятся) покажем всё.
+      topLevel.filter(p => HOUSE_LIKE_TYPES.has(p.type)).forEach(p => {
+        units.push({ ...p, _parentName: null, _parentCode: p.code });
+      });
+      children.forEach(p => {
+        const parent = getParent(p.resort_id);
+        units.push({ ...p, _parentName: parent?.name || '', _parentCode: parent?.code || '' });
+      });
+    }
+
+    if (prefilterActive) {
+      units = units.filter((u) => propertyIdsWithActiveBooking.has(u.id));
+      // Агент видит только дома где он указан как ответственный за объект.
+      // Админ — все актуальные дома компании.
+      if (user?.isAgentRole && !user?.isAdminRole && user?.id) {
+        units = units.filter((u) => u.responsible_agent_id === user.id);
+      }
     }
 
     let list = [...units].sort((a, b) => {
@@ -296,7 +331,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       uniqueDistricts: [...new Set(allDistricts)].sort(),
       hasActiveFilter: hasActive,
     };
-  }, [topLevel, children, getParent, filterFn, filterValues, propertyIdsFilter, searchQuery]);
+  }, [topLevel, children, getParent, filterFn, filterValues, propertyIdsFilter, searchQuery, propertyIdsWithActiveBooking, user?.id, user?.isAgentRole, user?.isAdminRole]);
 
   const refreshBadge = useCallback(() => {
     getUnreadCount().then(setUnreadCount).catch(() => {});
@@ -311,15 +346,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     if (!effectiveVisible || !user?.id) return;
     refreshBadge();
   }, [effectiveVisible, user?.id, refreshBadge]);
-
-  const hasOpenedFilterOnce = useRef(false);
-
-  useEffect(() => {
-    if (effectiveVisible && !hasOpenedFilterOnce.current) {
-      hasOpenedFilterOnce.current = true;
-      setFilterVisible(true);
-    }
-  }, [effectiveVisible]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -447,23 +473,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return c ? (`${(c.name || '').trim()} ${(c.lastName || '').trim()}`.trim() || c.phone || '') : '';
   }, [contacts]);
 
-  const handleLeftScroll = (e) => {
-    const y = e.nativeEvent.contentOffset.y;
-    if (!scrollSyncRef.current && rightVerticalRef.current) {
-      scrollSyncRef.current = true;
-      rightVerticalRef.current.scrollTo({ y, animated: false });
-      requestAnimationFrame(() => { scrollSyncRef.current = false; });
-    }
-  };
-
-  const handleRightVerticalScroll = (e) => {
-    const y = e.nativeEvent.contentOffset.y;
-    if (!scrollSyncRef.current && leftScrollRef.current) {
-      scrollSyncRef.current = true;
-      leftScrollRef.current.scrollTo({ y, animated: false });
-      requestAnimationFrame(() => { scrollSyncRef.current = false; });
-    }
-  };
 
   const rightScrollRefReady = useRef(false);
   const hasOpenedDetailRef = useRef(false);
@@ -722,32 +731,31 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               >
                 <Text style={styles.yearText}>{year}</Text>
               </TouchableOpacity>
-            <ScrollView
-              ref={leftScrollRef}
-              style={styles.leftCol}
-              contentContainerStyle={styles.leftColContent}
-              showsVerticalScrollIndicator={false}
-              onScroll={handleLeftScroll}
-              scrollEventThrottle={16}
-              bounces={false}
-            >
-              {listToShow.map((unit) => {
-                const parent = unit.resort_id ? getParent(unit.resort_id) : null;
-                const codeDisplay = parent
-                  ? (parent.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '')
-                  : (unit.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '');
-                return (
-                  <TouchableOpacity
-                    key={unit.id}
-                    style={[styles.row, styles.propertyRow]}
-                    onPress={() => setSelectedPropertyForDetail(unit)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.propertyLabel, styles.propertyLabelLink]} numberOfLines={1}>{codeDisplay}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <View style={[styles.leftCol, { overflow: 'hidden' }]}>
+              <Animated.View
+                style={[
+                  styles.leftColContent,
+                  { transform: [{ translateY: Animated.multiply(scrollY, -1) }] },
+                ]}
+              >
+                {listToShow.map((unit) => {
+                  const parent = unit.resort_id ? getParent(unit.resort_id) : null;
+                  const codeDisplay = parent
+                    ? (parent.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '')
+                    : (unit.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '');
+                  return (
+                    <TouchableOpacity
+                      key={unit.id}
+                      style={[styles.row, styles.propertyRow]}
+                      onPress={() => setSelectedPropertyForDetail(unit)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.propertyLabel, styles.propertyLabelLink]} numberOfLines={1}>{codeDisplay}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </Animated.View>
+            </View>
             </View>
 
             <ScrollView
@@ -791,12 +799,11 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                   })}
                 </View>
 
-                <ScrollView
-                  ref={rightVerticalRef}
+                <Animated.ScrollView
                   style={styles.gridScroll}
                   contentContainerStyle={{ paddingBottom: BOTTOM_NAV_PADDING, position: 'relative' }}
                   showsVerticalScrollIndicator={true}
-                  onScroll={handleRightVerticalScroll}
+                  onScroll={onVerticalScroll}
                   scrollEventThrottle={16}
                   bounces={false}
                 >
@@ -843,7 +850,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                       );
                     });
                   })()}
-                </ScrollView>
+                </Animated.ScrollView>
               </View>
             </ScrollView>
           </View>
