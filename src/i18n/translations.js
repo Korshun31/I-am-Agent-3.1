@@ -65,6 +65,7 @@ export const translations = {
     dashboardPendingApproval: 'Pending approval',
     // Bookings screen
     bookingsTitle: 'Bookings',
+    propNoUpcomingBookings: 'No active or upcoming bookings',
     bookingsAddBtn: 'Add booking',
     bookingsNoData: 'No bookings yet',
     bookingsTimeline: 'Timeline',
@@ -1082,6 +1083,7 @@ export const translations = {
     dashboardPendingApproval: 'รออนุมัติ',
     // Bookings screen
     bookingsTitle: 'การจอง',
+    propNoUpcomingBookings: 'ไม่มีการจองที่ใช้งานอยู่หรือกำลังจะมาถึง',
     bookingsAddBtn: 'เพิ่มการจอง',
     bookingsNoData: 'ยังไม่มีการจอง',
     bookingsTimeline: 'ไทม์ไลน์',
@@ -2083,6 +2085,7 @@ export const translations = {
     dashboardPendingApproval: 'На утверждении',
     // Bookings screen
     bookingsTitle: 'Бронирования',
+    propNoUpcomingBookings: 'Нет активных и предстоящих бронирований',
     bookingsAddBtn: 'Добавить бронирование',
     bookingsNoData: 'Бронирований пока нет',
     bookingsTimeline: 'Временная шкала',

@@ -330,7 +330,8 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
   const [mounted, setMounted]       = useState(false);
   const [newContactVisible, setNewContactVisible] = useState(false);
   const [newContactInitialName, setNewContactInitialName] = useState('');
-  const [localContacts, setLocalContacts] = useState(contacts);
+  // Пикер клиента в форме брони показывает только клиентов; собственники сюда попадать не должны.
+  const [localContacts, setLocalContacts] = useState(() => (contacts || []).filter(c => c.type === 'clients'));
   const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
 
   const BOOKING_REMINDER_OPTIONS = [
@@ -345,8 +346,8 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
   const fileInputRef                = useRef(null);
   const prevContactIdRef            = useRef(null);
 
-  // Sync contacts when prop changes
-  useEffect(() => { setLocalContacts(contacts); }, [contacts]);
+  // Sync contacts when prop changes (только клиенты — см. инициализацию выше).
+  useEffect(() => { setLocalContacts((contacts || []).filter(c => c.type === 'clients')); }, [contacts]);
 
   // Load active team members for the responsible-agent picker (admin only).
   useEffect(() => {

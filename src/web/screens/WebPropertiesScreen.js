@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
 import { getVideoThumbnailUrl } from '../../utils/videoThumbnail';
+import { pluralByLang } from '../../utils/pluralize';
 
 const ICON_BEDROOM  = require('../../../assets/icon-stat-bedroom.png');
 const ICON_BATHROOM = require('../../../assets/icon-stat-bathroom.png');
@@ -43,6 +44,8 @@ const AMENITY_ICONS = {
 import { getProperties, createProperty, deleteProperty } from '../../services/propertiesService';
 import { getActiveTeamMembers } from '../../services/companyService';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
+import WebBookingEditPanel from '../components/WebBookingEditPanel';
+import { BookingDetail } from './WebBookingsScreen';
 import WebPhotoGalleryModal from '../components/WebPhotoGalleryModal';
 import { getContacts } from '../../services/contactsService';
 import { getBookings } from '../../services/bookingsService';
@@ -273,8 +276,8 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
 
 // ─── Property Detail ──────────────────────────────────────────────────────────
 
-export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit, user, onDelete }) {
-  const { t } = useLanguage();
+export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit, onBookingPress, user, onDelete }) {
+  const { t, language } = useLanguage();
   const TYPE_META = getTypeMeta(t);
   const AMENITY_LABELS = getAmenityLabels(t);
   const psym = getCurrencySymbol(property.currency || 'THB');
@@ -603,6 +606,54 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
             )}
           </SectionBlock>
         )}
+
+        {/* ── Bookings (паритет с мобайлом) ── */}
+        {(() => {
+          const todayStr = dayjs().format('YYYY-MM-DD');
+          const propBookings = (bookings || [])
+            .filter(b => (b.propertyId || b.property_id) === property.id && (b.checkOut || b.check_out) >= todayStr)
+            .sort((a, b) => (a.checkIn || a.check_in).localeCompare(b.checkIn || b.check_in))
+            .slice(0, 5);
+          return (
+            <SectionBlock title={t('bookingsTitle')}>
+              {propBookings.length === 0 ? (
+                <Text style={s.bookingsEmptyText}>{t('propNoUpcomingBookings')}</Text>
+              ) : (
+                propBookings.map((b, i) => {
+                  const ci = b.checkIn || b.check_in;
+                  const co = b.checkOut || b.check_out;
+                  const isActive = ci <= todayStr && co >= todayStr;
+                  const nights = dayjs(co).diff(dayjs(ci), 'day');
+                  const total = b.totalPrice ?? b.total_price;
+                  return (
+                    <TouchableOpacity
+                      key={b.id}
+                      style={[s.bookingRow, i < propBookings.length - 1 && s.bookingRowBorder]}
+                      onPress={() => onBookingPress?.(b)}
+                      activeOpacity={0.6}
+                    >
+                      <View style={[s.bookingDot, { backgroundColor: isActive ? '#16A34A' : ACCENT }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.bookingDates}>
+                          {dayjs(ci).format('DD MMM')} — {dayjs(co).format('DD MMM YYYY')}
+                        </Text>
+                        <Text style={s.bookingMeta}>
+                          {nights} {pluralByLang(nights, language, { one: t('nightOne'), few: t('nightFew'), many: t('nightMany') })}
+                          {total ? `  ·  ${psym} ${Number(total).toLocaleString()}` : ''}
+                        </Text>
+                      </View>
+                      {isActive && (
+                        <View style={s.bookingActiveBadge}>
+                          <Text style={s.bookingActiveBadgeText}>{t('bookingActiveNow')}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </SectionBlock>
+          );
+        })()}
 
         {/* ── Utilities ── */}
         {(property.electricity_price != null || property.water_price != null || property.gas_price != null || property.internet_price != null || property.cleaning_price != null || property.exit_cleaning_price != null) && (
@@ -1023,6 +1074,8 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
   const [properties, setProperties] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [viewingBooking, setViewingBooking] = useState(null);
+  const [editingBooking, setEditingBooking] = useState(null);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [selected, setSelected] = useState(null);
@@ -1059,7 +1112,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
       const agentId = user?.teamMembership ? user.id : null;
       const [props, conts, bkgs] = await Promise.all([
         getProperties(agentId),
-        getContacts('owners'),
+        getContacts(),
         getBookings(null, null, agentId),
       ]);
       setProperties(props);
@@ -1076,8 +1129,10 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
         const fresh = props.find(p => p.id === prev.id);
         return fresh !== undefined ? fresh : null;
       });
+      return bkgs;
     } catch (e) {
       console.error('WebPropertiesScreen load error:', e);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -1283,6 +1338,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
             initialScrollY={restoreScrollY}
             onEdit={() => openEdit(selected)}
             onAddUnit={() => openCreateUnit(selected)}
+            onBookingPress={(b) => setViewingBooking(b)}
             user={user}
             onDelete={async () => {
               try {
@@ -1317,6 +1373,48 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
         onClose={closePanel}
         onSaved={handlePanelSaved}
         userCurrency={userCurrency}
+        user={user}
+      />
+
+      {/* ── Booking View Panel (открывается из карточки объекта) ── */}
+      <Modal visible={!!viewingBooking} transparent animationType="fade" onRequestClose={() => setViewingBooking(null)}>
+        <View style={s.bookingViewOverlay}>
+          <TouchableOpacity style={s.bookingViewBackdrop} activeOpacity={1} onPress={() => setViewingBooking(null)} />
+          <View style={s.bookingViewPanel}>
+            <BookingDetail
+              booking={viewingBooking}
+              property={viewingBooking ? properties.find(p => p.id === viewingBooking.propertyId) : null}
+              contact={viewingBooking ? contacts.find(c => c.id === viewingBooking.contactId) : null}
+              onEdit={() => { const b = viewingBooking; setViewingBooking(null); setEditingBooking(b); }}
+              onDelete={() => { setViewingBooking(null); load(); }}
+              onClose={() => setViewingBooking(null)}
+              onPrint={() => {}}
+              user={user}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Booking Edit Panel ── */}
+      <WebBookingEditPanel
+        visible={!!editingBooking}
+        mode="edit"
+        booking={editingBooking}
+        properties={
+          user?.teamMembership
+            ? properties.filter(p => p.responsible_agent_id === user.id)
+            : properties
+        }
+        contacts={contacts}
+        onClose={() => setEditingBooking(null)}
+        onSaved={async (saved) => {
+          setEditingBooking(null);
+          const fresh = await load();
+          if (saved) {
+            const updated = fresh.find(b => b.id === saved.id) || saved;
+            setViewingBooking(updated);
+          }
+        }}
         user={user}
       />
 
@@ -1735,6 +1833,21 @@ const s = StyleSheet.create({
   },
   addUnitBtnText: { fontSize: 13, fontWeight: '700', color: '#3D7D82' },
   sectionContent: { padding: 16 },
+
+  // Bookings list (паритет с мобайлом)
+  bookingsEmptyText: { fontSize: 13, color: '#94A3B8', textAlign: 'center', paddingVertical: 8 },
+  bookingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  bookingRowBorder: { borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  bookingDot: { width: 8, height: 8, borderRadius: 4 },
+  bookingDates: { fontSize: 13, fontWeight: '600', color: '#1F2937' },
+  bookingMeta: { fontSize: 12, color: '#6B7280', marginTop: 1 },
+  bookingActiveBadge: { backgroundColor: '#DCFCE7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  bookingActiveBadgeText: { fontSize: 11, fontWeight: '700', color: '#16A34A' },
+
+  // Booking view modal overlay
+  bookingViewOverlay: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end' },
+  bookingViewBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+  bookingViewPanel: { width: 420, height: '100%', backgroundColor: '#fff', borderLeftWidth: 1, borderLeftColor: '#E2E8F0' },
 
   infoRow: {
     flexDirection: 'row',

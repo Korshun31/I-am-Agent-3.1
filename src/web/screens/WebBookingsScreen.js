@@ -172,7 +172,7 @@ function statusInfo(checkIn, checkOut, t) {
 
 // ─── Booking Detail Panel ─────────────────────────────────────────────────────
 
-function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, onPrint, user, teamMembers = [] }) {
+export function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, onPrint, user, teamMembers = [] }) {
   const { t } = useLanguage();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -599,12 +599,14 @@ export default function WebBookingsScreen({ user, refreshKey }) {
     setLoading(true);
     try {
       const agentId = user?.teamMembership ? user.id : null;
-      const [bk, pr, co, ow] = await Promise.all([
+      const [bk, pr, allContacts] = await Promise.all([
         getBookings(null, null, agentId),
         getProperties(agentId),
-        getContacts('clients'),
-        getContacts('owners'),
+        getContacts(),
       ]);
+      // owners — подмножество для фильтра ответственных и для panel'а правки
+      const ow = allContacts.filter(c => c.type === 'owners');
+      const co = allContacts;
       setBookings(bk);
       // Build parent map for effective type resolution
       const parentMap = {};
