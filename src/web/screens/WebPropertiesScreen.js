@@ -45,7 +45,7 @@ import { getProperties, createProperty, deleteProperty } from '../../services/pr
 import { getActiveTeamMembers } from '../../services/companyService';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
 import WebBookingEditPanel from '../components/WebBookingEditPanel';
-import { BookingDetail } from './WebBookingsScreen';
+import WebBookingDetailPanel from '../components/WebBookingDetailPanel';
 import WebPhotoGalleryModal from '../components/WebPhotoGalleryModal';
 import { getContacts } from '../../services/contactsService';
 import { getBookings } from '../../services/bookingsService';
@@ -1377,23 +1377,17 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
       />
 
       {/* ── Booking View Panel (открывается из карточки объекта) ── */}
-      <Modal visible={!!viewingBooking} transparent animationType="fade" onRequestClose={() => setViewingBooking(null)}>
-        <View style={s.bookingViewOverlay}>
-          <TouchableOpacity style={s.bookingViewBackdrop} activeOpacity={1} onPress={() => setViewingBooking(null)} />
-          <View style={s.bookingViewPanel}>
-            <BookingDetail
-              booking={viewingBooking}
-              property={viewingBooking ? properties.find(p => p.id === viewingBooking.propertyId) : null}
-              contact={viewingBooking ? contacts.find(c => c.id === viewingBooking.contactId) : null}
-              onEdit={() => { const b = viewingBooking; setViewingBooking(null); setEditingBooking(b); }}
-              onDelete={() => { setViewingBooking(null); load(); }}
-              onClose={() => setViewingBooking(null)}
-              onPrint={() => {}}
-              user={user}
-            />
-          </View>
-        </View>
-      </Modal>
+      <WebBookingDetailPanel
+        visible={!!viewingBooking && !editingBooking}
+        booking={viewingBooking}
+        property={viewingBooking ? properties.find(p => p.id === viewingBooking.propertyId) : null}
+        contact={viewingBooking ? contacts.find(c => c.id === viewingBooking.contactId) : null}
+        user={user}
+        onEdit={() => setEditingBooking(viewingBooking)}
+        onDelete={() => { setViewingBooking(null); load(); }}
+        onClose={() => setViewingBooking(null)}
+        onPrint={() => {}}
+      />
 
       {/* ── Booking Edit Panel ── */}
       <WebBookingEditPanel
@@ -1845,9 +1839,6 @@ const s = StyleSheet.create({
   bookingActiveBadgeText: { fontSize: 11, fontWeight: '700', color: '#16A34A' },
 
   // Booking view modal overlay
-  bookingViewOverlay: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end' },
-  bookingViewBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
-  bookingViewPanel: { width: 420, height: '100%', backgroundColor: '#fff', borderLeftWidth: 1, borderLeftColor: '#E2E8F0' },
 
   infoRow: {
     flexDirection: 'row',
