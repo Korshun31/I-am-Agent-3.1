@@ -20,7 +20,7 @@ const COLORS = {
   addLink: '#D81B60',
 };
 
-export default function CompanyScreen({ onBack, onUserUpdate }) {
+export default function CompanyScreen({ onBack, onUserUpdate, onOpenTeam }) {
   const { user = {} } = useUser();
   const { t } = useLanguage();
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -151,7 +151,7 @@ export default function CompanyScreen({ onBack, onUserUpdate }) {
             <Text style={styles.sectionTitle}>{t('companyTeam')}</Text>
             <View style={styles.infoBlock}>
               <TouchableOpacity
-                onPress={() => Alert.alert('Coming soon', t('teamComingSoon'))}
+                onPress={() => onOpenTeam?.()}
                 activeOpacity={0.7}
               >
                 <Text style={styles.addEmployeeLink}>{t('companyAddEmployee')}</Text>

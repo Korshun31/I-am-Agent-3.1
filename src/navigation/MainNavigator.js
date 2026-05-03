@@ -10,6 +10,7 @@ import AccountScreen from '../screens/AccountScreen';
 import ContactsScreen from '../screens/ContactsScreen';
 import StatisticsScreen from '../screens/StatisticsScreen';
 import CompanyScreen from '../screens/CompanyScreen';
+import TeamScreen from '../screens/TeamScreen';
 
 const Tab = createBottomTabNavigator();
 const AccountStack = createNativeStackNavigator();
@@ -62,7 +63,14 @@ function AccountNavigator({ onLogout, onUserUpdate }) {
           <CompanyScreen
             onBack={() => props.navigation.goBack()}
             onUserUpdate={onUserUpdate}
+            onOpenTeam={() => props.navigation.navigate('Team')}
           />
+        )}
+      />
+      <AccountStack.Screen
+        name="Team"
+        children={(props) => (
+          <TeamScreen onBack={() => props.navigation.goBack()} />
         )}
       />
     </AccountStack.Navigator>
