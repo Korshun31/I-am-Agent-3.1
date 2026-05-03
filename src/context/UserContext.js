@@ -2,48 +2,73 @@ import React, { createContext, useContext, useState } from 'react';
 
 const UserContext = createContext(null);
 
+// TD-020: единый «пустой шаблон» карточки пользователя со всеми каноничными
+// полями. Добавление поля сюда автоматически даёт безопасные дефолты на
+// всех экранах (читать `user.X` всегда возвращает осмысленное значение, а не
+// undefined даже после resetUser).
 const initialUser = {
-  email: '', name: '', lastName: '', phone: '', telegram: '',
-  documentNumber: '', extraPhones: [], extraEmails: [],
-  whatsapp: '', photoUri: '',
+  // Контактные поля
+  id: null,
+  email: '',
+  name: '',
+  lastName: '',
+  phone: '',
+  telegram: '',
+  whatsapp: '',
+  documentNumber: '',
+  photoUri: '',
+  extraPhones: [],
+  extraEmails: [],
+  // Тариф и роли
+  plan: 'standard',
+  teamRole: null,
+  isAgentRole: false,
+  isAdminRole: false,
+  teamMembership: null,
+  teamPermissions: {},
+  // Компания
+  workAs: 'private',
+  companyId: null,
+  companyInfo: {},
+  // Настройки
+  language: 'en',
+  selectedCurrency: 'USD',
+  notificationSettings: {},
+  locations: [],
+  web_notifications: {
+    new_booking: false,
+    booking_changed: false,
+    new_event: false,
+    new_property: false,
+  },
 };
+
+function normalizeUser(userData) {
+  if (!userData || typeof userData !== 'object') return { ...initialUser };
+  return {
+    ...initialUser,
+    ...userData,
+    // Пере-страховка для полей где undefined/null вместо ожидаемых типов
+    // ломал бы UI (карты, мапы, циклы).
+    extraPhones: Array.isArray(userData.extraPhones) ? userData.extraPhones : [],
+    extraEmails: Array.isArray(userData.extraEmails) ? userData.extraEmails : [],
+    locations: Array.isArray(userData.locations) ? userData.locations : [],
+    teamPermissions: userData.teamPermissions && typeof userData.teamPermissions === 'object' ? userData.teamPermissions : {},
+    notificationSettings: userData.notificationSettings && typeof userData.notificationSettings === 'object' ? userData.notificationSettings : {},
+    companyInfo: userData.companyInfo && typeof userData.companyInfo === 'object' ? userData.companyInfo : {},
+    workAs: userData.workAs === 'company' ? 'company' : 'private',
+  };
+}
 
 export function UserProvider({ children, onLogout }) {
   const [user, setUser] = useState(initialUser);
 
   const updateUser = (userData) => {
-    if (userData && typeof userData === 'object') {
-      setUser({
-        ...userData,
-        email: userData.email || '',
-        name: userData.name || '',
-        lastName: userData.lastName || '',
-        phone: userData.phone || '',
-        telegram: userData.telegram || '',
-        documentNumber: userData.documentNumber || '',
-        extraPhones: Array.isArray(userData.extraPhones) ? userData.extraPhones : [],
-        extraEmails: Array.isArray(userData.extraEmails) ? userData.extraEmails : [],
-        whatsapp: userData.whatsapp || '',
-        photoUri: userData.photoUri || '',
-        workAs: userData.workAs === 'company' ? 'company' : 'private',
-        companyInfo: userData.companyInfo || {},
-      });
-    } else {
-      setUser(initialUser);
-    }
+    setUser(normalizeUser(userData));
   };
 
   const handleUserUpdate = (updatedUser) => {
-    setUser((prev) => ({
-      ...prev,
-      ...updatedUser,
-      extraPhones: Array.isArray(updatedUser?.extraPhones) ? updatedUser.extraPhones : prev.extraPhones || [],
-      extraEmails: Array.isArray(updatedUser?.extraEmails) ? updatedUser.extraEmails : prev.extraEmails || [],
-      whatsapp: updatedUser?.whatsapp !== undefined ? updatedUser.whatsapp : prev.whatsapp || '',
-      photoUri: updatedUser?.photoUri !== undefined ? updatedUser.photoUri : prev.photoUri || '',
-      workAs: updatedUser?.workAs !== undefined ? updatedUser.workAs : prev.workAs || 'private',
-      companyInfo: updatedUser?.companyInfo !== undefined ? updatedUser.companyInfo : prev.companyInfo || {},
-    }));
+    setUser((prev) => normalizeUser({ ...prev, ...(updatedUser || {}) }));
   };
 
   const resetUser = () => setUser(initialUser);

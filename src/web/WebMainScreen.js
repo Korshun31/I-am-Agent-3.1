@@ -10,16 +10,19 @@ import WebFlightTracker from './components/WebFlightTracker';
 import { supabase } from '../services/supabase';
 import { getUserProfile } from '../services/authService';
 import { useLanguage } from '../context/LanguageContext';
+import { useUser } from '../context/UserContext';
 import { initCompanyChannel, destroyCompanyChannel, broadcastChange } from '../services/companyChannel';
 
 const FULL_HEIGHT_TABS = new Set(['properties', 'contacts', 'bookings', 'profile']);
 
 /**
  * Точка входа в веб-интерфейс.
+ * TD-020: user теперь приходит только из UserContext (общий с App.js / mobile),
+ * локальный useState убран. Обновления — через updateUser/handleUserUpdate.
  */
-export default function WebMainScreen({ user: initialUser, onLogout }) {
+export default function WebMainScreen({ onLogout }) {
   const { t } = useLanguage();
-  const [user, setUser] = useState(initialUser);
+  const { user, updateUser, handleUserUpdate } = useUser();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [propertiesInitialId, setPropertiesInitialId] = useState(null);
   const [visited, setVisited] = useState(() => new Set(['dashboard']));
@@ -30,12 +33,15 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
 
   // Обновляем полный профиль пользователя при монтировании (с teamMembership, teamPermissions и т.д.)
   useEffect(() => {
+    if (!user?.id) return;
     const fetchUser = async () => {
-      const freshUser = await getUserProfile(initialUser.id);
-      if (freshUser) setUser(freshUser);
+      const freshUser = await getUserProfile(user.id);
+      if (freshUser) updateUser(freshUser);
     };
     fetchUser();
-  }, [initialUser.id]);
+    // Грузим только при первом монтировании по id; updateUser стабилен (из контекста).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Broadcast: обновляем данные через лёгкий канал компании
   useEffect(() => {
@@ -57,7 +63,7 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
       calendar_events: () => setRefreshKey(k => ({ ...k, calendar_events: k.calendar_events + 1 })),
       permissions: async () => {
         const freshUser = await getUserProfile(user.id);
-        if (freshUser) setUser(freshUser);
+        if (freshUser) updateUser(freshUser);
       },
       team: () => setTeamRefreshKey(prev => prev + 1),
     });
@@ -218,7 +224,7 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
       {/* Account — монтируется при первом посещении */}
       {visited.has('profile') && (
         <View style={[styles.tabWrap, tabStyle('profile')]}>
-          <WebAccountScreen user={user} onLogout={onLogout} onUserUpdate={setUser} teamRefreshKey={teamRefreshKey} />
+          <WebAccountScreen user={user} onLogout={onLogout} onUserUpdate={handleUserUpdate} teamRefreshKey={teamRefreshKey} />
         </View>
       )}
 

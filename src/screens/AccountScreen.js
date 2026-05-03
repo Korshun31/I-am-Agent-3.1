@@ -220,7 +220,7 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
     if (!email) return;
     getCurrentUser().then((profile) => {
       if (!profile) return;
-      const lang = ['en', 'th', 'ru'].includes(profile.app_language) ? profile.app_language : 'en';
+      const lang = ['en', 'th', 'ru'].includes(profile.language) ? profile.language : 'en';
       const curr = ['USD', 'EUR', 'RUB', 'THB'].includes(profile.selectedCurrency) ? profile.selectedCurrency : 'USD';
       setLanguage(lang);
       setNotificationSettings(profile.notificationSettings || {});

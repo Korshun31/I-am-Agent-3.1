@@ -376,7 +376,7 @@ TD-016: Нет блокировки одноразовых email-адресов 
 TD-018: Хардкод email korshun31@list.ru в authService.signUp() назначает plan='korshun'
 Что сделать: удалить хардкод из signUp(), назначать план через Supabase Dashboard (SQL Editor)
 
-TD-020: UserContext.handleUserUpdate() не обрабатывает системные поля (teamRole, isAgentRole, isAdminRole, plan, teamPermissions)
+TD-020: ✅ Закрыт 2026-05-03. UserContext: расширен initialUser до 20 каноничных полей с дефолтами; updateUser/handleUserUpdate проходят через единый normalizeUser. WebMainScreen больше не держит свой локальный user-стейт — берёт из useUser(). Попутно поправлен баг с языком в AccountScreen (`profile.app_language` → `profile.language`).
 Что сделать: расширить handleUserUpdate для прокидывания всех полей из getUserProfile, либо заменить на единый updateUser
 
 TD-021: Принятие приглашения работает только на web (WebInviteAcceptScreen), нет мобильного экрана

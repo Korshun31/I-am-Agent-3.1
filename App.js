@@ -204,7 +204,7 @@ function AppContent() {
           )}
           {screen === 'main' && (
             Platform.OS === 'web' ? (
-              <WebMainScreen onLogout={handleLogout} user={user} onUserUpdate={handleUserUpdate} />
+              <WebMainScreen onLogout={handleLogout} />
             ) : (
               <AppDataProvider user={user}>
                 <AppMainLoader onLogout={handleLogout} onUserUpdate={handleUserUpdate} />
