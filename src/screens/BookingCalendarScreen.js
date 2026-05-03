@@ -231,6 +231,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     (bookings || []).forEach((b) => {
       if (!b.checkOut) return;
       if (b.checkOut < todayStr) return;
+      if (b.notMyCustomer) return; // брони от собственника не считаются «моими»
       set.add(b.propertyId);
     });
     return set;
