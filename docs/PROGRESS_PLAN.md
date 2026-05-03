@@ -73,11 +73,11 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ✅ TD-032 — клиентская защита от brute-force на Login: 3 попытки → блокировка кнопки на 60 сек, переживает reload (AsyncStorage). Серверный rate-limit + CAPTCHA — отдельный security TD на потом (2026-04-27, коммит `28bcbd3`)
 - ✅ TD-033 — снят 2026-04-30: OAuth-кнопки уходят из продукта, PKCE настраивать для удаляемой функции бессмысленно. Чистка остатков OAuth-кода — TD-116.
 - ⬜ TD-034 — `signUp()` перезаписывает settings
-- ⬜ TD-036 — `signInWithGoogle/Facebook` дублируют код
+- ✅ TD-036 — снят 2026-05-03 вместе с TD-116: обе OAuth-функции удалены, дублировать больше нечего.
 - ⬜ TD-037 — нет «Выйти со всех устройств»
 - ✅ TD-038 — «Удалить аккаунт» (миграция `20260415000010`, коммиты `903ffb4`, `7b313c9`)
 - ✅ TD-039 — Login.js: `loading` state + `disabled` + переключение текста на `saving` (2026-04-30).
-- ⬜ TD-041 — OAuth не проверяет pending-приглашения
+- ✅ TD-041 — снят 2026-05-03 вместе с TD-116: OAuth удалён, проверять pending-приглашения для несуществующего входа не нужно.
 
 ## Company & Team
 
@@ -204,7 +204,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ⬜ TD-020 — `UserContext.handleUserUpdate` системные поля
 - ⬜ TD-035 — `getUserProfile` 4-5 запросов → RPC `get_full_user_profile`
 - ⬜ TD-115 — В git нет CREATE TABLE для главных таблиц (`properties`, `locations`, `contacts`, `users_profile`/`agents`). Они существуют только в живой БД (создавались вручную). При пересоздании БД с нуля из git — невозможно. Снять полный schema dump из sandbox и положить как baseline-миграцию (например `supabase/migrations/00000000000000_baseline_schema.sql`). Найдено 2026-04-30 при чистке legacy-папки `supabase_migrations/`.
-- ⬜ TD-116 — Полная чистка OAuth-кода. Удалить из проекта: функции `signInWithGoogle`/`signInWithFacebook` в `authService.js`, обработчики `handleGoogleLogin`/`handleFacebookLogin` в `Login.js`, закомментированный JSX социальных кнопок в `Login.js` строки 220-232, стили `socialBtn`/`socialBtnFacebook`/`socialIconGoogle`/`socialIconFacebook` в `Login.js`, перевод `orSignIn` в трёх языках (en/th/ru), все правила AU-OAUTH-* в `docs/MODULE_RULES/auth.md`, упоминание OAuth в `docs/RULES_HUMAN/01_Регистрация_и_вход.html`. Заведено 2026-04-30 после снятия TD-033 — OAuth-кнопки уходят из продукта целиком.
+- ✅ TD-116 — OAuth-код удалён из проекта (2026-05-03). Из `Login.js` убраны импорты `signInWithGoogle/Facebook`, обработчики `handleGoogleLogin/Facebook`, закомментированный JSX социальных кнопок и связанные стили (`orText`, `socialRow`, `socialBtn`, `socialBtnFacebook`, `socialIconGoogle`, `socialIconFacebook`). Из `authService.js` удалены функции `signInWithGoogle`/`signInWithFacebook` (~110 строк) и импорты `expo-auth-session` / `expo-web-browser` (npm-deps оставлены в `package.json`). Из `translations.js` удалён ключ `orSignIn` во всех трёх языках. В `docs/MODULE_RULES/auth.md` секция AU-OAUTH-1..8 свернута в одну строку «удалено», TD-036 и TD-041 в табличке помечены снятыми. В `docs/RULES_HUMAN/01_Регистрация_и_вход.html` удалён раздел «1.3 Вход через Google и Facebook», обновлены строки таблицы TD. Закрывает заодно TD-036 и TD-041.
 - ⬜ TD-118 — Native deep links (Universal Links на iOS, App Links на Android) для confirmation/recovery-ссылок. Сейчас при клике на ссылку из письма на телефоне открывается браузер вместо приложения; юзер видит экран «Почта подтверждена» в Safari/Chrome и должен сам вернуться в приложение и войти. Чтобы система предлагала «Открыть в I am Agent?», нужно: associated domain в Apple Developer Console + файл `apple-app-site-association` на сайте; App Links в Google Play + `assetlinks.json`; схемы в Expo `app.json`; redirectTo в Supabase. Заведено 2026-04-30 — отдельная задача от TD-014 и TD-015.
 - ⬜ TD-119 — Унификация picker'а занятых дат (booking calendar) между веб и мобильным. Сейчас веб (`WebBookingCalendarPicker`) принимает `bookedRanges` как массив `{checkIn, checkOut}` и сам строит `occupiedSet`; мобильный (`AddBookingModal`) принимает `occupiedDates` как готовый массив строк дат. Поведение одинаковое (юзер не выбирает занятые дни), но интерфейс разный — баг-фикс надо делать дважды. Привести к единому формату (рекомендуется `bookedRanges` как ranges — компактнее в БД-ответе). Заведено 2026-05-01. Делать в фазу 9 «технический долг кода» — функционально обе платформы работают, это рефакторинг для чистоты.
 

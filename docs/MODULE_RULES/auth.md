@@ -25,7 +25,6 @@ flow.
 |---|---|---|
 | Регистрация | AU-REG | email+пароль → auth user → profile → workspace (если нет приглашения) |
 | Логин по email | AU-LOGIN | email+пароль → session → profile |
-| OAuth | AU-OAUTH | Google/Facebook → session → profile |
 | Восстановление сессии | AU-SESSION | При старте: getSession → profile |
 | Восстановление пароля | AU-RESET | Забыл пароль → magic link (планируется) |
 | Смена пароля | AU-PASSWORD | Re-auth → new password |
@@ -119,26 +118,9 @@ workspace
 
 **AU-LOGIN-6.** *(TD-039, закрыт 2026-04-30)* В `Login.js` добавлен `loading` state. `handleLogin` ставит `setLoading(true)` перед `signIn`, в `finally` сбрасывает. Кнопка `disabled={isLocked || loading}`, текст переключается на `t('saving')`. Повторное нажатие во время входа невозможно. Паритет с `Registration.js`.
 
-### OAuth (AU-OAUTH)
+### OAuth (AU-OAUTH) — удалён
 
-**AU-OAUTH-1.** Поддерживаются провайдеры: Google, Facebook. Apple — удалён.
-
-**AU-OAUTH-2.** OAuth кнопки **временно скрыты** в UI до завершения security review. В коде функции `signInWithGoogle()` и
-`signInWithFacebook()` существуют и работают.
-
-**AU-OAUTH-3.** Web-flow: стандартный OAuth redirect через Supabase. Mobile-flow: через `expo-auth-session` +
-`WebBrowser.openAuthSessionAsync`.
-
-**AU-OAUTH-4.** Google OAuth: всегда показывать выбор аккаунта (`prompt: 'select_account'`).
-
-**AU-OAUTH-5.** При OAuth-авторизации DB-триггер `handle_new_user()` применяет ту же условную логику, что и при email-регистрации (AU-REG-5): если есть принятое приглашение для email — только profile, иначе — profile + workspace + admin.
-
-**AU-OAUTH-8.** *(TD-041, критический при включении OAuth)* OAuth flow (Google/Facebook) не проходит через экран регистрации и не проверяет pending-приглашения. Если новый пользователь входит через Google с email, на который есть pending-приглашение — он получит workspace, а потом не сможет принять приглашение (блокировка check_email_exists). **Решение**: после первого OAuth-входа нового пользователя (до показа main screen) проверять `check_pending_invitation(email)`. Если найдено — показывать то же модальное окно что и при регистрации: "Компания X вас пригласила. Принять / Отклонить". При принятии — ввод кода → deactivate workspace → join как agent. При отклонении — удалить приглашение → продолжить как обычный пользователь. Пока OAuth кнопки скрыты (AU-OAUTH-2), проблема не проявляется.
-
-**AU-OAUTH-6.** *(TD-033, снят 2026-04-30)* OAuth-кнопки (Google/Facebook) уходят из продукта. Настраивать PKCE для удаляемой функции бессмысленно. Чистка остатков OAuth-кода (signInWithGoogle/Facebook, обработчики, стили, переводы) — TD-116.
-
-**AU-OAUTH-7.** *(TD-036)* `signInWithGoogle` и `signInWithFacebook` — почти идентичные функции (~45 строк каждая), отличаются
-только названием провайдера. Рекомендация: объединить в `signInWithOAuthProvider(provider, options)`.
+OAuth-вход (Google/Facebook) убран из продукта (TD-116, 2026-05-03). Все функции, кнопки, стили и переводы удалены. История: TD-033 снят 2026-04-30 как обоснование выпиливания.
 
 ### Восстановление сессии (AU-SESSION)
 
@@ -286,9 +268,9 @@ UserContext через `handleUserUpdate`. Требуется доработка
 | **TD-033** | ✅ СНЯТ 2026-04-30 — OAuth-кнопки уходят из продукта; чистка остатков кода — TD-116 | Снят |
 | **TD-034** | signUp перезаписывает settings триггера (не merge) | Средний |
 | **TD-035** | getUserProfile — 5 последовательных запросов вместо 1 RPC | Средний |
-| **TD-036** | signInWithGoogle/Facebook — дублирование кода (~90 строк) | Низкий |
+| **TD-036** | ✅ СНЯТ 2026-05-03 — обе OAuth-функции удалены вместе с TD-116, дублировать больше нечего | Снят |
 | **TD-037** | Нет "Выйти со всех устройств" | Средний |
 | **TD-038** | Нет удаления аккаунта (требование App Store, GDPR, PDPA) | Критический |
 | **TD-039** | ✅ ЗАКРЫТ 2026-04-30 — Login.js: loading state + disabled + текст «Сохранение…» во время входа | Закрыт |
 | **TD-040** | Экран регистрации не проверяет pending-приглашения — нужна проверка + модальное окно выбора + уведомления админу | Критический |
-| **TD-041** | OAuth flow не проверяет pending-приглашения — новый пользователь через Google/Facebook получит workspace, даже если на его email есть приглашение. Нужна проверка после первого OAuth-входа + модальное окно выбора. Не критично пока OAuth скрыт. | Средний |
+| **TD-041** | ✅ СНЯТ 2026-05-03 — OAuth удалён вместе с TD-116, проверять pending-приглашения для несуществующего входа не нужно | Снят |

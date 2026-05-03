@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Logo, { COLORS } from '../components/Logo';
-import { signIn, signInWithGoogle, signInWithFacebook } from '../services/authService';
+import { signIn } from '../services/authService';
 
 // TD-032: brute-force protection. After MAX_ATTEMPTS wrong passwords for the
 // same email, block the login button for LOCK_DURATION_MS. Counter is keyed
@@ -150,22 +150,6 @@ export default function Login({ onSignUp, onLogin, onForgotPassword }) {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithGoogle();
-    } catch (e) {
-      Alert.alert(t('error'), e.message);
-    }
-  };
-
-  const handleFacebookLogin = async () => {
-    try {
-      await signInWithFacebook();
-    } catch (e) {
-      Alert.alert(t('error'), e.message);
-    }
-  };
-
   return (
     <KeyboardAvoidingView
       style={[styles.wrapper, { backgroundColor: COLORS.backgroundLogin }]}
@@ -230,20 +214,6 @@ export default function Login({ onSignUp, onLogin, onForgotPassword }) {
               <Text style={styles.forgotLinkText}>{t('forgotPasswordLink')}</Text>
             </TouchableOpacity>
           )}
-
-          {/* <Text style={styles.orText}>{t('orSignIn')}</Text> */}
-          {/* <View style={styles.socialRow}>
-            <TouchableOpacity style={[styles.socialBtn, inputShadow]} activeOpacity={0.8} onPress={handleGoogleLogin}>
-              <Text style={styles.socialIconGoogle}>G</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.socialBtn, styles.socialBtnFacebook, inputShadow]}
-              activeOpacity={0.8}
-              onPress={handleFacebookLogin}
-            >
-              <Text style={styles.socialIconFacebook}>f</Text>
-            </TouchableOpacity>
-          </View> */}
         </View>
 
         {isLocked ? (
@@ -366,40 +336,6 @@ const styles = StyleSheet.create({
     color: COLORS.subtitle,
     fontSize: 14,
     textDecorationLine: 'underline',
-  },
-  orText: {
-    fontSize: 14,
-    color: COLORS.subtitle,
-    marginBottom: 18,
-    textAlign: 'center',
-  },
-  socialRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 18,
-    marginBottom: 44,
-  },
-  socialBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: '#FFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 0,
-  },
-  socialBtnFacebook: {
-    backgroundColor: COLORS.facebookBlue,
-  },
-  socialIconGoogle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#5F6368',
-  },
-  socialIconFacebook: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#FFF',
   },
   signUpRow: {
     flexDirection: 'row',

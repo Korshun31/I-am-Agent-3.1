@@ -131,24 +131,6 @@
 </div>
 
 <!-- ============================================== -->
-<h2>1.3 Вход через Google и Facebook</h2>
-
-<div class="rule rule-warn">
-  <div class="rule-header"><span class="rule-icon">⚠️</span></div>
-  <div class="rule-body">Кнопки Google и Facebook <strong>временно скрыты</strong> до завершения проверки безопасности. Функции работают, просто не видны.</div>
-</div>
-
-<div class="rule">
-  <div class="rule-header"><span class="rule-icon">✅</span><span class="rule-id">TD-033</span></div>
-  <div class="rule-body">Снят 2026-04-30. OAuth-кнопки (вход через Google/Facebook) уходят из продукта — настраивать безопасный протокол PKCE для функции которая будет удалена нет смысла. Чистка остатков OAuth-кода — отдельный пункт TD-116.</div>
-</div>
-
-<div class="rule rule-warn">
-  <div class="rule-header"><span class="rule-icon">⚠️</span><span class="rule-id">TD-041</span></div>
-  <div class="rule-body">Когда OAuth будет включён — вход через Google/Facebook должен тоже проверять приглашения (как обычная регистрация).<br><br><em>Не критично пока кнопки скрыты.</em></div>
-</div>
-
-<!-- ============================================== -->
 <h2>1.4 Восстановление сессии</h2>
 
 <div class="rule rule-ok">
@@ -174,7 +156,7 @@
 
 <div class="rule rule-ok">
   <div class="rule-header"><span class="rule-icon">✅</span></div>
-  <div class="rule-body">Доступна только для пользователей с email (не через Google/Facebook). Для смены нужно ввести текущий пароль и новый.</div>
+  <div class="rule-body">Для смены нужно ввести текущий пароль и новый.</div>
 </div>
 
 <!-- ============================================== -->
@@ -229,12 +211,12 @@
   <tr><td>TD-033</td><td>✅ Снят 2026-04-30 — OAuth-кнопки уходят из продукта; чистка остатков кода — TD-116</td><td>✅ Снят</td></tr>
   <tr><td>TD-034</td><td>Настройки при регистрации перезаписываются</td><td class="priority-medium">Средний</td></tr>
   <tr><td>TD-035</td><td>Загрузка профиля медленная (5 запросов)</td><td class="priority-medium">Средний</td></tr>
-  <tr><td>TD-036</td><td>Дублирование кода входа через Google и Facebook</td><td class="priority-low">Низкий</td></tr>
+  <tr><td>TD-036</td><td>✅ Снят 2026-05-03 — обе OAuth-функции удалены вместе с TD-116</td><td>✅ Снят</td></tr>
   <tr><td>TD-037</td><td>Нет «Выйти со всех устройств»</td><td class="priority-medium">Средний</td></tr>
   <tr><td>TD-038</td><td>Нет удаления аккаунта (App Store, GDPR, PDPA)</td><td class="priority-critical">Критич.</td></tr>
   <tr><td>TD-039</td><td>✅ Закрыт 2026-04-30 — кнопка «Войти» показывает «Сохранение…» и блокируется во время входа</td><td>✅ Закрыт</td></tr>
   <tr><td>TD-040</td><td>Регистрация не проверяет приглашения</td><td class="priority-critical">Критич.</td></tr>
-  <tr><td>TD-041</td><td>OAuth не проверяет приглашения</td><td class="priority-medium">Средний</td></tr>
+  <tr><td>TD-041</td><td>✅ Снят 2026-05-03 — OAuth удалён вместе с TD-116</td><td>✅ Снят</td></tr>
 </table>
 
 <div class="footer">

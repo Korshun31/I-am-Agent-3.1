@@ -622,7 +622,6 @@ export const translations = {
     password: 'Password',
     confirmPasswordPlaceholder: 'Repeat your password',
     login: 'Login',
-    orSignIn: 'or sign in with',
     noAccount: "Don't have an account?",
     signUp: 'Sign up',
     // Registration
@@ -1629,7 +1628,6 @@ export const translations = {
     password: 'รหัสผ่าน',
     confirmPasswordPlaceholder: 'ยืนยันรหัสผ่านอีกครั้ง',
     login: 'เข้าสู่ระบบ',
-    orSignIn: 'หรือเข้าสู่ด้วย',
     noAccount: 'ยังไม่มีบัญชี?',
     signUp: 'สมัครสมาชิก',
     createAccount: 'สร้างบัญชี',
@@ -2625,7 +2623,6 @@ export const translations = {
     password: 'Пароль',
     confirmPasswordPlaceholder: 'Повторите пароль',
     login: 'Войти',
-    orSignIn: 'или войти через',
     noAccount: 'Нет аккаунта?',
     signUp: 'Регистрация',
     createAccount: 'Создать аккаунт',
