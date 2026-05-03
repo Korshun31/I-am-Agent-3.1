@@ -21,20 +21,16 @@ export async function signUp({ email, password, name }) {
     return { pendingConfirmation: true, email };
   }
 
+  // Триггер handle_new_user уже создал profile с дефолтными settings
+  // (language=en, selectedCurrency=USD). Перезаписываем только name —
+  // signUp не передаёт его в auth metadata, поэтому в триггере name
+  // получился равным email.
   const { error: profileError } = await supabase
     .from('users_profile')
-    .upsert({
-      id: user.id,
-      email,
-      name: name || '',
-    }, { onConflict: 'id' });
+    .update({ name: name || '' })
+    .eq('id', user.id);
 
   if (profileError) throw new Error(profileError.message);
-
-  await supabase
-    .from('users_profile')
-    .update({ settings: { language: 'en', selectedCurrency: 'USD' } })
-    .eq('id', user.id);
 
   return getUserProfile(user.id);
 }

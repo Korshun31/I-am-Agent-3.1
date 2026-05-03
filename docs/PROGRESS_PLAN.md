@@ -72,7 +72,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ✅ TD-031 — пароль 8 символов + common passwords (коммит `9f4ffec`)
 - ✅ TD-032 — клиентская защита от brute-force на Login: 3 попытки → блокировка кнопки на 60 сек, переживает reload (AsyncStorage). Серверный rate-limit + CAPTCHA — отдельный security TD на потом (2026-04-27, коммит `28bcbd3`)
 - ✅ TD-033 — снят 2026-04-30: OAuth-кнопки уходят из продукта, PKCE настраивать для удаляемой функции бессмысленно. Чистка остатков OAuth-кода — TD-116.
-- ⬜ TD-034 — `signUp()` перезаписывает settings
+- ✅ TD-034 — settings перенесены в триггер `handle_new_user` (миграция `20260503000000_handle_new_user_default_settings.sql`, 2026-05-03). Триггер сразу INSERT'ит `users_profile` с `settings = {language:'en', selectedCurrency:'USD'}`. Из `authService.signUp` убран отдельный UPDATE settings — остался только UPDATE name (триггер ставит name=email как fallback). Минус один лишний запрос при регистрации, логика собрана в одном месте. Проверено в sandbox — settings в БД сразу правильные.
 - ✅ TD-036 — снят 2026-05-03 вместе с TD-116: обе OAuth-функции удалены, дублировать больше нечего.
 - ⬜ TD-037 — нет «Выйти со всех устройств»
 - ✅ TD-038 — «Удалить аккаунт» (миграция `20260415000010`, коммиты `903ffb4`, `7b313c9`)
