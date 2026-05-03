@@ -84,6 +84,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
   const [color, setColor] = useState(CALENDAR_COLORS[0]);
   const [comments, setComments] = useState('');
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [showRepeatModal, setShowRepeatModal] = useState(false);
   const [reminderMinutes, setReminderMinutes] = useState([]);
@@ -216,6 +217,11 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
     }
   };
 
+  const onDateChange = (_, selectedDate) => {
+    if (Platform.OS === 'android') setShowDatePicker(false);
+    if (selectedDate) setEventDate(selectedDate);
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade">
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -238,24 +244,6 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
               </TouchableOpacity>
             </View>
 
-            <View style={styles.dateHeaderRow}>
-              <Text style={styles.dateHeaderText}>
-                {(() => {
-                  const d = eventDate || (initialDate ? new Date(initialDate) : new Date());
-                  const day = d.getDate();
-                  const month = (MONTH_NAMES[language] || MONTH_NAMES.en)[d.getMonth()];
-                  const year = d.getFullYear();
-                  const yearLast2 = String(year).slice(-2);
-                  return (
-                    <>
-                      <Text style={styles.dateHeaderRed}>{day}</Text>
-                      {' '}{month} 20<Text style={styles.dateHeaderRed}>{yearLast2}</Text>
-                    </>
-                  );
-                })()}
-              </Text>
-            </View>
-
             <View style={styles.scroll}>
               <Text style={styles.fieldLabel}>{t('agentCalendarEventName')}</Text>
               <TextInput
@@ -268,6 +256,41 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
                 editable={!showTimePicker && !showReminderModal && !showRepeatModal}
                 showSoftInputOnFocus={!showTimePicker && !showReminderModal && !showRepeatModal}
               />
+
+              <Text style={styles.fieldLabel}>{t('agentCalendarEventDate')}</Text>
+              <TouchableOpacity
+                style={styles.timeSelectRow}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  if (!eventDate) setEventDate(initialDate ? new Date(initialDate) : new Date());
+                  setShowDatePicker(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.timeSelectText}>
+                  {(() => {
+                    const d = eventDate || (initialDate ? new Date(initialDate) : null);
+                    if (!d) return t('agentCalendarSelectEventDate');
+                    const day = d.getDate();
+                    const month = (MONTH_NAMES[language] || MONTH_NAMES.en)[d.getMonth()];
+                    const year = d.getFullYear();
+                    return `${day} ${month} ${year}`;
+                  })()}
+                </Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <View style={styles.pickerWrap}>
+                  <DateTimePicker
+                    value={eventDate || (initialDate ? new Date(initialDate) : new Date())}
+                    mode="date"
+                    display="spinner"
+                    onChange={onDateChange}
+                  />
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)} style={styles.pickerDone}>
+                    <Text style={styles.pickerDoneText}>{t('agentCalendarTimeSelectBtn')}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               <Text style={styles.fieldLabel}>{t('agentCalendarEventTime')}</Text>
               <TouchableOpacity
@@ -511,19 +534,6 @@ const styles = StyleSheet.create({
   closeIcon: {
     fontSize: 22,
     color: '#6B6B6B',
-  },
-  dateHeaderRow: {
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateHeaderText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#2C2C2C',
-  },
-  dateHeaderRed: {
-    color: '#E53935',
   },
   scroll: {
     paddingHorizontal: 16,

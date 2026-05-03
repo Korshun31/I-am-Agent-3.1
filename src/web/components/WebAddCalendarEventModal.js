@@ -41,12 +41,6 @@ const CALENDAR_COLORS = [
   '#81C784', '#4DB6AC', '#64B5F6',
 ];
 
-const MONTH_NAMES = {
-  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
-  ru: ['Января', 'Февраля', 'Марта', 'Апреля', 'Мая', 'Июня', 'Июля', 'Августа', 'Сентября', 'Октября', 'Ноября', 'Декабря'],
-  th: ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'],
-};
-
 function formatDateYMD(d) {
   if (!d) return '';
   const x = d instanceof Date ? d : new Date(d);
@@ -54,7 +48,7 @@ function formatDateYMD(d) {
 }
 
 export default function WebAddCalendarEventModal({ visible, onClose, onSaved, editEvent, initialDate }) {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const [title, setTitle] = useState('');
   const [eventDate, setEventDate] = useState(null);
   const [eventTime, setEventTime] = useState('');
@@ -181,11 +175,6 @@ export default function WebAddCalendarEventModal({ visible, onClose, onSaved, ed
 
   if (!visible) return null;
 
-  const d = eventDate || (initialDate ? new Date(initialDate) : new Date());
-  const day = d.getDate();
-  const month = (MONTH_NAMES[language] || MONTH_NAMES.en)[d.getMonth()];
-  const year = d.getFullYear();
-
   const toggleReminder = (val) => {
     if (!isEditing) return;
     setReminderMinutes(prev => 
@@ -226,22 +215,17 @@ export default function WebAddCalendarEventModal({ visible, onClose, onSaved, ed
             </TouchableOpacity>
           </View>
 
-          <View style={styles.dateHeaderRow}>
-            <View style={styles.dateHeaderContent}>
-              <Text style={styles.dateHeaderText}>
-                <Text style={styles.dateHeaderRed}>{day}</Text> {month} {year}
-              </Text>
-              {isEdit && !isEditing && (
-                <TouchableOpacity 
-                  onPress={() => setIsEditing(true)} 
-                  style={styles.editIconBtn}
-                  activeOpacity={0.7}
-                >
-                  <Image source={require('../../../assets/pencil-icon.png')} style={styles.editIcon} resizeMode="contain" />
-                </TouchableOpacity>
-              )}
+          {isEdit && !isEditing && (
+            <View style={styles.editIconBtnWrap}>
+              <TouchableOpacity
+                onPress={() => setIsEditing(true)}
+                style={styles.editIconBtn}
+                activeOpacity={0.7}
+              >
+                <Image source={require('../../../assets/pencil-icon.png')} style={styles.editIcon} resizeMode="contain" />
+              </TouchableOpacity>
             </View>
-          </View>
+          )}
 
           <View style={styles.formContent}>
             <View style={styles.fieldGroup}>
@@ -256,17 +240,56 @@ export default function WebAddCalendarEventModal({ visible, onClose, onSaved, ed
               />
             </View>
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>{t('agentCalendarEventTime')}</Text>
-              <TextInput
-                style={[styles.input, !isEditing && styles.inputReadOnly]}
-                value={eventTime}
-                onChangeText={handleTimeInput}
-                placeholder="HH:mm"
-                placeholderTextColor="#ADB5BD"
-                maxLength={5}
-                editable={isEditing}
-              />
+            <View style={[styles.row, { zIndex: 0 }]}>
+              <View style={[styles.fieldGroup, { flex: 1 }]}>
+                <Text style={styles.fieldLabel}>{t('agentCalendarEventDate')}</Text>
+                {/* Нативный HTML5 date picker на вебе — без лишних модалок */}
+                <input
+                  type="date"
+                  value={(() => {
+                    const dt = eventDate || (initialDate ? new Date(initialDate) : null);
+                    if (!dt) return '';
+                    const y = dt.getFullYear();
+                    const m = String(dt.getMonth() + 1).padStart(2, '0');
+                    const dd = String(dt.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${dd}`;
+                  })()}
+                  onChange={(e) => {
+                    if (!isEditing) return;
+                    const v = e.target.value;
+                    if (!v) return;
+                    const [yy, mm, dd] = v.split('-').map(Number);
+                    setEventDate(new Date(yy, mm - 1, dd));
+                  }}
+                  disabled={!isEditing}
+                  style={{
+                    fontFamily: 'inherit',
+                    fontSize: 15,
+                    padding: '0 14px',
+                    height: 44,
+                    borderRadius: 10,
+                    border: '1px solid #E9ECEF',
+                    backgroundColor: isEditing ? '#F8F9FA' : '#F1F3F5',
+                    color: '#212529',
+                    outline: 'none',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </View>
+
+              <View style={[styles.fieldGroup, { flex: 1 }]}>
+                <Text style={styles.fieldLabel}>{t('agentCalendarEventTime')}</Text>
+                <TextInput
+                  style={[styles.input, !isEditing && styles.inputReadOnly]}
+                  value={eventTime}
+                  onChangeText={handleTimeInput}
+                  placeholder="HH:mm"
+                  placeholderTextColor="#ADB5BD"
+                  maxLength={5}
+                  editable={isEditing}
+                />
+              </View>
             </View>
 
             <View style={[styles.row, { zIndex: 1000 }]}>
@@ -310,8 +333,6 @@ export default function WebAddCalendarEventModal({ visible, onClose, onSaved, ed
                   </View>
                 )}
               </View>
-
-              <View style={{ width: 20 }} />
 
               <View style={[styles.fieldGroup, { flex: 1, zIndex: 1000 }]}>
                 <Text style={styles.fieldLabel}>{t('agentCalendarRepeat')}</Text>
@@ -480,24 +501,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F9FA',
   },
   closeIcon: { fontSize: 18, color: '#ADB5BD', fontWeight: '600' },
-  dateHeaderRow: { 
-    paddingVertical: 16, 
-    backgroundColor: '#F8F9FA',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
-  },
-  dateHeaderContent: {
+  editIconBtnWrap: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    paddingHorizontal: 60,
+    justifyContent: 'flex-end',
+    paddingHorizontal: 24,
+    paddingTop: 12,
   },
-  dateHeaderText: { fontSize: 18, fontWeight: '700', color: '#495057' },
-  dateHeaderRed: { color: '#D81B60' },
   editIconBtn: {
-    position: 'absolute',
-    right: 24,
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -531,28 +541,33 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F9FA',
     borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 0,
     fontSize: 15,
     color: '#212529',
     borderWidth: 1,
     borderColor: '#E9ECEF',
+    height: 44,
+    boxSizing: 'border-box',
   },
   inputReadOnly: {
     backgroundColor: '#F1F3F5',
     borderColor: 'transparent',
     color: '#495057',
   },
-  row: { flexDirection: 'row', position: 'relative' },
+  row: { flexDirection: 'row', position: 'relative', gap: 12 },
   customSelect: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    alignSelf: 'stretch',
     backgroundColor: '#F8F9FA',
     borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 0,
     borderWidth: 1,
     borderColor: '#E9ECEF',
+    height: 44,
+    boxSizing: 'border-box',
   },
   customSelectText: { fontSize: 15, color: '#212529' },
   chevron: { fontSize: 10, color: '#ADB5BD' },

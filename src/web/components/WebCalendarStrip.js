@@ -10,7 +10,7 @@ import { supabase } from '../../services/supabase';
 
 const CARD_WIDTH = 70; // 60 (width) + 10 (margins 5+5)
 
-export default function WebCalendarStrip({ selectedDate, onDateSelect, user }) {
+export default function WebCalendarStrip({ selectedDate, onDateSelect, user, refreshKey }) {
   const { language } = useLanguage(); // triggers re-render on language change
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState([]);
@@ -63,7 +63,7 @@ export default function WebCalendarStrip({ selectedDate, onDateSelect, user }) {
       }
     }
     loadData();
-  }, []);
+  }, [refreshKey]);
 
 
   const scrollToToday = () => {

@@ -62,6 +62,7 @@ export default function WebDashboardScreen({ user, refreshKey }) {
   const [allContacts, setAllContacts] = useState([]);
   const [allCalendarEvents, setAllCalendarEvents] = useState([]);
   const [allCommissionEvents, setAllCommissionEvents] = useState([]);
+  const [stripRefreshKey, setStripRefreshKey] = useState(0);
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [filteredEvents, setFilteredEvents] = useState({ checkIns: [], checkOuts: [], personal: [] });
   const [agentStats, setAgentStats] = useState(null); // только для team members
@@ -147,6 +148,7 @@ export default function WebDashboardScreen({ user, refreshKey }) {
 
   const handleEventSaved = async () => {
     await loadDashboardData();
+    setStripRefreshKey(k => k + 1);
     // loadDashboardData уже обновляет allCalendarEvents — берём обновлённое событие из стейта
     if (editingEvent) {
       setAllCalendarEvents(prev => {
@@ -351,6 +353,7 @@ export default function WebDashboardScreen({ user, refreshKey }) {
           selectedDate={selectedDate}
           onDateSelect={handleDateSelect}
           user={user}
+          refreshKey={stripRefreshKey}
         />
       </View>
 
