@@ -82,67 +82,25 @@ export async function getCurrentUser() {
 }
 
 export async function getUserProfile(userId) {
-  const { data, error } = await supabase
-    .from('users_profile')
-    .select('*')
-    .eq('id', userId)
-    .single();
+  // TD-035: один RPC вместо 5 последовательных запросов.
+  const { data: full, error } = await supabase.rpc('get_full_user_profile', { p_user_id: userId });
 
   if (error) {
-    // PGRST116 = "no rows" from PostgREST .single() — orphan auth user
-    // (auth.users row exists but no users_profile yet, e.g. invitation
-    // not finalized). Anything else is a real DB error worth logging.
-    if (error.code !== 'PGRST116') {
-      console.warn('[getUserProfile] DB error:', error.message);
-    }
+    console.warn('[getUserProfile] RPC error:', error.message);
+    return null;
+  }
+  if (!full || !full.profile) {
+    // orphan auth user — auth.users row есть, users_profile ещё нет
     return null;
   }
 
-  // Загружаем активную компанию из таблицы companies (источник правды)
-  const { data: companyData } = await supabase
-    .from('companies')
-    .select('*')
-    .eq('owner_id', userId)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  // Query all company_members roles so we can derive canonical teamRole.
-  // Roles: 'agent' | 'admin' (worker removed). Backward compat: teamMembership
-  // still only populated for role='agent'.
-  const { data: membershipData } = await supabase
-    .from('company_members')
-    .select('company_id, role, permissions')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  // Derived role boolean — source of truth for LOCK-001 guards.
-  // Roles: 'admin' | 'agent' | null. 'worker' was removed (migration 20260330000003).
+  const data = full.profile;
+  const companyData = full.ownedCompany || null;
+  const membershipData = full.membership || null;
   const isAgentMember = membershipData?.role === 'agent';
-
-  // Location access is an agent-specific feature.
-  let assignedLocationIds = [];
-  if (isAgentMember && membershipData?.company_id) {
-    const { data: locationAccess } = await supabase
-      .from('agent_location_access')
-      .select('location_id')
-      .eq('user_id', userId)
-      .eq('company_id', membershipData.company_id);
-    assignedLocationIds = (locationAccess || []).map(r => r.location_id);
-  }
-
-  // Fetch company info for any team member (name + admin id).
-  let memberCompanyName = '';
-  let memberCompanyOwnerId = null;
-  if (membershipData?.company_id) {
-    const { data: companyRow } = await supabase
-      .from('companies')
-      .select('name, owner_id')
-      .eq('id', membershipData.company_id)
-      .maybeSingle();
-    memberCompanyName = companyRow?.name || '';
-    memberCompanyOwnerId = companyRow?.owner_id || null;
-  }
+  const assignedLocationIds = Array.isArray(full.assignedLocationIds) ? full.assignedLocationIds : [];
+  const memberCompanyName = full.memberCompany?.name || '';
+  const memberCompanyOwnerId = full.memberCompany?.owner_id || null;
 
   const settings = data.settings || {};
   // TD-001: тариф читаем строго из data.plan. Колонка users_profile.role была

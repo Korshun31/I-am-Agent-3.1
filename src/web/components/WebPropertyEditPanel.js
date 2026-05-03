@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Switch, Animated, Modal, ActivityIndicator, Image, Platform,
 } from 'react-native';
-import { updateProperty, createPropertyFull, createProperty, updatePropertyResponsible } from '../../services/propertiesService';
+import { updateProperty, createPropertyFull, createProperty, updatePropertyResponsible, updateResortChildrenDistrict } from '../../services/propertiesService';
 import { getCompanyLocations, getLocationsForAgent, getLocationDistricts, addLocationDistrict } from '../../services/locationsService';
 import { getContacts } from '../../services/contactsService';
 import { getActiveTeamMembers } from '../../services/companyService';
@@ -337,6 +337,7 @@ function buildForm(property, parentProperty) {
       responsible_agent_id: property.responsible_agent_id || null,
       city: property.city || '',
       district: property.district || '',
+      address: property.address || '',
       houses_count: property.houses_count ?? '',
       floors: property.floors ?? '',
       bedrooms: property.bedrooms ?? '',
@@ -375,7 +376,9 @@ function buildForm(property, parentProperty) {
       amenities: property.amenities || {},
       photos: property.photos || [],
       photos_thumb: property.photos_thumb || [],
-      video_url: property.video_url || '',
+      videos: Array.isArray(property.videos) && property.videos.length
+        ? property.videos
+        : (property.video_url ? [property.video_url] : []),
       currency: property.currency || 'THB',
     };
   }
@@ -389,6 +392,7 @@ function buildForm(property, parentProperty) {
     responsible_agent_id: null,
     city: parentProperty?.city || '',
     district: parentProperty?.district || '',
+    address: parentProperty?.address || '',
     houses_count: '', floors: '',
     bedrooms: '', bathrooms: '', area: '', floor_number: '',
     beach_distance: parentProperty?.beach_distance ?? '',
@@ -414,7 +418,7 @@ function buildForm(property, parentProperty) {
     amenities: parentProperty?.amenities ? { ...parentProperty.amenities } : {},
     photos: [],
     photos_thumb: [],
-    video_url: '',
+    videos: [],
     currency: 'THB',
   };
 }
@@ -499,6 +503,7 @@ export default function WebPropertyEditPanel({
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [videoUrlInput, setVideoUrlInput] = useState('');
   const slideAnim    = useRef(new Animated.Value(540)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(false);
@@ -631,6 +636,7 @@ export default function WebPropertyEditPanel({
       location_id: form.location_id || null,
       city: cityValue || null,
       district: districtValue || null,
+      address: form.address.trim() || null,
       houses_count: numOrNull(form.houses_count),
       floors: numOrNull(form.floors),
       bedrooms: numOrNull(form.bedrooms),
@@ -669,7 +675,8 @@ export default function WebPropertyEditPanel({
       amenities: form.amenities,
       photos: form.photos || [],
       photos_thumb: form.photos_thumb || [],
-      video_url: form.video_url.trim() || null,
+      videos: Array.isArray(form.videos) ? form.videos.filter(v => v && v.trim()) : [],
+      video_url: null,
       currency: activeCurrency,
       // TD-048: agent тоже задаёт owner при создании объекта (PR-CR-12 / CT-VIS-2).
       ...(!isChildUnit && { owner_id: form.owner_id || null }),
@@ -704,6 +711,12 @@ export default function WebPropertyEditPanel({
         if (isCompanyAdmin && isParent) {
           await updatePropertyResponsible(property.id, form.responsible_agent_id || null, true);
           if (saved) saved = { ...saved, responsible_agent_id: form.responsible_agent_id || null };
+        }
+        if (
+          (targetType === 'resort' || targetType === 'condo') &&
+          String(updates.district || '') !== String(property.district || '')
+        ) {
+          await updateResortChildrenDistrict(property.id, updates.district);
         }
       } else if (mode === 'create-unit') {
         const unitType = getUnitTypeForParent(parentProperty?.type);
@@ -1118,6 +1131,10 @@ export default function WebPropertyEditPanel({
         </View>
       </View>
 
+      <FieldRow label={t('pdAddress')}>
+        <FieldInput value={form.address} onChangeText={v => set('address', v)} placeholder={t('pdAddressPlaceholder')} readOnly={readOnly} />
+      </FieldRow>
+
       <FieldRow label={t('propGoogleMapsLink')}>
         <FieldInput value={form.google_maps_link} onChangeText={v => set('google_maps_link', v)} placeholder="https://maps.google.com/..." readOnly={readOnly} />
       </FieldRow>
@@ -1265,20 +1282,51 @@ export default function WebPropertyEditPanel({
       </View>
 
       <SectionDivider title={t('pdVideo')} />
-      <View style={s.fieldRow}>
-        <TextInput
-          style={[s.input, readOnly && s.fieldInputReadonlyStyle]}
-          value={form.video_url}
-          onChangeText={readOnly ? undefined : (v => set('video_url', v))}
-          placeholder={readOnly ? '' : t('propVideoLink')}
-          placeholderTextColor={C.light}
-          autoCapitalize="none"
-          keyboardType="url"
-          editable={!readOnly}
-          selectTextOnFocus={!readOnly}
-          caretHidden={!!readOnly}
-        />
-      </View>
+      {(form.videos || []).map((url, i) => (
+        <View key={i} style={s.videoRowItem}>
+          <Text style={s.videoUrlText} numberOfLines={1}>{url}</Text>
+          {!readOnly && (
+            <TouchableOpacity
+              onPress={() => set('videos', form.videos.filter((_, idx) => idx !== i))}
+              activeOpacity={0.7}
+            >
+              <Text style={s.videoRemoveText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ))}
+      {!readOnly && (
+        <View style={s.addDistrictRow}>
+          <TextInput
+            style={s.addDistrictInput}
+            placeholder={t('propVideoLink')}
+            placeholderTextColor={C.light}
+            value={videoUrlInput}
+            onChangeText={setVideoUrlInput}
+            autoCapitalize="none"
+            keyboardType="url"
+            onSubmitEditing={() => {
+              const trimmed = videoUrlInput.trim();
+              if (!trimmed) return;
+              set('videos', [...(form.videos || []), trimmed]);
+              setVideoUrlInput('');
+            }}
+          />
+          <TouchableOpacity
+            style={[s.addDistrictBtn, !videoUrlInput.trim() && s.addDistrictBtnDisabled]}
+            disabled={!videoUrlInput.trim()}
+            onPress={() => {
+              const trimmed = videoUrlInput.trim();
+              if (!trimmed) return;
+              set('videos', [...(form.videos || []), trimmed]);
+              setVideoUrlInput('');
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={s.addDistrictBtnText}>+</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </>
   );
 
@@ -1648,4 +1696,7 @@ const s = StyleSheet.create({
   addDistrictBtnDisabled:{ opacity: 0.4 },
   addDistrictBtnText:    { fontSize: 13, color: ACCENT, fontWeight: '600' },
   addDistrictError:      { fontSize: 14, color: '#E53935', fontWeight: '700', marginTop: 4, marginLeft: 2 },
+  videoRowItem:          { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingHorizontal: 10, marginBottom: 6, backgroundColor: C.bg, borderRadius: 8 },
+  videoUrlText:          { flex: 1, fontSize: 13, color: C.text },
+  videoRemoveText:       { fontSize: 16, color: '#E53935', paddingHorizontal: 6 },
 });

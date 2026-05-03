@@ -14,6 +14,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
 import { resizeImageFile } from '../utils/resizeImageFile';
 import { computeTotalPrice, computeMonthlyBreakdown } from '../../utils/bookingPricing';
+import { getPropertyTypeColors } from '../constants/propertyTypeColors';
 
 const ACCENT = '#3D7D82';
 const C = {
@@ -29,12 +30,6 @@ const C = {
   accentBg: '#EAF4F5',
   green:    '#4AA87D',
   greenBg:  '#F0FAF5',
-};
-
-const TYPE_COLOR = {
-  house:  { border: '#C2920E', bg: '#FFFBEB', text: '#92680A', pill: '#FEF3C7' },
-  resort: { border: '#16A34A', bg: '#F0FDF4', text: '#15803D', pill: '#DCFCE7' },
-  condo:  { border: '#2563EB', bg: '#EFF6FF', text: '#1D4ED8', pill: '#DBEAFE' },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -182,7 +177,7 @@ function PropertyPicker({ value, properties, onChange, t }) {
   const [search, setSearch] = useState('');
   const searchRef = useRef(null);
   const prop = properties.find(p => p.id === value);
-  const tc = prop ? (TYPE_COLOR[prop.type] || TYPE_COLOR.house) : null;
+  const tc = prop ? getPropertyTypeColors(prop.type) : null;
 
   const filtered = properties.filter(pr => {
     const q = search.toLowerCase();
@@ -243,7 +238,7 @@ function PropertyPicker({ value, properties, onChange, t }) {
               <Text style={s.dropdownEmpty}>{t('noResults')}</Text>
             )}
             {filtered.map(pr => {
-              const tc2 = TYPE_COLOR[pr.type] || TYPE_COLOR.house;
+              const tc2 = getPropertyTypeColors(pr.type);
               const isActive = pr.id === value;
               return (
                 <TouchableOpacity
@@ -759,7 +754,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                     <Field label={L('propPriceMonthly')} half>
                       <FInput value={form.priceMonthly} onChangeText={v => set('priceMonthly', v)} placeholder="30 000" numeric />
                     </Field>
-                    <Field label={L('bkTotalPrice')} half>
+                    <Field label={`${t('bookingTotalPrice')} (${sym})`} half>
                       <FInput value={form.totalPrice} onChangeText={v => set('totalPrice', v)} placeholder={t('bkAuto')} numeric />
                     </Field>
                   </View>

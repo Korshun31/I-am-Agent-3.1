@@ -976,7 +976,7 @@ isMonthFirst
                     />
 
                     <PercentMoneyField
-                      label={t('ownerCommissionOneTime')}
+                      label={t('bookingOwnerCommOnce')}
                       sym={sym}
                       priceMonthly={priceMonthly}
                       value={ownerCommissionOneTime}

@@ -7,6 +7,7 @@ import {
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
+import { getVideoThumbnailUrl } from '../../utils/videoThumbnail';
 
 const ICON_BEDROOM  = require('../../../assets/icon-stat-bedroom.png');
 const ICON_BATHROOM = require('../../../assets/icon-stat-bathroom.png');
@@ -386,6 +387,37 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         )}
       </View>
 
+      {(() => {
+        const videos = Array.isArray(property.videos) && property.videos.length
+          ? property.videos
+          : (property.video_url ? [property.video_url] : []);
+        if (videos.length === 0) return null;
+        return (
+          <View style={s.videosSection}>
+            <Text style={s.videosSectionTitle}>{t('pdVideo')}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {videos.map((url, i) => {
+                const thumb = getVideoThumbnailUrl(url);
+                return (
+                  <TouchableOpacity key={i} onPress={() => Linking.openURL(url)} activeOpacity={0.7} style={s.videoThumbWrap}>
+                    {thumb ? (
+                      <Image source={{ uri: thumb }} style={s.videoThumbImg} resizeMode="cover" />
+                    ) : (
+                      <View style={[s.videoThumbImg, { backgroundColor: '#222', alignItems: 'center', justifyContent: 'center' }]}>
+                        <Text style={{ color: '#FFF', fontSize: 28 }}>▶</Text>
+                      </View>
+                    )}
+                    <View style={s.videoPlayOverlay}>
+                      <Text style={s.videoPlayIcon}>▶</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        );
+      })()}
+
       {/* Ответственный — только для Admin компании (display only; edit in Edit Panel) */}
       {isCompanyAdmin && user?.companyInfo?.name?.trim() && (
         <View style={s.responsibleRow}>
@@ -501,10 +533,11 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
 
 
         {/* ── Location ── */}
-        {(property.city || property.beach_distance || property.market_distance || property.google_maps_link || property.website_url) && (
+        {(property.city || property.address || property.beach_distance || property.market_distance || property.google_maps_link || property.website_url) && (
           <SectionBlock title={t('pdLocation').toUpperCase()} icon={ICON_SEC_LOCATION}>
             <InfoRow label={t('pdCity')} value={property.city} />
             <InfoRow label={t('propDistrict')} value={property.district} />
+            <InfoRow label={t('pdAddress')} value={property.address} />
             <InfoRow label={t('propBeach')} value={property.beach_distance ? `${property.beach_distance} м` : null} />
             <InfoRow label={t('propMarket')} value={property.market_distance ? `${property.market_distance} м` : null} />
             {property.google_maps_link ? (
@@ -1500,6 +1533,12 @@ const s = StyleSheet.create({
   gallery: { height: 240, backgroundColor: '#E9ECEF' },
   galleryContent: { gap: 2, alignItems: 'center' },
   galleryPhoto: { width: 360, height: 240 },
+  videosSection: { paddingHorizontal: 14, paddingTop: 14 },
+  videosSectionTitle: { fontSize: 12, fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  videoThumbWrap: { width: 200, height: 120, borderRadius: 8, overflow: 'hidden', backgroundColor: '#000', position: 'relative' },
+  videoThumbImg: { width: '100%', height: '100%' },
+  videoPlayOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  videoPlayIcon: { fontSize: 36, color: '#FFF', textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 4 },
   gallerySingle: {
     height: 240,
     backgroundColor: '#E9ECEF',

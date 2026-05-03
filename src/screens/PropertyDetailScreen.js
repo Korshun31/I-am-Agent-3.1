@@ -21,6 +21,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
+import { getVideoThumbnailUrl } from '../utils/videoThumbnail';
 import { useAppData } from '../context/AppDataContext';
 import { getProperties, updateProperty, createProperty, deleteProperty, updateResortChildrenDistrict, updatePropertyResponsible } from '../services/propertiesService';
 import { getActiveTeamMembers } from '../services/companyService';
@@ -373,20 +374,6 @@ const galleryStyles = StyleSheet.create({
   saveMenuText: { fontSize: 15, color: '#FFF', fontWeight: '500' },
 });
 
-function getVideoThumbnailUrl(url) {
-  if (!url || typeof url !== 'string') return null;
-  const u = url.trim();
-  let id = null;
-  const ytMatch = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-  if (ytMatch) id = { type: 'youtube', id: ytMatch[1] };
-  const vimeoMatch = u.match(/vimeo\.com\/(?:video\/)?(\d+)/);
-  if (vimeoMatch) id = { type: 'vimeo', id: vimeoMatch[1] };
-  if (!id) return null;
-  if (id.type === 'youtube') return `https://img.youtube.com/vi/${id.id}/hqdefault.jpg`;
-  if (id.type === 'vimeo') return `https://vumbnail.com/${id.id}.jpg`;
-  return null;
-}
-
 function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
   return (
     <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
@@ -483,6 +470,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
   const marketDistance = p.market_distance ?? resort?.market_distance;
   const city = p.city ?? resort?.city;
   const district = p.district ?? resort?.district;
+  const address = p.address || resort?.address || '';
   const googleMapsLink = p.google_maps_link || resort?.google_maps_link;
   const codeDisplay = resort
     ? (resort.code || '') + (p.code_suffix ? ` (${p.code_suffix})` : '')
@@ -494,6 +482,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         <InfoRow label={t('propertyCode')} value={codeDisplay} labelBold />
         <InfoRow label={t('pdCity')} value={city} labelBold />
         <InfoRow label={t('propDistrict')} value={district} labelBold />
+        {address ? <InfoRow label={t('pdAddress')} value={address} labelBold /> : null}
         {!hideLocation && (googleMapsLink ? (
           <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(googleMapsLink)} labelBold />
         ) : (
@@ -732,6 +721,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
         <InfoRow label={t('propertyCode')} value={p.code} labelBold />
         <InfoRow label={t('pdCity')} value={p.city} labelBold />
         <InfoRow label={t('propDistrict')} value={p.district} labelBold />
+        {p.address ? <InfoRow label={t('pdAddress')} value={p.address} labelBold /> : null}
         {!hideLocation && (p.google_maps_link ? (
           <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
         ) : (
@@ -957,6 +947,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
         <InfoRow label={t('propertyCode')} value={p.code} labelBold />
         <InfoRow label={t('pdCity')} value={p.city} labelBold />
         <InfoRow label={t('propDistrict')} value={p.district} labelBold />
+        {p.address ? <InfoRow label={t('pdAddress')} value={p.address} labelBold /> : null}
         {!hideLocation && (p.google_maps_link ? (
           <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
         ) : (

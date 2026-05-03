@@ -6,6 +6,7 @@ import {
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
+import { getPropertyTypeColors } from '../constants/propertyTypeColors';
 
 import { getBookings, deleteBooking } from '../../services/bookingsService';
 import { getProperties } from '../../services/propertiesService';
@@ -42,11 +43,6 @@ const BOOKING_COLORS = [
   '#FFCC02','#80CBC4','#EF9A9A','#90A4AE',
 ];
 
-const TYPE_COLOR = {
-  house:  { border: '#C2920E', bg: '#FFFDE7', text: '#C2920E' },
-  resort: { border: '#2E7D32', bg: '#E8F5E9', text: '#2E7D32' },
-  condo:  { border: '#1565C0', bg: '#E3F2FD', text: '#1565C0' },
-};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -190,7 +186,7 @@ const canDeleteBooking = !user?.teamMembership || booking?.responsibleAgentId ==
   const psym = getCurrencySymbol(property?.currency || 'THB');
   const st = statusInfo(booking.checkIn, booking.checkOut, t);
   const nights = nightsCount(booking.checkIn, booking.checkOut);
-  const tc = TYPE_COLOR[getEffectiveType(property)] || TYPE_COLOR.house;
+  const tc = getPropertyTypeColors(getEffectiveType(property));
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -1226,7 +1222,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
 
                     {/* Property rows */}
                     {visibleProps.map((prop, pi) => {
-                      const tc = TYPE_COLOR[getEffectiveType(prop)] || TYPE_COLOR.house;
+                      const tc = getPropertyTypeColors(getEffectiveType(prop));
                       const fullCode = prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '');
                       const propBookings = bookings.filter(b => b.propertyId === prop.id);
                       // Contract flags (company-first)
