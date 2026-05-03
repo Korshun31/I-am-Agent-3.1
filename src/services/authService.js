@@ -145,11 +145,12 @@ export async function getUserProfile(userId) {
   }
 
   const settings = data.settings || {};
-  let role = ['standard', 'premium', 'admin'].includes(data.role) ? data.role : 'standard';
+  // TD-001: тариф читаем строго из data.plan. Колонка users_profile.role была
+  // удалена как мусорный дубль — миграция 20260503000002.
+  let plan = ['standard', 'premium', 'korshun'].includes(data.plan) ? data.plan : 'standard';
 
-  // Only agents receive the company-sponsored premium upgrade (Phase 1 compat).
-  // Worker/admin billing handled separately in Phase 2.
-  if (isAgentMember) role = 'premium';
+  // Агенту-члену команды компания спонсирует premium-апгрейд.
+  if (isAgentMember) plan = 'premium';
 
   // Данные компании: из таблицы companies (если есть) или из settings как запасной вариант
   const companyInfo = companyData ? {
@@ -175,11 +176,9 @@ export async function getUserProfile(userId) {
     photoUri: data.photo_url || '',
     extraPhones: [],
     extraEmails: [],
-    // Legacy billing field (kept for backward compat; prefer user.plan in new code).
-    role,
     // ── Canonical fields ─────────────────────────────────────────────────────
     // Billing plan: 'standard' | 'premium' | 'korshun'
-    plan: data.plan || 'standard',
+    plan,
     // Team role inside company_members: 'agent' | 'admin' | null
     teamRole: membershipData?.role ?? null,
     // Role predicates — use these in guards instead of !!teamMembership checks.

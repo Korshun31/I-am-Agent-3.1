@@ -49,13 +49,13 @@ flow.
 **AU-REG-5.** При регистрации нового пользователя DB-триггер `handle_new_user()` выполняет **условную** логику:
 
 **Если** для email нового пользователя существует принятое приглашение (`company_invitations` со статусом `accepted`):
-- Создаёт **только** `users_profile` (id, email, name, role='standard')
+- Создаёт **только** `users_profile` (id, email, name, settings)
 - **НЕ** создаёт workspace (company)
 - **НЕ** создаёт запись в `company_members`
 - Пользователь получит membership через `join_company_via_invitation` (как agent)
 
 **Если** приглашения нет (обычная самостоятельная регистрация):
-- Создаёт `users_profile` (id, email, name, role='standard')
+- Создаёт `users_profile` (id, email, name, settings)
 - Создаёт **Workspace** — запись в таблице `companies` (owner_id = user.id, name = '', status = 'active')
 - Создаёт запись в `company_members` (company_id, user_id, role = 'admin', status = 'active')
 
@@ -168,8 +168,7 @@ screen.
 | `user.workAs` | derived | `'company'` если есть active company, иначе `'private'` |
 | `user.teamPermissions` | `company_members.permissions` | JSONB с флагами: `can_manage_property`, `can_manage_bookings` (старые ключи `can_add_property`, `can_edit_info`, `can_edit_prices`, `can_book`, `can_delete_booking`, `can_see_financials`, `can_manage_clients` сняты 2026-04-30 в этапе 2 — упрощение прав) |
 
-**AU-PROFILE-3.** Поле `users_profile.role` — **устаревшее, содержит мусор**. НЕ использовать для определения ни роли, ни тарифа.
-См. TD-001.
+**AU-PROFILE-3.** Колонка `users_profile.role` удалена в миграции `20260503000002_drop_users_profile_role.sql` (TD-001 закрыт 2026-05-03). Тариф — строго `users_profile.plan`.
 
 **AU-PROFILE-4.** Для проверки "что может пользователь" использовать `user.isAgentRole` / `user.isAdminRole` и
 `user.teamPermissions`. **Никогда** не использовать `!!user.teamMembership` (backward compat, будет удалено).
@@ -255,7 +254,7 @@ UserContext через `handleUserUpdate`. Требуется доработка
 
 | TD | Описание | Приоритет |
 |---|---|---|
-| **TD-001** | `users_profile.role` содержит мусор — удалить поле | Критический |
+| **TD-001** | ✅ ЗАКРЫТ 2026-05-03 — колонка `users_profile.role` удалена (миграции `20260503000001`+`20260503000002`); JS перешёл на `user.plan` | Закрыт |
 | **TD-014** | ✅ ЗАКРЫТ 2026-04-30 — полный recovery flow: ForgotPassword + UpdatePassword + listener PASSWORD_RECOVERY | Закрыт |
 | **TD-015** | ✅ ЗАКРЫТ 2026-04-30 — экраны EmailConfirmationPending + EmailConfirmedSuccess, обработка в signUp/signIn | Закрыт |
 | **TD-016** | Нет блокировки одноразовых email-адресов | Средний |

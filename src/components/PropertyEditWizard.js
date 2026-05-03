@@ -1130,7 +1130,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       loadOwners();
       getCurrentUser().then(u => {
         setCurrentUser(u);
-        setMaxPhotos(getPhotoLimitForProperty(u?.role || 'standard'));
+        setMaxPhotos(getPhotoLimitForProperty(u?.plan || 'standard'));
         if (u?.companyId) {
           getActiveTeamMembers(u.companyId).then(setTeamMembers).catch(() => setTeamMembers([]));
         }

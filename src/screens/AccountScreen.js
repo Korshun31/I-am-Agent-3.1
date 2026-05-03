@@ -24,7 +24,7 @@ import AddLocationsModal from '../components/AddLocationsModal';
 import DataUploadModal from '../components/DataUploadModal';
 import { useLanguage } from '../context/LanguageContext';
 import { useUser } from '../context/UserContext';
-import { ROLES } from '../constants/roleFeatures';
+import { PLANS } from '../constants/roleFeatures';
 import { updateUserProfile, getCurrentUser, canChangePassword, deleteOwnAccount, signOut } from '../services/authService';
 import { getLocations, createLocation, updateLocation, deleteLocation, setLocationDistricts } from '../services/locationsService';
 
@@ -83,8 +83,8 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
   const companyHeight = useRef(new Animated.Value(0)).current;
   const companyWasOpen = useRef(false);
   const prevTabVisible = useRef(false);
-  const { email = '', name = '', lastName = '', phone = '', telegram = '', documentNumber = '', extraPhones = [], extraEmails = [], whatsapp = '', photoUri = '', workAs = '', companyInfo = {}, role = 'standard' } = user;
-  const isAdmin = role === ROLES.ADMIN;
+  const { email = '', name = '', lastName = '', phone = '', telegram = '', documentNumber = '', extraPhones = [], extraEmails = [], whatsapp = '', photoUri = '', workAs = '', companyInfo = {}, plan = 'standard' } = user;
+  const isAdmin = plan === PLANS.KORSHUN;
 
   const displayName = [name, lastName].filter(Boolean).join(' ') || name || null;
 

@@ -186,12 +186,7 @@ korshun — приватный тариф разработчика. Назнач
 
 Читать роль: company_members.role — и только оно.
 
-### 3.3 Поле users_profile.role — УСТАРЕВШЕЕ
-
-users_profile.role — НЕ ИСПОЛЬЗОВАТЬ для определения ни роли, ни тарифа.
-Это поле содержит мусор. Технический долг TD-001: удалить в следующей миграции.
-
-### 3.4 Канонические поля профиля в коде
+### 3.3 Канонические поля профиля в коде
 
 user.plan        — тариф: 'standard' | 'premium' | 'korshun'
 user.teamRole    — роль: 'agent' | 'admin' | null
@@ -303,8 +298,7 @@ Diagnose → Implement → Verify → Document
 
 ### Критический — сделать в первую очередь
 
-TD-001: users_profile.role содержит мусор (значение 'standard' — это тариф, не роль)
-Что сделать: UPDATE users_profile SET role = NULL WHERE role = 'standard'; затем удалить поле
+TD-001: ✅ Закрыт 2026-05-03. Колонка `users_profile.role` удалена (миграция `20260503000002_drop_users_profile_role.sql`). Триггер `handle_new_user` обновлён (миграция `20260503000001`). Тариф читается строго из `users_profile.plan`. В JS: `roleFeatures.js` → `PLANS` (со значением `KORSHUN: 'korshun'` вместо `ADMIN: 'admin'`), `authService.getUserProfile` отдаёт только `user.plan`, `AccountScreen` и `PropertyEditWizard` обращаются к `user.plan`.
 
 TD-002: ✅ ЗАКРЫТ — company_id добавлен в contacts, RLS настроен, все 137 записей заполнены (проверено 2026-04-08)
 
@@ -644,11 +638,8 @@ UPDATE users_profile SET plan = 'premium' WHERE id = '<uuid>';
 Правильно — менять роль в команде:
 UPDATE company_members SET role = 'agent' WHERE user_id = '<uuid>' AND company_id = '<uuid>';
 
-НЕПРАВИЛЬНО — читать роль из users_profile:
-SELECT role FROM users_profile; — это устаревшее поле!
-
 НЕПРАВИЛЬНО — менять тариф через role:
-UPDATE users_profile SET role = 'premium' WHERE id = '<uuid>'; — НЕТ!
+Поле `users_profile.role` удалено в миграции `20260503000002`. Тариф — строго `users_profile.plan` ('standard' / 'premium' / 'korshun').
 
 ---
 
