@@ -19,8 +19,8 @@ function isRentableUnit(p) {
 
 function categoryKeyRentable(p, propsMap) {
   if (!isRentableUnit(p)) return null;
-  if (!p.resort_id) return 'houses';
-  const parent = propsMap[p.resort_id];
+  if (!p.parent_id) return 'houses';
+  const parent = propsMap[p.parent_id];
   if (parent?.type === 'resort') return 'resortHouses';
   if (parent?.type === 'condo') return 'apartments';
   return null;

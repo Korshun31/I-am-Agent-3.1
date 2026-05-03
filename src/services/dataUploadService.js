@@ -97,7 +97,7 @@ export async function syncIfEnabled() {
 }
 
 // Website contract — explicit column whitelists (no SELECT *)
-const PROPERTIES_CRM_SELECT = 'id, user_id, company_id, resort_id, type, name, code, code_suffix, city, district, google_maps_link, bedrooms, bathrooms, air_conditioners, beach_distance, market_distance, description, photos, videos, amenities, pets_allowed, long_term_booking, price_monthly, price_monthly_is_from, booking_deposit, save_deposit, commission, electricity_price, water_price, gas_price, exit_cleaning_price, created_at, updated_at';
+const PROPERTIES_CRM_SELECT = 'id, user_id, company_id, parent_id, type, name, code, code_suffix, city, district, google_maps_link, bedrooms, bathrooms, air_conditioners, beach_distance, market_distance, description, photos, videos, amenities, pets_allowed, long_term_booking, price_monthly, price_monthly_is_from, booking_deposit, save_deposit, commission, electricity_price, water_price, gas_price, exit_cleaning_price, created_at, updated_at';
 const BOOKINGS_CRM_SELECT = 'id, user_id, company_id, property_id, check_in, check_out, created_at, updated_at';
 const RENTABLE_TYPES = ['house', 'resort_house', 'condo_apartment'];
 
@@ -149,7 +149,7 @@ async function syncToTarget(targetUrl, serviceRoleKey) {
   const properties = allProperties
     .filter((p) => RENTABLE_TYPES.includes(p.type))
     .map((p) => {
-      const parent = p.resort_id ? parentsById.get(p.resort_id) : null;
+      const parent = p.parent_id ? parentsById.get(p.parent_id) : null;
       return {
         ...p,
         resort_name: parent?.name || null,
@@ -169,11 +169,16 @@ async function syncToTarget(targetUrl, serviceRoleKey) {
   const delProp = await target.from('properties').delete().eq('company_id', companyId);
   if (delProp.error) throw new Error(`delete properties: ${delProp.error.message}`);
 
-  // 3. Insert properties (top-level first, then children — resort_id is plain UUID on target, no FK)
+  // 3. Insert properties (top-level first, then children).
+  // TD-043: наша CRM использует parent_id, целевая website-БД — старое имя resort_id.
+  // Маппим обратно перед insert, чтобы website-схема не сломалась.
   if (properties.length > 0) {
-    const topLevel = properties.filter((p) => !p.resort_id);
-    const children = properties.filter((p) => p.resort_id);
-    const ordered = [...topLevel, ...children];
+    const topLevel = properties.filter((p) => !p.parent_id);
+    const children = properties.filter((p) => p.parent_id);
+    const ordered = [...topLevel, ...children].map(({ parent_id, ...rest }) => ({
+      ...rest,
+      resort_id: parent_id ?? null,
+    }));
     const { error } = await target.from('properties').insert(ordered);
     if (error) throw new Error(`insert properties: ${error.message}`);
   }

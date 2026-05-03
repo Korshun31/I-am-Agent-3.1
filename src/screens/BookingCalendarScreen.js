@@ -181,8 +181,8 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   ).current;
 
   // После упрощения модели прав модерация снята — все объекты считаются одобренными.
-  const topLevel = properties.filter(p => !p.resort_id);
-  const children = properties.filter(p => p.resort_id);
+  const topLevel = properties.filter(p => !p.parent_id);
+  const children = properties.filter(p => p.parent_id);
   const getParent = (id) => properties.find(pr => pr.id === id);
 
   const filterFn = useCallback((p, parent) => {
@@ -195,7 +195,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     const unitParentType = parent?.type;
     if (f.types?.length > 0) {
       const matches = f.types.some(typ => {
-        if (typ === 'house') return !p.resort_id && HOUSE_LIKE_TYPES.has(p.type);
+        if (typ === 'house') return !p.parent_id && HOUSE_LIKE_TYPES.has(p.type);
         if (typ === 'resort') return unitParentType === 'resort';
         if (typ === 'condo') return unitParentType === 'condo';
         return false;
@@ -250,7 +250,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         if (filterFn(p, null)) units.push({ ...p, _parentName: null, _parentCode: p.code });
       });
       children.forEach(p => {
-        const parent = getParent(p.resort_id);
+        const parent = getParent(p.parent_id);
         if (filterFn(p, parent)) units.push({ ...p, _parentName: parent?.name || '', _parentCode: parent?.code || '' });
       });
     } else {
@@ -260,7 +260,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         units.push({ ...p, _parentName: null, _parentCode: p.code });
       });
       children.forEach(p => {
-        const parent = getParent(p.resort_id);
+        const parent = getParent(p.parent_id);
         units.push({ ...p, _parentName: parent?.name || '', _parentCode: parent?.code || '' });
       });
     }
@@ -308,11 +308,11 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     }
     const allCities = [
       ...topLevel.map(p => p.city),
-      ...children.map(p => (getParent(p.resort_id)?.city ?? p.city)),
+      ...children.map(p => (getParent(p.parent_id)?.city ?? p.city)),
     ].filter(Boolean);
     const allDistricts = [
       ...topLevel.map(p => p.district),
-      ...children.map(p => (getParent(p.resort_id)?.district ?? p.district)),
+      ...children.map(p => (getParent(p.parent_id)?.district ?? p.district)),
     ].filter(Boolean);
     const hasActive = Boolean(filterValues && (
       filterValues.city ||
@@ -415,7 +415,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     if (listToShow.length === 0) return MIN_COL_WIDTH;
     let maxLen = 0;
     listToShow.forEach((unit) => {
-      const parent = unit.resort_id ? getParent(unit.resort_id) : null;
+      const parent = unit.parent_id ? getParent(unit.parent_id) : null;
       const codeDisplay = parent
         ? (parent.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '')
         : (unit.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '');
@@ -565,7 +565,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
 
     const prop = booking?.propertyId ? properties.find(p => p.id === booking.propertyId) : null;
     const propResult = prop ? (() => {
-      const resort = prop.resort_id ? (properties.find(p => p.id === prop.resort_id) || null) : null;
+      const resort = prop.parent_id ? (properties.find(p => p.id === prop.parent_id) || null) : null;
       const owners = contacts.filter(c => c.type === 'owners');
       const owner = prop.owner_id ? owners.find(o => o.id === prop.owner_id) : null;
       const owner2 = prop.owner_id_2 ? owners.find(o => o.id === prop.owner_id_2) : null;
@@ -739,7 +739,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                 ]}
               >
                 {listToShow.map((unit) => {
-                  const parent = unit.resort_id ? getParent(unit.resort_id) : null;
+                  const parent = unit.parent_id ? getParent(unit.parent_id) : null;
                   const codeDisplay = parent
                     ? (parent.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '')
                     : (unit.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '');
@@ -910,7 +910,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
           <BookingDetailScreen
             booking={selectedBooking}
             propertyCode={(() => {
-              const parent = selectedProperty.resort_id ? getParent(selectedProperty.resort_id) : null;
+              const parent = selectedProperty.parent_id ? getParent(selectedProperty.parent_id) : null;
               const codeDisplay = parent
                 ? (parent.code || '') + (selectedProperty.code_suffix ? ` (${selectedProperty.code_suffix})` : '')
                 : (selectedProperty.code || '') + (selectedProperty.code_suffix ? ` (${selectedProperty.code_suffix})` : '');

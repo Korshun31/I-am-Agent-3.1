@@ -312,7 +312,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
   const ownedIds = new Set(allOwned.map(p => p.id));
   // Hide child units whose parent resort/condo also belongs to this contact
   const ownedProperties = allOwned.filter(p =>
-    !p.resort_id || !ownedIds.has(p.resort_id)
+    !p.parent_id || !ownedIds.has(p.parent_id)
   );
 
   useEffect(() => {

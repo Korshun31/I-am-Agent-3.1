@@ -101,8 +101,8 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
         return;
       }
       let resort = null;
-      if (prop.resort_id) {
-        resort = all.find(p => p.id === prop.resort_id) || null;
+      if (prop.parent_id) {
+        resort = all.find(p => p.id === prop.parent_id) || null;
       }
       const owners = await getContacts('owners');
       const owner = prop.owner_id ? owners.find(o => o.id === prop.owner_id) : null;

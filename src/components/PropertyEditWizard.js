@@ -973,7 +973,7 @@ function toStr(val) {
 }
 
 function buildInitialData(p, parentResort) {
-  const isHouseInResort = Boolean(p.resort_id);
+  const isHouseInResort = Boolean(p.parent_id);
   const district = isHouseInResort && parentResort ? (parentResort.district || '') : (p.district || '');
   const googleMapsLink = p.google_maps_link || (parentResort?.google_maps_link || '');
   const address = p.address || (parentResort?.address || '');
@@ -1039,7 +1039,7 @@ function toNum(val) {
 }
 
 function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = 'THB') {
-  const isHouseInResort = Boolean(property?.resort_id);
+  const isHouseInResort = Boolean(property?.parent_id);
   const parentCity = (parentResort?.city || '').trim();
   const district = isHouseInResort && parentResort ? (parentResort.district || '').trim() : (data.district || '').trim();
   const ownerId = isHouseInResort && parentResort ? (parentResort.owner_id || null) : (data.owner_id || null);
@@ -1280,14 +1280,14 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
           owners={owners}
           onNewOwnerCreated={loadOwners}
           onOpenOwnerPicker={loadOwners}
-          resortId={property?.resort_id}
+          resortId={property?.parent_id}
           resortCode={property?.code}
           parentResort={parentResort}
           teamMembers={teamMembers}
           currentUser={currentUser}
         />
       );
-      case 'chars': return <StepCharacteristics data={data} setData={setData} t={t} propertyType={propertyType} resortId={property?.resort_id} parentResort={parentResort} />;
+      case 'chars': return <StepCharacteristics data={data} setData={setData} t={t} propertyType={propertyType} resortId={property?.parent_id} parentResort={parentResort} />;
       case 'desc': return <StepDescription data={data} setData={setData} t={t} />;
       case 'media': return <StepMedia data={data} setData={setData} t={t} maxPhotos={maxPhotos} />;
       case 'amenities': return <StepAmenities data={data} setData={setData} t={t} />;

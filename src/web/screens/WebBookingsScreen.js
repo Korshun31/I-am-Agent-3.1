@@ -612,10 +612,10 @@ export default function WebBookingsScreen({ user, refreshKey }) {
       // Only bookable units: standalone houses + all child units (houses in resorts, apartments in condos)
       // Child units can have type 'house', 'resort', or 'condo' in DB depending on parent type
       const bookable = pr
-        .filter(p => p.resort_id || HOUSE_LIKE_TYPES.has(p.type))
+        .filter(p => p.parent_id || HOUSE_LIKE_TYPES.has(p.type))
         .map(p => {
-          if (p.resort_id) {
-            const parent = parentMap[p.resort_id];
+          if (p.parent_id) {
+            const parent = parentMap[p.parent_id];
             return { ...p, effectiveType: parent?.type || 'resort' };
           }
           return { ...p, effectiveType: 'house' };

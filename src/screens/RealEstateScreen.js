@@ -257,8 +257,8 @@ export default function RealEstateScreen({ onReady }) {
 
   // ─── Derived data — memoized so they only recompute when inputs change ─────
   const { listToShow, uniqueCities, uniqueDistricts, hasActiveFilter } = useMemo(() => {
-    const topLevel = properties.filter(p => !p.resort_id);
-    const children = properties.filter(p => p.resort_id);
+    const topLevel = properties.filter(p => !p.parent_id);
+    const children = properties.filter(p => p.parent_id);
     const getParent = (id) => properties.find(pr => pr.id === id);
 
     const hasActiveFilter = filterValues && (
@@ -285,7 +285,7 @@ export default function RealEstateScreen({ onReady }) {
       const unitParentType = parent?.type;
       if (f.types?.length > 0) {
         const matches = f.types.some(tp => {
-          if (tp === 'house') return !p.resort_id && HOUSE_LIKE_TYPES.has(p.type);
+          if (tp === 'house') return !p.parent_id && HOUSE_LIKE_TYPES.has(p.type);
           if (tp === 'resort') return unitParentType === 'resort';
           if (tp === 'condo') return unitParentType === 'condo';
           return false;
@@ -332,7 +332,7 @@ export default function RealEstateScreen({ onReady }) {
           flatUnits.push({ ...p, _parentName: null, _parentType: null });
       });
       children.forEach(p => {
-        const parent = getParent(p.resort_id);
+        const parent = getParent(p.parent_id);
         if (filterFn(p, parent) && searchMatch(p, parent)) {
           flatUnits.push({
             ...p,
@@ -366,12 +366,12 @@ export default function RealEstateScreen({ onReady }) {
 
     const allCities = [
       ...topLevel.map(p => p.city),
-      ...children.map(p => (getParent(p.resort_id)?.city ?? p.city)),
+      ...children.map(p => (getParent(p.parent_id)?.city ?? p.city)),
     ].filter(Boolean);
 
     const allDistricts = [
       ...topLevel.map(p => p.district),
-      ...children.map(p => (getParent(p.resort_id)?.district ?? p.district)),
+      ...children.map(p => (getParent(p.parent_id)?.district ?? p.district)),
     ].filter(Boolean);
 
     return {

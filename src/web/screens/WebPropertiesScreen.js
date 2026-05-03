@@ -310,16 +310,16 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
 
   const owner1 = contacts.find(c => c.id === property.owner_id);
   const owner2 = contacts.find(c => c.id === property.owner_id_2);
-  const parent = allProperties.find(p => p.id === property.resort_id);
-  const children = allProperties.filter(p => p.resort_id === property.id);
-  const isParentContainer = (property.type === 'resort' || property.type === 'condo') && !property.resort_id;
+  const parent = allProperties.find(p => p.id === property.parent_id);
+  const children = allProperties.filter(p => p.parent_id === property.id);
+  const isParentContainer = (property.type === 'resort' || property.type === 'condo') && !property.parent_id;
   const needsSecondDeleteConfirm = isAdminRole && isParentContainer && children.length > 0;
   // TD-061: считаем брони объекта + всех его дочерних юнитов из уже загруженного списка bookings.
   const relevantPropertyIds = new Set([property.id, ...children.map(c => c.id)]);
   const bookingsCount = (bookings || []).filter(b => relevantPropertyIds.has(b.propertyId || b.property_id)).length;
   const occupied = isOccupiedNow(bookings, property.id);
   const code = property.code + (property.code_suffix ? `-${property.code_suffix}` : '');
-  const effectiveType = property.resort_id && parent ? parent.type : property.type;
+  const effectiveType = property.parent_id && parent ? parent.type : property.type;
   const meta = TYPE_META[effectiveType] || TYPE_META.house;
   const hasAmenities = property.amenities && Object.values(property.amenities).some(Boolean);
   const scrollRef = React.useRef(null);
@@ -1093,9 +1093,9 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
     if (!initialPropertyId || loading || properties.length === 0) return;
     const target = properties.find(p => p.id === initialPropertyId);
     if (!target) return;
-    // If it's a unit (has resort_id), open its parent first then navigate into the unit
-    if (target.resort_id) {
-      const parent = properties.find(p => p.id === target.resort_id);
+    // If it's a unit (has parent_id), open its parent first then navigate into the unit
+    if (target.parent_id) {
+      const parent = properties.find(p => p.id === target.parent_id);
       if (parent) {
         setPreviousSelected(parent);
         setSelected(target);
@@ -1127,8 +1127,8 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
 
   // В поиске показываем все (включая юниты), без поиска — только верхний уровень.
   const sorted = search.trim()
-    ? [...filtered.filter(p => !p.resort_id), ...filtered.filter(p => !!p.resort_id)]
-    : filtered.filter(p => !p.resort_id);
+    ? [...filtered.filter(p => !p.parent_id), ...filtered.filter(p => !!p.parent_id)]
+    : filtered.filter(p => !p.parent_id);
 
   const counts = {
     all: properties.length,
@@ -1243,14 +1243,14 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
             data={sorted}
             keyExtractor={item => item.id}
             renderItem={({ item }) => {
-              const parent = properties.find(p => p.id === item.resort_id);
+              const parent = properties.find(p => p.id === item.parent_id);
               return (
                 <PropertyCard
                   item={item}
                   isSelected={selected?.id === item.id}
                   onPress={() => {
-                    if (item.resort_id) {
-                      const par = properties.find(p => p.id === item.resort_id);
+                    if (item.parent_id) {
+                      const par = properties.find(p => p.id === item.parent_id);
                       handleSelectChild(item, par);
                     } else {
                       handleSelectProperty(item);

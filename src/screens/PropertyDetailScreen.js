@@ -657,7 +657,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
   const loadResortHouses = useCallback(async () => {
     try {
       const all = await getProperties();
-      setResortHouses(sortByInternalCode(all.filter(h => h.resort_id === p.id)));
+      setResortHouses(sortByInternalCode(all.filter(h => h.parent_id === p.id)));
     } catch {}
   }, [p.id]);
 
@@ -889,7 +889,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
   const loadApartments = useCallback(async () => {
     try {
       const all = await getProperties();
-      setApartments(sortByInternalCode(all.filter(a => a.resort_id === p.id)));
+      setApartments(sortByInternalCode(all.filter(a => a.parent_id === p.id)));
     } catch {}
   }, [p.id]);
 
@@ -1072,9 +1072,9 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const isAdmin = user?.workAs === 'company' && !!(user?.companyId); // web-паттерн: явная проверка company mode
   const isAdminRole = user?.isAdminRole ?? (!user?.teamMembership && !!user?.companyId);
   const canBook = user?.teamPermissions?.can_manage_bookings;
-  const isParentContainer = (p?.type === 'resort' || p?.type === 'condo') && !p?.resort_id;
+  const isParentContainer = (p?.type === 'resort' || p?.type === 'condo') && !p?.parent_id;
   const propertiesList = Array.isArray(properties) ? properties : [];
-  const hasChildren = propertiesList.some((child) => child.resort_id === p?.id);
+  const hasChildren = propertiesList.some((child) => child.parent_id === p?.id);
   const needsSecondDeleteConfirm = isAdminRole && isParentContainer && hasChildren;
   const isCreator = p?.user_id === user?.id;
   const [wizardVisible, setWizardVisible] = useState(false);
@@ -1176,8 +1176,8 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   }, [property, loadOwnerData]);
 
   useEffect(() => {
-    loadResortData(property?.resort_id);
-  }, [property?.resort_id, loadResortData]);
+    loadResortData(property?.parent_id);
+  }, [property?.parent_id, loadResortData]);
 
   const scrollViewRef = useRef(null);
   useEffect(() => {
@@ -1350,7 +1350,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
   const draftHouseInResort = {
     type: 'resort_house',
-    resort_id: p.id,
+    parent_id: p.id,
     name: '',
     code: p.code || '',
     city: p.city || '',
@@ -1365,7 +1365,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
   const draftApartmentInCondo = {
     type: 'condo_apartment',
-    resort_id: p.id,
+    parent_id: p.id,
     name: '',
     code: p.code || '',
     city: p.city || '',
@@ -1382,7 +1382,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     try {
       const fullData = {
         ...updates,
-        resort_id: p.id,
+        parent_id: p.id,
         city: p.city || '',
         district: p.district || '',
         owner_id: p.owner_id || null,
@@ -1432,7 +1432,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     try {
       const fullData = {
         ...updates,
-        resort_id: p.id,
+        parent_id: p.id,
         city: p.city || '',
         district: p.district || '',
         owner_id: p.owner_id || null,
@@ -1658,7 +1658,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             onOwner2Press={handleOwner2Press}
             onPhotoPress={handlePhotoPress}
             onVideoPress={handleVideoPress}
-            resort={p.resort_id ? resort : null}
+            resort={p.parent_id ? resort : null}
             refreshBookingsTrigger={refreshBookingsTrigger}
             onBookingPress={(b, codePart) => {
               setSelectedBooking(b);
@@ -1685,7 +1685,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       <PropertyEditWizard
         visible={wizardVisible}
         property={p}
-        parentResort={p.resort_id ? resort : null}
+        parentResort={p.parent_id ? resort : null}
         onClose={() => setWizardVisible(false)}
         onSave={handleWizardSave}
       />

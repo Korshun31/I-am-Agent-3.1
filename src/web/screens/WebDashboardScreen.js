@@ -432,7 +432,7 @@ export default function WebDashboardScreen({ user, refreshKey }) {
                       ) : next5.map((b, i) => {
                         const prop = allProperties.find(p => p.id === b.propertyId);
                         const contact = allContacts.find(c => c.id === b.contactId);
-                        const propColor = prop?.resort_id ? '#2563EB' : '#C2920E';
+                        const propColor = prop?.parent_id ? '#2563EB' : '#C2920E';
                         const code = prop ? (prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '')) : '—';
                         const daysUntil = dayjs(b.checkIn).diff(dayjs(), 'day');
                         return (

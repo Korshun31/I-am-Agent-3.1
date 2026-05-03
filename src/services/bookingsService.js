@@ -55,7 +55,7 @@ export async function getBookingsCountForProperty(propertyId) {
   const { data: children } = await supabase
     .from('properties')
     .select('id')
-    .eq('resort_id', propertyId);
+    .eq('parent_id', propertyId);
   const ids = [propertyId, ...((children || []).map(c => c.id))];
   const { count, error } = await supabase
     .from('bookings')

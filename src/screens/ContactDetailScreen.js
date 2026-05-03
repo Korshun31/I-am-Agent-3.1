@@ -68,8 +68,8 @@ function getBookingNumber(booking, samePropertyBookings) {
 
 function buildPropertyCode(property, properties) {
   if (!property) return '—';
-  if (property.resort_id) {
-    const parent = properties.find(p => p.id === property.resort_id);
+  if (property.parent_id) {
+    const parent = properties.find(p => p.id === property.parent_id);
     return parent ? (parent.code || '') + (property.code_suffix ? ` (${property.code_suffix})` : '') : (property.code || '—');
   }
   return property.code || '—';
@@ -244,11 +244,11 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
   const getParent = (id) => properties.find(pr => pr.id === id);
   const ownsProperty = (p) => p.owner_id === ownerId || p.owner_id_2 === ownerId;
 
-  const ownerTopLevel = properties.filter(p => !p.resort_id && ownsProperty(p));
+  const ownerTopLevel = properties.filter(p => !p.parent_id && ownsProperty(p));
 
   const ownerChildren = properties.filter((p) => {
-    if (!p.resort_id || !ownsProperty(p)) return false;
-    const parent = getParent(p.resort_id);
+    if (!p.parent_id || !ownsProperty(p)) return false;
+    const parent = getParent(p.parent_id);
     if (!parent) return true;
     if (ownsProperty(parent)) return false;
     return true;
@@ -257,7 +257,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
   const ownerPropertiesList = [
     ...ownerTopLevel.map(p => ({ ...p, _parentName: null, _parentType: null })),
     ...ownerChildren.map(p => {
-      const parent = getParent(p.resort_id);
+      const parent = getParent(p.parent_id);
       return { ...p, _parentName: parent?.name || parent?.code || '', _parentType: parent?.type || null };
     }),
   ].sort((a, b) => {

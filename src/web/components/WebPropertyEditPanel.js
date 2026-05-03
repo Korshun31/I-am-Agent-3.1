@@ -491,7 +491,7 @@ export default function WebPropertyEditPanel({
 
   // Determine if this is a parent resort/condo (not a child unit)
   const effectiveType = mode === 'create-unit' ? (parentProperty?.type || 'house') : (property?.type || form.type);
-  const isChildUnit = mode === 'create-unit' || Boolean(property?.resort_id);
+  const isChildUnit = mode === 'create-unit' || Boolean(property?.parent_id);
   const isParent = !isChildUnit && (effectiveType === 'resort' || effectiveType === 'condo');
   const isCondoApartment = (mode === 'create-unit' && parentProperty?.type === 'condo')
     || (mode === 'edit' && property?.type === 'condo_apartment');
@@ -722,7 +722,7 @@ export default function WebPropertyEditPanel({
         const unitType = getUnitTypeForParent(parentProperty?.type);
         saved = await createPropertyFull({
           ...updates,
-          resort_id: parentProperty.id,
+          parent_id: parentProperty.id,
           type: unitType,
           responsible_agent_id: parentProperty.responsible_agent_id ?? null,
         });
@@ -847,7 +847,7 @@ export default function WebPropertyEditPanel({
         )}
       </View>
 
-      {mode !== 'create-unit' && !(mode === 'edit' && property?.resort_id) && (
+      {mode !== 'create-unit' && !(mode === 'edit' && property?.parent_id) && (
         <FieldRow label={t('propType')}>
           <FieldSelect
             value={form.type}
