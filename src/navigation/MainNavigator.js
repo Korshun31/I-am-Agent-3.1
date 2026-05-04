@@ -116,6 +116,10 @@ export default function MainNavigator({ onLogout, onUserUpdate }) {
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: '#F5F2EB' },
+          // freezeOnBlur: неактивные вкладки заморожены — смонтированы и готовы
+          // показаться мгновенно, но React не обновляет их JSX пока они не в фокусе.
+          // Это снимает каскад ре-рендеров от изменений в контекстах данных.
+          freezeOnBlur: true,
         }}
       >
         <Tab.Screen name="RealEstate" component={RealEstateScreen} />
