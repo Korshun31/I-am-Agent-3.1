@@ -206,6 +206,17 @@ export default function RealEstateScreen({ onReady }) {
     });
   }, []);
 
+  const keyExtractor = useCallback((item) => item.id, []);
+  const renderItem = useCallback(({ item }) => (
+    <PropertyItem
+      item={item}
+      expanded={expandedIds.has(item.id)}
+      onToggle={toggleItemExpand}
+      onPress={navigateToProperty}
+      t={t}
+    />
+  ), [expandedIds, toggleItemExpand, navigateToProperty, t]);
+
   const handleSaveProperty = useCallback(async (data) => {
     try {
       const {
@@ -516,16 +527,8 @@ export default function RealEstateScreen({ onReady }) {
       ) : (
         <FlatList
           data={listToShow}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <PropertyItem
-              item={item}
-              expanded={expandedIds.has(item.id)}
-              onToggle={toggleItemExpand}
-              onPress={navigateToProperty}
-              t={t}
-            />
-          )}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           removeClippedSubviews
