@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -107,6 +107,15 @@ function ScreenWarmers() {
 }
 
 function MainNavigator({ onLogout, onUserUpdate }) {
+  // Стабильная ссылка на render-функцию вкладки Account: без useCallback
+  // на каждом ре-рендере MainNavigator React Navigation видела бы новую
+  // функцию children и пересоздавала AccountNavigator (с потерей места
+  // во внутреннем стеке — например, открытый TeamScreen откатывался бы).
+  const renderAccountTab = useCallback(
+    () => <AccountNavigator onLogout={onLogout} onUserUpdate={onUserUpdate} />,
+    [onLogout, onUserUpdate]
+  );
+
   return (
     <View style={{ flex: 1 }}>
       <Tab.Navigator
@@ -125,12 +134,7 @@ function MainNavigator({ onLogout, onUserUpdate }) {
         <Tab.Screen name="RealEstate" component={RealEstateScreen} />
         <Tab.Screen name="Bookings" component={BookingCalendarScreen} />
         <Tab.Screen name="Calendar" component={AgentCalendarScreen} />
-        <Tab.Screen
-          name="Account"
-          children={() => (
-            <AccountNavigator onLogout={onLogout} onUserUpdate={onUserUpdate} />
-          )}
-        />
+        <Tab.Screen name="Account" children={renderAccountTab} />
       </Tab.Navigator>
       <ScreenWarmers />
     </View>
