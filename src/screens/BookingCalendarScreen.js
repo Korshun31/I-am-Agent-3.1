@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -471,11 +471,22 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return (dayIndex / totalDays) * rowWidth;
   }, [months]);
 
-  const getContactName = useCallback((contactId) => {
-    if (!contactId) return '';
-    const c = contacts.find(ct => ct.id === contactId);
-    return c ? (`${(c.name || '').trim()} ${(c.lastName || '').trim()}`.trim() || c.phone || '') : '';
-  }, [contacts]);
+  // contactNamesByBookingId: считаем имена клиентов один раз для всех броней
+  // вместо setState на каждом ряду (раньше CalendarRow делал useState+useEffect
+  // и пересчитывал при каждом mount — на 50 рядах было 50 лишних апдейтов).
+  const contactNamesByBookingId = useMemo(() => {
+    const contactsMap = new Map();
+    (contacts || []).forEach((c) => { contactsMap.set(c.id, c); });
+    const out = {};
+    (bookings || []).forEach((b) => {
+      if (b.notMyCustomer || !b.contactId) return;
+      const c = contactsMap.get(b.contactId);
+      if (!c) return;
+      const fullName = `${(c.name || '').trim()} ${(c.lastName || '').trim()}`.trim();
+      out[b.id] = fullName || c.phone || '';
+    });
+    return out;
+  }, [bookings, contacts]);
 
 
   const rightScrollRefReady = useRef(false);
@@ -890,7 +901,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                           currentYear={currentYear}
                           currentMonth={currentMonth}
                           bookings={bookingsByProperty[unit.id] || []}
-                          getContactName={getContactName}
+                          contactNamesByBookingId={contactNamesByBookingId}
                           getOwnerLabel={getOwnerLabel}
                           globalColorMap={globalColorMap}
                           truncateLabel={truncateLabel}
@@ -1104,7 +1115,7 @@ const CalendarRow = React.memo(function CalendarRow({
   monthWidth,
   rowHeight,
   bookings,
-  getContactName,
+  contactNamesByBookingId,
   getOwnerLabel,
   globalColorMap,
   truncateLabel,
@@ -1118,17 +1129,6 @@ const CalendarRow = React.memo(function CalendarRow({
   currentUserId,
   companyName,
 }) {
-  const [contactNames, setContactNames] = useState({});
-
-  useEffect(() => {
-    const names = {};
-    bookings.forEach(b => {
-      if (b.notMyCustomer || !b.contactId) return;
-      names[b.id] = getContactName(b.contactId);
-    });
-    setContactNames(names);
-  }, [bookings, getContactName]);
-
   const rowWidth = months.length * monthWidth;
 
   const resolveAbsolutePressX = (e) => {
@@ -1187,7 +1187,7 @@ const CalendarRow = React.memo(function CalendarRow({
           ? getOwnerLabel(widthPx - 8, ownerLabels)
           : isForeignToAgent
             ? companyName
-            : (contactNames[b.id] || '');
+            : (contactNamesByBookingId?.[b.id] || '');
         const dayIn = `${String(cin.date()).padStart(2, '0')}.${String(cin.month() + 1).padStart(2, '0')}`;
         const dayOut = `${String(cout.date()).padStart(2, '0')}.${String(cout.month() + 1).padStart(2, '0')}`;
         const spaceForDates = 50;
