@@ -40,7 +40,7 @@ function niceStep(rough) {
   return nice * exp;
 }
 
-export default function StatisticsRevenueChart({ data, title, currencySymbol, labels, scrollable }) {
+export default function StatisticsRevenueChart({ data, title, currencySymbol, labels, scrollable, onSelectMonth }) {
   const [hoverKey, setHoverKey] = useState(null);
   const scrollRef = useRef(null);
   const rawMax = Math.max(
@@ -62,7 +62,7 @@ export default function StatisticsRevenueChart({ data, title, currencySymbol, la
     scrollRef.current.scrollLeft = target;
   }, [scrollable, data]);
 
-  const Cols = data.map((d) => {
+  const Cols = data.map((d, idx) => {
     const hRev = max > 0 ? Math.round(((d.revenue || 0) / max) * 140) : 0;
     const hInc = max > 0 ? Math.round(((d.agencyIncome || 0) / max) * 140) : 0;
     const isHovered = hoverKey === d.key;
@@ -72,6 +72,7 @@ export default function StatisticsRevenueChart({ data, title, currencySymbol, la
         style={[s.col, scrollable && s.colFixed, d.isCurrent && s.colCurrent]}
         onHoverIn={() => setHoverKey(d.key)}
         onHoverOut={() => setHoverKey((k) => (k === d.key ? null : k))}
+        onPress={() => onSelectMonth?.(d, idx)}
       >
         <View style={s.barsRow}>
           <View style={s.barColumn}>

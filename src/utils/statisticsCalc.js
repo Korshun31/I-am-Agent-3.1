@@ -1,6 +1,46 @@
 import dayjs from 'dayjs';
+import { computeMonthlyBreakdown } from './bookingPricing';
+import { getCommissionDateAmounts } from '../services/commissionRemindersService';
 
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
+
+function getRentByMonth(b) {
+  if (Array.isArray(b.monthlyBreakdown) && b.monthlyBreakdown.length > 0) return b.monthlyBreakdown;
+  return computeMonthlyBreakdown(b.checkIn, b.checkOut, Number(b.priceMonthly) || 0);
+}
+
+function monthInRange(monthKey, fromStr, toStr) {
+  const monthStart = `${monthKey}-01`;
+  const monthEnd = dayjs(monthStart).endOf('month').format('YYYY-MM-DD');
+  return monthEnd >= fromStr && monthStart <= toStr;
+}
+
+function dateInRange(dateStr, fromStr, toStr) {
+  return dateStr >= fromStr && dateStr <= toStr;
+}
+
+function clientCommissionDate(b) {
+  const created = b.createdAt ? String(b.createdAt).slice(0, 10) : null;
+  const checkIn = b.checkIn ? String(b.checkIn).slice(0, 10) : null;
+  if (created && checkIn) return created < checkIn ? created : checkIn;
+  return created || checkIn || null;
+}
+
+function ownerOneTimeAmount(b) {
+  if (b.ownerCommissionOneTime == null) return 0;
+  const pm = Number(b.priceMonthly) || 0;
+  return b.ownerCommissionOneTimeIsPercent
+    ? Math.round((Number(b.ownerCommissionOneTime) / 100) * pm)
+    : Number(b.ownerCommissionOneTime);
+}
+
+function ownerMonthlyAmount(b) {
+  if (b.ownerCommissionMonthly == null) return 0;
+  const pm = Number(b.priceMonthly) || 0;
+  return b.ownerCommissionMonthlyIsPercent
+    ? Math.round((Number(b.ownerCommissionMonthly) / 100) * pm)
+    : Number(b.ownerCommissionMonthly);
+}
 
 export function getPeriodPresets(now = dayjs()) {
   const startOfMonth = now.startOf('month');
@@ -29,38 +69,115 @@ function bookingsInPeriodByCheckIn(bookings, fromStr, toStr) {
 }
 
 export function computeRevenue(bookings, fromStr, toStr) {
-  return bookingsInPeriodByCheckIn(bookings, fromStr, toStr)
-    .reduce((sum, b) => sum + (Number(b.totalPrice) || 0), 0);
-}
-
-function monthsBetween(checkIn, checkOut) {
-  if (!checkIn || !checkOut) return 0;
-  const diff = dayjs(checkOut).diff(dayjs(checkIn), 'day');
-  return Math.max(1, diff / 30);
+  return (bookings || []).reduce((sum, b) => {
+    if (b.notMyCustomer) return sum;
+    const rows = getRentByMonth(b);
+    return sum + rows.reduce((s, r) => {
+      if (!r.month || !monthInRange(r.month, fromStr, toStr)) return s;
+      return s + (Number(r.amount) || 0);
+    }, 0);
+  }, 0);
 }
 
 export function computeAgencyIncome(bookings, fromStr, toStr) {
-  return bookingsInPeriodByCheckIn(bookings, fromStr, toStr).reduce((sum, b) => {
-    const pm = Number(b.priceMonthly) || 0;
+  return (bookings || []).reduce((sum, b) => {
+    if (b.notMyCustomer) return sum;
+    let acc = 0;
+
     const fromClient = Number(b.commission) || 0;
-
-    let oneTime = 0;
-    if (b.ownerCommissionOneTime != null) {
-      oneTime = b.ownerCommissionOneTimeIsPercent
-        ? Math.round((Number(b.ownerCommissionOneTime) / 100) * pm)
-        : Number(b.ownerCommissionOneTime);
+    const ccDate = clientCommissionDate(b);
+    if (fromClient > 0 && ccDate) {
+      if (dateInRange(ccDate, fromStr, toStr)) acc += fromClient;
     }
 
-    let monthly = 0;
-    if (b.ownerCommissionMonthly != null) {
-      const perMonth = b.ownerCommissionMonthlyIsPercent
-        ? Math.round((Number(b.ownerCommissionMonthly) / 100) * pm)
-        : Number(b.ownerCommissionMonthly);
-      monthly = perMonth * monthsBetween(b.checkIn, b.checkOut);
+    const oneTime = ownerOneTimeAmount(b);
+    const monthly = ownerMonthlyAmount(b);
+    if (oneTime > 0 || monthly > 0) {
+      const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTime, monthly);
+      dates.forEach((d) => {
+        if (dateInRange(d.date, fromStr, toStr)) acc += Number(d.amount) || 0;
+      });
     }
 
-    return sum + fromClient + oneTime + monthly;
+    return sum + acc;
   }, 0);
+}
+
+export function breakdownByPropertyForMonth(bookings, properties, monthKey) {
+  const byProp = {};
+
+  (bookings || []).forEach((b) => {
+    if (b.notMyCustomer) return;
+    if (!b.propertyId) return;
+
+    let revenue = 0;
+    let income = 0;
+    const sources = new Set();
+
+    const rows = getRentByMonth(b);
+    rows.forEach((r) => {
+      if (r.month === monthKey) revenue += Number(r.amount) || 0;
+    });
+
+    const fromClient = Number(b.commission) || 0;
+    const ccDate = clientCommissionDate(b);
+    if (fromClient > 0 && ccDate) {
+      const ccMonth = ccDate.slice(0, 7);
+      if (ccMonth === monthKey) {
+        income += fromClient;
+        sources.add('KK');
+      }
+    }
+
+    const oneTime = ownerOneTimeAmount(b);
+    if (oneTime > 0) {
+      const oneTimeDates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTime, 0);
+      oneTimeDates.forEach((d) => {
+        if (String(d.date).slice(0, 7) === monthKey) {
+          income += Number(d.amount) || 0;
+          sources.add('KoS');
+        }
+      });
+    }
+
+    const monthly = ownerMonthlyAmount(b);
+    if (monthly > 0) {
+      const monthlyDates = getCommissionDateAmounts(b.checkIn, b.checkOut, 0, monthly);
+      monthlyDates.forEach((d) => {
+        if (String(d.date).slice(0, 7) === monthKey) {
+          income += Number(d.amount) || 0;
+          sources.add('EKoS');
+        }
+      });
+    }
+
+    if (revenue === 0 && income === 0) return;
+
+    if (!byProp[b.propertyId]) byProp[b.propertyId] = { propertyId: b.propertyId, revenue: 0, agencyIncome: 0, sources: new Set() };
+    byProp[b.propertyId].revenue += revenue;
+    byProp[b.propertyId].agencyIncome += income;
+    sources.forEach((src) => byProp[b.propertyId].sources.add(src));
+  });
+
+  const propsMap = {};
+  (properties || []).forEach((p) => { propsMap[p.id] = p; });
+
+  const ORDER = ['KK', 'KoS', 'EKoS'];
+  return Object.values(byProp).map((agg) => {
+    const p = propsMap[agg.propertyId];
+    const fullCode = p ? (p.code || '—') + (p.code_suffix ? `-${p.code_suffix}` : '') : '—';
+    const sourcesArr = ORDER.filter((s) => agg.sources.has(s));
+    return {
+      propertyId: agg.propertyId,
+      revenue: agg.revenue,
+      agencyIncome: agg.agencyIncome,
+      sources: sourcesArr,
+      code: fullCode,
+      name: p?.name || '—',
+      city: p?.city || '',
+      photo: (Array.isArray(p?.photos_thumb) && p.photos_thumb[0]) || (Array.isArray(p?.photos) && p.photos[0]) || null,
+    };
+  }).sort((a, b) => b.revenue - a.revenue);
 }
 
 export function computeActiveBookingsCount(bookings, now = dayjs()) {
@@ -202,8 +319,6 @@ export function computeMonthlyBookingsCount(bookings, monthsBack = 5, monthsAhea
 }
 
 export function computeAgentLeaderboard(bookings, teamMembers, fromStr, toStr, limit = 5) {
-  const list = bookingsInPeriodByCheckIn(bookings, fromStr, toStr);
-
   const memberMap = {};
   (teamMembers || []).forEach((m) => {
     const id = m.user_id ?? m.id;
@@ -213,28 +328,36 @@ export function computeAgentLeaderboard(bookings, teamMembers, fromStr, toStr, l
   });
 
   const byAgent = {};
-  list.forEach((b) => {
+  (bookings || []).forEach((b) => {
+    if (b.notMyCustomer) return;
+
+    let revenue = 0;
+    const rows = getRentByMonth(b);
+    rows.forEach((r) => {
+      if (r.month && monthInRange(r.month, fromStr, toStr)) revenue += Number(r.amount) || 0;
+    });
+
+    let income = 0;
+    const fromClient = Number(b.commission) || 0;
+    const ccDate = clientCommissionDate(b);
+    if (fromClient > 0 && ccDate && dateInRange(ccDate, fromStr, toStr)) income += fromClient;
+
+    const oneTime = ownerOneTimeAmount(b);
+    const monthly = ownerMonthlyAmount(b);
+    if (oneTime > 0 || monthly > 0) {
+      const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTime, monthly);
+      dates.forEach((d) => {
+        if (dateInRange(d.date, fromStr, toStr)) income += Number(d.amount) || 0;
+      });
+    }
+
+    if (revenue === 0 && income === 0) return;
+
     const id = b.responsibleAgentId || '__company__';
     if (!byAgent[id]) byAgent[id] = { id, count: 0, revenue: 0, agencyIncome: 0 };
-    byAgent[id].count   += 1;
-    byAgent[id].revenue += Number(b.totalPrice) || 0;
-
-    const pm = Number(b.priceMonthly) || 0;
-    const fromClient = Number(b.commission) || 0;
-    let oneTime = 0;
-    if (b.ownerCommissionOneTime != null) {
-      oneTime = b.ownerCommissionOneTimeIsPercent
-        ? Math.round((Number(b.ownerCommissionOneTime) / 100) * pm)
-        : Number(b.ownerCommissionOneTime);
-    }
-    let monthly = 0;
-    if (b.ownerCommissionMonthly != null) {
-      const perMonth = b.ownerCommissionMonthlyIsPercent
-        ? Math.round((Number(b.ownerCommissionMonthly) / 100) * pm)
-        : Number(b.ownerCommissionMonthly);
-      monthly = perMonth * monthsBetween(b.checkIn, b.checkOut);
-    }
-    byAgent[id].agencyIncome += fromClient + oneTime + monthly;
+    byAgent[id].count        += 1;
+    byAgent[id].revenue      += revenue;
+    byAgent[id].agencyIncome += income;
   });
 
   return Object.values(byAgent)

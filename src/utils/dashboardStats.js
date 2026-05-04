@@ -60,17 +60,15 @@ export function computeBaseStats({ properties, bookings, user, now = dayjs() }) 
     : (bookings || []);
 
   const occupied = bookingsForStats.filter((b) => {
+    if (b.notMyCustomer) return false;
     const start = dayjs(b.checkIn);
     const end = dayjs(b.checkOut);
     const isOccupied = now.isAfter(start) && now.isBefore(end);
-    if (isOccupied) {
-      if (b.notMyCustomer) otherClients++;
-      else myClients++;
-    }
+    if (isOccupied) myClients++;
     return isOccupied;
   }).length;
 
-  const upcomingBookings = bookingsForStats.filter((b) => dayjs(b.checkIn).isAfter(now));
+  const upcomingBookings = bookingsForStats.filter((b) => !b.notMyCustomer && dayjs(b.checkIn).isAfter(now));
   const thisMonth = upcomingBookings.filter((b) => dayjs(b.checkIn).isBefore(endOfMonth)).length;
 
   return {
@@ -117,19 +115,6 @@ export function computeAgentStats({ properties, bookings, user, now = dayjs() })
   const myThisMonth = myFutureAgency.filter((b) => dayjs(b.checkIn).isBefore(endOfMonth)).length;
   const myLater = myUpcoming - myThisMonth;
 
-  const todayStr = now.format('YYYY-MM-DD');
-  const endOfWeek = now.endOf('week');
-  const myBookings = (bookings || []).filter((b) => b.responsibleAgentId === user.id && !b.notMyCustomer);
-  const myCheckInToday = myBookings.filter((b) => b.checkIn === todayStr).length;
-  const myCheckInWeek = myBookings.filter((b) => {
-    const d = dayjs(b.checkIn);
-    return d.isAfter(now.startOf('day').subtract(1, 'ms')) && d.isBefore(endOfWeek.add(1, 'ms'));
-  }).length;
-  const myCheckInMonth = myBookings.filter((b) => {
-    const d = dayjs(b.checkIn);
-    return d.isAfter(now.startOf('month').subtract(1, 'ms')) && d.isBefore(endOfMonth.add(1, 'ms'));
-  }).length;
-
   return {
     companyTotal: companyBd.total,
     companyHouses: companyBd.houses,
@@ -147,9 +132,6 @@ export function computeAgentStats({ properties, bookings, user, now = dayjs() })
     myUpcoming,
     myThisMonth,
     myLater,
-    myCheckInToday,
-    myCheckInWeek,
-    myCheckInMonth,
   };
 }
 
