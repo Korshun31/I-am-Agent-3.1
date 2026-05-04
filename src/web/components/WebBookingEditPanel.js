@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Switch, Animated, Modal, ActivityIndicator, Platform, Image,
 } from 'react-native';
 import dayjs from 'dayjs';
-import { createBooking, updateBooking, getBookings } from '../../services/bookingsService';
-import { getActiveTeamMembers } from '../../services/companyService';
+import { createBooking, updateBooking } from '../../services/bookingsService';
+import { useAppData } from '../../context/AppDataContext';
 import WebContactEditPanel from './WebContactEditPanel';
 import WebBookingCalendarPicker from './WebBookingCalendarPicker';
 import ContactPicker from './ContactPicker';
@@ -318,6 +318,7 @@ function PhotoGrid({ photos, onAdd, onRemove, uploading, t }) {
 
 export default function WebBookingEditPanel({ visible, mode, booking, properties, contacts, onClose, onSaved, user }) {
   const { t, currency: userCurrency } = useLanguage();
+  const { teamMembers, bookings: ctxBookings } = useAppData();
 
   // Разрешения агента
   const isAgent = !!user?.teamMembership;
@@ -341,23 +342,16 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     { days: 30, key: 'bookingReminder1m' },
   ];
   const [calendarVisible, setCalendarVisible] = useState(false);
-  const [propertyBookings, setPropertyBookings] = useState([]);
-  const [teamMembers, setTeamMembers] = useState([]);
   const fileInputRef                = useRef(null);
   const prevContactIdRef            = useRef(null);
 
   // Sync contacts when prop changes (только клиенты — см. инициализацию выше).
   useEffect(() => { setLocalContacts((contacts || []).filter(c => c.type === 'clients')); }, [contacts]);
 
-  // Load active team members for the responsible-agent picker (admin only).
-  useEffect(() => {
-    if (isAgent || !user?.companyId) return;
-    let cancelled = false;
-    getActiveTeamMembers(user.companyId)
-      .then(list => { if (!cancelled) setTeamMembers(Array.isArray(list) ? list : []); })
-      .catch(() => { if (!cancelled) setTeamMembers([]); });
-    return () => { cancelled = true; };
-  }, [isAgent, user?.companyId]);
+  const propertyBookings = useMemo(
+    () => form.propertyId ? (ctxBookings || []).filter(b => b.propertyId === form.propertyId) : [],
+    [ctxBookings, form.propertyId]
+  );
 
   const slideAnim    = useRef(new Animated.Value(540)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
@@ -383,17 +377,6 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
       ]).start(() => setMounted(false));
     }
   }, [visible, booking]);
-
-  // Загружаем бронирования выбранного объекта для отображения занятых дат
-  useEffect(() => {
-    if (!form.propertyId) { setPropertyBookings([]); return; }
-    const pid = form.propertyId;
-    getBookings().then(all => {
-      if (pid !== form.propertyId) return;
-      setPropertyBookings((all || []).filter(b => b.propertyId === pid));
-    }).catch(() => setPropertyBookings([]));
-  }, [form.propertyId]);
-
 
   // Auto-fill passportId when contactId changes (not when user edits passportId manually)
   useEffect(() => {

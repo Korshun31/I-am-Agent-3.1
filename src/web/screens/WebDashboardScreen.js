@@ -1,13 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Linking, Image } from 'react-native';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 import { useLanguage } from '../../context/LanguageContext';
-import { getBookings } from '../../services/bookingsService';
-import { getProperties } from '../../services/propertiesService';
-import { getContacts } from '../../services/contactsService';
-import { getCalendarEvents } from '../../services/calendarEventsService';
-import { supabase } from '../../services/supabase';
+import { useAppData } from '../../context/AppDataContext';
 import {
   computeBaseStats,
   computeAgentStats,
@@ -49,85 +45,53 @@ const CLR = {
   commBg:   '#FDF4E7',
 };
 
-export default function WebDashboardScreen({ user, refreshKey }) {
+export default function WebDashboardScreen({ user }) {
   const { t } = useLanguage();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    total: 0, houses: 0, resortHouses: 0, apartments: 0,
-    occupied: 0, myClients: 0, otherClients: 0,
-    upcoming: 0, thisMonth: 0, later: 0
-  });
-  const [allBookings, setAllBookings] = useState([]);
-  const [allProperties, setAllProperties] = useState([]);
-  const [allContacts, setAllContacts] = useState([]);
-  const [allCalendarEvents, setAllCalendarEvents] = useState([]);
-  const [allCommissionEvents, setAllCommissionEvents] = useState([]);
-  const [stripRefreshKey, setStripRefreshKey] = useState(0);
+  const {
+    bookings,
+    properties,
+    contacts,
+    calendarEvents,
+    propertiesLoading, bookingsLoading, contactsLoading, eventsLoading,
+    refreshCalendarEvents,
+  } = useAppData();
+
   const [selectedDate, setSelectedDate] = useState(dayjs());
-  const [filteredEvents, setFilteredEvents] = useState({ checkIns: [], checkOuts: [], personal: [] });
-  const [agentStats, setAgentStats] = useState(null); // только для team members
-  
-  // Состояние для модального окна событий
   const [eventModalVisible, setEventModalVisible] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
 
-  const loadDashboardData = async () => {
-    try {
-      const [bookings, properties, contacts, calendarEvents] = await Promise.all([
-        getBookings(),
-        getProperties(),
-        getContacts('clients'),
-        getCalendarEvents()
-      ]);
+  const loading = propertiesLoading || bookingsLoading || contactsLoading || eventsLoading;
 
-      setAllBookings(bookings);
-      setAllProperties(properties);
-      setAllContacts(contacts);
-      setAllCalendarEvents(calendarEvents);
+  const stats = useMemo(
+    () => computeBaseStats({ properties, bookings, user }),
+    [properties, bookings, user]
+  );
 
-      const commissionEvents = buildCommissionEvents({ bookings, properties });
-      setAllCommissionEvents(commissionEvents);
+  const agentStats = useMemo(
+    () => computeAgentStats({ properties, bookings, user }),
+    [properties, bookings, user]
+  );
 
-      setStats(computeBaseStats({ properties, bookings, user }));
-      setAgentStats(computeAgentStats({ properties, bookings, user }));
+  const allCommissionEvents = useMemo(
+    () => buildCommissionEvents({ bookings, properties }),
+    [bookings, properties]
+  );
 
-      updateEventsForDate(selectedDate, bookings, properties, contacts, calendarEvents, commissionEvents);
-    } catch (e) {
-      console.error('Dashboard load error:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-  useEffect(() => { if (refreshKey) loadDashboardDataRef.current(); }, [refreshKey]);
-
-  // Ref всегда указывает на актуальную версию loadDashboardData (с текущим selectedDate в замыкании)
-  const loadDashboardDataRef = useRef(loadDashboardData);
-  useEffect(() => {
-    loadDashboardDataRef.current = loadDashboardData;
-  });
-
-
-  const updateEventsForDate = (date, bookings, properties, contacts, calendarEvents, commissionEvents) => {
-    setFilteredEvents(computeAgendaForDate({
-      date,
+  const filteredEvents = useMemo(
+    () => computeAgendaForDate({
+      date: selectedDate,
       user,
       properties,
       bookings,
       contacts,
       calendarEvents,
-      commissionEvents,
+      commissionEvents: allCommissionEvents,
       noNameFallback: t('noName'),
-    }));
-  };
+    }),
+    [selectedDate, user, properties, bookings, contacts, calendarEvents, allCommissionEvents, t]
+  );
 
-  const handleDateSelect = (date) => {
-    setSelectedDate(date);
-    updateEventsForDate(date, allBookings, allProperties, allContacts, allCalendarEvents, allCommissionEvents);
-  };
+  const handleDateSelect = (date) => setSelectedDate(date);
 
   const openWhatsApp = (phone) => {
     if (!phone) return;
@@ -147,15 +111,10 @@ export default function WebDashboardScreen({ user, refreshKey }) {
   };
 
   const handleEventSaved = async () => {
-    await loadDashboardData();
-    setStripRefreshKey(k => k + 1);
-    // loadDashboardData уже обновляет allCalendarEvents — берём обновлённое событие из стейта
+    await refreshCalendarEvents();
     if (editingEvent) {
-      setAllCalendarEvents(prev => {
-        const updated = prev.find(e => e.id === editingEvent.id);
-        if (updated) setEditingEvent(updated);
-        return prev;
-      });
+      const updated = calendarEvents.find(e => e.id === editingEvent.id);
+      if (updated) setEditingEvent(updated);
     }
   };
 
@@ -319,32 +278,15 @@ export default function WebDashboardScreen({ user, refreshKey }) {
             <Text style={styles.statLabel}>
               {agentStats ? t('dashboardCheckInsAgent').toUpperCase() : t('dashboardCheckIns').toUpperCase()}
             </Text>
-            {agentStats ? (
-              <View style={[styles.agentStatRow, { gap: 20, marginTop: 8 }]}>
-                <View style={styles.agentSubItem}>
-                  <Text style={[styles.statValue, { color: CLR.stat3Text }]}>{agentStats.myCheckInToday}</Text>
-                  <Text style={[styles.agentSubLabel, { color: CLR.stat3Text }]}>{t('dashboardStatToday')}</Text>
-                </View>
-                <View style={styles.agentSubItem}>
-                  <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.myCheckInWeek}</Text>
-                  <Text style={styles.agentSubLabelGray}>{t('dashboardStatWeek')}</Text>
-                </View>
-                <View style={styles.agentSubItem}>
-                  <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.myCheckInMonth}</Text>
-                  <Text style={styles.agentSubLabelGray}>{t('thisMonth')}</Text>
-                </View>
-              </View>
-            ) : (
-              <Text style={[styles.statValue, { color: CLR.stat3Text }]}>{stats.upcoming}</Text>
-            )}
+            <Text style={[styles.statValue, { color: CLR.stat3Text }]}>
+              {agentStats ? agentStats.myUpcoming : stats.upcoming}
+            </Text>
           </View>
 
-          {agentStats ? null : (
-            <View style={styles.subStats}>
-              <Text style={styles.subStatText}>{t('thisMonth')}: <Text style={styles.subStatValue}>{stats.thisMonth}</Text></Text>
-              <Text style={styles.subStatText}>{t('later')}: <Text style={styles.subStatValue}>{stats.later}</Text></Text>
-            </View>
-          )}
+          <View style={styles.subStats}>
+            <Text style={styles.subStatText}>{t('thisMonth')}: <Text style={styles.subStatValue}>{agentStats ? agentStats.myThisMonth : stats.thisMonth}</Text></Text>
+            <Text style={styles.subStatText}>{t('later')}: <Text style={styles.subStatValue}>{agentStats ? agentStats.myLater : stats.later}</Text></Text>
+          </View>
         </View>
       </View>
 
@@ -353,7 +295,6 @@ export default function WebDashboardScreen({ user, refreshKey }) {
           selectedDate={selectedDate}
           onDateSelect={handleDateSelect}
           user={user}
-          refreshKey={stripRefreshKey}
         />
       </View>
 
@@ -413,8 +354,8 @@ export default function WebDashboardScreen({ user, refreshKey }) {
             const today = dayjs().format('YYYY-MM-DD');
             const isTeamMemberUpcoming = !!(user?.teamMembership);
             const propsMapUpcoming = {};
-            allProperties.forEach(p => { propsMapUpcoming[p.id] = p; });
-            const next5 = allBookings
+            properties.forEach(p => { propsMapUpcoming[p.id] = p; });
+            const next5 = bookings
               .filter(b => {
                 if (b.checkIn <= today || b.notMyCustomer) return false;
                 if (isTeamMemberUpcoming) return propsMapUpcoming[b.propertyId]?.responsible_agent_id === user.id;
@@ -433,8 +374,8 @@ export default function WebDashboardScreen({ user, refreshKey }) {
                       {next5.length === 0 ? (
                         <Text style={[styles.emptyText, { marginVertical: 16 }]}>{t('bookingsNoData')}</Text>
                       ) : next5.map((b, i) => {
-                        const prop = allProperties.find(p => p.id === b.propertyId);
-                        const contact = allContacts.find(c => c.id === b.contactId);
+                        const prop = properties.find(p => p.id === b.propertyId);
+                        const contact = contacts.find(c => c.id === b.contactId);
                         const propColor = prop?.parent_id ? '#2563EB' : '#C2920E';
                         const code = prop ? (prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '')) : '—';
                         const daysUntil = dayjs(b.checkIn).diff(dayjs(), 'day');
@@ -531,12 +472,6 @@ const styles = StyleSheet.create({
   agentStatLabels: { flexDirection: 'row', marginBottom: 4 },
   agentStatLabelGray: { fontSize: 11, color: '#ADB5BD', fontWeight: '500' },
   agentStatLabelColored: { fontSize: 11, fontWeight: '700' },
-  agentSubItem: { alignItems: 'center', flex: 1 },
-  agentSubValue: { fontSize: 20, fontWeight: '800', marginBottom: 2 },
-  agentSubValueGray: { fontSize: 20, fontWeight: '800', color: '#ADB5BD', marginBottom: 2 },
-  agentSubLabel: { fontSize: 10, fontWeight: '600' },
-  agentSubLabelGray: { fontSize: 10, fontWeight: '500', color: '#ADB5BD' },
-  
   mainContentRow: { flexDirection: 'column', gap: 20, ...Platform.select({ web: { display: 'contents' } }) },
   agendaContainer: { width: '100%', ...Platform.select({ web: { display: 'contents' } }) },
 

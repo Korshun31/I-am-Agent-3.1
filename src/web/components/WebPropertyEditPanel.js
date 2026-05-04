@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Switch, Animated, Modal, ActivityIndicator, Image, Platform,
 } from 'react-native';
 import { updateProperty, createPropertyFull, createProperty, updatePropertyResponsible, updateResortChildrenDistrict } from '../../services/propertiesService';
 import { getCompanyLocations, getLocationsForAgent, getLocationDistricts, addLocationDistrict } from '../../services/locationsService';
-import { getContacts } from '../../services/contactsService';
-import { getActiveTeamMembers } from '../../services/companyService';
+import { useAppData } from '../../context/AppDataContext';
 import { supabase } from '../../services/supabase';
 import { deletePhotoFromStorage } from '../../services/storageService';
 import { useLanguage } from '../../context/LanguageContext';
@@ -454,8 +453,9 @@ export default function WebPropertyEditPanel({
   const [newDistrictInput, setNewDistrictInput] = useState('');
   const [addingDistrict, setAddingDistrict] = useState(false);
   const [addDistrictError, setAddDistrictError] = useState('');
-  const [owners, setOwners] = useState([]);
-  const [panelTeamMembers, setPanelTeamMembers] = useState([]);
+  const { contacts: ctxContacts, teamMembers: ctxTeamMembers, refreshContacts } = useAppData();
+  const owners = useMemo(() => (ctxContacts || []).filter(c => c.type === 'owners'), [ctxContacts]);
+  const panelTeamMembers = ctxTeamMembers || [];
 
   // Load available locations based on user role
   useEffect(() => {
@@ -478,16 +478,6 @@ export default function WebPropertyEditPanel({
     getLocationDistricts(form.location_id).then(setDistricts).catch(() => setDistricts([]));
   }, [form.location_id]);
 
-  // Load owner contacts for all roles, team members for admin only
-  useEffect(() => {
-    if (!visible) return;
-    // Owners — загружаем для всех ролей (агент тоже видит собственников)
-    getContacts('owners').then(setOwners).catch(() => setOwners([]));
-    // Team members — только для админа (пикер ответственного)
-    if (isCompanyAdmin) {
-      getActiveTeamMembers(user.companyId).then(setPanelTeamMembers).catch(() => setPanelTeamMembers([]));
-    }
-  }, [visible, isCompanyAdmin, user?.companyId]);
 
   // Determine if this is a parent resort/condo (not a child unit)
   const effectiveType = mode === 'create-unit' ? (parentProperty?.type || 'house') : (property?.type || form.type);
@@ -590,11 +580,11 @@ export default function WebPropertyEditPanel({
   const handleNewOwnerSaved = useCallback((saved) => {
     const contact = Array.isArray(saved) ? saved[0] : saved;
     if (contact?.id) {
-      setOwners(prev => [contact, ...prev]);
+      refreshContacts();
       setForm(f => ({ ...f, [newOwnerTarget]: contact.id }));
     }
     setNewOwnerVisible(false);
-  }, [newOwnerTarget]);
+  }, [newOwnerTarget, refreshContacts]);
 
   // Не закрываем форму объекта пока открыто окно создания собственника —
   // иначе несохранённые данные нового контакта потеряются вместе с анимацией.

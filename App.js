@@ -40,6 +40,13 @@ function AppMainLoader({ onLogout, onUserUpdate }) {
   return <MainNavigator onLogout={onLogout} onUserUpdate={onUserUpdate} />;
 }
 
+function WebMainLoader({ onLogout }) {
+  const { isLoaded, loadingProgress } = useAppData();
+
+  if (!isLoaded) return <Preloader progress={loadingProgress} />;
+  return <WebMainScreen onLogout={onLogout} />;
+}
+
 function AppContent() {
   const { user, updateUser, resetUser, handleUserUpdate } = useUser();
   const { setLanguage } = useLanguage();
@@ -203,13 +210,13 @@ function AppContent() {
             />
           )}
           {screen === 'main' && (
-            Platform.OS === 'web' ? (
-              <WebMainScreen onLogout={handleLogout} />
-            ) : (
-              <AppDataProvider user={user}>
+            <AppDataProvider user={user}>
+              {Platform.OS === 'web' ? (
+                <WebMainLoader onLogout={handleLogout} />
+              ) : (
                 <AppMainLoader onLogout={handleLogout} onUserUpdate={handleUserUpdate} />
-              </AppDataProvider>
-            )
+              )}
+            </AppDataProvider>
           )}
         </>
       )}

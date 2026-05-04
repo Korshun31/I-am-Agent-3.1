@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Image, Linking, Platform,
@@ -6,9 +6,9 @@ import {
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 
-import { getContacts, deleteContact } from '../../services/contactsService';
+import { deleteContact } from '../../services/contactsService';
 import { getBookings } from '../../services/bookingsService';
-import { getProperties } from '../../services/propertiesService';
+import { useAppData } from '../../context/AppDataContext';
 import WebContactEditPanel from '../components/WebContactEditPanel';
 import { PropertyDetail } from './WebPropertiesScreen';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
@@ -513,12 +513,16 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export default function WebContactsScreen({ onNavigateToProperty, user, refreshKey }) {
+export default function WebContactsScreen({ onNavigateToProperty, user }) {
   const { t } = useLanguage();
-  const [allContacts, setAllContacts] = useState([]);
-  const [allProperties, setAllProperties] = useState([]);
-  const [bookingCounts, setBookingCounts] = useState({});
-  const [loading, setLoading] = useState(true);
+  const {
+    contacts: ctxContacts,
+    properties: allProperties,
+    bookings: ctxBookings,
+    contactsLoading, propertiesLoading, bookingsLoading,
+    refreshContacts, refreshProperties,
+  } = useAppData();
+
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [selected, setSelected] = useState(null);
@@ -532,43 +536,22 @@ export default function WebContactsScreen({ onNavigateToProperty, user, refreshK
   const [inlineBookings, setInlineBookings] = useState([]);
   const [inlineEditPanel, setInlineEditPanel] = useState({ visible: false, mode: 'edit', property: null, parentProperty: null });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Контакты и объекты: RLS базы сама фильтрует по роли (admin видит всё, agent — по политикам CT-VIS-2).
-      const [allClients, allOwners, props] = await Promise.all([
-        getContacts('clients'),
-        getContacts('owners'),
-        getProperties(),
-      ]);
+  const loading = contactsLoading || propertiesLoading || bookingsLoading;
 
-      // Счётчик броней по клиенту: getBookings() для агента вернёт только видимые ему брони (RLS bookings).
-      const counts = {};
-      try {
-        const allBookings = await getBookings();
-        allBookings.forEach(bk => {
-          if (bk.contactId) counts[bk.contactId] = (counts[bk.contactId] || 0) + 1;
-        });
-      } catch {}
-      setBookingCounts(counts);
+  const allContacts = useMemo(() => {
+    const seen = new Set();
+    return [...(ctxContacts || [])]
+      .filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; })
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'));
+  }, [ctxContacts]);
 
-      // Убираем дубликаты (если один контакт — и собственник и клиент)
-      const seen = new Set();
-      const all = [...allOwners, ...allClients].filter(c => {
-        if (seen.has(c.id)) return false;
-        seen.add(c.id);
-        return true;
-      }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'));
-
-      setAllContacts(all);
-      setAllProperties(props);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (refreshKey) load(); }, [refreshKey]);
+  const bookingCounts = useMemo(() => {
+    const counts = {};
+    (ctxBookings || []).forEach(bk => {
+      if (bk.contactId) counts[bk.contactId] = (counts[bk.contactId] || 0) + 1;
+    });
+    return counts;
+  }, [ctxBookings]);
 
   // Load bookings for inline property view
   useEffect(() => {
@@ -621,21 +604,13 @@ export default function WebContactsScreen({ onNavigateToProperty, user, refreshK
   const handleContactDeleted = useCallback(() => {
     setSelected(null);
     closeInlineProperty();
-    load();
-  }, [closeInlineProperty, load]);
+    refreshContacts();
+  }, [closeInlineProperty, refreshContacts]);
 
   const handleSaved = (saved) => {
     setEditPanelVisible(false);
-    load().then(() => {
-      if (saved?.id) {
-        setAllContacts(prev => {
-          const updated = prev.some(c => c.id === saved.id)
-            ? prev.map(c => c.id === saved.id ? saved : c)
-            : [...prev, saved];
-          return updated.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'));
-        });
-        setSelected(saved);
-      }
+    refreshContacts().then(() => {
+      if (saved?.id) setSelected(saved);
     });
   };
 
@@ -773,7 +748,7 @@ export default function WebContactsScreen({ onNavigateToProperty, user, refreshK
               onSaved={(saved) => {
                 setInlineEditPanel(p => ({ ...p, visible: false }));
                 if (saved?.id === inlineProperty?.id) setInlineProperty(saved);
-                load();
+                refreshProperties();
               }}
               user={user}
             />

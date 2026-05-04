@@ -8,10 +8,8 @@ import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
 import { getPropertyTypeColors } from '../constants/propertyTypeColors';
 
-import { getBookings, deleteBooking } from '../../services/bookingsService';
-import { getProperties } from '../../services/propertiesService';
-import { getContacts } from '../../services/contactsService';
-import { getActiveTeamMembers } from '../../services/companyService';
+import { deleteBooking } from '../../services/bookingsService';
+import { useAppData } from '../../context/AppDataContext';
 import { supabase } from '../../services/supabase';
 import WebBookingEditPanel from '../components/WebBookingEditPanel';
 import WebBookingDetailPanel from '../components/WebBookingDetailPanel';
@@ -145,14 +143,31 @@ function filterProperties(properties, bookings, filter, userId) {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export default function WebBookingsScreen({ user, refreshKey }) {
+function WebBookingsScreenInner({ user }) {
   const { t } = useLanguage();
-  const [bookings, setBookings]     = useState([]);
-  const [properties, setProperties] = useState([]);
-  const [contacts, setContacts]     = useState([]);
-  const [owners, setOwners]         = useState([]);
-  const [teamMembers, setTeamMembers] = useState([]);
-  const [loading, setLoading]       = useState(true);
+  const {
+    bookings,
+    properties: ctxProperties,
+    contacts,
+    teamMembers,
+    bookingsLoading, propertiesLoading, contactsLoading,
+    refreshBookings, refreshProperties,
+  } = useAppData();
+  const owners = useMemo(() => (contacts || []).filter(c => c.type === 'owners'), [contacts]);
+  const properties = useMemo(() => {
+    const parentMap = {};
+    (ctxProperties || []).forEach(p => { parentMap[p.id] = p; });
+    return (ctxProperties || [])
+      .filter(p => p.parent_id || HOUSE_LIKE_TYPES.has(p.type))
+      .map(p => {
+        if (p.parent_id) {
+          const parent = parentMap[p.parent_id];
+          return { ...p, effectiveType: parent?.type || 'resort' };
+        }
+        return { ...p, effectiveType: 'house' };
+      });
+  }, [ctxProperties]);
+  const loading = bookingsLoading || propertiesLoading || contactsLoading;
   const [myCompanyName, setMyCompanyName] = useState('');
   const [propFilter, setPropFilter] = useState('all');   // 'all' | 'mine'
   const [cityFilters, setCityFilters] = useState([]); // TD-092: multi-select
@@ -243,57 +258,10 @@ export default function WebBookingsScreen({ user, refreshKey }) {
 
   const ganttScrollRef = useRef(null); // single scroll container for gantt
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const agentId = user?.teamMembership ? user.id : null;
-      const [bk, pr, allContacts] = await Promise.all([
-        getBookings(null, null, agentId),
-        getProperties(agentId),
-        getContacts(),
-      ]);
-      // owners — подмножество для фильтра ответственных и для panel'а правки
-      const ow = allContacts.filter(c => c.type === 'owners');
-      const co = allContacts;
-      setBookings(bk);
-      // Build parent map for effective type resolution
-      const parentMap = {};
-      pr.forEach(p => { parentMap[p.id] = p; });
-      // Only bookable units: standalone houses + all child units (houses in resorts, apartments in condos)
-      // Child units can have type 'house', 'resort', or 'condo' in DB depending on parent type
-      const bookable = pr
-        .filter(p => p.parent_id || HOUSE_LIKE_TYPES.has(p.type))
-        .map(p => {
-          if (p.parent_id) {
-            const parent = parentMap[p.parent_id];
-            return { ...p, effectiveType: parent?.type || 'resort' };
-          }
-          return { ...p, effectiveType: 'house' };
-        });
-      setProperties(bookable);
-      setContacts(co);
-      setOwners(ow);
-
-      // Team members — needed by the booking-detail panel to show the
-      // responsible-agent name. Only admin actually sees that section, so
-      // skip the network call for team members altogether.
-      if (!user?.teamMembership && user?.companyId) {
-        try {
-          const tm = await getActiveTeamMembers(user.companyId);
-          setTeamMembers(Array.isArray(tm) ? tm : []);
-        } catch { setTeamMembers([]); }
-      } else {
-        setTeamMembers([]);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (refreshKey) load(); }, [refreshKey]);
+  const reload = useCallback(() => {
+    refreshBookings();
+    refreshProperties();
+  }, [refreshBookings, refreshProperties]);
 
 
   // Auto-scroll gantt so current month is the 2nd visible column
@@ -899,11 +867,13 @@ export default function WebBookingsScreen({ user, refreshKey }) {
                               if (date) handleGanttCellPress(prop, date);
                             } : undefined}
                           >
-                            {/* Month background bands */}
+                            {/* Подсветка прошлых/текущего месяцев — только для тех, где она нужна.
+                                Остальная сетка (границы месяцев + разделители недель) идёт CSS-фоном на ganttRow. */}
                             {months.map((m, mi) => {
                               const now = dayjs();
                               const isMPast = m.isBefore(now, 'month');
                               const isMCurrent = m.isSame(now, 'month');
+                              if (!isMPast && !isMCurrent) return null;
                               return (
                                 <View
                                   key={mi}
@@ -914,11 +884,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
                                     isMPast && s.monthBandPast,
                                     isMCurrent && s.monthBandCurrent,
                                   ]}
-                                >
-                                  {[0.25, 0.5, 0.75].map(frac => (
-                                    <View key={frac} style={[s.weekDivider, { left: MONTH_W * frac }]} />
-                                  ))}
-                                </View>
+                                />
                               );
                             })}
                             <View style={[s.todayLine, { left: todayX }]} />
@@ -977,7 +943,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
         user={user}
         teamMembers={teamMembers}
         onEdit={() => setEditPanelMode('edit')}
-        onDelete={() => { setSelectedBooking(null); load(); }}
+        onDelete={() => { setSelectedBooking(null); reload(); }}
         onClose={() => setSelectedBooking(null)}
         onPrint={() => selectedBooking && handlePrintConfirmation(selectedBooking)}
       />
@@ -1007,7 +973,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
         onClose={() => setEditPanelMode(null)}
         onSaved={(saved) => {
           setEditPanelMode(null);
-          load();
+          reload();
           if (saved) setSelectedBooking(saved);
         }}
         user={user}
@@ -1187,7 +1153,14 @@ const s = StyleSheet.create({
   ganttLeftCellSelected: { backgroundColor: '#FCE4EC' },
   ganttCode: { fontSize: 12, fontWeight: '700' },
   ganttPropName: { fontSize: 10, color: C.muted, marginTop: 1 },
-  ganttRow: { height: ROW_H, position: 'relative' },
+  ganttRow: {
+    height: ROW_H,
+    position: 'relative',
+    // Фоновая сетка через CSS вместо тысяч DOM-элементов:
+    // — широкие линии границ месяцев (каждые MONTH_W пикселей),
+    // — тонкие линии разделителей недель (каждые MONTH_W/4 = 32.5 пикселя).
+    backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${MONTH_W - 1}px, rgba(0,0,0,0.1) ${MONTH_W - 1}px, rgba(0,0,0,0.1) ${MONTH_W}px), repeating-linear-gradient(to right, transparent 0, transparent ${MONTH_W / 4 - 0.5}px, rgba(0,0,0,0.045) ${MONTH_W / 4 - 0.5}px, rgba(0,0,0,0.045) ${MONTH_W / 4}px)`,
+  },
   monthBand: {
     position: 'absolute', top: 0, bottom: 1, width: MONTH_W,
     borderRightWidth: 1, borderRightColor: 'rgba(0,0,0,0.1)',
@@ -1210,3 +1183,5 @@ const s = StyleSheet.create({
   barLabel: { flex: 1, fontSize: 12, color: 'rgba(0,0,0,0.8)', fontWeight: '500', textAlign: 'center', marginHorizontal: 4 },
   barDateR: { fontSize: 11, color: 'rgba(0,0,0,0.7)', fontWeight: '500' },
 });
+
+export default React.memo(WebBookingsScreenInner);

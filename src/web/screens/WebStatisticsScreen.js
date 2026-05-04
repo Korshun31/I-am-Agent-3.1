@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
-import { getBookings } from '../../services/bookingsService';
-import { getProperties } from '../../services/propertiesService';
-import { getActiveTeamMembers } from '../../services/companyService';
+import { useAppData } from '../../context/AppDataContext';
 import { getCurrencySymbol } from '../../utils/currency';
 import {
   getPeriodPresets,
@@ -19,6 +17,7 @@ import {
   computeAgentLeaderboard,
   filterBookingsForUser,
   filterPropertiesForUser,
+  breakdownByPropertyForMonth,
 } from '../../utils/statisticsCalc';
 import StatisticsPeriodPicker from '../components/statistics/StatisticsPeriodPicker';
 import StatisticsKpiCards from '../components/statistics/StatisticsKpiCards';
@@ -26,6 +25,7 @@ import StatisticsRevenueChart from '../components/statistics/StatisticsRevenueCh
 import StatisticsTopProperties from '../components/statistics/StatisticsTopProperties';
 import StatisticsAgentLeaderboard from '../components/statistics/StatisticsAgentLeaderboard';
 import StatisticsBookingsCountChart from '../components/statistics/StatisticsBookingsCountChart';
+import StatisticsMonthBreakdownModal from '../components/statistics/StatisticsMonthBreakdownModal';
 
 const C = {
   bg:      '#F4F6F9',
@@ -35,37 +35,19 @@ const C = {
   muted:   '#6C757D',
 };
 
-export default function WebStatisticsScreen({ user, refreshKey }) {
+export default function WebStatisticsScreen({ user }) {
   const { t, currency } = useLanguage();
-  const [bookings, setBookings]       = useState([]);
-  const [properties, setProperties]   = useState([]);
-  const [teamMembers, setTeamMembers] = useState([]);
-  const [loading, setLoading]         = useState(true);
+  const {
+    bookings,
+    properties,
+    teamMembers,
+    bookingsLoading, propertiesLoading, teamMembersLoading,
+  } = useAppData();
   const [periodId, setPeriodId]       = useState('thisMonth');
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(null);
 
   const isAdmin = !user?.teamMembership;
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    const calls = [getBookings(), getProperties()];
-    if (isAdmin && user?.companyId) calls.push(getActiveTeamMembers(user.companyId));
-    Promise.all(calls)
-      .then((res) => {
-        if (cancelled) return;
-        setBookings(res[0] || []);
-        setProperties(res[1] || []);
-        setTeamMembers(res[2] || []);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setBookings([]);
-        setProperties([]);
-        setTeamMembers([]);
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [refreshKey, isAdmin, user?.companyId]);
+  const loading = bookingsLoading || propertiesLoading || (isAdmin && teamMembersLoading);
 
   const period = useMemo(() => {
     const presets = getPeriodPresets(dayjs());
@@ -148,6 +130,7 @@ export default function WebStatisticsScreen({ user, refreshKey }) {
                   currencySymbol={sym}
                   labels={{ revenue: t('statisticsKpiRevenue'), income: t('statisticsKpiAgencyIncome') }}
                   scrollable
+                  onSelectMonth={(_, idx) => setSelectedMonthIdx(idx)}
                 />
               </View>
               <View style={s.column}>
@@ -197,6 +180,26 @@ export default function WebStatisticsScreen({ user, refreshKey }) {
           </>
         )}
       </ScrollView>
+
+      <StatisticsMonthBreakdownModal
+        visible={selectedMonthIdx != null}
+        monthLabel={selectedMonthIdx != null ? `${monthlyData[selectedMonthIdx].label} ${monthlyData[selectedMonthIdx].year}` : ''}
+        rows={selectedMonthIdx != null ? breakdownByPropertyForMonth(userBookings, userProperties, monthlyData[selectedMonthIdx].key) : []}
+        currencySymbol={sym}
+        columns={{
+          code:    t('statisticsBreakdownColCode'),
+          revenue: t('statisticsKpiRevenue'),
+          source:  t('statisticsBreakdownColSource'),
+          income:  t('statisticsKpiAgencyIncome'),
+        }}
+        totalLabel={t('statisticsBreakdownTotal')}
+        emptyText={t('statisticsBreakdownEmpty')}
+        canGoPrev={selectedMonthIdx > 0}
+        canGoNext={selectedMonthIdx != null && selectedMonthIdx < monthlyData.length - 1}
+        onPrev={() => setSelectedMonthIdx((i) => (i > 0 ? i - 1 : i))}
+        onNext={() => setSelectedMonthIdx((i) => (i != null && i < monthlyData.length - 1 ? i + 1 : i))}
+        onClose={() => setSelectedMonthIdx(null)}
+      />
     </View>
   );
 }

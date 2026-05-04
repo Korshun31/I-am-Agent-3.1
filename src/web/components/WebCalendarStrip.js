@@ -1,69 +1,47 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
-import { getBookings } from '../../services/bookingsService';
-import { getProperties } from '../../services/propertiesService';
-import { getCalendarEvents, eventOccursOnDate } from '../../services/calendarEventsService';
+import { useAppData } from '../../context/AppDataContext';
+import { eventOccursOnDate } from '../../services/calendarEventsService';
 import { getCommissionDateAmounts } from '../../services/commissionRemindersService';
-import { supabase } from '../../services/supabase';
 
 const CARD_WIDTH = 70; // 60 (width) + 10 (margins 5+5)
 
-export default function WebCalendarStrip({ selectedDate, onDateSelect, user, refreshKey }) {
+export default function WebCalendarStrip({ selectedDate, onDateSelect, user }) {
   const { language } = useLanguage(); // triggers re-render on language change
-  const [loading, setLoading] = useState(true);
-  const [bookings, setBookings] = useState([]);
-  const [propsMap, setPropsMap] = useState({});
-  const [calendarEvents, setCalendarEvents] = useState([]);
-  const [commissionEvents, setCommissionEvents] = useState([]);
-  const [days, setDays] = useState([]);
-  const [containerWidth, setContainerWidth] = useState(0);
-  const flatListRef = useRef(null);
+  const {
+    bookings, properties, calendarEvents,
+    bookingsLoading, propertiesLoading, eventsLoading,
+  } = useAppData();
+  const loading = bookingsLoading || propertiesLoading || eventsLoading;
 
-  useEffect(() => {
-    // Генерируем дни: 60 дней назад и 120 дней вперед
+  const days = useMemo(() => {
     const list = [];
     const start = dayjs().subtract(60, 'day');
-    for (let i = 0; i < 180; i++) {
-      list.push(start.add(i, 'day'));
-    }
-    setDays(list);
+    for (let i = 0; i < 180; i++) list.push(start.add(i, 'day'));
+    return list;
+  }, []);
 
-    async function loadData() {
-      try {
-        const agentId = user?.teamMembership ? user.id : null;
-        const [bData, eData, pData] = await Promise.all([
-          getBookings(null, null, agentId),
-          getCalendarEvents(),
-          getProperties(agentId),
-        ]);
-        setBookings(bData);
-        setCalendarEvents(eData);
+  const propsMap = useMemo(() => {
+    const pm = {};
+    (properties || []).forEach(p => { pm[p.id] = p; });
+    return pm;
+  }, [properties]);
 
-        const pm = {};
-        pData.forEach(p => { pm[p.id] = p; });
-        setPropsMap(pm);
-
-        // Расчет комиссий
-        const allComms = [];
-        bData.forEach(b => {
-          if (b.ownerCommissionOneTime || b.ownerCommissionMonthly) {
-            const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, b.ownerCommissionOneTime, b.ownerCommissionMonthly);
-            dates.forEach(d => {
-              allComms.push({ date: d.date, propertyId: b.propertyId });
-            });
-          }
-        });
-        setCommissionEvents(allComms);
-      } catch (e) {
-        console.error('Calendar strip load error:', e);
-      } finally {
-        setLoading(false);
+  const commissionEvents = useMemo(() => {
+    const out = [];
+    (bookings || []).forEach(b => {
+      if (b.ownerCommissionOneTime || b.ownerCommissionMonthly) {
+        const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, b.ownerCommissionOneTime, b.ownerCommissionMonthly);
+        dates.forEach(d => { out.push({ date: d.date, propertyId: b.propertyId }); });
       }
-    }
-    loadData();
-  }, [refreshKey]);
+    });
+    return out;
+  }, [bookings]);
+
+  const [containerWidth, setContainerWidth] = useState(0);
+  const flatListRef = useRef(null);
 
 
   const scrollToToday = () => {

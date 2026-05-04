@@ -12,7 +12,7 @@ import { supabase } from '../services/supabase';
 import { getUserProfile } from '../services/authService';
 import { useLanguage } from '../context/LanguageContext';
 import { useUser } from '../context/UserContext';
-import { initCompanyChannel, destroyCompanyChannel, broadcastChange } from '../services/companyChannel';
+import { useAppData } from '../context/AppDataContext';
 
 const FULL_HEIGHT_TABS = new Set(['properties', 'contacts', 'bookings', 'profile']);
 
@@ -24,13 +24,10 @@ const FULL_HEIGHT_TABS = new Set(['properties', 'contacts', 'bookings', 'profile
 export default function WebMainScreen({ onLogout }) {
   const { t } = useLanguage();
   const { user, updateUser, handleUserUpdate } = useUser();
+  const { refreshProperties, refreshBookings } = useAppData();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [propertiesInitialId, setPropertiesInitialId] = useState(null);
   const [visited, setVisited] = useState(() => new Set(['dashboard']));
-  const [refreshKey, setRefreshKey] = useState({
-    properties: 0, bookings: 0, contacts: 0, calendar_events: 0,
-  });
-  const [teamRefreshKey, setTeamRefreshKey] = useState(0);
 
   // Обновляем полный профиль пользователя при монтировании (с teamMembership, teamPermissions и т.д.)
   useEffect(() => {
@@ -43,36 +40,6 @@ export default function WebMainScreen({ onLogout }) {
     // Грузим только при первом монтировании по id; updateUser стабилен (из контекста).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
-
-  // Broadcast: обновляем данные через лёгкий канал компании
-  useEffect(() => {
-    if (!user?.id) return;
-    const companyId = user?.teamMembership?.companyId || user?.companyId;
-    if (!companyId) return;
-    initCompanyChannel(companyId, {
-      properties: () => setRefreshKey(k => ({ ...k, properties: k.properties + 1 })),
-      // A booking event also affects what contacts the current user can see
-      // (TD-099: agent reads booking-clients via RLS) and the dashboard
-      // counters (Мои брони / occupied / upcoming). Bump the related keys
-      // so those screens refetch instead of showing stale data until reload.
-      bookings: () => setRefreshKey(k => ({
-        ...k,
-        bookings: k.bookings + 1,
-        contacts: k.contacts + 1,
-      })),
-      contacts: () => setRefreshKey(k => ({ ...k, contacts: k.contacts + 1 })),
-      calendar_events: () => setRefreshKey(k => ({ ...k, calendar_events: k.calendar_events + 1 })),
-      permissions: async () => {
-        const freshUser = await getUserProfile(user.id);
-        if (freshUser) updateUser(freshUser);
-      },
-      team: () => setTeamRefreshKey(prev => prev + 1),
-    });
-    if (user?.isAgentRole) {
-      setTimeout(() => broadcastChange('team'), 1000);
-    }
-    return () => destroyCompanyChannel();
-  }, [user?.id, user?.companyId, user?.teamMembership?.companyId]);
 
   // Realtime notifications logic
   useEffect(() => {
@@ -179,60 +146,46 @@ export default function WebMainScreen({ onLogout }) {
       onTabChange={handleTabChange}
       fullHeight={FULL_HEIGHT_TABS.has(activeTab)}
       user={user}
-      onPropertiesChanged={() => setRefreshKey(k => ({
-        ...k,
-        properties: k.properties + 1,
-        // Bookings tab caches the property list (with responsible_agent_id)
-        // and uses it to show/hide the "Responsible agent" picker in the
-        // booking form. Bump bookings key too so the picker stays in sync
-        // when admin changes a property's responsible agent.
-        bookings: k.bookings + 1,
-      }))}
+      onPropertiesChanged={() => { refreshProperties(); refreshBookings(); }}
       onNavigateToProperty={navigateToProperty}
     >
       {/* Dashboard — монтируется сразу */}
       <View style={[styles.tabWrap, tabStyle('dashboard')]}>
-        <WebDashboardScreen
-          user={user}
-          // Dashboard reads bookings, properties and calendar events to build
-          // its counters and check-in/out lists. A composite key forces
-          // refetch when any of those change in the company.
-          refreshKey={refreshKey.calendar_events + refreshKey.bookings + refreshKey.properties}
-        />
+        <WebDashboardScreen user={user} />
       </View>
 
       {/* Properties — монтируется при первом посещении */}
       {visited.has('properties') && (
         <View style={[styles.tabWrap, tabStyle('properties')]}>
-          <WebPropertiesScreen initialPropertyId={propertiesInitialId} user={user} refreshKey={refreshKey.properties} />
+          <WebPropertiesScreen initialPropertyId={propertiesInitialId} user={user} />
         </View>
       )}
 
       {/* Contacts — монтируется при первом посещении */}
       {visited.has('contacts') && (
         <View style={[styles.tabWrap, tabStyle('contacts')]}>
-          <WebContactsScreen onNavigateToProperty={navigateToProperty} user={user} refreshKey={refreshKey.contacts} />
+          <WebContactsScreen onNavigateToProperty={navigateToProperty} user={user} />
         </View>
       )}
 
       {/* Bookings — монтируется при первом посещении */}
       {visited.has('bookings') && (
         <View style={[styles.tabWrap, tabStyle('bookings')]}>
-          <WebBookingsScreen user={user} refreshKey={refreshKey.bookings} />
+          <WebBookingsScreen user={user} />
         </View>
       )}
 
       {/* Statistics — монтируется при первом посещении */}
       {visited.has('statistics') && (
         <View style={[styles.tabWrap, tabStyle('statistics')]}>
-          <WebStatisticsScreen user={user} refreshKey={refreshKey.bookings + refreshKey.properties} />
+          <WebStatisticsScreen user={user} />
         </View>
       )}
 
       {/* Account — монтируется при первом посещении */}
       {visited.has('profile') && (
         <View style={[styles.tabWrap, tabStyle('profile')]}>
-          <WebAccountScreen user={user} onLogout={onLogout} onUserUpdate={handleUserUpdate} teamRefreshKey={teamRefreshKey} />
+          <WebAccountScreen user={user} onLogout={onLogout} onUserUpdate={handleUserUpdate} />
         </View>
       )}
 

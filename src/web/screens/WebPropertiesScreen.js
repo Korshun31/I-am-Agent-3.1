@@ -40,15 +40,13 @@ const AMENITY_ICONS = {
   blender:         require('../../../assets/icon-amenity-blender.png'),
 };
 
-import { getProperties, createProperty, deleteProperty } from '../../services/propertiesService';
-import { getActiveTeamMembers } from '../../services/companyService';
+import { createProperty, deleteProperty } from '../../services/propertiesService';
+import { useAppData } from '../../context/AppDataContext';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
 import WebBookingEditPanel from '../components/WebBookingEditPanel';
 import WebBookingDetailPanel from '../components/WebBookingDetailPanel';
 import PropertyBookingsList from '../components/PropertyBookingsList';
 import WebPhotoGalleryModal from '../components/WebPhotoGalleryModal';
-import { getContacts } from '../../services/contactsService';
-import { getBookings } from '../../services/bookingsService';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -295,7 +293,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   // Agent may delete only their own non-approved property (LOCK-001)
   const isCreator = property.user_id === user?.id;
 
-  const [teamMembers, setTeamMembers] = useState([]);
+  const { teamMembers } = useAppData();
   const [currentResponsible, setCurrentResponsible] = useState(property.responsible_agent_id ?? null);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [deleteCascadeConfirmVisible, setDeleteCascadeConfirmVisible] = useState(false);
@@ -305,11 +303,6 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   React.useEffect(() => {
     setCurrentResponsible(property.responsible_agent_id ?? null);
   }, [property.id, property.responsible_agent_id]);
-
-  React.useEffect(() => {
-    if (!isCompanyAdmin || !user?.companyId) return;
-    getActiveTeamMembers(user.companyId).then(setTeamMembers).catch(() => {});
-  }, [isCompanyAdmin, user?.companyId]);
 
   const owner1 = contacts.find(c => c.id === property.owner_id);
   const owner2 = contacts.find(c => c.id === property.owner_id_2);
@@ -1033,12 +1026,14 @@ function EmptyState() {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export default function WebPropertiesScreen({ initialPropertyId, user, refreshKey }) {
+function WebPropertiesScreenInner({ initialPropertyId, user }) {
   const { t, currency: userCurrency } = useLanguage();
-  const [loading, setLoading] = useState(true);
-  const [properties, setProperties] = useState([]);
-  const [contacts, setContacts] = useState([]);
-  const [bookings, setBookings] = useState([]);
+  const {
+    properties, contacts, bookings,
+    propertiesLoading, contactsLoading, bookingsLoading,
+    refreshProperties, refreshBookings,
+  } = useAppData();
+  const loading = propertiesLoading || contactsLoading || bookingsLoading;
   const [viewingBooking, setViewingBooking] = useState(null);
   const [editingBooking, setEditingBooking] = useState(null);
   const [search, setSearch] = useState('');
@@ -1072,39 +1067,24 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
     setSavedScrollY(0);
   };
 
-  const load = useCallback(async () => {
-    try {
-      const agentId = user?.teamMembership ? user.id : null;
-      const [props, conts, bkgs] = await Promise.all([
-        getProperties(agentId),
-        getContacts(),
-        getBookings(null, null, agentId),
-      ]);
-      setProperties(props);
-      setContacts(conts);
-      setBookings(bkgs);
-      // Синхронизируем selected с актуальными данными из свежего массива
-      setSelected(prev => {
-        if (!prev) return prev;
-        const fresh = props.find(p => p.id === prev.id);
-        return fresh !== undefined ? fresh : null;
-      });
-      setPreviousSelected(prev => {
-        if (!prev) return prev;
-        const fresh = props.find(p => p.id === prev.id);
-        return fresh !== undefined ? fresh : null;
-      });
-      return bkgs;
-    } catch (e) {
-      console.error('WebPropertiesScreen load error:', e);
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const reload = useCallback(() => {
+    refreshProperties();
+    refreshBookings();
+  }, [refreshProperties, refreshBookings]);
 
-  useEffect(() => { load(); }, []);
-  useEffect(() => { if (refreshKey) { load(); } }, [refreshKey]);
+  // Синхронизируем selected/previousSelected с актуальными данными из свежего массива
+  useEffect(() => {
+    setSelected(prev => {
+      if (!prev) return prev;
+      const fresh = properties.find(p => p.id === prev.id);
+      return fresh !== undefined ? fresh : null;
+    });
+    setPreviousSelected(prev => {
+      if (!prev) return prev;
+      const fresh = properties.find(p => p.id === prev.id);
+      return fresh !== undefined ? fresh : null;
+    });
+  }, [properties]);
 
 
 
@@ -1159,8 +1139,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
 
   const handleSaved = () => {
     setAddVisible(false);
-    setLoading(true);
-    load();
+    reload();
   };
 
   const openCreate = () => setEditPanel({ visible: true, mode: 'create', property: null, parentProperty: null });
@@ -1170,12 +1149,10 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
 
   const handlePanelSaved = (saved) => {
     closePanel();
-    setLoading(true);
-    load().then(() => {
-      if (saved?.id) {
-        setSelected(prev => prev?.id === saved.id ? saved : prev);
-      }
-    });
+    reload();
+    if (saved?.id) {
+      setSelected(prev => prev?.id === saved.id ? saved : prev);
+    }
   };
 
   if (loading) {
@@ -1308,7 +1285,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
             onDelete={async () => {
               try {
                 await deleteProperty(selected.id);
-                await load();
+                reload();
                 setSelected(null);
                 setPreviousSelected(null);
               } catch (e) {
@@ -1349,7 +1326,7 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
         contact={viewingBooking ? contacts.find(c => c.id === viewingBooking.contactId) : null}
         user={user}
         onEdit={() => setEditingBooking(viewingBooking)}
-        onDelete={() => { setViewingBooking(null); load(); }}
+        onDelete={() => { setViewingBooking(null); refreshBookings(); }}
         onClose={() => setViewingBooking(null)}
         onPrint={() => {}}
       />
@@ -1366,13 +1343,10 @@ export default function WebPropertiesScreen({ initialPropertyId, user, refreshKe
         }
         contacts={contacts}
         onClose={() => setEditingBooking(null)}
-        onSaved={async (saved) => {
+        onSaved={(saved) => {
           setEditingBooking(null);
-          const fresh = await load();
-          if (saved) {
-            const updated = fresh.find(b => b.id === saved.id) || saved;
-            setViewingBooking(updated);
-          }
+          refreshBookings();
+          if (saved) setViewingBooking(saved);
         }}
         user={user}
       />
@@ -2178,3 +2152,5 @@ const s = StyleSheet.create({
   },
   saveBtnText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
 });
+
+export default React.memo(WebPropertiesScreenInner);
