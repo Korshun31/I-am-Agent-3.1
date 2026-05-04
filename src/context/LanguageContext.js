@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import 'dayjs/locale/en';
@@ -58,31 +58,33 @@ export function LanguageProvider({ children }) {
       });
   }, []);
 
-  const setLanguage = (lang) => {
+  const setLanguage = useCallback((lang) => {
     if (['en', 'th', 'ru'].includes(lang)) {
       setLanguageState(lang);
       setStoredLanguage(lang);
       applyDayjsLocale(lang);
     }
-  };
+  }, []);
 
-  const setCurrency = (cur) => {
+  const setCurrency = useCallback((cur) => {
     if (VALID_CURRENCIES.includes(cur)) {
       setCurrencyState(cur);
       setStoredCurrency(cur);
     }
-  };
+  }, []);
 
-  const translate = (key) => t(language, key);
+  const translate = useCallback((key) => t(language, key), [language]);
+
+  const value = useMemo(() => ({
+    language, setLanguage,
+    currency, setCurrency,
+    currencySymbol: getCurrencySymbol(currency),
+    t: translate,
+    ready,
+  }), [language, currency, ready, setLanguage, setCurrency, translate]);
 
   return (
-    <LanguageContext.Provider value={{
-      language, setLanguage,
-      currency, setCurrency,
-      currencySymbol: getCurrencySymbol(currency),
-      t: translate,
-      ready,
-    }}>
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   );

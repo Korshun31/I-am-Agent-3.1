@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 const UserContext = createContext(null);
 
@@ -63,24 +63,26 @@ function normalizeUser(userData) {
 export function UserProvider({ children, onLogout }) {
   const [user, setUser] = useState(initialUser);
 
-  const updateUser = (userData) => {
+  const updateUser = useCallback((userData) => {
     setUser(normalizeUser(userData));
-  };
+  }, []);
 
-  const handleUserUpdate = (updatedUser) => {
+  const handleUserUpdate = useCallback((updatedUser) => {
     setUser((prev) => normalizeUser({ ...prev, ...(updatedUser || {}) }));
-  };
+  }, []);
 
-  const resetUser = () => setUser(initialUser);
+  const resetUser = useCallback(() => setUser(initialUser), []);
+
+  const value = useMemo(() => ({
+    user,
+    updateUser,
+    handleUserUpdate,
+    resetUser,
+    onLogout,
+  }), [user, updateUser, handleUserUpdate, resetUser, onLogout]);
 
   return (
-    <UserContext.Provider value={{
-      user,
-      updateUser,
-      handleUserUpdate,
-      resetUser,
-      onLogout,
-    }}>
+    <UserContext.Provider value={value}>
       {children}
     </UserContext.Provider>
   );

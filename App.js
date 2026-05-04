@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -110,11 +110,11 @@ function AppContent() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleLogout = async (opts) => {
+  const handleLogout = useCallback(async (opts) => {
     try { await signOut(opts); } catch {}
     resetUser();
     setScreen('login');
-  };
+  }, [resetUser]);
 
   const handleInviteComplete = (userData) => {
     if (typeof window !== 'undefined') {
@@ -225,9 +225,9 @@ function AppContent() {
 }
 
 export default function App() {
-  const handleLogout = async (opts) => {
+  const handleLogout = useCallback(async (opts) => {
     try { await signOut(opts); } catch {}
-  };
+  }, []);
 
   return (
     <ErrorBoundary>
