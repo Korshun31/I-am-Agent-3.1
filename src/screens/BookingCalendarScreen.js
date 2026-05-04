@@ -483,15 +483,16 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   useEffect(() => {
     if (!rightScrollRefReady.current && rightScrollRef.current && initialScrollX > 0) {
       rightScrollRefReady.current = true;
-      setTimeout(() => {
+      const id = requestAnimationFrame(() => {
         rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
-      }, 50);
+      });
+      return () => cancelAnimationFrame(id);
     }
   }, [initialScrollX, listToShow.length]);
 
   useEffect(() => {
     if (effectiveVisible && rightScrollRef.current) {
-      setTimeout(() => {
+      const id = requestAnimationFrame(() => {
         if (!hasScrolledOnceRef.current) {
           hasScrolledOnceRef.current = true;
           rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
@@ -501,7 +502,8 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
             : initialScrollX;
           rightScrollRef.current?.scrollTo({ x: targetX, animated: false });
         }
-      }, 50);
+      });
+      return () => cancelAnimationFrame(id);
     }
   }, [effectiveVisible, initialScrollX]);
 
@@ -509,32 +511,35 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   useEffect(() => {
     if (hasOpenedDetailRef.current && selectedBooking === null) {
       hasOpenedDetailRef.current = false;
-      setTimeout(() => {
+      const id = requestAnimationFrame(() => {
         rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
-      }, 80);
+      });
+      return () => cancelAnimationFrame(id);
     }
     if (selectedBooking) hasOpenedDetailRef.current = true;
   }, [selectedBooking, initialScrollX]);
 
   useEffect(() => {
     if (!selectedPropertyForDetail && rightScrollRef.current) {
-      setTimeout(() => {
+      const id = requestAnimationFrame(() => {
         const targetX = timelineScrollXRef.current > 0
           ? timelineScrollXRef.current
           : initialScrollX;
         rightScrollRef.current?.scrollTo({ x: targetX, animated: false });
-      }, 50);
+      });
+      return () => cancelAnimationFrame(id);
     }
   }, [selectedPropertyForDetail]);
 
   useEffect(() => {
     if (listToShow.length > 0 && rightScrollRef.current) {
-      setTimeout(() => {
+      const id = requestAnimationFrame(() => {
         const targetX = timelineScrollXRef.current > 0
           ? timelineScrollXRef.current
           : initialScrollX;
         rightScrollRef.current?.scrollTo({ x: targetX, animated: false });
-      }, 100);
+      });
+      return () => cancelAnimationFrame(id);
     }
   }, [listToShow.length]);
 
@@ -811,6 +816,52 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                   scrollEventThrottle={16}
                   bounces={false}
                 >
+                  {/* Общий фоновый слой сетки за всеми строками сразу:
+                      подсветка прошлых/текущего месяцев + вертикальные разделители месяцев.
+                      Раньше каждая строка рисовала 24 ячейки фона (~1200 элементов на 50 объектов).
+                      Теперь — 24 разделителя + 1-2 подсветки общим слоем независимо от числа строк. */}
+                  <View
+                    pointerEvents="none"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: NUM_MONTHS * MONTH_WIDTH,
+                      height: listToShow.length * ROW_HEIGHT,
+                    }}
+                  >
+                    {months.map((m, mi) => {
+                      const isPast = m.year < currentYear || (m.year === currentYear && m.month < currentMonth);
+                      const isCurrent = m.year === currentYear && m.month === currentMonth;
+                      if (!isPast && !isCurrent) return null;
+                      return (
+                        <View
+                          key={m.key}
+                          style={{
+                            position: 'absolute',
+                            left: mi * MONTH_WIDTH,
+                            top: 0,
+                            bottom: 0,
+                            width: MONTH_WIDTH,
+                            backgroundColor: isPast ? COLORS.monthPast : COLORS.monthCurrent,
+                          }}
+                        />
+                      );
+                    })}
+                    {months.map((m, mi) => (
+                      <View
+                        key={`div-${m.key}`}
+                        style={{
+                          position: 'absolute',
+                          left: (mi + 1) * MONTH_WIDTH - 1,
+                          top: 0,
+                          bottom: 0,
+                          width: 1,
+                          backgroundColor: 'rgba(0,0,0,0.18)',
+                        }}
+                      />
+                    ))}
+                  </View>
                   {todayLineX >= 0 && (
                     <View
                       pointerEvents="none"
@@ -1105,7 +1156,7 @@ const CalendarRow = React.memo(function CalendarRow({
   return (
     <View style={[rowStyles.row, { height: rowHeight, width: rowWidth }]}>
       <Pressable
-        style={{ flexDirection: 'row', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         onPress={onCellPress ? (e) => {
           const x = resolveAbsolutePressX(e);
           if (!Number.isFinite(x) || !Number.isFinite(monthWidth) || monthWidth <= 0 || months.length === 0) {
@@ -1119,19 +1170,7 @@ const CalendarRow = React.memo(function CalendarRow({
           }
           onCellPress(unit, months[monthIdx].key);
         } : undefined}
-      >
-        {months.map((m) => {
-          const isPast = m.year < currentYear || (m.year === currentYear && m.month < currentMonth);
-          const isCurrent = m.year === currentYear && m.month === currentMonth;
-          const cellBg = isPast ? COLORS.monthPast : isCurrent ? COLORS.monthCurrent : COLORS.monthFuture;
-          return (
-            <View
-              key={m.key}
-              style={[rowStyles.cell, { width: monthWidth, backgroundColor: cellBg }]}
-            />
-          );
-        })}
-      </Pressable>
+      />
       {bookings.map((b) => {
         const checkInStr = typeof b.checkIn === 'string' && b.checkIn.length >= 10 ? b.checkIn.substring(0, 10) : b.checkIn;
         const checkOutStr = typeof b.checkOut === 'string' && b.checkOut.length >= 10 ? b.checkOut.substring(0, 10) : b.checkOut;
