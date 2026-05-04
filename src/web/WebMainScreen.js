@@ -5,6 +5,7 @@ import WebDashboardScreen from './screens/WebDashboardScreen';
 import WebPropertiesScreen from './screens/WebPropertiesScreen';
 import WebContactsScreen from './screens/WebContactsScreen';
 import WebBookingsScreen from './screens/WebBookingsScreen';
+import WebStatisticsScreen from './screens/WebStatisticsScreen';
 import WebAccountScreen from './screens/WebAccountScreen';
 import WebFlightTracker from './components/WebFlightTracker';
 import { supabase } from '../services/supabase';
@@ -218,6 +219,13 @@ export default function WebMainScreen({ onLogout }) {
       {visited.has('bookings') && (
         <View style={[styles.tabWrap, tabStyle('bookings')]}>
           <WebBookingsScreen user={user} refreshKey={refreshKey.bookings} />
+        </View>
+      )}
+
+      {/* Statistics — монтируется при первом посещении */}
+      {visited.has('statistics') && (
+        <View style={[styles.tabWrap, tabStyle('statistics')]}>
+          <WebStatisticsScreen user={user} refreshKey={refreshKey.bookings + refreshKey.properties} />
         </View>
       )}
 
