@@ -106,7 +106,7 @@ function ScreenWarmers() {
   );
 }
 
-export default function MainNavigator({ onLogout, onUserUpdate }) {
+function MainNavigator({ onLogout, onUserUpdate }) {
   return (
     <View style={{ flex: 1 }}>
       <Tab.Navigator
@@ -136,3 +136,5 @@ export default function MainNavigator({ onLogout, onUserUpdate }) {
     </View>
   );
 }
+
+export default React.memo(MainNavigator);
