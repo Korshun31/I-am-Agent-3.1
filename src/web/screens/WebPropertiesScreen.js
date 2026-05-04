@@ -8,7 +8,6 @@ import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
 import { getVideoThumbnailUrl } from '../../utils/videoThumbnail';
-import { pluralByLang } from '../../utils/pluralize';
 
 const ICON_BEDROOM  = require('../../../assets/icon-stat-bedroom.png');
 const ICON_BATHROOM = require('../../../assets/icon-stat-bathroom.png');
@@ -46,6 +45,7 @@ import { getActiveTeamMembers } from '../../services/companyService';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
 import WebBookingEditPanel from '../components/WebBookingEditPanel';
 import WebBookingDetailPanel from '../components/WebBookingDetailPanel';
+import PropertyBookingsList from '../components/PropertyBookingsList';
 import WebPhotoGalleryModal from '../components/WebPhotoGalleryModal';
 import { getContacts } from '../../services/contactsService';
 import { getBookings } from '../../services/bookingsService';
@@ -608,52 +608,17 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         )}
 
         {/* ── Bookings (паритет с мобайлом) ── */}
-        {(() => {
-          const todayStr = dayjs().format('YYYY-MM-DD');
-          const propBookings = (bookings || [])
-            .filter(b => (b.propertyId || b.property_id) === property.id && (b.checkOut || b.check_out) >= todayStr)
-            .sort((a, b) => (a.checkIn || a.check_in).localeCompare(b.checkIn || b.check_in))
-            .slice(0, 5);
-          return (
-            <SectionBlock title={t('bookingsTitle')}>
-              {propBookings.length === 0 ? (
-                <Text style={s.bookingsEmptyText}>{t('propNoUpcomingBookings')}</Text>
-              ) : (
-                propBookings.map((b, i) => {
-                  const ci = b.checkIn || b.check_in;
-                  const co = b.checkOut || b.check_out;
-                  const isActive = ci <= todayStr && co >= todayStr;
-                  const nights = dayjs(co).diff(dayjs(ci), 'day');
-                  const total = b.totalPrice ?? b.total_price;
-                  return (
-                    <TouchableOpacity
-                      key={b.id}
-                      style={[s.bookingRow, i < propBookings.length - 1 && s.bookingRowBorder]}
-                      onPress={() => onBookingPress?.(b)}
-                      activeOpacity={0.6}
-                    >
-                      <View style={[s.bookingDot, { backgroundColor: isActive ? '#16A34A' : ACCENT }]} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.bookingDates}>
-                          {dayjs(ci).format('DD MMM')} — {dayjs(co).format('DD MMM YYYY')}
-                        </Text>
-                        <Text style={s.bookingMeta}>
-                          {nights} {pluralByLang(nights, language, { one: t('nightOne'), few: t('nightFew'), many: t('nightMany') })}
-                          {total ? `  ·  ${psym} ${Number(total).toLocaleString()}` : ''}
-                        </Text>
-                      </View>
-                      {isActive && (
-                        <View style={s.bookingActiveBadge}>
-                          <Text style={s.bookingActiveBadgeText}>{t('bookingActiveNow')}</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })
-              )}
-            </SectionBlock>
-          );
-        })()}
+        <SectionBlock title={t('bookingsTitle')}>
+          <PropertyBookingsList
+            bookings={bookings}
+            property={property}
+            language={language}
+            t={t}
+            psym={psym}
+            onBookingPress={onBookingPress}
+            emptyText={t('propNoUpcomingBookings')}
+          />
+        </SectionBlock>
 
         {/* ── Utilities ── */}
         {(property.electricity_price != null || property.water_price != null || property.gas_price != null || property.internet_price != null || property.cleaning_price != null || property.exit_cleaning_price != null) && (
@@ -1828,17 +1793,6 @@ const s = StyleSheet.create({
   addUnitBtnText: { fontSize: 13, fontWeight: '700', color: '#3D7D82' },
   sectionContent: { padding: 16 },
 
-  // Bookings list (паритет с мобайлом)
-  bookingsEmptyText: { fontSize: 13, color: '#94A3B8', textAlign: 'center', paddingVertical: 8 },
-  bookingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-  bookingRowBorder: { borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  bookingDot: { width: 8, height: 8, borderRadius: 4 },
-  bookingDates: { fontSize: 13, fontWeight: '600', color: '#1F2937' },
-  bookingMeta: { fontSize: 12, color: '#6B7280', marginTop: 1 },
-  bookingActiveBadge: { backgroundColor: '#DCFCE7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  bookingActiveBadgeText: { fontSize: 11, fontWeight: '700', color: '#16A34A' },
-
-  // Booking view modal overlay
 
   infoRow: {
     flexDirection: 'row',
