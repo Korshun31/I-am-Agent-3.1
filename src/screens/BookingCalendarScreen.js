@@ -181,9 +181,20 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   ).current;
 
   // После упрощения модели прав модерация снята — все объекты считаются одобренными.
-  const topLevel = properties.filter(p => !p.parent_id);
-  const children = properties.filter(p => p.parent_id);
-  const getParent = (id) => properties.find(pr => pr.id === id);
+  // Один проход по properties: получаем topLevel, children и Map для O(1) поиска родителя.
+  // Раньше эти три значения пересоздавались каждый рендер, ломая мемоизацию listToShow.
+  const { topLevel, children, parentMap } = useMemo(() => {
+    const top = [];
+    const kids = [];
+    const map = new Map();
+    (properties || []).forEach((p) => {
+      map.set(p.id, p);
+      if (p.parent_id) kids.push(p);
+      else top.push(p);
+    });
+    return { topLevel: top, children: kids, parentMap: map };
+  }, [properties]);
+  const getParent = useCallback((id) => parentMap.get(id), [parentMap]);
 
   const filterFn = useCallback((p, parent) => {
     if (!filterValues) return false;
