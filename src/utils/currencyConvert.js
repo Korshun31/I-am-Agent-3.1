@@ -52,8 +52,15 @@ export function indexRates(rows) {
 }
 
 /**
- * Бинарный поиск: возвращает курс на дату ≤ dateStr, не далее MAX_FALLBACK_DAYS
- * от dateStr. null если такого нет.
+ * Возвращает курс на запрошенную дату с двусторонним fallback:
+ *   - идеальный матч: ближайшая запись `<= dateStr` (бинарный поиск).
+ *   - если запрошенная дата РАНЬШЕ всех имеющихся — берём самую раннюю.
+ *   - если позже всех — самая поздняя (она же ближайшая `<=`).
+ *
+ * Текущий сценарий: в кэше всего одна запись за сегодня. Любая дата брони
+ * (прошлая или будущая) должна получить этот курс. Жёсткого окна
+ * MAX_FALLBACK_DAYS больше нет — вместо этого `convertAmount` делает
+ * graceful degrade когда курсы вообще пустые.
  */
 function lookupRate(byPair, base, quote, dateStr) {
   if (base === quote) return 1;
@@ -69,17 +76,9 @@ function lookupRate(byPair, base, quote, dateStr) {
     if (arr[mid][0] <= dateStr) { foundIdx = mid; lo = mid + 1; }
     else hi = mid - 1;
   }
-  if (foundIdx < 0) return null;
-
-  const [foundDate, foundRate] = arr[foundIdx];
-
-  // Проверка возраста: разница в днях между запрошенной датой и найденной.
-  const a = new Date(`${dateStr}T00:00:00Z`).getTime();
-  const b = new Date(`${foundDate}T00:00:00Z`).getTime();
-  const diffDays = Math.floor((a - b) / 86400000);
-  if (diffDays > MAX_FALLBACK_DAYS) return null;
-
-  return foundRate;
+  // Запрошенная дата раньше всех имеющихся — отдаём самую раннюю.
+  if (foundIdx < 0) return arr[0][1];
+  return arr[foundIdx][1];
 }
 
 /**
