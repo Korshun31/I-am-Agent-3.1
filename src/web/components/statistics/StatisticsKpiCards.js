@@ -14,9 +14,9 @@ function fmtMoney(n, sym) {
   return Number(Math.round(n)).toLocaleString('ru-RU') + (sym ? ` ${sym}` : '');
 }
 
-function Card({ label, value, sub, tone }) {
+function Card({ label, value, sub, tone, flexBasis }) {
   return (
-    <View style={[s.card, tone === 'accent' && { borderColor: ACCENT }]}>
+    <View style={[s.card, { flexBasis }, tone === 'accent' && { borderColor: ACCENT }]}>
       <Text style={s.label} numberOfLines={1}>{label}</Text>
       <Text style={[s.value, tone === 'accent' && { color: ACCENT }]} numberOfLines={1}>{value}</Text>
       {sub ? <Text style={s.sub} numberOfLines={1}>{sub}</Text> : null}
@@ -31,13 +31,14 @@ export default function StatisticsKpiCards({
   occupancyPercent,
   currencySymbol,
   labels,
+  cardFlexBasis = 200,
 }) {
   return (
     <View style={s.grid}>
-      <Card label={labels.revenue}        value={fmtMoney(revenue, currencySymbol)} />
-      <Card label={labels.agencyIncome}   value={fmtMoney(agencyIncome, currencySymbol)} tone="accent" />
-      <Card label={labels.activeBookings} value={String(activeBookings)} sub={labels.activeBookingsSub} />
-      <Card label={labels.occupancy}      value={`${occupancyPercent}%`} sub={labels.occupancySub} />
+      <Card label={labels.revenue}        value={fmtMoney(revenue, currencySymbol)}          flexBasis={cardFlexBasis} />
+      <Card label={labels.agencyIncome}   value={fmtMoney(agencyIncome, currencySymbol)}     flexBasis={cardFlexBasis} tone="accent" />
+      <Card label={labels.activeBookings} value={String(activeBookings)} sub={labels.activeBookingsSub} flexBasis={cardFlexBasis} />
+      <Card label={labels.occupancy}      value={`${occupancyPercent}%`} sub={labels.occupancySub}     flexBasis={cardFlexBasis} />
     </View>
   );
 }
@@ -46,7 +47,6 @@ const s = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   card: {
     flexGrow: 1,
-    flexBasis: 200,
     backgroundColor: C.surface,
     borderRadius: 12,
     borderWidth: 1,
