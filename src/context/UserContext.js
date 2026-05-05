@@ -32,7 +32,7 @@ const initialUser = {
   companyInfo: {},
   // Настройки
   language: 'en',
-  selectedCurrency: 'USD',
+  selectedCurrency: null,
   notificationSettings: {},
   locations: [],
   web_notifications: {

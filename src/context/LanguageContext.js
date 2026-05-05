@@ -43,17 +43,19 @@ export function LanguageProvider({ children }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    Promise.all([getStoredLanguage(), getStoredCurrency()])
-      .then(([lang, cur]) => {
+    // Валюту НЕ читаем из AsyncStorage: единственный источник истины — БД
+    // (users_profile.settings.selectedCurrency). App.js устанавливает её через
+    // setCurrency после getCurrentUser. Иначе кэш на устройстве перетирает
+    // значение из БД из-за гонки между двумя useEffect'ами при старте.
+    getStoredLanguage()
+      .then((lang) => {
         setLanguageState(lang);
         applyDayjsLocale(lang);
-        setCurrencyState(cur);
         setReady(true);
       })
       .catch(() => {
         setLanguageState('en');
         applyDayjsLocale('en');
-        setCurrencyState('THB');
         setReady(true);
       });
   }, []);

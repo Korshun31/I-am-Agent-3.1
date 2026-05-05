@@ -49,7 +49,7 @@ function WebMainLoader({ onLogout }) {
 
 function AppContent() {
   const { user, updateUser, resetUser, handleUserUpdate } = useUser();
-  const { setLanguage } = useLanguage();
+  const { setLanguage, setCurrency } = useLanguage();
   const [screen, setScreen] = useState('preloader');
   const [pendingEmail, setPendingEmail] = useState('');
   const [inviteToken, setInviteToken] = useState(() => {
@@ -81,6 +81,7 @@ function AppContent() {
         if (userData) {
           updateUser(userData);
           if (userData.language) setLanguage(userData.language);
+          if (userData.selectedCurrency) setCurrency(userData.selectedCurrency);
           setScreen('main');
         } else {
           setScreen('login');
@@ -157,6 +158,7 @@ function AppContent() {
               onLogin={(userData) => {
                 updateUser(userData);
                 if (userData?.language) setLanguage(userData.language);
+                if (userData?.selectedCurrency) setCurrency(userData.selectedCurrency);
                 setScreen('main');
               }}
             />
@@ -181,6 +183,7 @@ function AppContent() {
               onSuccess={(userData) => {
                 updateUser(userData);
                 if (userData?.language) setLanguage(userData.language);
+                if (userData?.selectedCurrency) setCurrency(userData.selectedCurrency);
                 setScreen('main');
               }}
               onPendingConfirmation={(email) => {

@@ -60,7 +60,6 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
   const [notificationsModalVisible, setNotificationsModalVisible] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState({});
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
-  const [selectedCurrency, setSelectedCurrency] = useState('USD');
   const [addLocationsModalVisible, setAddLocationsModalVisible] = useState(false);
   const [editLocationData, setEditLocationData] = useState(null);
   const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
@@ -75,7 +74,7 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
   const [companyClosing, setCompanyClosing] = useState(false);
   const [companyContentHeight, setCompanyContentHeight] = useState(0);
   const [settingsContentHeight, setSettingsContentHeight] = useState(0);
-  const { language, setLanguage, setCurrency, t } = useLanguage();
+  const { language, setLanguage, currency, setCurrency, t } = useLanguage();
   const settingsHeight = useRef(new Animated.Value(0)).current;
   const settingsWasOpen = useRef(false);
   const locationsHeight = useRef(new Animated.Value(0)).current;
@@ -227,17 +226,17 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
       prevTabVisible.current = isVisible;
       return;
     }
+    // Защита от гонки: вкладка может стать видимой раньше чем профиль
+    // догрузился из БД. В этот момент user.selectedCurrency = null
+    // (из initialUser), и записать дефолт 'USD' значит затереть реальный
+    // выбор юзера в LanguageContext+AsyncStorage. Откладываем до загрузки.
+    if (!user?.id) return;
     setCompanySectionOpen(false);
     setSettingsOpen(false);
     setLocationsOpen(false);
-    if (user) {
-      const lang = ['en', 'th', 'ru'].includes(user.language) ? user.language : 'en';
-      const curr = ['USD', 'EUR', 'RUB', 'THB'].includes(user.selectedCurrency) ? user.selectedCurrency : 'USD';
-      setLanguage(lang);
-      setNotificationSettings(user.notificationSettings || {});
-      setSelectedCurrency(curr);
-      setCurrency(curr);
-    }
+    const lang = ['en', 'th', 'ru'].includes(user.language) ? user.language : 'en';
+    setLanguage(lang);
+    setNotificationSettings(user.notificationSettings || {});
     prevTabVisible.current = isVisible;
   }, [isVisible, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -250,7 +249,9 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
   const saveAgentSettings = async (updates) => {
     try {
       await updateUserProfile(updates);
-    } catch {}
+    } catch (e) {
+      Alert.alert(t('error') || 'Error', e?.message || String(e));
+    }
   };
 
   return (
@@ -712,9 +713,8 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
     <CurrencyModal
       visible={currencyModalVisible}
       onClose={() => setCurrencyModalVisible(false)}
-      selectedCurrency={selectedCurrency}
+      selectedCurrency={currency}
       onSave={(c) => {
-        setSelectedCurrency(c);
         setCurrency(c);
         setCurrencyModalVisible(false);
         saveAgentSettings({ selectedCurrency: c });
