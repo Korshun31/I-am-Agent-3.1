@@ -60,14 +60,6 @@ export function getPeriodPresets(now = dayjs()) {
   };
 }
 
-function bookingsInPeriodByCheckIn(bookings, fromStr, toStr) {
-  return (bookings || []).filter((b) => {
-    if (b.notMyCustomer) return false;
-    const ci = b.checkIn;
-    return ci >= fromStr && ci <= toStr;
-  });
-}
-
 export function computeRevenue(bookings, fromStr, toStr) {
   return (bookings || []).reduce((sum, b) => {
     if (b.notMyCustomer) return sum;
@@ -219,18 +211,52 @@ export function computeOccupancyPercent(bookings, properties, fromStr, toStr) {
   return Math.round((occupiedNights / available) * 100);
 }
 
+// TD-121: формулы выровнены с `computeRevenue` / `computeAgencyIncome`.
+// Раньше revenue считался как `b.totalPrice` для броней с checkIn в периоде —
+// это давало два расхождения: (1) многомесячные брони "схлопывались" в один
+// период вместо разбивки по месяцам через monthlyBreakdown; (2) брони с
+// checkIn вне периода но имеющие rent в периоде вообще не попадали.
+// Теперь revenue идёт через `getRentByMonth` + `monthInRange`, agencyIncome
+// через `getCommissionDateAmounts` + `dateInRange` — точно как в
+// `computeRevenue`/`computeAgencyIncome`/`computeAgentLeaderboard`. Числа в
+// топе теперь сходятся с общим оборотом и доходом за тот же период.
 export function computeTopProperties(bookings, properties, fromStr, toStr, limit = 5) {
-  const list = bookingsInPeriodByCheckIn(bookings, fromStr, toStr);
   const fromD = dayjs(fromStr);
   const toD   = dayjs(toStr);
   const totalDays = toD.diff(fromD, 'day') + 1;
 
   const byProp = {};
-  list.forEach((b) => {
+  (bookings || []).forEach((b) => {
+    if (b.notMyCustomer) return;
     if (!b.propertyId) return;
-    if (!byProp[b.propertyId]) byProp[b.propertyId] = { revenue: 0, nights: 0, count: 0 };
-    byProp[b.propertyId].revenue += Number(b.totalPrice) || 0;
-    byProp[b.propertyId].count += 1;
+
+    let revenue = 0;
+    const rows = getRentByMonth(b);
+    rows.forEach((r) => {
+      if (r.month && monthInRange(r.month, fromStr, toStr)) revenue += Number(r.amount) || 0;
+    });
+
+    let income = 0;
+    const fromClient = Number(b.commission) || 0;
+    const ccDate = clientCommissionDate(b);
+    if (fromClient > 0 && ccDate && dateInRange(ccDate, fromStr, toStr)) income += fromClient;
+
+    const oneTime = ownerOneTimeAmount(b);
+    const monthly = ownerMonthlyAmount(b);
+    if (oneTime > 0 || monthly > 0) {
+      const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTime, monthly);
+      dates.forEach((d) => {
+        if (dateInRange(d.date, fromStr, toStr)) income += Number(d.amount) || 0;
+      });
+    }
+
+    if (revenue === 0 && income === 0) return;
+
+    if (!byProp[b.propertyId]) byProp[b.propertyId] = { revenue: 0, agencyIncome: 0, nights: 0, count: 0 };
+    byProp[b.propertyId].revenue      += revenue;
+    byProp[b.propertyId].agencyIncome += income;
+    byProp[b.propertyId].count        += 1;
+
     const ci = dayjs(b.checkIn);
     const co = dayjs(b.checkOut);
     const start = ci.isAfter(fromD) ? ci : fromD;
@@ -250,6 +276,7 @@ export function computeTopProperties(bookings, properties, fromStr, toStr, limit
         name: p?.name || '—',
         code: p?.code || '',
         revenue: agg.revenue,
+        agencyIncome: agg.agencyIncome,
         nights: agg.nights,
         count: agg.count,
         occupancyPercent: totalDays > 0 ? Math.round((agg.nights / totalDays) * 100) : 0,
