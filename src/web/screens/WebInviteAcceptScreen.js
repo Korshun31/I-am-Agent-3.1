@@ -26,8 +26,7 @@ const C = {
   dangerBg: '#FFF5F5',
 };
 
-// TODO: replace with actual App Store URL when published
-const APP_STORE_URL = '#';
+const APP_STORE_URL = 'https://apps.apple.com/app/i-am-agent/id6496850036';
 
 const STEPS = {
   LOADING: 'loading',
