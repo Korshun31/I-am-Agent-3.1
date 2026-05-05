@@ -51,6 +51,7 @@ export default function StatisticsRevenueChart({
   colWidth = COL_WIDTH,
   barMaxWidth,
   fullNumbers,
+  showYear,
 }) {
   const fmt = fullNumbers ? fmtFull : fmtShort;
   const [hoverKey, setHoverKey] = useState(null);
@@ -122,7 +123,7 @@ export default function StatisticsRevenueChart({
           </View>
         </View>
         <Text style={[s.label, (isHovered || d.isCurrent) && s.labelEmph]} numberOfLines={1}>
-          {d.label}
+          {showYear ? `${d.label} ${String(d.year).slice(-2)}` : d.label}
         </Text>
       </Pressable>
     );

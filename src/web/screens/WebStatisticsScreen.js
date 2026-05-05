@@ -156,6 +156,7 @@ export default function WebStatisticsScreen({ user }) {
                   currencySymbol={sym}
                   labels={{ revenue: t('statisticsKpiRevenue'), income: t('statisticsKpiAgencyIncome') }}
                   scrollable
+                  showYear
                   onSelectMonth={(_, idx) => setSelectedMonthIdx(idx)}
                 />
               </View>
@@ -168,6 +169,7 @@ export default function WebStatisticsScreen({ user }) {
                     checkedIn: t('statisticsChartBookingsCheckedIn'),
                   }}
                   scrollable
+                  showYear
                 />
               </View>
             </View>

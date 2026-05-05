@@ -21,7 +21,7 @@ export default function StatisticsTopProperties({ data, title, currencySymbol, e
 
       <View style={s.headerRow}>
         <Text style={[s.headerCell, { flex: 2 }]}>{columns.property}</Text>
-        <Text style={[s.headerCell, { flex: 1, textAlign: 'right' }]}>{columns.revenue}</Text>
+        <Text style={[s.headerCell, { flex: 1, minWidth: 90, textAlign: 'right' }]}>{columns.revenue}</Text>
         <Text style={[s.headerCell, { width: 70, textAlign: 'right' }]}>{columns.occupancy}</Text>
       </View>
 
@@ -34,7 +34,7 @@ export default function StatisticsTopProperties({ data, title, currencySymbol, e
               <Text style={s.propName} numberOfLines={1}>{d.name}</Text>
               {d.code ? <Text style={s.propCode} numberOfLines={1}>{d.code}</Text> : null}
             </View>
-            <Text style={[s.value, { flex: 1, textAlign: 'right' }]} numberOfLines={1}>
+            <Text style={[s.value, { flex: 1, minWidth: 90, textAlign: 'right' }]} numberOfLines={1}>
               {fmtMoney(d.revenue, currencySymbol)}
             </Text>
             <Text style={[s.value, { width: 70, textAlign: 'right' }]} numberOfLines={1}>

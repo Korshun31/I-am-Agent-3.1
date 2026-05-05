@@ -29,7 +29,7 @@ export default function StatisticsAgentLeaderboard({
       <View style={s.headerRow}>
         <Text style={[s.headerCell, { flex: 2 }]}>{columns.agent}</Text>
         <Text style={[s.headerCell, { width: 70, textAlign: 'right' }]}>{columns.bookings}</Text>
-        <Text style={[s.headerCell, { flex: 1, textAlign: 'right' }]}>{columns.income}</Text>
+        <Text style={[s.headerCell, { flex: 1, minWidth: 90, textAlign: 'right' }]}>{columns.income}</Text>
       </View>
 
       {data.length === 0 ? (
@@ -43,7 +43,7 @@ export default function StatisticsAgentLeaderboard({
             <Text style={[s.value, { width: 70, textAlign: 'right' }]} numberOfLines={1}>
               {d.count}
             </Text>
-            <Text style={[s.value, { flex: 1, textAlign: 'right' }]} numberOfLines={1}>
+            <Text style={[s.value, { flex: 1, minWidth: 90, textAlign: 'right' }]} numberOfLines={1}>
               {fmtMoney(d.agencyIncome, currencySymbol)}
             </Text>
           </View>

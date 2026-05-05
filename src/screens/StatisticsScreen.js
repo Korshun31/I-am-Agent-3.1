@@ -15,6 +15,9 @@ import {
   computeOccupancyPercent,
   computeMonthlyRevenue,
   computeMonthlyForecast,
+  computeMonthlyBookingsCount,
+  computeTopProperties,
+  computeAgentLeaderboard,
   breakdownByPropertyForMonth,
   filterBookingsForUser,
   filterPropertiesForUser,
@@ -22,6 +25,9 @@ import {
 import StatisticsPeriodPicker from '../web/components/statistics/StatisticsPeriodPicker';
 import StatisticsKpiCards from '../web/components/statistics/StatisticsKpiCards';
 import StatisticsRevenueChart from '../web/components/statistics/StatisticsRevenueChart';
+import StatisticsBookingsCountChart from '../web/components/statistics/StatisticsBookingsCountChart';
+import StatisticsTopProperties from '../web/components/statistics/StatisticsTopProperties';
+import StatisticsAgentLeaderboard from '../web/components/statistics/StatisticsAgentLeaderboard';
 import StatisticsMonthBreakdownModal from '../web/components/statistics/StatisticsMonthBreakdownModal';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
@@ -39,8 +45,10 @@ export default function StatisticsScreen({ onBack }) {
   const {
     bookings,
     properties,
+    teamMembers,
     bookingsLoading,
     propertiesLoading,
+    teamMembersLoading,
     refreshBookings,
     refreshProperties,
   } = useAppData();
@@ -89,6 +97,23 @@ export default function StatisticsScreen({ onBack }) {
     [userBookings, fxCtx]
   );
 
+  const bookingsCountData = useMemo(
+    () => computeMonthlyBookingsCount(userBookings, 12, 12, dayjs()),
+    [userBookings]
+  );
+
+  const topProps = useMemo(
+    () => computeTopProperties(userBookings, userProperties, period.from, period.to, 5, fxCtx),
+    [userBookings, userProperties, period, fxCtx]
+  );
+
+  const isAdmin = !user?.teamMembership;
+
+  const agentLeaderboard = useMemo(
+    () => (isAdmin ? computeAgentLeaderboard(bookings, teamMembers, period.from, period.to, 5, fxCtx) : []),
+    [isAdmin, bookings, teamMembers, period, fxCtx]
+  );
+
   const selectedMonth = selectedMonthIdx != null ? monthlyData[selectedMonthIdx] : null;
   const breakdownRows = useMemo(
     () => (selectedMonth ? breakdownByPropertyForMonth(userBookings, userProperties, selectedMonth.key, fxCtx) : []),
@@ -96,7 +121,7 @@ export default function StatisticsScreen({ onBack }) {
   );
 
   const sym = getCurrencySymbol(currency || 'THB');
-  const loading = bookingsLoading || propertiesLoading;
+  const loading = bookingsLoading || propertiesLoading || (isAdmin && teamMembersLoading);
 
   const labels = {
     revenue:           t('statisticsKpiRevenue'),
@@ -174,7 +199,59 @@ export default function StatisticsScreen({ onBack }) {
               colWidth={80}
               barMaxWidth={32}
               fullNumbers
+              showYear
               onSelectMonth={(_, idx) => setSelectedMonthIdx(idx)}
+            />
+          </View>
+        )}
+
+        {!loading && (
+          <View style={styles.chartWrap}>
+            <StatisticsBookingsCountChart
+              data={bookingsCountData}
+              title={t('statisticsChartBookingsCount')}
+              labels={{
+                created:   t('statisticsChartBookingsCreated'),
+                checkedIn: t('statisticsChartBookingsCheckedIn'),
+              }}
+              scrollable
+              alwaysShowValues
+              colWidth={80}
+              barMaxWidth={32}
+              showYear
+            />
+          </View>
+        )}
+
+        {!loading && (
+          <View style={styles.chartWrap}>
+            <StatisticsTopProperties
+              data={topProps}
+              title={t('statisticsTopPropertiesTitle')}
+              currencySymbol={sym}
+              emptyText={t('statisticsTopPropertiesEmpty')}
+              columns={{
+                property:  t('statisticsTopColProperty'),
+                revenue:   t('statisticsTopColRevenue'),
+                occupancy: t('statisticsTopColOccupancy'),
+              }}
+            />
+          </View>
+        )}
+
+        {!loading && isAdmin && (
+          <View style={styles.chartWrap}>
+            <StatisticsAgentLeaderboard
+              data={agentLeaderboard}
+              title={t('statisticsAgentLeaderboardTitle')}
+              currencySymbol={sym}
+              emptyText={t('statisticsAgentLeaderboardEmpty')}
+              companyLabel={user?.companyInfo?.name || t('workAsCompany') || 'Company'}
+              columns={{
+                agent:    t('statisticsAgentColName'),
+                bookings: t('statisticsAgentColBookings'),
+                income:   t('statisticsAgentColIncome'),
+              }}
             />
           </View>
         )}

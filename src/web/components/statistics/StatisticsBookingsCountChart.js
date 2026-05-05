@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 
 const CREATED       = '#5B82D6';
 const CREATED_MUTED = '#C5D1EE';
@@ -32,8 +32,14 @@ function niceStep(rough) {
   return nice * exp;
 }
 
-export default function StatisticsBookingsCountChart({ data, title, labels, scrollable }) {
+export default function StatisticsBookingsCountChart({
+  data, title, labels, scrollable, alwaysShowValues,
+  colWidth = COL_WIDTH,
+  barMaxWidth,
+  showYear,
+}) {
   const [hoverKey, setHoverKey] = useState(null);
+  const [viewportW, setViewportW] = useState(0);
   const scrollRef = useRef(null);
   const rawMax = Math.max(
     0,
@@ -48,25 +54,31 @@ export default function StatisticsBookingsCountChart({ data, title, labels, scro
     if (!scrollable || !scrollRef.current) return;
     const idx = data.findIndex((d) => d.isCurrent);
     if (idx < 0) return;
-    const stride = COL_WIDTH + COL_GAP;
-    const visible = scrollRef.current.clientWidth || stride * 10;
-    const target = Math.max(0, idx * stride + COL_WIDTH / 2 - visible / 2);
-    scrollRef.current.scrollLeft = target;
-  }, [scrollable, data]);
+    const stride = colWidth + COL_GAP;
+    const visible = viewportW || scrollRef.current.clientWidth || stride * 10;
+    const target = Math.max(0, idx * stride + colWidth / 2 - visible / 2);
+    if (typeof scrollRef.current.scrollTo === 'function') {
+      scrollRef.current.scrollTo({ x: target, animated: false });
+    } else if ('scrollLeft' in scrollRef.current) {
+      scrollRef.current.scrollLeft = target;
+    }
+  }, [scrollable, data, viewportW]);
 
   const Cols = data.map((d) => {
     const hCre = max > 0 ? Math.round(((d.created || 0) / max) * 140) : 0;
     const hChk = max > 0 ? Math.round(((d.checkedIn || 0) / max) * 140) : 0;
-    const isHovered = hoverKey === d.key;
+    const isHovered = hoverKey === d.key || alwaysShowValues;
     return (
       <Pressable
         key={d.key}
-        style={[s.col, scrollable && s.colFixed, d.isCurrent && s.colCurrent]}
+        style={[s.col, scrollable && s.colFixed, scrollable && { flexBasis: colWidth, width: colWidth }, d.isCurrent && s.colCurrent]}
         onHoverIn={() => setHoverKey(d.key)}
         onHoverOut={() => setHoverKey((k) => (k === d.key ? null : k))}
+        onPressIn={() => setHoverKey(d.key)}
+        onPressOut={() => setHoverKey((k) => (k === d.key ? null : k))}
       >
         <View style={s.barsRow}>
-          <View style={s.barColumn}>
+          <View style={[s.barColumn, barMaxWidth ? { maxWidth: barMaxWidth } : null]}>
             <View style={s.valueSlot}>
               {isHovered && d.created > 0 && (
                 <Text style={[s.barValue, { color: CREATED }]}>{d.created}</Text>
@@ -79,7 +91,7 @@ export default function StatisticsBookingsCountChart({ data, title, labels, scro
               ]}
             />
           </View>
-          <View style={s.barColumn}>
+          <View style={[s.barColumn, barMaxWidth ? { maxWidth: barMaxWidth } : null]}>
             <View style={s.valueSlot}>
               {isHovered && d.checkedIn > 0 && (
                 <Text style={[s.barValue, { color: CHECKED }]}>{d.checkedIn}</Text>
@@ -94,7 +106,7 @@ export default function StatisticsBookingsCountChart({ data, title, labels, scro
           </View>
         </View>
         <Text style={[s.label, (isHovered || d.isCurrent) && s.labelEmph]} numberOfLines={1}>
-          {d.label}
+          {showYear ? `${d.label} ${String(d.year).slice(-2)}` : d.label}
         </Text>
       </Pressable>
     );
@@ -131,23 +143,30 @@ export default function StatisticsBookingsCountChart({ data, title, labels, scro
           </View>
           <View style={s.chartScrollWrap}>
             <View style={s.yAxisSpacer} />
-            <View ref={scrollRef} style={s.scrollOuter}>
+            <ScrollView
+              ref={scrollRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={s.scrollOuter}
+              onLayout={(e) => setViewportW(e.nativeEvent.layout.width)}
+            >
               <View
                 style={[
-                  s.gridLinesLayer,
-                  { width: data.length * COL_WIDTH + (data.length - 1) * COL_GAP + 8 },
+                  s.scrollInner,
+                  { width: data.length * colWidth + (data.length - 1) * COL_GAP + 8 },
                 ]}
-                pointerEvents="none"
               >
-                {ticks.map((tick) => {
-                  const y = 22 + (tick / max) * 140;
-                  return (
-                    <View key={tick} style={[s.gridLine, { bottom: y - 0.5 }]} />
-                  );
-                })}
+                <View style={s.gridLinesLayer} pointerEvents="none">
+                  {ticks.map((tick) => {
+                    const y = 22 + (tick / max) * 140;
+                    return (
+                      <View key={tick} style={[s.gridLine, { bottom: y - 0.5 }]} />
+                    );
+                  })}
+                </View>
+                {Cols}
               </View>
-              <View style={s.scrollInner}>{Cols}</View>
-            </View>
+            </ScrollView>
           </View>
         </View>
       ) : (
@@ -195,6 +214,7 @@ const s = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
+    right: 0,
     pointerEvents: 'none',
     zIndex: 0,
   },
