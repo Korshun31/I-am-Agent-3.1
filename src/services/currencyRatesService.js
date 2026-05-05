@@ -1,22 +1,32 @@
-// TD-120 фаза C: чтение архива курсов валют из Supabase.
-// Курсы публичные (RLS: anon+authenticated read), пишет только service_role
-// через Edge Function `sync-currency-rates`. Эта утилита только читает.
+// TD-120: получение текущих курсов валют с публичного API fxratesapi.com.
+// Без ключа, без регистрации, отдаёт USD/EUR/THB/RUB одним запросом, CORS
+// открыт. Возвращает массив строк той же формы что раньше отдавал Supabase
+// (`{ rate_date, base_currency, quote_currency, rate }`), чтобы остальной
+// код (`indexRates` → `lookupRate` → `convertAmount`) ничего не менял.
+//
+// Тянем только сегодняшние курсы (latest). Это значит для броней с
+// прошлой датой будет применён сегодняшний курс — не строго точно, но
+// расхождение в 1-3% за год не существенно для статистики аренды.
+// Если в будущем понадобится история — добавим вторым запросом
+// `/historical?date=...` для уникальных дат броней.
 
-import { supabase } from './supabase';
+const API_URL = 'https://api.fxratesapi.com/latest?base=USD&currencies=EUR,THB,RUB';
+const SUPPORTED = new Set(['USD', 'EUR', 'THB', 'RUB']);
 
-const DEFAULT_DAYS_BACK = 90;
+export async function fetchRates() {
+  const res = await fetch(API_URL);
+  if (!res.ok) throw new Error(`fxratesapi HTTP ${res.status}`);
+  const json = await res.json();
+  if (!json || !json.rates) throw new Error('fxratesapi: missing rates field');
 
-export async function fetchRates(daysBack = DEFAULT_DAYS_BACK) {
-  const since = new Date();
-  since.setUTCDate(since.getUTCDate() - daysBack);
-  const sinceStr = since.toISOString().slice(0, 10);
-
-  const { data, error } = await supabase
-    .from('currency_rates')
-    .select('rate_date, base_currency, quote_currency, rate')
-    .gte('rate_date', sinceStr)
-    .order('rate_date', { ascending: true });
-
-  if (error) throw new Error(`fetchRates failed: ${error.message}`);
-  return Array.isArray(data) ? data : [];
+  const rateDate = (json.date || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const out = [];
+  for (const [quote, rate] of Object.entries(json.rates)) {
+    if (!SUPPORTED.has(quote)) continue;
+    if (quote === 'USD') continue;                 // self
+    const r = Number(rate);
+    if (!(r > 0)) continue;
+    out.push({ rate_date: rateDate, base_currency: 'USD', quote_currency: quote, rate: r });
+  }
+  return out;
 }
