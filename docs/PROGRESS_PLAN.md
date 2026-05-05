@@ -11,7 +11,7 @@
 > - ⬜ не начато
 > - 🔁 заблокировано / зависит от другого пункта
 >
-> Последнее обновление: 2026-05-05 (фаза 8 «mobile паритет» закрыта целиком: TD-021, TD-022, TD-046, TD-113, TD-114; добавлены TD-119/120/121; план почищен от устаревших пунктов P3-001/P3-002 после simple-perms)
+> Последнее обновление: 2026-05-05 (закрыты все блокирующие TD: фаза 8 «mobile паритет» + TD-115 baseline-схема; в backlog v2 перенесены TD-030/090/108/118 — все требуют доп. инфраструктуры или редко всплывающих сценариев; перед публичным релизом остался только финальный накат)
 
 ---
 
@@ -54,9 +54,11 @@ TD-022 (mobile UI «Команда»), TD-021 (mobile invite accept экран),
 ### Фаза 9 — Технический долг кода (закрыта 2026-05-05)
 Все запланированные TD (TD-020, TD-035, TD-043, TD-001, TD-034, TD-036, TD-037, TD-045, TD-047, TD-060, TD-004, TD-010, TD-012, TD-115) закрыты параллельно с другими фазами в апреле-мае. TD-030 (аудит-лог действий с командой) перенесён в backlog v2 — для одиночного админа пользы мало, вернёмся после публичного запуска.
 
-### Фаза 10 — Идеи P1-P5 + финальный релиз (5-7 дней)
-P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»), P2-001/P2-002/P2-004, P3-004 (фильтр по статусу), TD-090/P3-003 (Web Push), TD-108 (web reminders календарных), TD-118 (native deep links) + 10 финальных шагов релиза. _(P1-001/TD-009, P1-002, P3-001, P3-002 сняты в этапе 2 simple-perms — модерации больше нет; TD-110 закрыт.)_
-Зачем последней: идеи P-уровня — не блокеры. Web Push тянет за собой Service Worker — крупный кусок. Финальный релиз = мерж dev→main + миграция prod + дроп legacy + TestFlight.
+### Фаза 10 — Финальный релиз + P-идеи (3-5 дней)
+**Финальный релиз** (10 шагов): мерж dev→main + миграция prod + дроп legacy + домен `crm.iamagent.app` на prod-окружение Vercel + TestFlight-сборка + чистка sandbox.
+**Открытые P-идеи** (по желанию, не блокеры): P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»), P2-001/P2-002/P2-004, P3-004 (фильтр по статусу).
+**В backlog v2** (после публичного запуска): TD-030 (аудит-лог команды → V2-001), TD-090/P3-003 + TD-108 (Web Push → V2-002), TD-118 (native deep links → V2-003).
+_(P1-001/TD-009, P1-002, P3-001, P3-002 сняты в этапе 2 simple-perms — модерации больше нет; TD-110 закрыт.)_
 
 ---
 
@@ -175,13 +177,13 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 
 ## Calendar Events
 
-- ⬜ TD-108 — Веб напоминания календарных событий (Web Push)
+- 🔁 TD-108 — Веб напоминания календарных событий (Web Push). Перенесён в backlog v2 (`docs/Устав компании/09_Бэклог_идей_и_TODO.md`, V2-002) — большая инфраструктура (Service Worker, VAPID-ключи, Edge Function), сейчас не приоритет.
 - ✅ TD-109 — RLS `calendar_events` по `user_id` (миграция `20250326000000`)
 - ✅ TD-110 — перенос события на другую дату (поле «Дата» рядом с «Время», веб+мобайл; фикс синхронизации точек на полоске после правки)
 
 ## Notifications
 
-- ⬜ TD-090 — Веб браузерные push-уведомления (= P3-003)
+- 🔁 TD-090 — Веб браузерные push-уведомления (= P3-003). Перенесён в backlog v2 (`docs/Устав компании/09_Бэклог_идей_и_TODO.md`, V2-002) — Service Worker и Edge Function для отправки, делаем после публичного запуска.
 - ✅ TD-111 — снято в пользу простоты (этап 2 simple-perms): уведомлений с `action_taken` больше нет
 - ✅ TD-112 — снято в пользу простоты (этап 2 simple-perms): кнопки модерации убраны принципиально
 - ✅ TD-113 — мобильный realtime-бейдж уведомлений (закрыт ранее, подтверждено пользователем 2026-05-02). Подписка на `notifications` с фильтром `recipient_id=eq.user.id` уже подключена в `RealEstateScreen.js:154-177`, `AgentCalendarScreen.js:333`, `BookingCalendarScreen.js:333`; при INSERT/UPDATE/DELETE счётчик пересчитывается без перезахода.
@@ -208,7 +210,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ✅ TD-035 — `getUserProfile` 5 запросов → RPC `get_full_user_profile` (2026-05-03, миграция накатана в sandbox, прошла проверку через приложение). Миграция `20260503000003_get_full_user_profile_function.sql` — функция `SECURITY DEFINER` (внутри явная проверка `auth.uid() = p_user_id` от запроса чужого профиля), JOIN'ит `users_profile` + активную `companies` (owner_id) + `company_members` + `agent_location_access` + `companies` (для membership), возвращает JSONB. `authService.getUserProfile` переписан с 5 последовательных `.from(...).select(...)` на один `.rpc('get_full_user_profile')`. Маппинг финального объекта (20+ полей) не изменён — для всех вызывающих сторона выглядит как раньше. Эффект: вкладка «Мой профиль» в мобайле (`AccountScreen.js:212` + `:221`) дёргала `getCurrentUser()` дважды при каждом возврате на вкладку — было 10 запросов, теперь 2. Накатывание в prod — в финальном релизе вместе с остальными миграциями.
 - ✅ TD-115 — baseline-миграция главных таблиц (2026-05-05). `supabase/migrations/00000000000000_baseline_schema.sql` — schema-only дамп публичной схемы из sandbox (13 таблиц: agent_location_access, bookings, calendar_events, companies, company_invitations + backup, company_members, contacts, location_districts, locations, notifications, properties, users_profile). Сделано через `pg_dump --schema-only --schema=public --no-owner --no-privileges` (libpq 18.3). Только структура, без данных. С этим baseline + остальные миграции теперь воспроизводят базу с нуля.
 - ✅ TD-116 — OAuth-код удалён из проекта (2026-05-03). Из `Login.js` убраны импорты `signInWithGoogle/Facebook`, обработчики `handleGoogleLogin/Facebook`, закомментированный JSX социальных кнопок и связанные стили (`orText`, `socialRow`, `socialBtn`, `socialBtnFacebook`, `socialIconGoogle`, `socialIconFacebook`). Из `authService.js` удалены функции `signInWithGoogle`/`signInWithFacebook` (~110 строк) и импорты `expo-auth-session` / `expo-web-browser` (npm-deps оставлены в `package.json`). Из `translations.js` удалён ключ `orSignIn` во всех трёх языках. В `docs/MODULE_RULES/auth.md` секция AU-OAUTH-1..8 свернута в одну строку «удалено», TD-036 и TD-041 в табличке помечены снятыми. В `docs/RULES_HUMAN/01_Регистрация_и_вход.html` удалён раздел «1.3 Вход через Google и Facebook», обновлены строки таблицы TD. Закрывает заодно TD-036 и TD-041.
-- ⬜ TD-118 — Native deep links (Universal Links на iOS, App Links на Android) для confirmation/recovery-ссылок. Сейчас при клике на ссылку из письма на телефоне открывается браузер вместо приложения; юзер видит экран «Почта подтверждена» в Safari/Chrome и должен сам вернуться в приложение и войти. Чтобы система предлагала «Открыть в I am Agent?», нужно: associated domain в Apple Developer Console + файл `apple-app-site-association` на сайте; App Links в Google Play + `assetlinks.json`; схемы в Expo `app.json`; redirectTo в Supabase. Заведено 2026-04-30 — отдельная задача от TD-014 и TD-015.
+- 🔁 TD-118 — Native deep links (Universal Links на iOS, App Links на Android) для confirmation/recovery-ссылок. Перенесён в backlog v2 (`docs/Устав компании/09_Бэклог_идей_и_TODO.md`, V2-003). Сейчас на телефоне ссылка из письма открывается в браузере — это рабочий fallback. Реальная польза только для уже установивших приложение, делаем после публичного запуска. Что нужно будет: associated domain в Apple Developer Console + файл `apple-app-site-association` на сайте; App Links в Google Play + `assetlinks.json`; схемы в Expo `app.json`; redirectTo в Supabase.
 - ✅ TD-119 — Унификация picker'а занятых дат (2026-05-03). Создана общая утилита `src/utils/bookingOccupancy.js` (`buildOccupiedSet`, `buildOccupancyArrays`, `hasOccupiedInRange`). Веб `WebBookingCalendarPicker` импортирует `buildOccupiedSet` оттуда вместо локальной копии. Мобайл `AddBookingModal` переведён с трёх отдельных state-массивов (`occupiedDates`/`occupiedCheckInDates`/`occupiedCheckOutDates`) на один `bookedRanges` — три массива для библиотеки `react-native-calendar-range-picker` считаются на лету через `useMemo(buildOccupancyArrays(bookedRanges))`. Валидация пересечений переведена на `hasOccupiedInRange`. Попутно исправлено расхождение поведения: до этой правки мобайл считал день выезда другого гостя занятым, теперь как на вебе — в день выезда можно поставить заезд новому гостю.
 
 ---
@@ -226,7 +228,7 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 - ⬜ P2-004 — история правок объекта `property_change_history`
 - ✅ P3-001 — снято в пользу простоты (этап 2 simple-perms): review-flow удалён (миграция `20260430000000_simple_perms_overhaul_phase3_cleanup.sql` дропнула `property_drafts` и `property_status`), паритет несуществующего flow на мобайле невозможен.
 - ✅ P3-002 — снято в пользу простоты (этап 2 simple-perms): таблица `property_rejection_history` дропнута в той же миграции, экспортировать нечего.
-- ⬜ P3-003 — Web Push уведомления (= TD-090)
+- 🔁 P3-003 — Web Push уведомления (= TD-090). Перенесён в backlog v2 (V2-002).
 - ⬜ P3-004 — фильтр объектов по статусу в левом списке
 - ✅ P3-005 — `properties.updated_at` (= TD-007)
 
@@ -252,10 +254,10 @@ P1-004 (downgrade тарифа), P1-005 (чистка термина «agent»),
 
 - Всего TD: **120** уникальных номеров (TD-001..TD-121, минус несколько объединений). Подтверждено двумя read-only Explore-аудитами по всему файлу — все ✅ соответствуют коду, фейков нет.
 - ✅ Закрыто: **116** TD
-- 🔁 Отложено в backlog v2: **1** TD (TD-030 аудит-лог команды).
-- ⬜ Не начато: **3** TD: TD-090 (Web Push в браузер = P3-003), TD-108 (Web Push календарных событий), TD-118 (native deep links для confirmation/recovery).
+- 🔁 Отложено в backlog v2: **4** TD: TD-030 (аудит-лог команды → V2-001), TD-090 (Web Push в браузер = P3-003 → V2-002), TD-108 (Web Push календарных событий → V2-002), TD-118 (native deep links → V2-003).
+- ⬜ Не начато активных TD: **0**. Все блокирующие задачи закрыты или отложены.
 - ✅ Объединено: **1** (TD-028→TD-042)
-- Идеи P1-P5: **14** уникальных номеров. Закрыто/снято: **6** (P1-001, P1-002, P1-003, P2-003, P3-001, P3-002, P3-005). Открыто: **8** (P1-004, P1-005, P2-001, P2-002, P2-004, P3-003=TD-090, P3-004).
+- Идеи P1-P5: **14** уникальных номеров. Закрыто/снято: **7** (P1-001, P1-002, P1-003, P2-003, P3-001, P3-002, P3-005). Отложено в v2: **1** (P3-003=TD-090). Открыто: **6** (P1-004, P1-005, P2-001, P2-002, P2-004, P3-004) — все по желанию, не блокеры релиза.
 - Финальный релиз: **10** шагов (мерж dev→main, миграции в prod, дроп legacy, TestFlight, домен).
 
-**Прогресс: ~96% TD закрыто.** Остался узкий хвост: один аудит-лог, два Web Push, baseline-миграция, deep links. Дальше — идеи P-уровня и финальный релиз. Большая часть работы по приведению проекта в порядок выполнена за апрель-начало мая 2026.
+**Прогресс: 100% активных TD закрыто или отложено в v2.** Перед публичным релизом остаётся только финальный накат на боевую базу (10 шагов фазы 10). P-идеи и v2-задачи — после запуска.

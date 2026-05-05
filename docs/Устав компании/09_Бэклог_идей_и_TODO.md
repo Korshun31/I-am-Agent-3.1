@@ -100,3 +100,40 @@ Review-flow выпилен.
 - i18n: ~10 ключей × 3 языка для названий действий и UI.
 
 **Файлы при реализации:** `supabase/migrations/<timestamp>_team_audit_log.sql`, `src/services/companyService.js`, `src/web/components/WebTeamSection.js`, `src/screens/TeamScreen.js`, новые `WebTeamHistorySection.js` и `TeamHistoryScreen.js`, `src/i18n/translations.js`.
+
+### V2-002: Web Push уведомления (бывшие TD-090 + TD-108 + P3-003)
+
+**Описание:** Браузерные всплывающие уведомления на рабочем столе пользователя даже если вкладка CRM закрыта. Триггеры: новая бронь, новый объект (TD-090); напоминания по календарным событиям за N часов до начала (TD-108).
+
+**Зачем во второй версии, не сейчас:** Большая инфраструктура (Service Worker — фоновая программа в браузере; пара VAPID-ключей; таблица `web_push_subscriptions` с уникальным `endpoint` на устройство; Edge Function в Supabase которая шлёт уведомления через `web-push` библиотеку; UI-кнопка «Включить уведомления» в настройках; триггеры от событий БД). 2-3 дня работы. Apple Safari требует PWA-установки (Add to Home Screen) — отдельный нюанс. Не блокер первого релиза, делаем когда будет реальная нагрузка пользователей. Решено отложить 2026-05-05.
+
+**Что нужно будет сделать:**
+- VAPID-пара ключей (генерация, хранение приватного в Supabase Vault).
+- Миграция: таблица `web_push_subscriptions` (`user_id`, `endpoint`, `keys_p256dh`, `keys_auth`, `device_label`) + RLS (только владелец читает/удаляет).
+- Service Worker (`public/sw.js` для веба) — обработчик `push` события, показ уведомления, клик → открыть нужный экран в CRM.
+- Edge Function `send-web-push` — принимает payload, идёт по подпискам компании, шлёт через `web-push` SDK.
+- Триггеры от событий: при INSERT в `bookings` (новая бронь), при INSERT в `notifications` — Edge Function вызывается.
+- Календарные напоминания (TD-108): при создании/правке `calendar_events` рассчитать время отправки, поставить в очередь (отдельная таблица `pending_web_push` с `scheduled_at` + cron).
+- UI: переключатель «Уведомления в браузере» в `WebSettingsModal`, запрос разрешения при включении, регистрация SW + подписка.
+- i18n: ~5 ключей × 3 языка.
+
+**Apple-нюанс:** Safari Web Push работает только если сайт установлен как PWA (Add to Home Screen на iOS). Для desktop Safari — обычная подписка. Учесть в UI: подсказка для iOS-пользователей.
+
+**Файлы при реализации:** `public/sw.js` (новый), `supabase/migrations/<timestamp>_web_push_subscriptions.sql`, `supabase/functions/send-web-push/index.ts`, `src/web/services/webPushService.js`, `src/web/components/WebSettingsModal.js`, `src/i18n/translations.js`.
+
+### V2-003: Native deep links — ссылки из писем открываются в приложении (бывший TD-118)
+
+**Описание:** Когда пользователь на iPhone/Android получает email с ссылкой (приглашение в команду, восстановление пароля, подтверждение почты), система предлагает «Открыть в I am Agent?» вместо принудительного открытия в Safari/Chrome. Если приложение установлено — открывается прямо нужный экран. Если нет — браузер как fallback.
+
+**Зачем во второй версии, не сейчас:** Польза только для уже установивших приложение (восстановление пароля для возвращающихся пользователей). Для новых приглашённых агентов приложение в момент клика ещё не установлено — flow не меняется (всё равно через браузер). Не блокер релиза. Решено отложить 2026-05-05.
+
+**Что нужно будет сделать:**
+- Apple Developer Console: настроить Associated Domain (`applinks:crm.iamagent.app`).
+- Файл `apple-app-site-association` (без расширения, JSON) на сайте по пути `/.well-known/apple-app-site-association` с правильным Team ID и Bundle ID.
+- Android: Google Play Console → App Links + файл `assetlinks.json` на том же `/.well-known/`.
+- `app.json` (Expo): `expo.ios.associatedDomains` и `expo.android.intentFilters` для `crm.iamagent.app`.
+- В Supabase Auth: redirect URL остаётся `https://crm.iamagent.app/...` — система автоматически перехватывает при наличии associated domain.
+- В приложении: `Linking.addEventListener('url', handler)` — парсит URL (`?invite_token=...`, `?type=recovery`), навигирует на нужный экран (`InviteAcceptScreen`, `UpdatePasswordScreen`).
+- Новый билд приложения через EAS, тест на реальных устройствах iOS/Android.
+
+**Файлы при реализации:** `app.json`, `App.js` (linking handler), новые мобильные экраны `MobileInviteAcceptScreen.js` и `MobileUpdatePasswordScreen.js` если нужно отдельно от веба, файлы на сайте `crm.iamagent.app`.
