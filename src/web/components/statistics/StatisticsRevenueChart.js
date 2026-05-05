@@ -270,13 +270,6 @@ const s = StyleSheet.create({
     backgroundColor: 'transparent',
     zIndex: 1,
   },
-  gridLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.07)',
-  },
   scrollInner: {
     flexDirection: 'row',
     alignItems: 'flex-end',
