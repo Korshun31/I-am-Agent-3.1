@@ -5,8 +5,8 @@
 Модуль покрывает: broadcast канал для синхронизации между участниками компании, экспериментальную выгрузку данных.
 
 **Файлы модуля:**
-- `src/services/companyChannel.js` — broadcast канал (34 строки)
-- `src/services/dataUploadService.js` — выгрузка данных в другую Supabase (158 строк)
+- `src/services/companyChannel.js` — broadcast канал (74 строки)
+- `src/services/dataUploadService.js` — выгрузка данных в другую Supabase (189 строк)
 
 ## Company Channel (broadcast)
 

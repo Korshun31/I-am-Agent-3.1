@@ -238,7 +238,7 @@ _(P1-001/TD-009, P1-002, P3-001, P3-002 сняты в этапе 2 simple-perms 
 
 ## Финальный релиз (после закрытия всего выше)
 
-- ⬜ Сверка ветки `dev` с правилами всех модулей (`docs/MODULE_RULES/`).
+- ✅ Сверка ветки `dev` с правилами всех модулей (`docs/MODULE_RULES/`) — 2026-05-05. Точечная актуализация двух правил, которых не коснулась синхронизация в `7490f98`: `i18n.md` (скоуп + новые файлы TD-120 `currencyRatesService` / `CurrencyRatesContext` / `currencyConvert`, переписан I18N-5 в две части — обычный UI без конвертации vs статистика с конвертацией через fxratesapi, добавлена связь с модулем Statistics) и `sync.md` (актуализированы цифры строк: `companyChannel.js` 34→74, `dataUploadService.js` 158→189). Остальные 9 модулей синхронизированы коммитом `7490f98`, между ним и сверкой правок кода не было.
 - ⬜ Обновить `docs/RULES_HUMAN/` — все правила человеческим языком (просьба от 2026-04-14).
 - ⬜ Property type cleanup в prod — 132 объекта (см. `project_properties_type_cleanup.md`).
 - ⬜ Нормализация code/code_suffix в prod к UPPER(TRIM(...)) ДО наката миграции `20260502000001` — иначе индекс упадёт на дублях. SQL: `SELECT company_id, UPPER(TRIM(code)), UPPER(COALESCE(TRIM(code_suffix),'')), COUNT(*) FROM properties WHERE code IS NOT NULL AND TRIM(code)<>'' GROUP BY 1,2,3 HAVING COUNT(*)>1;` если есть строки — почистить руками, потом `UPDATE properties SET code=UPPER(TRIM(code)), code_suffix=NULLIF(UPPER(TRIM(code_suffix)),'') WHERE code IS NOT NULL AND TRIM(code)<>'';`. Аналогично для `locations.country/region/city`.
