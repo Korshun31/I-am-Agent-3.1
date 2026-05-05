@@ -6,8 +6,11 @@
 -- Поддерживаемые валюты: USD, EUR, THB, RUB. Кросс-курсы (например THB→RUB)
 -- вычисляются на клиенте через USD как опорную базу.
 --
--- Read: любой авторизованный (курсы общие для всей системы, не привязаны к
--- юзеру/компании). Write: только service_role (Edge Function).
+-- Read: открыто всем (anon + authenticated) — курсы публичные данные ECB,
+-- не содержат ничего приватного. Это позволяет приложению подгружать их
+-- ещё ДО логина пользователя, чтобы статистика на залогиненом экране
+-- открывалась без задержки на сетевой запрос. Write: только service_role
+-- (Edge Function).
 
 CREATE TABLE IF NOT EXISTS public.currency_rates (
   rate_date       DATE        NOT NULL,
@@ -28,5 +31,5 @@ DROP POLICY IF EXISTS "currency_rates_read" ON public.currency_rates;
 CREATE POLICY "currency_rates_read"
   ON public.currency_rates
   FOR SELECT
-  TO authenticated
+  TO anon, authenticated
   USING (true);

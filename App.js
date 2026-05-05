@@ -21,6 +21,7 @@ if (Platform.OS !== 'web') {
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import { UserProvider, useUser } from './src/context/UserContext';
 import { AppDataProvider, useAppData } from './src/context/AppDataContext';
+import { CurrencyRatesProvider } from './src/context/CurrencyRatesContext';
 import Preloader from './src/screens/Preloader';
 import Login from './src/screens/Login';
 import Registration from './src/screens/Registration';
@@ -236,11 +237,13 @@ export default function App() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <UserProvider onLogout={handleLogout}>
-          <NavigationContainer>
-            <LanguageProvider>
-              <AppContent />
-            </LanguageProvider>
-          </NavigationContainer>
+          <CurrencyRatesProvider>
+            <NavigationContainer>
+              <LanguageProvider>
+                <AppContent />
+              </LanguageProvider>
+            </NavigationContainer>
+          </CurrencyRatesProvider>
         </UserProvider>
       </SafeAreaProvider>
     </ErrorBoundary>
