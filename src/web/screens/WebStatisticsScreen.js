@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-nat
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAppData } from '../../context/AppDataContext';
+import { useCurrencyRates } from '../../context/CurrencyRatesContext';
 import { getCurrencySymbol } from '../../utils/currency';
 import {
   getPeriodPresets,
@@ -43,6 +44,7 @@ export default function WebStatisticsScreen({ user }) {
     teamMembers,
     bookingsLoading, propertiesLoading, teamMembersLoading,
   } = useAppData();
+  const { rates } = useCurrencyRates();
   const [periodId, setPeriodId]       = useState('thisMonth');
   const [selectedMonthIdx, setSelectedMonthIdx] = useState(null);
 
@@ -57,19 +59,35 @@ export default function WebStatisticsScreen({ user }) {
   const userBookings   = useMemo(() => filterBookingsForUser(bookings, user),   [bookings, user]);
   const userProperties = useMemo(() => filterPropertiesForUser(properties, user), [properties, user]);
 
+  // TD-120 фаза D: собираем контекст конвертации валют. Если курсы ещё не
+  // подгрузились или у пользователя не выбрана отчётная валюта — `convertAmount`
+  // внутри `statisticsCalc` молча вернёт исходные числа (graceful degrade).
+  const propertyCurrencyById = useMemo(() => {
+    const map = new Map();
+    (properties || []).forEach((p) => { if (p?.id) map.set(p.id, p.currency || null); });
+    return map;
+  }, [properties]);
+
+  const fxCtx = useMemo(() => ({
+    rates,
+    targetCurrency: currency,
+    propertyCurrencyById,
+    today: dayjs().format('YYYY-MM-DD'),
+  }), [rates, currency, propertyCurrencyById]);
+
   const stats = useMemo(() => ({
-    revenue:          computeRevenue(userBookings, period.from, period.to),
-    agencyIncome:     computeAgencyIncome(userBookings, period.from, period.to),
+    revenue:          computeRevenue(userBookings, period.from, period.to, fxCtx),
+    agencyIncome:     computeAgencyIncome(userBookings, period.from, period.to, fxCtx),
     activeBookings:   computeActiveBookingsCount(userBookings, dayjs()),
     occupancyPercent: computeOccupancyPercent(userBookings, userProperties, period.from, period.to),
-  }), [userBookings, userProperties, period]);
+  }), [userBookings, userProperties, period, fxCtx]);
 
   const monthlyData = useMemo(
     () => [
-      ...computeMonthlyRevenue(userBookings, 12, dayjs()),
-      ...computeMonthlyForecast(userBookings, 12, dayjs()),
+      ...computeMonthlyRevenue(userBookings, 12, dayjs(), fxCtx),
+      ...computeMonthlyForecast(userBookings, 12, dayjs(), fxCtx),
     ],
-    [userBookings]
+    [userBookings, fxCtx]
   );
 
   const bookingsCountData = useMemo(
@@ -78,13 +96,21 @@ export default function WebStatisticsScreen({ user }) {
   );
 
   const topProps = useMemo(
-    () => computeTopProperties(userBookings, userProperties, period.from, period.to, 5),
-    [userBookings, userProperties, period]
+    () => computeTopProperties(userBookings, userProperties, period.from, period.to, 5, fxCtx),
+    [userBookings, userProperties, period, fxCtx]
   );
 
   const agentLeaderboard = useMemo(
-    () => isAdmin ? computeAgentLeaderboard(bookings, teamMembers, period.from, period.to, 5) : [],
-    [isAdmin, bookings, teamMembers, period]
+    () => isAdmin ? computeAgentLeaderboard(bookings, teamMembers, period.from, period.to, 5, fxCtx) : [],
+    [isAdmin, bookings, teamMembers, period, fxCtx]
+  );
+
+  // Симметрия с мобайлом (StatisticsScreen.js): breakdown пересчитывается
+  // только при смене выбранного месяца, а не на каждом ререндере родителя.
+  const selectedMonth = selectedMonthIdx != null ? monthlyData[selectedMonthIdx] : null;
+  const breakdownRows = useMemo(
+    () => (selectedMonth ? breakdownByPropertyForMonth(userBookings, userProperties, selectedMonth.key, fxCtx) : []),
+    [userBookings, userProperties, selectedMonth, fxCtx]
   );
 
   const sym = getCurrencySymbol(currency || 'THB');
@@ -183,8 +209,8 @@ export default function WebStatisticsScreen({ user }) {
 
       <StatisticsMonthBreakdownModal
         visible={selectedMonthIdx != null}
-        monthLabel={selectedMonthIdx != null ? `${monthlyData[selectedMonthIdx].label} ${monthlyData[selectedMonthIdx].year}` : ''}
-        rows={selectedMonthIdx != null ? breakdownByPropertyForMonth(userBookings, userProperties, monthlyData[selectedMonthIdx].key) : []}
+        monthLabel={selectedMonth ? `${selectedMonth.label} ${selectedMonth.year}` : ''}
+        rows={breakdownRows}
         currencySymbol={sym}
         columns={{
           code:    t('statisticsBreakdownColCode'),

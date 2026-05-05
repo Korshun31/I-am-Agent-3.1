@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import { useLanguage } from '../context/LanguageContext';
 import { useUser } from '../context/UserContext';
 import { useAppData } from '../context/AppDataContext';
+import { useCurrencyRates } from '../context/CurrencyRatesContext';
 import { getCurrencySymbol } from '../utils/currency';
 import {
   getPeriodPresets,
@@ -43,6 +44,7 @@ export default function StatisticsScreen({ onBack }) {
     refreshBookings,
     refreshProperties,
   } = useAppData();
+  const { rates } = useCurrencyRates();
 
   const [periodId, setPeriodId] = useState('thisMonth');
   const [refreshing, setRefreshing] = useState(false);
@@ -56,25 +58,41 @@ export default function StatisticsScreen({ onBack }) {
   const userBookings   = useMemo(() => filterBookingsForUser(bookings, user),     [bookings, user]);
   const userProperties = useMemo(() => filterPropertiesForUser(properties, user), [properties, user]);
 
+  // TD-120 фаза D: контекст конвертации валют для statisticsCalc.
+  // Если курсы ещё не подгрузились — `convertAmount` молча вернёт исходные
+  // числа (graceful degrade), статистика покажет неконвертированные суммы.
+  const propertyCurrencyById = useMemo(() => {
+    const map = new Map();
+    (properties || []).forEach((p) => { if (p?.id) map.set(p.id, p.currency || null); });
+    return map;
+  }, [properties]);
+
+  const fxCtx = useMemo(() => ({
+    rates,
+    targetCurrency: currency,
+    propertyCurrencyById,
+    today: dayjs().format('YYYY-MM-DD'),
+  }), [rates, currency, propertyCurrencyById]);
+
   const stats = useMemo(() => ({
-    revenue:          computeRevenue(userBookings, period.from, period.to),
-    agencyIncome:     computeAgencyIncome(userBookings, period.from, period.to),
+    revenue:          computeRevenue(userBookings, period.from, period.to, fxCtx),
+    agencyIncome:     computeAgencyIncome(userBookings, period.from, period.to, fxCtx),
     activeBookings:   computeActiveBookingsCount(userBookings, dayjs()),
     occupancyPercent: computeOccupancyPercent(userBookings, userProperties, period.from, period.to),
-  }), [userBookings, userProperties, period]);
+  }), [userBookings, userProperties, period, fxCtx]);
 
   const monthlyData = useMemo(
     () => [
-      ...computeMonthlyRevenue(userBookings, 12, dayjs()),
-      ...computeMonthlyForecast(userBookings, 12, dayjs()),
+      ...computeMonthlyRevenue(userBookings, 12, dayjs(), fxCtx),
+      ...computeMonthlyForecast(userBookings, 12, dayjs(), fxCtx),
     ],
-    [userBookings]
+    [userBookings, fxCtx]
   );
 
   const selectedMonth = selectedMonthIdx != null ? monthlyData[selectedMonthIdx] : null;
   const breakdownRows = useMemo(
-    () => (selectedMonth ? breakdownByPropertyForMonth(userBookings, userProperties, selectedMonth.key) : []),
-    [userBookings, userProperties, selectedMonth]
+    () => (selectedMonth ? breakdownByPropertyForMonth(userBookings, userProperties, selectedMonth.key, fxCtx) : []),
+    [userBookings, userProperties, selectedMonth, fxCtx]
   );
 
   const sym = getCurrencySymbol(currency || 'THB');
