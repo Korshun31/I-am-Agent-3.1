@@ -199,7 +199,11 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
       setEditingCompany(false);
     } catch (e) {
       console.error('Save company error:', e);
-      alert(t('errorSaveCompany'));
+      if (e?.message === 'COMPANY_NAME_INVALID') {
+        alert(t('companyNameInvalid'));
+      } else {
+        alert(t('errorSaveCompany'));
+      }
     }
   };
 
@@ -213,7 +217,12 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
       const updated = await getCurrentUser();
       updateAndSync(updated);
     } catch (e) {
-      console.error('Switch to company error:', e);
+      if (e?.message === 'COMPANY_NAME_INVALID') {
+        // Имя ещё не задано — открываем форму редактирования
+        startEditCompany();
+      } else {
+        console.error('Switch to company error:', e);
+      }
     }
   };
 

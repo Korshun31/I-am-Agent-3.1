@@ -1,6 +1,16 @@
 import { supabase } from './supabase';
 import { broadcastOneShot } from './companyChannel';
 
+const COMPANY_NAME_MIN_LENGTH = 2;
+const COMPANY_NAME_MAX_LENGTH = 80;
+
+function assertValidCompanyName(name) {
+  const trimmed = typeof name === 'string' ? name.trim() : '';
+  if (trimmed.length < COMPANY_NAME_MIN_LENGTH || trimmed.length > COMPANY_NAME_MAX_LENGTH) {
+    throw new Error('COMPANY_NAME_INVALID');
+  }
+}
+
 /**
  * Загружает компанию текущего пользователя (активную или неактивную).
  * Возвращает null если компании нет.
@@ -32,8 +42,12 @@ export async function activateCompany(companyData = {}) {
 
   const userId = session.user.id;
 
+  if (companyData.name !== undefined) {
+    assertValidCompanyName(companyData.name);
+  }
+
   const dbData = {
-    name: companyData.name || '',
+    name: typeof companyData.name === 'string' ? companyData.name.trim() : '',
     phone: companyData.phone || null,
     email: companyData.email || null,
     logo_url: companyData.logoUrl || null,
@@ -66,7 +80,8 @@ export async function activateCompany(companyData = {}) {
       .eq('id', existing.id);
     companyId = existing.id;
   } else {
-    // Создаём новую
+    // Создаём новую — имя обязательно
+    assertValidCompanyName(dbData.name);
     const { data: created, error } = await supabase
       .from('companies')
       .insert({ ...dbData, owner_id: userId, status: 'active' })
@@ -91,8 +106,11 @@ export async function activateCompany(companyData = {}) {
  * Обновляет данные компании (название, телефон и т.д.)
  */
 export async function updateCompany(companyId, companyData) {
+  if (companyData.name !== undefined) {
+    assertValidCompanyName(companyData.name);
+  }
   const dbData = {};
-  if (companyData.name !== undefined) dbData.name = companyData.name;
+  if (companyData.name !== undefined) dbData.name = companyData.name.trim();
   if (companyData.phone !== undefined) dbData.phone = companyData.phone || null;
   if (companyData.email !== undefined) dbData.email = companyData.email || null;
   if (companyData.logoUrl !== undefined) dbData.logo_url = companyData.logoUrl || null;

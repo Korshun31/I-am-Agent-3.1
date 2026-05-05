@@ -246,6 +246,88 @@ export async function createContact(contactData) {
   return mapContact(data);
 }
 
+/**
+ * Создаёт нового клиента ИЛИ привязывает существующего, если в компании
+ * уже есть контакт с тем же телефоном (нормализованным до цифр) или email
+ * (lowercased+trimmed). Используется только из формы брони.
+ *
+ * Возвращает { contact, existed }:
+ *   - existed=false — создан новый контакт.
+ *   - existed=true  — найден существующий, контакт уже мог быть скрыт от
+ *     агента по RLS, поэтому функция дочитывает полный mapped-объект через
+ *     SECURITY DEFINER RPC и кладёт в локальный кэш на стороне UI вызовом
+ *     getContactById (RLS позволит SELECT только если companyId совпадает —
+ *     контакт читаем для всех в компании при роле owner; для агента он
+ *     станет видим после сохранения брони с этим contact_id, см. TD-099).
+ *
+ * Ошибки RPC: NOT_AUTHENTICATED, CONTACT_NO_COMPANY, CONTACT_NAME_REQUIRED.
+ */
+export async function findOrCreateBookingClient(contactData) {
+  const extraTg = Array.isArray(contactData.extraTelegrams) ? contactData.extraTelegrams : [];
+  const extraWa = Array.isArray(contactData.extraWhatsapps) ? contactData.extraWhatsapps : [];
+  const payload = {
+    name: contactData.name || '',
+    last_name: contactData.lastName || '',
+    phone: contactData.phone || '',
+    email: contactData.email || '',
+    telegram: extraTg[0] || '',
+    whatsapp: extraWa[0] || '',
+    document_number: contactData.documentNumber || '',
+    nationality: contactData.nationality || '',
+    birthday: contactData.birthday || '',
+    photo_url: contactData.photoUri || '',
+    extra_phones: contactData.extraPhones || [],
+    extra_emails: contactData.extraEmails || [],
+    extra_telegrams: extraTg,
+    extra_whatsapps: extraWa,
+    documents: contactData.documents || [],
+  };
+
+  const { data, error } = await supabase.rpc('find_or_create_booking_contact', {
+    p_payload: payload,
+  });
+  if (error) throw new Error(error.message);
+
+  const id = data?.id;
+  const existed = !!data?.existed;
+  if (!id) throw new Error('RPC returned no id');
+
+  let contact = await getContactById(id);
+
+  // existed=true и контакт чужого агента: RLS его пока не отдаёт. Возвращаем
+  // «синтетический» объект из payload (агент видит свои же данные на форме),
+  // настоящий contact_id — для привязки к брони. После сохранения брони
+  // RLS-политика TD-099 откроет полный контакт. Чужие поля не утекают.
+  if (!contact) {
+    contact = mapContact({
+      id,
+      type: 'clients',
+      name: payload.name,
+      last_name: payload.last_name,
+      phone: payload.phone,
+      email: payload.email,
+      telegram: payload.telegram,
+      whatsapp: payload.whatsapp,
+      document_number: payload.document_number,
+      nationality: payload.nationality,
+      birthday: payload.birthday,
+      photo_url: payload.photo_url,
+      extra_phones: payload.extra_phones,
+      extra_emails: payload.extra_emails,
+      extra_telegrams: payload.extra_telegrams,
+      extra_whatsapps: payload.extra_whatsapps,
+      documents: payload.documents,
+    });
+  }
+
+  if (!existed) {
+    syncIfEnabled();
+    broadcastChange('contacts');
+  }
+
+  return { contact, existed };
+}
+
 export async function updateContact(id, contactData) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');

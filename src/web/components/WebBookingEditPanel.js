@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import dayjs from 'dayjs';
 import { createBooking, updateBooking } from '../../services/bookingsService';
+import { findOrCreateBookingClient } from '../../services/contactsService';
 import { useAppData } from '../../context/AppDataContext';
 import WebContactEditPanel from './WebContactEditPanel';
 import WebBookingCalendarPicker from './WebBookingCalendarPicker';
@@ -458,14 +459,20 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     setNewContactVisible(true);
   };
 
-  const handleNewContactSaved = (saved) => {
+  const handleNewContactSaved = (saved, meta) => {
     const contact = Array.isArray(saved) ? saved[0] : saved;
     if (contact?.id) {
-      setLocalContacts(prev => [contact, ...prev]);
+      setLocalContacts(prev => {
+        const without = prev.filter(c => c.id !== contact.id);
+        return [contact, ...without];
+      });
       set('contactId', contact.id);
       set('passportId', contact.documentNumber || '');
     }
     setNewContactVisible(false);
+    if (meta?.existed && typeof window !== 'undefined' && window.alert) {
+      window.alert(t('clientLinkedExisting'));
+    }
   };
 
   const handleSave = async () => {
@@ -1019,6 +1026,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
         } : null}
         onClose={() => setNewContactVisible(false)}
         onSaved={handleNewContactSaved}
+        customCreate={findOrCreateBookingClient}
       />
     </Modal>
   );

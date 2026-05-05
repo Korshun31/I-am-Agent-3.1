@@ -21,7 +21,7 @@
 - FK `contacts_company_id_fkey` → `companies(id)` ON DELETE SET NULL
 - FK `contacts_user_id_fkey` → `users_profile(id)` ON DELETE CASCADE
 - Нет триггеров на таблице contacts
-- Нет CHECK constraint на `type` (TD-098)
+- CHECK constraint `contacts_type_check` на `type IN ('clients', 'owners')` (TD-098 закрыт 2026-05-05, миграция `20260505000000`)
 - Фото в отдельном бакете `contact-photos`
 
 **Таблицы ссылающиеся на contacts:**
@@ -47,7 +47,7 @@
 - **clients** (клиенты/арендаторы) — гости которые снимают жильё
 - **owners** (собственники) — владельцы недвижимости
 
-**CT-CR-1.1.** *(TD-098)* Нет CHECK constraint на `contacts.type`. Добавить: `CHECK (type IN ('clients', 'owners'))`.
+**CT-CR-1.1.** *(TD-098, ✅ ЗАКРЫТ 2026-05-05)* CHECK constraint `contacts_type_check` на `type IN ('clients', 'owners')` добавлен миграцией `20260505000000_contacts_type_check.sql` (накатан в sandbox; на prod — в фазе 10). Любое значение кроме canonical отклоняется на уровне БД с ошибкой 23514.
 
 **CT-CR-2.** Тип задаётся при создании и **не может быть изменён** при редактировании. Заблокирован на обеих платформах (`lockType`
 на вебе).
@@ -210,7 +210,7 @@
 
 | TD | Описание | Приоритет |
 |---|---|---|
-| **TD-098** | Нет CHECK constraint на `contacts.type` — добавить `CHECK (type IN ('clients', 'owners'))` | Низкий |
+| **TD-098** | ✅ ЗАКРЫТ 2026-05-05 — миграция `20260505000000_contacts_type_check.sql`, constraint `contacts_type_check` | Закрыт |
 | **TD-099** | ✅ ЗАКРЫТ 2026-04-28 — миграция `20260428000001`, политика `contacts: agent reads booking clients` | Закрыт |
 | **TD-100** | ✅ ЗАКРЫТ 2026-04-30 — обе платформы сжимают аватар до 1200px JPEG 0.85; миниатюры 150px вынесены в TD-064 | Закрыт |
 | **TD-101** | ✅ ЗАКРЫТ 2026-04-27 — `CHECK (trim(name) <> '')` (constraint `contacts_name_not_blank`) добавлен миграцией `20260427000006` | Закрыт |
@@ -220,3 +220,4 @@
 | **TD-105** | ✅ ЗАКРЫТ 2026-04-30 — обе платформы предупреждают о привязанных объектах при удалении собственника | Закрыт |
 | **TD-106** | ✅ ЗАКРЫТ 2026-04-30 — обе платформы предупреждают о привязанных бронированиях при удалении клиента | Закрыт |
 | **TD-107** | ✅ ЗАКРЫТ 2026-04-29 — JS-костыль в `WebContactsScreen.load()` удалён, единый путь через `getContacts()` + RLS | Закрыт |
+| **TD-122** | ✅ ЗАКРЫТ 2026-05-05 — дедупликация клиента в форме брони. RPC `find_or_create_booking_contact(jsonb)` (миграция `20260505000001`) ищет совпадение по нормализованному phone (только цифры, ≥5) или email (lower+trim) в пределах company_id, type='clients'; при матче возвращает существующий id, иначе INSERT. JS-обёртка `findOrCreateBookingClient`, подключена в `AddBookingModal` (мобайл) и `WebBookingEditPanel` (веб) через проп `customCreate`. i18n `clientLinkedExisting` × en/th/ru | Закрыт |

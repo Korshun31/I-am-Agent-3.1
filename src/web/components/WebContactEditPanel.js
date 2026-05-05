@@ -166,7 +166,7 @@ function TypeSelect({ value, onChange, t }) {
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
-export default function WebContactEditPanel({ visible, mode, contact, onClose, onSaved, lockType }) {
+export default function WebContactEditPanel({ visible, mode, contact, onClose, onSaved, lockType, customCreate }) {
   const { t } = useLanguage();
   const METHOD_TYPES = getMethodTypes(t);
   const slideAnim = useRef(new Animated.Value(440)).current;
@@ -327,12 +327,17 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
         photoUri,
       };
       let saved;
+      let existed = false;
       if (mode === 'edit' && contact) {
         saved = await updateContact(contact.id, payload);
+      } else if (typeof customCreate === 'function') {
+        const result = await customCreate(payload);
+        saved = result?.contact ?? result;
+        existed = !!result?.existed;
       } else {
         saved = await createContact(payload);
       }
-      onSaved(saved);
+      onSaved(saved, { existed });
     } catch (e) {
       setError(e.message || t('errorSave'));
     } finally {

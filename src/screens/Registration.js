@@ -77,7 +77,11 @@ export default function Registration({ onBack, onSuccess, onPendingConfirmation 
         onSuccess?.(userData);
       }
     } catch (err) {
-      setRegError(err?.message || t('saveFailed'));
+      if (err?.message === 'DISPOSABLE_EMAIL') {
+        setRegError(t('disposableEmailNotAllowed'));
+      } else {
+        setRegError(err?.message || t('saveFailed'));
+      }
     } finally {
       setLoading(false);
     }

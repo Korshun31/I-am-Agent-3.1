@@ -37,7 +37,12 @@ export default function CompanyScreen({ onBack, onUserUpdate, onOpenTeam }) {
         setEditModalVisible(true);
       }
     } catch (e) {
-      Alert.alert(t('error'), e.message);
+      if (e?.message === 'COMPANY_NAME_INVALID') {
+        // Компании ещё нет — открываем модалку для ввода имени
+        setEditModalVisible(true);
+      } else {
+        Alert.alert(t('error'), e.message);
+      }
     }
   };
 
@@ -169,11 +174,17 @@ export default function CompanyScreen({ onBack, onUserUpdate, onOpenTeam }) {
           try {
             if (user?.companyId) {
               await updateCompany(user.companyId, payload);
+            } else {
+              await activateCompany(payload);
             }
             const profile = await getCurrentUser();
             onUserUpdate?.(profile);
           } catch (e) {
-            Alert.alert(t('error'), e.message);
+            if (e?.message === 'COMPANY_NAME_INVALID') {
+              Alert.alert(t('error'), t('companyNameInvalid'));
+            } else {
+              Alert.alert(t('error'), e.message);
+            }
           }
         }}
       />

@@ -67,6 +67,7 @@ _(P1-001/TD-009, P1-002, P3-001, P3-002 сняты в этапе 2 simple-perms 
 - ✅ TD-001 — мусорная колонка `users_profile.role` удалена (2026-05-03). Две миграции: `20260503000001_handle_new_user_drop_role.sql` (триггер перестал писать в role) + `20260503000002_drop_users_profile_role.sql` (DROP COLUMN). Sandbox-проверка перед дропом: 20 пользователей, у всех `plan` валиден, CHECK/RLS на role нет. JS-правки: `roleFeatures.js` переименован `ROLES` → `PLANS` (`KORSHUN: 'korshun'` вместо `ADMIN: 'admin'`); `authService.getUserProfile` читает только `data.plan` и больше не отдаёт legacy-поле `role`; `AccountScreen.isAdmin` теперь `plan === PLANS.KORSHUN`; `PropertyEditWizard` зовёт `getPhotoLimitForProperty(u?.plan || 'standard')`. Документация обновлена: убраны раздел 3.3 в CURSOR_RULES, антипример SELECT/UPDATE role, AU-PROFILE-3 в auth.md, упоминания «role='standard'» в описании триггера.
 - ✅ TD-014 — полный recovery flow: ссылка на Login → ForgotPassword (`resetPasswordForEmail` с `redirectTo`) → email → клик → listener `PASSWORD_RECOVERY` в App.js → UpdatePassword (`setNewPassword`) → выход и возврат на Login (2026-04-30). Deep-link в нативное приложение — отдельный TD при необходимости.
 - ✅ TD-015 — email confirmation flow (2026-04-30): signUp возвращает pendingConfirmation если Supabase не выдал session → Registration переключает на экран `EmailConfirmationPending`. После клика по confirm-ссылке Supabase редиректит на сайт с хешем `type=signup` → App.js показывает `EmailConfirmedSuccess`. signIn ловит ошибку «Email not confirmed» и показывает понятный текст. Native deep link для мобильного — TD-118.
+- ✅ TD-016 — блокировка одноразовых email-сервисов на регистрации (2026-05-05, `src/utils/disposableEmails.js` 57 доменов + `authService.signUp` бросает `DISPOSABLE_EMAIL`, `Registration.js` показывает перевод `disposableEmailNotAllowed` × 3 языка; e2e-тест веб 5/5)
 - ✅ TD-017 — миграция `handle_new_user` (миграции `20260415000001`, `20260427000003`)
 - ✅ TD-018 — хардкод `korshun31@list.ru` удалён из `signUp()` и `WebInviteAcceptScreen` (2026-04-27, коммит `1c1ba40`)
 - ✅ TD-019 — Web Login мелькание устранено: `App.js` рендерит `<Preloader />` на стадии `preloader` для обеих платформ (2026-04-30).
@@ -89,7 +90,7 @@ _(P1-001/TD-009, P1-002, P3-001, P3-002 сняты в этапе 2 simple-perms 
 - ✅ TD-026 — dormant flow в `WebInviteAcceptScreen` (коммит `2d30d4a`, переписан 2026-04-27)
 - ✅ TD-027 — rate-limiting (миграции `20260415000005`, `20260417000002`; в новом flow rate-limit в Edge Function)
 - ✅ TD-028 — объединён с TD-042
-- ✅ TD-029 — валидация имени компании (`name.trim()` проверка)
+- ✅ TD-029 — валидация имени компании (2026-05-05, хелпер `assertValidCompanyName` в `companyService.js`, длина 2-80 после `trim`; UI ловит `COMPANY_NAME_INVALID` и показывает перевод `companyNameInvalid` × 3 языка; e2e-тест веб 5/5 пройдены)
 - 🔁 TD-030 — нет аудит-лога действий с командой. Перенесён в backlog v2 (`docs/Устав компании/09_Бэклог_идей_и_TODO.md`) — для одиночного админа реальной пользы мало, вернёмся после публичного запуска и роста команд.
 - ✅ TD-040 — Registration не проверяет pending (закрыт 2026-04-27 коммит `1ce131d`/`d08ae35`)
 - ✅ TD-042 — `deactivate_member` soft-delete (миграция `20260415000009`, коммит `be35aa2`)
@@ -164,8 +165,9 @@ _(P1-001/TD-009, P1-002, P3-001, P3-002 сняты в этапе 2 simple-perms 
 ## Contacts
 
 - ✅ TD-002 — `company_id` в `contacts` + RLS (миграция `20260327130000`)
-- ✅ TD-098 — CHECK `contacts.type IN ('clients','owners')` (миграция применена)
+- ✅ TD-098 — CHECK `contacts.type IN ('clients','owners')` (2026-05-05, миграция `20260505000000_contacts_type_check.sql`, накатана в sandbox; на prod — в фазе 10)
 - ✅ TD-099 — RLS contacts по `booking_agent_id` (2026-04-28, миграция `20260428000001`, коммит `2dafc75`). Политика `contacts: agent reads booking clients` — агент читает клиентов из своих броней.
+- ✅ TD-122 — дедупликация клиентов в форме брони по телефону/email (2026-05-05, согласовано 2026-04-28). RPC `find_or_create_booking_contact` с SECURITY DEFINER (миграция `20260505000001`, накатана в sandbox; на prod — в фазе 10) ищет совпадение по нормализованному phone (только цифры, ≥5) или email (lower+trim) в пределах company_id, type='clients'. JS-обёртка `findOrCreateBookingClient` в `contactsService.js` возвращает `{contact, existed}`; при `existed=true` и невидимости контакта по RLS использует синтетический объект из payload (id настоящий, чужие поля не утекают). Подключено в мобильный `AddBookingModal.handleSaveContact` (Alert) и веб `WebBookingEditPanel.handleNewContactSaved` (window.alert) через новый проп `customCreate` в общем `WebContactEditPanel` (обратная совместимость с обычным экраном контактов сохранена). i18n `clientLinkedExisting` × en/th/ru. SQL-тесты 4/4 PASS, статический ревью PASS.
 - ✅ TD-100 — мобильный AddContactModal и веб WebContactEditPanel сжимают фото-аватар до 1200px JPEG 0.85 (2026-04-30, закрыто вместе с TD-104). Миниатюры 150px — TD-064.
 - ✅ TD-101 — CHECK `trim(contacts.name) <> ''` (2026-04-27, миграция `20260427000006`, коммит `8842f13`)
 - ✅ TD-102 — удалён `can_manage_clients` (коммит `2d30d4a`)

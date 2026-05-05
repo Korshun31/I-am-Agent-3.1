@@ -1,7 +1,12 @@
 import { supabase } from './supabase';
 import { Platform } from 'react-native';
+import { isDisposableEmail } from '../utils/disposableEmails';
 
 export async function signUp({ email, password, name }) {
+  if (isDisposableEmail(email)) {
+    throw new Error('DISPOSABLE_EMAIL');
+  }
+
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email,
     password,

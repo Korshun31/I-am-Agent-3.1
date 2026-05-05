@@ -25,7 +25,7 @@ import dayjs from 'dayjs';
 import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
-import { createContact, getContactById } from '../services/contactsService';
+import { findOrCreateBookingClient, getContactById } from '../services/contactsService';
 import { computeTotalPrice, computeMonthlyBreakdown } from '../utils/bookingPricing';
 import { buildOccupancyArrays, hasOccupiedInRange } from '../utils/bookingOccupancy';
 import { createBooking, updateBooking } from '../services/bookingsService';
@@ -385,11 +385,14 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
 
   const handleSaveContact = async (data) => {
     try {
-      const created = await createContact({ ...data, type: 'clients' });
+      const { contact, existed } = await findOrCreateBookingClient({ ...data, type: 'clients' });
       refreshGlobalContacts();
-      setSelectedClient(created);
+      setSelectedClient(contact);
       setAddContactVisible(false);
       setClientPickerVisible(false);
+      if (existed) {
+        Alert.alert(t('info') || '', t('clientLinkedExisting'));
+      }
     } catch (e) {
       return Promise.reject(e);
     }
