@@ -2,14 +2,15 @@
 -- pg_cron + pg_net. Время 06:00 UTC выбрано так, чтобы заведомо выпасть после
 -- публикации ECB (около 16:00 CET предыдущего рабочего дня).
 --
--- ВАЖНО: значения `<PROJECT_REF>` и `service_role_key` нужно подставить вручную
--- в Supabase Dashboard перед накаткой этой миграции на prod. Для sandbox/dev
--- те же действия. Edge Function URL имеет вид:
---   https://<PROJECT_REF>.supabase.co/functions/v1/sync-currency-rates
+-- ПРЕДВАРИТЕЛЬНЫЕ УСЛОВИЯ (один раз руками в Dashboard):
+--   1. Включить расширения pg_cron и pg_net в Database → Extensions.
+--   2. Положить service_role_key в Vault через SQL Editor:
+--        SELECT vault.create_secret('<JWT-ключ>', 'service_role_key', 'For pg_cron');
+--      Vault — встроенный сейф Supabase, ключ хранится зашифрованным,
+--      `current_setting`/ALTER DATABASE на managed-плане Supabase запрещены.
 --
--- Расширения должны быть включены в проекте (Dashboard → Database → Extensions):
---   - pg_cron
---   - pg_net
+-- Edge Function URL прошит явно:
+--   https://mdxujiuvmondmagfnwob.supabase.co/functions/v1/sync-currency-rates
 
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
@@ -27,10 +28,15 @@ SELECT cron.schedule(
   '0 6 * * *',
   $cron$
     SELECT net.http_post(
-      url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/sync-currency-rates',
+      url     := 'https://mdxujiuvmondmagfnwob.supabase.co/functions/v1/sync-currency-rates',
       headers := jsonb_build_object(
         'Content-Type',  'application/json',
-        'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+        'Authorization', 'Bearer ' || (
+          SELECT decrypted_secret
+          FROM vault.decrypted_secrets
+          WHERE name = 'service_role_key'
+          LIMIT 1
+        )
       ),
       body    := '{}'::jsonb
     );
