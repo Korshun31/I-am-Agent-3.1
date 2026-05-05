@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import { computeMonthlyBreakdown } from './bookingPricing';
 import { getCommissionDateAmounts } from '../services/commissionRemindersService';
+import { convertAmount } from './currencyConvert';
 
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
 
@@ -42,6 +43,15 @@ function ownerMonthlyAmount(b) {
     : Number(b.ownerCommissionMonthly);
 }
 
+// TD-120 фаза C: единая точка конвертации валют для всего файла. Если ctx не
+// передан или конвертация невозможна — `convertAmount` молча вернёт исходное
+// число. Это даёт обратную совместимость со старым кодом (вызовы без ctx
+// продолжают работать как раньше) и graceful degrade при пустой таблице
+// курсов на клиенте.
+function fx(amount, b, ctx) {
+  return convertAmount(amount, b, ctx?.today, ctx);
+}
+
 export function getPeriodPresets(now = dayjs()) {
   const startOfMonth = now.startOf('month');
   const endOfMonth   = now.endOf('month');
@@ -60,18 +70,18 @@ export function getPeriodPresets(now = dayjs()) {
   };
 }
 
-export function computeRevenue(bookings, fromStr, toStr) {
+export function computeRevenue(bookings, fromStr, toStr, ctx) {
   return (bookings || []).reduce((sum, b) => {
     if (b.notMyCustomer) return sum;
     const rows = getRentByMonth(b);
     return sum + rows.reduce((s, r) => {
       if (!r.month || !monthInRange(r.month, fromStr, toStr)) return s;
-      return s + (Number(r.amount) || 0);
+      return s + fx(Number(r.amount) || 0, b, ctx);
     }, 0);
   }, 0);
 }
 
-export function computeAgencyIncome(bookings, fromStr, toStr) {
+export function computeAgencyIncome(bookings, fromStr, toStr, ctx) {
   return (bookings || []).reduce((sum, b) => {
     if (b.notMyCustomer) return sum;
     let acc = 0;
@@ -79,7 +89,7 @@ export function computeAgencyIncome(bookings, fromStr, toStr) {
     const fromClient = Number(b.commission) || 0;
     const ccDate = clientCommissionDate(b);
     if (fromClient > 0 && ccDate) {
-      if (dateInRange(ccDate, fromStr, toStr)) acc += fromClient;
+      if (dateInRange(ccDate, fromStr, toStr)) acc += fx(fromClient, b, ctx);
     }
 
     const oneTime = ownerOneTimeAmount(b);
@@ -87,7 +97,7 @@ export function computeAgencyIncome(bookings, fromStr, toStr) {
     if (oneTime > 0 || monthly > 0) {
       const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTime, monthly);
       dates.forEach((d) => {
-        if (dateInRange(d.date, fromStr, toStr)) acc += Number(d.amount) || 0;
+        if (dateInRange(d.date, fromStr, toStr)) acc += fx(Number(d.amount) || 0, b, ctx);
       });
     }
 
@@ -95,7 +105,7 @@ export function computeAgencyIncome(bookings, fromStr, toStr) {
   }, 0);
 }
 
-export function breakdownByPropertyForMonth(bookings, properties, monthKey) {
+export function breakdownByPropertyForMonth(bookings, properties, monthKey, ctx) {
   const byProp = {};
 
   (bookings || []).forEach((b) => {
@@ -108,7 +118,7 @@ export function breakdownByPropertyForMonth(bookings, properties, monthKey) {
 
     const rows = getRentByMonth(b);
     rows.forEach((r) => {
-      if (r.month === monthKey) revenue += Number(r.amount) || 0;
+      if (r.month === monthKey) revenue += fx(Number(r.amount) || 0, b, ctx);
     });
 
     const fromClient = Number(b.commission) || 0;
@@ -116,7 +126,7 @@ export function breakdownByPropertyForMonth(bookings, properties, monthKey) {
     if (fromClient > 0 && ccDate) {
       const ccMonth = ccDate.slice(0, 7);
       if (ccMonth === monthKey) {
-        income += fromClient;
+        income += fx(fromClient, b, ctx);
         sources.add('KK');
       }
     }
@@ -126,7 +136,7 @@ export function breakdownByPropertyForMonth(bookings, properties, monthKey) {
       const oneTimeDates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTime, 0);
       oneTimeDates.forEach((d) => {
         if (String(d.date).slice(0, 7) === monthKey) {
-          income += Number(d.amount) || 0;
+          income += fx(Number(d.amount) || 0, b, ctx);
           sources.add('KoS');
         }
       });
@@ -137,7 +147,7 @@ export function breakdownByPropertyForMonth(bookings, properties, monthKey) {
       const monthlyDates = getCommissionDateAmounts(b.checkIn, b.checkOut, 0, monthly);
       monthlyDates.forEach((d) => {
         if (String(d.date).slice(0, 7) === monthKey) {
-          income += Number(d.amount) || 0;
+          income += fx(Number(d.amount) || 0, b, ctx);
           sources.add('EKoS');
         }
       });
@@ -220,7 +230,7 @@ export function computeOccupancyPercent(bookings, properties, fromStr, toStr) {
 // через `getCommissionDateAmounts` + `dateInRange` — точно как в
 // `computeRevenue`/`computeAgencyIncome`/`computeAgentLeaderboard`. Числа в
 // топе теперь сходятся с общим оборотом и доходом за тот же период.
-export function computeTopProperties(bookings, properties, fromStr, toStr, limit = 5) {
+export function computeTopProperties(bookings, properties, fromStr, toStr, limit = 5, ctx) {
   const fromD = dayjs(fromStr);
   const toD   = dayjs(toStr);
   const totalDays = toD.diff(fromD, 'day') + 1;
@@ -233,20 +243,20 @@ export function computeTopProperties(bookings, properties, fromStr, toStr, limit
     let revenue = 0;
     const rows = getRentByMonth(b);
     rows.forEach((r) => {
-      if (r.month && monthInRange(r.month, fromStr, toStr)) revenue += Number(r.amount) || 0;
+      if (r.month && monthInRange(r.month, fromStr, toStr)) revenue += fx(Number(r.amount) || 0, b, ctx);
     });
 
     let income = 0;
     const fromClient = Number(b.commission) || 0;
     const ccDate = clientCommissionDate(b);
-    if (fromClient > 0 && ccDate && dateInRange(ccDate, fromStr, toStr)) income += fromClient;
+    if (fromClient > 0 && ccDate && dateInRange(ccDate, fromStr, toStr)) income += fx(fromClient, b, ctx);
 
     const oneTime = ownerOneTimeAmount(b);
     const monthly = ownerMonthlyAmount(b);
     if (oneTime > 0 || monthly > 0) {
       const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTime, monthly);
       dates.forEach((d) => {
-        if (dateInRange(d.date, fromStr, toStr)) income += Number(d.amount) || 0;
+        if (dateInRange(d.date, fromStr, toStr)) income += fx(Number(d.amount) || 0, b, ctx);
       });
     }
 
@@ -286,7 +296,7 @@ export function computeTopProperties(bookings, properties, fromStr, toStr, limit
     .slice(0, limit);
 }
 
-function buildMonthEntry(bookings, m, isCurrent = false) {
+function buildMonthEntry(bookings, m, isCurrent = false, ctx) {
   const fromStr = m.startOf('month').format('YYYY-MM-DD');
   const toStr   = m.endOf('month').format('YYYY-MM-DD');
   return {
@@ -294,23 +304,23 @@ function buildMonthEntry(bookings, m, isCurrent = false) {
     label: m.format('MMM'),
     year: m.year(),
     isCurrent,
-    revenue:      computeRevenue(bookings, fromStr, toStr),
-    agencyIncome: computeAgencyIncome(bookings, fromStr, toStr),
+    revenue:      computeRevenue(bookings, fromStr, toStr, ctx),
+    agencyIncome: computeAgencyIncome(bookings, fromStr, toStr, ctx),
   };
 }
 
-export function computeMonthlyRevenue(bookings, monthsBack = 12, now = dayjs()) {
+export function computeMonthlyRevenue(bookings, monthsBack = 12, now = dayjs(), ctx) {
   const out = [];
   for (let i = monthsBack - 1; i >= 0; i--) {
-    out.push(buildMonthEntry(bookings, now.subtract(i, 'month'), i === 0));
+    out.push(buildMonthEntry(bookings, now.subtract(i, 'month'), i === 0, ctx));
   }
   return out;
 }
 
-export function computeMonthlyForecast(bookings, monthsAhead = 12, now = dayjs()) {
+export function computeMonthlyForecast(bookings, monthsAhead = 12, now = dayjs(), ctx) {
   const out = [];
   for (let i = 1; i <= monthsAhead; i++) {
-    out.push(buildMonthEntry(bookings, now.add(i, 'month')));
+    out.push(buildMonthEntry(bookings, now.add(i, 'month'), false, ctx));
   }
   return out;
 }
@@ -345,7 +355,7 @@ export function computeMonthlyBookingsCount(bookings, monthsBack = 5, monthsAhea
   return out;
 }
 
-export function computeAgentLeaderboard(bookings, teamMembers, fromStr, toStr, limit = 5) {
+export function computeAgentLeaderboard(bookings, teamMembers, fromStr, toStr, limit = 5, ctx) {
   const memberMap = {};
   (teamMembers || []).forEach((m) => {
     const id = m.user_id ?? m.id;
@@ -361,20 +371,20 @@ export function computeAgentLeaderboard(bookings, teamMembers, fromStr, toStr, l
     let revenue = 0;
     const rows = getRentByMonth(b);
     rows.forEach((r) => {
-      if (r.month && monthInRange(r.month, fromStr, toStr)) revenue += Number(r.amount) || 0;
+      if (r.month && monthInRange(r.month, fromStr, toStr)) revenue += fx(Number(r.amount) || 0, b, ctx);
     });
 
     let income = 0;
     const fromClient = Number(b.commission) || 0;
     const ccDate = clientCommissionDate(b);
-    if (fromClient > 0 && ccDate && dateInRange(ccDate, fromStr, toStr)) income += fromClient;
+    if (fromClient > 0 && ccDate && dateInRange(ccDate, fromStr, toStr)) income += fx(fromClient, b, ctx);
 
     const oneTime = ownerOneTimeAmount(b);
     const monthly = ownerMonthlyAmount(b);
     if (oneTime > 0 || monthly > 0) {
       const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTime, monthly);
       dates.forEach((d) => {
-        if (dateInRange(d.date, fromStr, toStr)) income += Number(d.amount) || 0;
+        if (dateInRange(d.date, fromStr, toStr)) income += fx(Number(d.amount) || 0, b, ctx);
       });
     }
 
