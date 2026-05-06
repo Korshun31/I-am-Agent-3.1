@@ -529,7 +529,7 @@ TD-037: ✅ Закрыт 2026-05-03. `signOut({ scope })` поддерживае
 
 ### Низкий — бэклог
 
-TD-007: properties не имеет updated_at — добавить колонку
+TD-007: ✅ ЗАКРЫТ 2026-04-22 (prod) / 2026-05-06 (sandbox + миграция в git) — `properties.updated_at` TIMESTAMPTZ NOT NULL DEFAULT now() + триггер `trg_properties_set_updated_at` (BEFORE UPDATE → NEW.updated_at = now()). Backfill: `updated_at = created_at`. Идемпотентная миграция `supabase/migrations/20260506000000_properties_updated_at.sql`. Используется `dataUploadService.js` для сортировки выгрузки на сайт.
 TD-008: ✅ СНЯТ 2026-04-30 (этап 2 — модерация выпилена, таблица property_rejection_history будет удалена в этапе 3, backfill не нужен) — Backfill property_rejection_history для legacy объектов
 TD-009: ✅ СНЯТ 2026-04-30 (этап 2 — модерация выпилена, роль «старший агент» закрыта в пользу простоты) — Разрешения can_moderate_properties для старшего агента
 
