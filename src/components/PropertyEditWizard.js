@@ -1048,6 +1048,7 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
     code: data.code.trim().toUpperCase(),
     code_suffix: (data.code_suffix || '').trim().toUpperCase(),
     type: property?.type || 'house',
+    parent_id: property?.parent_id ?? null,
     city: isHouseInResort && parentResort ? parentCity : data.city.trim(),
     location_id: data.location_id || null,
     owner_id: ownerId,
@@ -1246,8 +1247,10 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       }
       setUploadProgress('');
 
-      const propRef = mode === 'create' ? { type: propertyType } : property;
-      const resortRef = mode === 'create' ? null : parentResort;
+      const propRef = mode === 'create'
+        ? { type: propertyType, parent_id: parentResort?.id ?? null }
+        : property;
+      const resortRef = parentResort;
       const updates = buildUpdates(data, propRef, resortRef, maxPhotos, activeCurrency);
       await onSave(updates);
     } catch (e) {

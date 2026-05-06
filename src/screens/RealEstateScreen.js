@@ -23,7 +23,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
 import { useRoute, useNavigation, useIsFocused } from '@react-navigation/native';
-import { createProperty, updateProperty, deleteProperty } from '../services/propertiesService';
+import { createPropertyFull, updateProperty, deleteProperty } from '../services/propertiesService';
 import { getUnreadCount, getTotalCount } from '../services/notificationsService';
 import { supabase } from '../services/supabase';
 import PropertyNotificationsModal from '../components/PropertyNotificationsModal';
@@ -219,33 +219,12 @@ export default function RealEstateScreen({ onReady }) {
 
   const handleSaveProperty = useCallback(async (data) => {
     try {
-      const {
-        name,
-        code,
-        type,
-        location_id,
-        owner_id,
-        ...detailsToUpdate
-      } = data;
-
-      const created = await createProperty({
-        name: name || '',
-        code: code || '',
-        type: type || 'house',
-        location_id: location_id || null,
-        owner_id: owner_id || null,
-      });
-
-      const { responsible_agent_id, user_id, company_id, ...safeDetailsToUpdate } = detailsToUpdate;
-
-      if (created?.id && Object.keys(safeDetailsToUpdate).length > 0) {
-        await updateProperty(created.id, safeDetailsToUpdate);
-      }
-
+      await createPropertyFull(data);
       setWizardVisible(false);
       refreshProperties();
     } catch (e) {
-      Alert.alert(t('error'), e.message);
+      const msg = e?.code === 'DUPLICATE_PROPERTY_CODE' ? t('duplicatePropertyCodeError') : e.message;
+      Alert.alert(t('error'), msg);
     }
   }, [refreshProperties, t]);
 
