@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Linking, Image } from 'react-native';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 import { useLanguage } from '../../context/LanguageContext';
-import { getBookings } from '../../services/bookingsService';
-import { getProperties } from '../../services/propertiesService';
-import { getContacts } from '../../services/contactsService';
-import { getCalendarEvents, eventOccursOnDate } from '../../services/calendarEventsService';
-import { getCommissionDateAmounts } from '../../services/commissionRemindersService';
-import { supabase } from '../../services/supabase';
+import { useAppData } from '../../context/AppDataContext';
+import {
+  computeBaseStats,
+  computeAgentStats,
+  buildCommissionEvents,
+  computeAgendaForDate,
+} from '../../utils/dashboardStats';
 import WebCalendarStrip from '../components/WebCalendarStrip';
 import WebAddCalendarEventModal from '../components/WebAddCalendarEventModal';
 
@@ -17,76 +18,6 @@ const ICON_TELEGRAM = require('../../../assets/icon-contact-telegram.png');
 const ICON_WHATSAPP = require('../../../assets/icon-contact-whatsapp.png');
 
 dayjs.extend(isBetween);
-
-const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
-
-function buildPropertiesMap(properties) {
-  const m = {};
-  (properties || []).forEach((p) => { m[p.id] = p; });
-  return m;
-}
-
-function isRentableUnit(p) {
-  return !!(p && HOUSE_LIKE_TYPES.has(p.type));
-}
-
-function effectivePropertyStatus(p) {
-  const s = p?.property_status;
-  if (s == null || s === '') return 'approved';
-  return s;
-}
-
-/** @returns {'houses'|'resortHouses'|'apartments'|null} */
-function categoryKeyRentable(p, propsMap) {
-  if (!isRentableUnit(p)) return null;
-  if (!p.resort_id) return 'houses';
-  const parent = propsMap[p.resort_id];
-  if (parent?.type === 'resort') return 'resortHouses';
-  if (parent?.type === 'condo') return 'apartments';
-  return null;
-}
-
-function isApprovedEffective(p) {
-  return effectivePropertyStatus(p) === 'approved';
-}
-
-function isPendingOrRejected(p) {
-  const s = p?.property_status;
-  return s === 'pending' || s === 'rejected';
-}
-
-function approvedBreakdown(properties, propsMap, filterFn) {
-  let houses = 0;
-  let resortHouses = 0;
-  let apartments = 0;
-  (properties || []).forEach((p) => {
-    if (filterFn && !filterFn(p)) return;
-    const key = categoryKeyRentable(p, propsMap);
-    if (!key) return;
-    if (!isApprovedEffective(p)) return;
-    if (key === 'houses') houses += 1;
-    else if (key === 'resortHouses') resortHouses += 1;
-    else apartments += 1;
-  });
-  return {
-    houses,
-    resortHouses,
-    apartments,
-    total: houses + resortHouses + apartments,
-  };
-}
-
-function countPendingReview(properties, propsMap, filterFn) {
-  let n = 0;
-  (properties || []).forEach((p) => {
-    if (filterFn && !filterFn(p)) return;
-    const key = categoryKeyRentable(p, propsMap);
-    if (!key) return;
-    if (!isPendingOrRejected(p)) return;
-    n += 1;
-  });
-  return n;
-}
 
 // ─── Новая палитра ──────────────────────────────────────
 const CLR = {
@@ -114,253 +45,53 @@ const CLR = {
   commBg:   '#FDF4E7',
 };
 
-export default function WebDashboardScreen({ user, refreshKey }) {
+export default function WebDashboardScreen({ user }) {
   const { t } = useLanguage();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    total: 0, houses: 0, resortHouses: 0, apartments: 0, pendingReview: 0,
-    occupied: 0, myClients: 0, otherClients: 0,
-    upcoming: 0, thisMonth: 0, later: 0
-  });
-  const [allBookings, setAllBookings] = useState([]);
-  const [allProperties, setAllProperties] = useState([]);
-  const [allContacts, setAllContacts] = useState([]);
-  const [allCalendarEvents, setAllCalendarEvents] = useState([]);
-  const [allCommissionEvents, setAllCommissionEvents] = useState([]);
+  const {
+    bookings,
+    properties,
+    contacts,
+    calendarEvents,
+    propertiesLoading, bookingsLoading, contactsLoading, eventsLoading,
+    refreshCalendarEvents,
+  } = useAppData();
+
   const [selectedDate, setSelectedDate] = useState(dayjs());
-  const [filteredEvents, setFilteredEvents] = useState({ checkIns: [], checkOuts: [], personal: [] });
-  const [agentStats, setAgentStats] = useState(null); // только для team members
-  
-  // Состояние для модального окна событий
   const [eventModalVisible, setEventModalVisible] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
 
-  const loadDashboardData = async () => {
-    try {
-      const [bookings, properties, contacts, calendarEvents] = await Promise.all([
-        getBookings(),
-        getProperties(),
-        getContacts('clients'),
-        getCalendarEvents()
-      ]);
+  const loading = propertiesLoading || bookingsLoading || contactsLoading || eventsLoading;
 
-      setAllBookings(bookings);
-      setAllProperties(properties);
-      setAllContacts(contacts);
-      setAllCalendarEvents(calendarEvents);
+  const stats = useMemo(
+    () => computeBaseStats({ properties, bookings, user }),
+    [properties, bookings, user]
+  );
 
-      // Расчет всех комиссионных событий
-      const allComms = [];
-      bookings.forEach(b => {
-        if (b.ownerCommissionOneTime || b.ownerCommissionMonthly) {
-          const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, b.ownerCommissionOneTime, b.ownerCommissionMonthly);
-          const prop = properties.find(p => p.id === b.propertyId);
-          dates.forEach(d => {
-            allComms.push({
-              ...d,
-              id: `comm-${b.id}-${d.date}`,
-              bookingId: b.id,
-              propertyId: b.propertyId,
-              propertyCode: prop?.code || '—',
-              propertyName: prop?.name || '—',
-              currency: prop?.currency || 'THB',
-              type: 'COMMISSION'
-            });
-          });
-        }
-      });
-      setAllCommissionEvents(allComms);
+  const agentStats = useMemo(
+    () => computeAgentStats({ properties, bookings, user }),
+    [properties, bookings, user]
+  );
 
-      const now = dayjs();
-      const endOfMonth = now.endOf('month');
-      const isTeamMemberStats = !!(user?.teamMembership);
-      const propsMapStats = buildPropertiesMap(properties);
+  const allCommissionEvents = useMemo(
+    () => buildCommissionEvents({ bookings, properties }),
+    [bookings, properties]
+  );
 
-      const statsObjectFilter = isTeamMemberStats
-        ? (p) => p.responsible_agent_id === user.id
-        : null;
-      const approvedForStats = approvedBreakdown(properties, propsMapStats, statsObjectFilter);
-      const pendingReviewForStats = countPendingReview(properties, propsMapStats, statsObjectFilter);
+  const filteredEvents = useMemo(
+    () => computeAgendaForDate({
+      date: selectedDate,
+      user,
+      properties,
+      bookings,
+      contacts,
+      calendarEvents,
+      commissionEvents: allCommissionEvents,
+      noNameFallback: t('noName'),
+    }),
+    [selectedDate, user, properties, bookings, contacts, calendarEvents, allCommissionEvents, t]
+  );
 
-      // 2. Статистика занятости (для агента: только свои бронирования)
-      let myClientsCount = 0;
-      let otherClientsCount = 0;
-      const bookingsForStats = isTeamMemberStats
-        ? bookings.filter(b => b.agentId === user.id)
-        : bookings;
-
-      const occupiedCount = bookingsForStats.filter(b => {
-        const start = dayjs(b.checkIn);
-        const end = dayjs(b.checkOut);
-        const isOccupied = now.isAfter(start) && now.isBefore(end);
-        if (isOccupied) {
-          if (b.notMyCustomer) otherClientsCount++;
-          else myClientsCount++;
-        }
-        return isOccupied;
-      }).length;
-
-      const upcomingBookings = bookingsForStats.filter(b => dayjs(b.checkIn).isAfter(now));
-      const thisMonthCount = upcomingBookings.filter(b => dayjs(b.checkIn).isBefore(endOfMonth)).length;
-
-      setStats({
-        total: approvedForStats.total,
-        houses: approvedForStats.houses,
-        resortHouses: approvedForStats.resortHouses,
-        apartments: approvedForStats.apartments,
-        pendingReview: pendingReviewForStats,
-        occupied: occupiedCount,
-        myClients: myClientsCount,
-        otherClients: otherClientsCount,
-        upcoming: upcomingBookings.length,
-        thisMonth: thisMonthCount,
-        later: upcomingBookings.length - thisMonthCount
-      });
-
-      // Доп. статистика для участников команды (агентов)
-      if (isTeamMemberStats) {
-        const companyBd = approvedBreakdown(properties, propsMapStats, null);
-        const myBd = approvedBreakdown(properties, propsMapStats, (p) => p.responsible_agent_id === user?.id);
-        const companyPendingReview = countPendingReview(properties, propsMapStats, null);
-        const myPendingReview = countPendingReview(properties, propsMapStats, (p) => p.responsible_agent_id === user?.id);
-
-        // Бронирования (активные сейчас)
-        let companyAgencyActive = 0, companyOwnerActive = 0, myAgencyActive = 0;
-        bookings.forEach(b => {
-          const start = dayjs(b.checkIn);
-          const end = dayjs(b.checkOut);
-          if (!now.isAfter(start) || !now.isBefore(end)) return;
-          if (b.notMyCustomer) { companyOwnerActive++; }
-          else {
-            companyAgencyActive++;
-            if (b.agentId === user.id) myAgencyActive++;
-          }
-        });
-
-        // Предстоящие заселения
-        const allFutureAgency = bookings.filter(b => !b.notMyCustomer && dayjs(b.checkIn).isAfter(now));
-        const myFutureAgency = allFutureAgency.filter(b => b.agentId === user.id);
-        const companyUpcomingCount = allFutureAgency.length;
-        const myUpcomingCount = myFutureAgency.length;
-        const myThisMonth = myFutureAgency.filter(b => dayjs(b.checkIn).isBefore(endOfMonth)).length;
-        const myLater = myUpcomingCount - myThisMonth;
-
-        // Заселения агента: сегодня / эта неделя / этот месяц
-        const todayStr = now.format('YYYY-MM-DD');
-        const endOfWeek = now.endOf('week');
-        const myBookings = bookings.filter(b => b.agentId === user.id && !b.notMyCustomer);
-        const myCheckInToday = myBookings.filter(b => b.checkIn === todayStr).length;
-        const myCheckInWeek = myBookings.filter(b => {
-          const d = dayjs(b.checkIn);
-          return d.isAfter(now.startOf('day').subtract(1, 'ms')) && d.isBefore(endOfWeek.add(1, 'ms'));
-        }).length;
-        const myCheckInMonth = myBookings.filter(b => {
-          const d = dayjs(b.checkIn);
-          return d.isAfter(now.startOf('month').subtract(1, 'ms')) && d.isBefore(endOfMonth.add(1, 'ms'));
-        }).length;
-
-        setAgentStats({
-          companyTotal: companyBd.total,
-          companyHouses: companyBd.houses,
-          companyResorts: companyBd.resortHouses,
-          companyCondos: companyBd.apartments,
-          myTotal: myBd.total,
-          myHouses: myBd.houses,
-          myResorts: myBd.resortHouses,
-          myCondos: myBd.apartments,
-          companyPendingReview,
-          myPendingReview,
-          companyAgencyActive, companyOwnerActive, myAgencyActive,
-          companyTotalActive: companyAgencyActive + companyOwnerActive,
-          companyUpcoming: companyUpcomingCount,
-          myUpcoming: myUpcomingCount,
-          myThisMonth, myLater,
-          myCheckInToday, myCheckInWeek, myCheckInMonth,
-        });
-      } else {
-        setAgentStats(null);
-      }
-
-      updateEventsForDate(selectedDate, bookings, properties, contacts, calendarEvents, allComms);
-    } catch (e) {
-      console.error('Dashboard load error:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-  useEffect(() => { if (refreshKey) loadDashboardDataRef.current(); }, [refreshKey]);
-
-  // Ref всегда указывает на актуальную версию loadDashboardData (с текущим selectedDate в замыкании)
-  const loadDashboardDataRef = useRef(loadDashboardData);
-  useEffect(() => {
-    loadDashboardDataRef.current = loadDashboardData;
-  });
-
-
-  const updateEventsForDate = (date, bookings, properties, contacts, calendarEvents, allComms) => {
-    const dateStr = date.format('YYYY-MM-DD');
-    const isTeamMember = !!(user?.teamMembership);
-    const propsMap = {};
-    properties.forEach(p => { propsMap[p.id] = p; });
-
-    const enrich = (b) => {
-      const prop = propsMap[b.propertyId];
-      const client = contacts.find(c => c.id === b.contactId);
-      return {
-        ...b,
-        propertyName: prop?.name || t('noName'),
-        propertyCode: prop?.code || '—',
-        clientName: client ? `${client.name} ${client.lastName}` : '—',
-        clientPhone: client?.phone || '',
-        clientTelegram: client?.telegram || '',
-      };
-    };
-
-    // Заселения: свои клиенты (не клиенты собственника) из своих объектов
-    const ins = bookings.filter(b => {
-      if (b.checkIn !== dateStr || b.notMyCustomer) return false;
-      if (isTeamMember) return propsMap[b.propertyId]?.responsible_agent_id === user.id;
-      return true;
-    }).map(enrich);
-
-    // Выселения: все бронирования из своих объектов (включая клиентов собственника)
-    const outs = bookings.filter(b => {
-      if (b.checkOut !== dateStr) return false;
-      if (isTeamMember) return propsMap[b.propertyId]?.responsible_agent_id === user.id;
-      return true;
-    }).map(enrich);
-
-    // Комиссии: только из своих объектов
-    const commissions = allComms.filter(c => {
-      if (c.date !== dateStr) return false;
-      if (isTeamMember) return propsMap[c.propertyId]?.responsible_agent_id === user.id;
-      return true;
-    });
-
-    // Личные события всегда видны (они созданы самим пользователем)
-    const personal = calendarEvents
-      .filter(e => eventOccursOnDate(e, dateStr))
-      .map(e => ({ 
-        ...e, 
-        type: 'PERSONAL',
-        time: e.eventTime
-      }));
-
-    setFilteredEvents({ 
-      checkIns: ins, 
-      checkOuts: outs, 
-      personal: [...personal, ...commissions] 
-    });
-  };
-
-  const handleDateSelect = (date) => {
-    setSelectedDate(date);
-    updateEventsForDate(date, allBookings, allProperties, allContacts, allCalendarEvents, allCommissionEvents);
-  };
+  const handleDateSelect = (date) => setSelectedDate(date);
 
   const openWhatsApp = (phone) => {
     if (!phone) return;
@@ -380,14 +111,10 @@ export default function WebDashboardScreen({ user, refreshKey }) {
   };
 
   const handleEventSaved = async () => {
-    await loadDashboardData();
-    // loadDashboardData уже обновляет allCalendarEvents — берём обновлённое событие из стейта
+    await refreshCalendarEvents();
     if (editingEvent) {
-      setAllCalendarEvents(prev => {
-        const updated = prev.find(e => e.id === editingEvent.id);
-        if (updated) setEditingEvent(updated);
-        return prev;
-      });
+      const updated = calendarEvents.find(e => e.id === editingEvent.id);
+      if (updated) setEditingEvent(updated);
     }
   };
 
@@ -493,23 +220,9 @@ export default function WebDashboardScreen({ user, refreshKey }) {
                   <Text style={styles.agentStatLabelGray}> / </Text>
                   <Text style={[styles.agentStatLabelColored, { color: CLR.stat1Text }]}>{t('dashboardStatMine')}</Text>
                 </View>
-                <Text style={styles.pendingReviewLine}>
-                  {t('dashboardPendingApproval')}
-                  :{' '}
-                  <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyPendingReview}</Text>
-                  <Text style={{ color: '#CED4DA' }}>{' / '}</Text>
-                  <Text style={[styles.pendingReviewNum, { color: CLR.stat1Text }]}>{agentStats.myPendingReview}</Text>
-                </Text>
               </>
             ) : (
-              <>
-                <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{stats.total}</Text>
-                <Text style={styles.pendingReviewLine}>
-                  {t('dashboardPendingApproval')}
-                  :{' '}
-                  <Text style={styles.pendingReviewNum}>{stats.pendingReview}</Text>
-                </Text>
-              </>
+              <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{stats.total}</Text>
             )}
           </View>
 
@@ -548,36 +261,15 @@ export default function WebDashboardScreen({ user, refreshKey }) {
         <View style={[styles.statCard, { borderLeftColor: CLR.stat2 }]}>
           <View>
             <Text style={styles.statLabel}>{t('dashboardBookings').toUpperCase()}</Text>
-            {agentStats ? (
-              <>
-                <Text style={[styles.statValue, { color: CLR.stat2Text }]}>{agentStats.myAgencyActive}</Text>
-                <View style={styles.agentStatLabels}>
-                  <Text style={[styles.agentStatLabelColored, { color: CLR.stat2Text }]}>{t('dashboardStatMine')}</Text>
-                </View>
-              </>
-            ) : (
-              <Text style={[styles.statValue, { color: CLR.stat2Text }]}>{stats.occupied}</Text>
-            )}
+            <Text style={[styles.statValue, { color: CLR.stat2Text }]}>
+              {stats.occupied + stats.upcoming}
+            </Text>
           </View>
 
-          {agentStats ? (
-            <View style={styles.subStats}>
-              <Text style={styles.subStatText}>{t('all')}{': '}
-                <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyTotalActive}</Text>
-              </Text>
-              <Text style={styles.subStatText}>{t('dashboardStatOwners')}{': '}
-                <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyOwnerActive}</Text>
-              </Text>
-              <Text style={styles.subStatText}>{t('dashboardStatCompany')}{': '}
-                <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{agentStats.companyAgencyActive}</Text>
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.subStats}>
-              <Text style={styles.subStatText}>{t('dashboardMyClients')}: <Text style={styles.subStatValue}>{stats.myClients}</Text></Text>
-              <Text style={styles.subStatText}>{t('dashboardOtherClients')}: <Text style={styles.subStatValue}>{stats.otherClients}</Text></Text>
-            </View>
-          )}
+          <View style={styles.subStats}>
+            <Text style={styles.subStatText}>{t('dashboardActiveBookings')}: <Text style={styles.subStatValue}>{stats.occupied}</Text></Text>
+            <Text style={styles.subStatText}>{t('dashboardFutureBookings')}: <Text style={styles.subStatValue}>{stats.upcoming}</Text></Text>
+          </View>
         </View>
 
         {/* ЗАЕЗДЫ */}
@@ -586,32 +278,15 @@ export default function WebDashboardScreen({ user, refreshKey }) {
             <Text style={styles.statLabel}>
               {agentStats ? t('dashboardCheckInsAgent').toUpperCase() : t('dashboardCheckIns').toUpperCase()}
             </Text>
-            {agentStats ? (
-              <View style={[styles.agentStatRow, { gap: 20, marginTop: 8 }]}>
-                <View style={styles.agentSubItem}>
-                  <Text style={[styles.statValue, { color: CLR.stat3Text }]}>{agentStats.myCheckInToday}</Text>
-                  <Text style={[styles.agentSubLabel, { color: CLR.stat3Text }]}>{t('dashboardStatToday')}</Text>
-                </View>
-                <View style={styles.agentSubItem}>
-                  <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.myCheckInWeek}</Text>
-                  <Text style={styles.agentSubLabelGray}>{t('dashboardStatWeek')}</Text>
-                </View>
-                <View style={styles.agentSubItem}>
-                  <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.myCheckInMonth}</Text>
-                  <Text style={styles.agentSubLabelGray}>{t('thisMonth')}</Text>
-                </View>
-              </View>
-            ) : (
-              <Text style={[styles.statValue, { color: CLR.stat3Text }]}>{stats.upcoming}</Text>
-            )}
+            <Text style={[styles.statValue, { color: CLR.stat3Text }]}>
+              {agentStats ? agentStats.myUpcoming : stats.upcoming}
+            </Text>
           </View>
 
-          {agentStats ? null : (
-            <View style={styles.subStats}>
-              <Text style={styles.subStatText}>{t('thisMonth')}: <Text style={styles.subStatValue}>{stats.thisMonth}</Text></Text>
-              <Text style={styles.subStatText}>{t('later')}: <Text style={styles.subStatValue}>{stats.later}</Text></Text>
-            </View>
-          )}
+          <View style={styles.subStats}>
+            <Text style={styles.subStatText}>{t('thisMonth')}: <Text style={styles.subStatValue}>{agentStats ? agentStats.myThisMonth : stats.thisMonth}</Text></Text>
+            <Text style={styles.subStatText}>{t('later')}: <Text style={styles.subStatValue}>{agentStats ? agentStats.myLater : stats.later}</Text></Text>
+          </View>
         </View>
       </View>
 
@@ -679,8 +354,8 @@ export default function WebDashboardScreen({ user, refreshKey }) {
             const today = dayjs().format('YYYY-MM-DD');
             const isTeamMemberUpcoming = !!(user?.teamMembership);
             const propsMapUpcoming = {};
-            allProperties.forEach(p => { propsMapUpcoming[p.id] = p; });
-            const next5 = allBookings
+            properties.forEach(p => { propsMapUpcoming[p.id] = p; });
+            const next5 = bookings
               .filter(b => {
                 if (b.checkIn <= today || b.notMyCustomer) return false;
                 if (isTeamMemberUpcoming) return propsMapUpcoming[b.propertyId]?.responsible_agent_id === user.id;
@@ -699,9 +374,9 @@ export default function WebDashboardScreen({ user, refreshKey }) {
                       {next5.length === 0 ? (
                         <Text style={[styles.emptyText, { marginVertical: 16 }]}>{t('bookingsNoData')}</Text>
                       ) : next5.map((b, i) => {
-                        const prop = allProperties.find(p => p.id === b.propertyId);
-                        const contact = allContacts.find(c => c.id === b.contactId);
-                        const propColor = prop?.resort_id ? '#2563EB' : '#C2920E';
+                        const prop = properties.find(p => p.id === b.propertyId);
+                        const contact = contacts.find(c => c.id === b.contactId);
+                        const propColor = prop?.parent_id ? '#2563EB' : '#C2920E';
                         const code = prop ? (prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '')) : '—';
                         const daysUntil = dayjs(b.checkIn).diff(dayjs(), 'day');
                         return (
@@ -786,16 +461,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  pendingReviewLine: {
-    fontSize: 11,
-    color: '#868E96',
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  pendingReviewNum: {
-    fontWeight: '800',
-    color: '#212529',
-  },
   statLabel: { fontSize: 11, fontWeight: '800', color: '#ADB5BD', marginBottom: 6, letterSpacing: 0.5 },
   statValue: { fontSize: 28, fontWeight: '800', color: '#212529' },
   subStats: { flexDirection: 'row', flexWrap: 'nowrap', marginTop: 12, gap: 12, borderTopWidth: 1, borderTopColor: '#F8F9FA', paddingTop: 8 },
@@ -807,12 +472,6 @@ const styles = StyleSheet.create({
   agentStatLabels: { flexDirection: 'row', marginBottom: 4 },
   agentStatLabelGray: { fontSize: 11, color: '#ADB5BD', fontWeight: '500' },
   agentStatLabelColored: { fontSize: 11, fontWeight: '700' },
-  agentSubItem: { alignItems: 'center', flex: 1 },
-  agentSubValue: { fontSize: 20, fontWeight: '800', marginBottom: 2 },
-  agentSubValueGray: { fontSize: 20, fontWeight: '800', color: '#ADB5BD', marginBottom: 2 },
-  agentSubLabel: { fontSize: 10, fontWeight: '600' },
-  agentSubLabelGray: { fontSize: 10, fontWeight: '500', color: '#ADB5BD' },
-  
   mainContentRow: { flexDirection: 'column', gap: 20, ...Platform.select({ web: { display: 'contents' } }) },
   agendaContainer: { width: '100%', ...Platform.select({ web: { display: 'contents' } }) },
 

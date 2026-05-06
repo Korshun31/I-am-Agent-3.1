@@ -23,13 +23,15 @@ import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useLanguage } from '../context/LanguageContext';
+import { getCurrencySymbol } from '../utils/currency';
 import { getCurrentUser } from '../services/authService';
 import { getPhotoLimitForProperty } from '../constants/roleFeatures';
-import { getLocations, getLocationsForAgent, getLocationDistricts, setLocationDistricts } from '../services/locationsService';
+import { getLocations, getLocationsForAgent, getLocationDistricts, addLocationDistrict } from '../services/locationsService';
 import { getContacts, createContact } from '../services/contactsService';
 import { getActiveTeamMembers } from '../services/companyService';
-import { uploadPhoto, isLocalUri } from '../services/storageService';
+import { uploadPhotoWithThumb, isLocalUri } from '../services/storageService';
 import AddContactModal from './AddContactModal';
+import { useAppData } from '../context/AppDataContext';
 
 const COLORS = {
   bg: 'rgba(255,255,255,0.92)',
@@ -74,6 +76,7 @@ function Field({ label, value, onChangeText, placeholder, keyboardType, multilin
 }
 
 function StepInfo({ data, setData, t, propertyType, locations, locationDistricts, onDistrictAdded, owners, onNewOwnerCreated, onOpenOwnerPicker, resortId, resortCode, parentResort, teamMembers, currentUser }) {
+  const { refreshContacts: refreshGlobalContacts } = useAppData();
   const [cityOpen, setCityOpen] = useState(false);
   const [districtOpen, setDistrictOpen] = useState(false);
   const [ownerPickerVisible, setOwnerPickerVisible] = useState(false);
@@ -117,11 +120,18 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
   const handleAddNewDistrict = async () => {
     const trimmed = newDistrict.trim();
     if (!trimmed) return;
+    // Case-insensitive локальная проверка перед запросом.
+    const lower = trimmed.toLowerCase();
+    if ((locationDistricts || []).some(d => String(d).toLowerCase() === lower)) {
+      Alert.alert(t('error') || 'Error', t('duplicateDistrictError'));
+      return;
+    }
     if (data.location_id && onDistrictAdded) {
       try {
         await onDistrictAdded(data.location_id, trimmed);
       } catch (e) {
-        Alert.alert('Error', e.message || 'Error');
+        const msg = e?.code === 'DUPLICATE_DISTRICT' ? t('duplicateDistrictError') : (e.message || 'Error');
+        Alert.alert(t('error') || 'Error', msg);
         return;
       }
     }
@@ -153,6 +163,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
   const handleNewOwnerSave = async (contactData) => {
     try {
       const newOwner = await createContact({ ...contactData, type: 'owners' });
+      refreshGlobalContacts();
       const name = `${newOwner.name} ${newOwner.lastName}`.trim();
       if (addOwnerFor === 'owner2') {
         setData(d => ({ ...d, owner_id_2: newOwner.id, _owner2Name: name }));
@@ -182,6 +193,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
   const owner2Display = data._owner2Name || (owners || []).find(o => o.id === data.owner_id_2)?.name || '';
   const isHouseInResort = Boolean(resortId);
   const isAdmin = !!(currentUser?.companyId) && !currentUser?.teamMembership;
+  const hasCompany = !!(currentUser?.companyInfo?.name?.trim());
   const companyDisplayName = currentUser?.companyInfo?.name || t('workAsCompany');
   const getResponsibleDisplay = (agentId) => {
     if (!agentId || agentId === currentUser?.id) return companyDisplayName;
@@ -353,7 +365,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
       )}
 
       {/* Ответственный — для child только inherited readonly; для parent/standalone editable picker */}
-      {isAdmin && isHouseInResort && (
+      {isAdmin && hasCompany && isHouseInResort && (
         <View style={s.fieldWrap}>
           <Text style={s.fieldLabel}>{t('propResponsiblePicker')}</Text>
           <View style={[s.pickerBtn, { opacity: 0.9 }]}>
@@ -361,7 +373,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
           </View>
         </View>
       )}
-      {isAdmin && !isHouseInResort && (
+      {isAdmin && hasCompany && !isHouseInResort && (
         <View style={s.fieldWrap}>
           <Text style={s.fieldLabel}>{t('propResponsiblePicker')}</Text>
           <TouchableOpacity
@@ -643,7 +655,11 @@ function StepMedia({ data, setData, t, maxPhotos }) {
           const uri = await resizePhotoIfNeeded(a.uri, a.width, a.height);
           uris.push(uri);
         }
-        setData(d => ({ ...d, photos: [...(d.photos || []), ...uris].slice(0, limit) }));
+        setData(d => ({
+          ...d,
+          photos: [...(d.photos || []), ...uris].slice(0, limit),
+          photos_thumb: [...(d.photos_thumb || []), ...uris.map(() => '')].slice(0, limit),
+        }));
       } finally {
         setProcessing(false);
       }
@@ -653,8 +669,10 @@ function StepMedia({ data, setData, t, maxPhotos }) {
   const removePhoto = (index) => {
     setData(d => {
       const next = [...(d.photos || [])];
+      const nextThumb = [...(d.photos_thumb || [])];
       next.splice(index, 1);
-      return { ...d, photos: next };
+      nextThumb.splice(index, 1);
+      return { ...d, photos: next, photos_thumb: nextThumb };
     });
   };
 
@@ -955,7 +973,7 @@ function toStr(val) {
 }
 
 function buildInitialData(p, parentResort) {
-  const isHouseInResort = Boolean(p.resort_id);
+  const isHouseInResort = Boolean(p.parent_id);
   const district = isHouseInResort && parentResort ? (parentResort.district || '') : (p.district || '');
   const googleMapsLink = p.google_maps_link || (parentResort?.google_maps_link || '');
   const address = p.address || (parentResort?.address || '');
@@ -985,6 +1003,7 @@ function buildInitialData(p, parentResort) {
     comments: p.comments || '',
     website_url: p.website_url || '',
     photos: Array.isArray(p.photos) ? p.photos : [],
+    photos_thumb: Array.isArray(p.photos_thumb) ? p.photos_thumb : [],
     videos: Array.isArray(p.videos) ? p.videos : [],
     amenities: p.amenities || {},
     air_conditioners: toStr(p.air_conditioners),
@@ -1020,14 +1039,14 @@ function toNum(val) {
 }
 
 function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = 'THB') {
-  const isHouseInResort = Boolean(property?.resort_id);
+  const isHouseInResort = Boolean(property?.parent_id);
   const parentCity = (parentResort?.city || '').trim();
   const district = isHouseInResort && parentResort ? (parentResort.district || '').trim() : (data.district || '').trim();
   const ownerId = isHouseInResort && parentResort ? (parentResort.owner_id || null) : (data.owner_id || null);
   return {
     name: data.name.trim(),
-    code: data.code.trim(),
-    code_suffix: (data.code_suffix || '').trim(),
+    code: data.code.trim().toUpperCase(),
+    code_suffix: (data.code_suffix || '').trim().toUpperCase(),
     type: property?.type || 'house',
     city: isHouseInResort && parentResort ? parentCity : data.city.trim(),
     location_id: data.location_id || null,
@@ -1051,6 +1070,7 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
     comments: data.comments.trim(),
     website_url: (data.website_url || '').trim(),
     photos: (data.photos || []).slice(0, maxPhotos),
+    photos_thumb: (data.photos_thumb || []).slice(0, maxPhotos),
     videos: data.videos || [],
     amenities: data.amenities,
     air_conditioners: toNum(data.air_conditioners),
@@ -1081,7 +1101,9 @@ function buildUpdates(data, property, parentResort, maxPhotos = 10, currency = '
 }
 
 export default function PropertyEditWizard({ visible, property, onClose, onSave, parentResort, mode = 'edit', initialType = 'house' }) {
-  const { t, currency, currencySymbol: sym } = useLanguage();
+  const { t, currency } = useLanguage();
+  const activeCurrency = mode === 'edit' ? (property?.currency || currency) : currency;
+  const sym = getCurrencySymbol(activeCurrency);
   const [step, setStep] = useState(0);
   const [data, setData] = useState({});
   const [saving, setSaving] = useState(false);
@@ -1108,7 +1130,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       loadOwners();
       getCurrentUser().then(u => {
         setCurrentUser(u);
-        setMaxPhotos(getPhotoLimitForProperty(u?.role || 'standard'));
+        setMaxPhotos(getPhotoLimitForProperty(u?.plan || 'standard'));
         if (u?.companyId) {
           getActiveTeamMembers(u.companyId).then(setTeamMembers).catch(() => setTeamMembers([]));
         }
@@ -1186,40 +1208,53 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       Alert.alert(t('error'), t('enterPropertyName'));
       return;
     }
-    if (mode === 'create') {
-      if (!(data.city || '').trim()) {
-        Alert.alert(t('error'), `${t('fieldRequired')}: ${t('city')}`);
-        return;
-      }
-      if (!(data.district || '').trim()) {
-        Alert.alert(t('error'), `${t('fieldRequired')}: ${t('propDistrict')}`);
-        return;
-      }
+    if (!data.location_id) {
+      Alert.alert(t('error'), `${t('fieldRequired')}: ${t('pdCity')}`);
+      return;
+    }
+    if (!data.district || !data.district.trim()) {
+      Alert.alert(t('error'), `${t('fieldRequired')}: ${t('propDistrict')}`);
+      return;
     }
     setSaving(true);
     try {
       const photos = data.photos || [];
-      const localPhotos = photos.filter(isLocalUri);
-      const remotePhotos = photos.filter(u => !isLocalUri(u));
+      const thumbs = data.photos_thumb || [];
+      const remotePhotos = [];
+      const remoteThumbs = [];
+      const localPhotos = [];
+      photos.forEach((u, i) => {
+        if (isLocalUri(u)) localPhotos.push(u);
+        else { remotePhotos.push(u); remoteThumbs.push(thumbs[i] || ''); }
+      });
 
       if (localPhotos.length > 0) {
         setUploadProgress(`0/${localPhotos.length}`);
-        const uploaded = [];
+        const uploadedUrls = [];
+        const uploadedThumbs = [];
         for (let i = 0; i < localPhotos.length; i++) {
-          const url = await uploadPhoto(localPhotos[i]);
-          uploaded.push(url);
+          const { url, thumbUrl } = await uploadPhotoWithThumb(localPhotos[i]);
+          uploadedUrls.push(url);
+          uploadedThumbs.push(thumbUrl);
           setUploadProgress(`${i + 1}/${localPhotos.length}`);
         }
-        data.photos = [...remotePhotos, ...uploaded];
+        data.photos = [...remotePhotos, ...uploadedUrls];
+        data.photos_thumb = [...remoteThumbs, ...uploadedThumbs];
+      } else {
+        data.photos = remotePhotos;
+        data.photos_thumb = remoteThumbs;
       }
       setUploadProgress('');
 
       const propRef = mode === 'create' ? { type: propertyType } : property;
       const resortRef = mode === 'create' ? null : parentResort;
-      const updates = buildUpdates(data, propRef, resortRef, maxPhotos, currency);
+      const updates = buildUpdates(data, propRef, resortRef, maxPhotos, activeCurrency);
       await onSave(updates);
     } catch (e) {
-      Alert.alert(t('error'), e.message || 'Error');
+      const msg = e?.code === 'DUPLICATE_PROPERTY_CODE'
+        ? t('duplicatePropertyCodeError')
+        : (e.message || 'Error');
+      Alert.alert(t('error'), msg);
     } finally {
       setSaving(false);
       setUploadProgress('');
@@ -1237,21 +1272,22 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
           locations={filteredLocations}
           locationDistricts={locationDistricts}
           onDistrictAdded={async (locationId, district) => {
-            const current = await getLocationDistricts(locationId);
-            await setLocationDistricts(locationId, [...current, district]);
+            // TD-070: атомарный INSERT ... ON CONFLICT — безопасно при параллельном
+            // добавлении одной локации разными пользователями.
+            await addLocationDistrict(locationId, district);
             setLocationDistrictsState((prev) => [...new Set([...prev, district])].sort());
           }}
           owners={owners}
           onNewOwnerCreated={loadOwners}
           onOpenOwnerPicker={loadOwners}
-          resortId={property?.resort_id}
+          resortId={property?.parent_id}
           resortCode={property?.code}
           parentResort={parentResort}
           teamMembers={teamMembers}
           currentUser={currentUser}
         />
       );
-      case 'chars': return <StepCharacteristics data={data} setData={setData} t={t} propertyType={propertyType} resortId={property?.resort_id} parentResort={parentResort} />;
+      case 'chars': return <StepCharacteristics data={data} setData={setData} t={t} propertyType={propertyType} resortId={property?.parent_id} parentResort={parentResort} />;
       case 'desc': return <StepDescription data={data} setData={setData} t={t} />;
       case 'media': return <StepMedia data={data} setData={setData} t={t} maxPhotos={maxPhotos} />;
       case 'amenities': return <StepAmenities data={data} setData={setData} t={t} />;

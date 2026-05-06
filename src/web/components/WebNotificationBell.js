@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
 import { supabase } from '../../services/supabase';
 import { useLanguage } from '../../context/LanguageContext';
 import {
@@ -7,11 +7,7 @@ import {
   getUnreadCount,
   markAllRead,
   deleteNotification,
-  markActionTaken,
-  sendNotification,
 } from '../../services/notificationsService';
-import { approveProperty, approvePropertyDraft, rejectProperty, rejectPropertyDraft } from '../../services/propertiesService';
-import WebPropertyEditPanel from './WebPropertyEditPanel';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/ru';
@@ -29,336 +25,31 @@ const C = {
   unread: '#EAF4F5',
 };
 
-// Человекочитаемые названия полей объекта для diff-таблицы
-function getFieldLabels(t) {
-  return {
-    name:                      t('fieldName'),
-    city:                      t('fieldCity'),
-    district:                  t('fieldDistrict'),
-    address:                   t('fieldAddress'),
-    bedrooms:                  t('fieldBedrooms'),
-    bathrooms:                 t('fieldBathrooms'),
-    area:                      t('fieldArea'),
-    floors:                    t('fieldFloors'),
-    houses_count:              t('fieldHousesCount'),
-    air_conditioners:          t('fieldAirConditioners'),
-    internet_speed:            t('fieldInternetSpeed'),
-    beach_distance:            t('fieldBeachDistance'),
-    market_distance:           t('fieldMarketDistance'),
-    google_maps_link:          t('fieldGoogleMaps'),
-    website_url:               t('fieldWebsiteUrl'),
-    description:               t('fieldDescription'),
-    price_monthly:             t('fieldPriceMonthly'),
-    booking_deposit:           t('fieldBookingDeposit'),
-    save_deposit:              t('fieldSaveDeposit'),
-    commission:                t('fieldCommission'),
-    owner_commission_one_time: t('fieldOwnerCommissionOneTime'),
-    owner_commission_monthly:  t('fieldOwnerCommissionMonthly'),
-    electricity_price:         t('fieldElectricityPrice'),
-    water_price:               t('fieldWaterPrice'),
-    gas_price:                 t('fieldGasPrice'),
-    internet_price:            t('fieldInternetPrice'),
-    cleaning_price:            t('fieldCleaningPrice'),
-    exit_cleaning_price:       t('fieldExitCleaningPrice'),
-    pets_allowed:              t('fieldPetsAllowed'),
-    long_term_booking:         t('fieldLongTermBooking'),
-    video_url:                 t('fieldVideoUrl'),
-  };
-}
-
-// Поля которые не показываем в diff (технические / не информативные)
-const DIFF_SKIP_FIELDS = new Set([
-  'photos', 'amenities', 'currency', 'code', 'code_suffix', 'type',
-  'location_id', 'resort_id', 'owner_id', 'owner_id_2',
-  'price_monthly_is_from', 'booking_deposit_is_from', 'save_deposit_is_from',
-  'commission_is_from',
-  'owner_commission_one_time_is_percent',
-  'owner_commission_monthly_is_percent', 'water_price_type',
-]);
-
-// Уведомления которые требуют действия от Админа
-const ACTION_TYPES = new Set(['property_submitted', 'edit_submitted', 'price_submitted']);
-
-// Форматирование значения поля для отображения в diff
-function formatValue(val) {
-  if (val === null || val === undefined || val === '') return '—';
-  if (typeof val === 'boolean') return val ? '✅ Да' : '❌ Нет';
-  return String(val);
-}
-
-// Модальное окно с карточками изменений и встроенным принятием решения
-function DiffModal({ visible, onClose, draft, originalProperty, onApprove, onReject }) {
-  const { t } = useLanguage();
-  const FIELD_LABELS = getFieldLabels(t);
-  // Локальный стейт для режима ввода причины отклонения
-  const [rejectMode, setRejectMode] = useState(false);
-  const [reason, setReason] = useState('');
-  const [rejectError, setRejectError] = useState('');
-
-  // Сброс режима при закрытии/открытии модала
-  React.useEffect(() => {
-    if (!visible) {
-      setRejectMode(false);
-      setReason('');
-      setRejectError('');
-    }
-  }, [visible]);
-
-  if (!draft || !originalProperty) return null;
-
-  // Вычисляем только изменённые поля
-  const changes = [];
-  const draftData = draft.draft_data || {};
-  for (const [field, newVal] of Object.entries(draftData)) {
-    if (DIFF_SKIP_FIELDS.has(field)) continue;
-    const label = FIELD_LABELS[field];
-    if (!label) continue;
-    const oldVal = originalProperty[field];
-    const oldStr = formatValue(oldVal);
-    const newStr = formatValue(newVal);
-    if (oldStr === newStr) continue;
-    changes.push({ label, oldStr, newStr });
-  }
-
-  const propName = originalProperty.name || null;
-
-  const handleApprove = () => {
-    onApprove?.();
-    onClose();
-  };
-
-  const handleRejectConfirm = async () => {
-    const trimmed = (reason || '').trim();
-    if (!trimmed) {
-      setRejectError(t('propRejectReasonRequired') || t('diffRejectPlaceholder') || 'Reason is required');
-      return;
-    }
-    setRejectError('');
-    const ok = await onReject?.(trimmed);
-    if (ok === true) onClose();
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="fade"
-           onRequestClose={onClose} statusBarTranslucent>
-      <TouchableOpacity style={sd.overlay} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={e => e.stopPropagation()}
-        >
-          <View style={sd.popup}>
-
-            {/* Заголовок с названием объекта и крестиком */}
-            <View style={sd.header}>
-              <View style={sd.headerLeft}>
-                <View>
-                  <Text style={sd.title}>{t('diffModalTitle')}</Text>
-                  {propName ? (
-                    <Text style={sd.subtitle}>{propName}</Text>
-                  ) : null}
-                </View>
-              </View>
-              <TouchableOpacity style={sd.closeBtn} onPress={onClose}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={sd.closeBtnText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Счётчик изменений */}
-            {changes.length > 0 && (
-              <View style={sd.countRow}>
-                <Text style={sd.countText}>
-                  {changes.length} {changes.length === 1 ? 'изменение' : changes.length < 5 ? 'изменения' : 'изменений'}
-                </Text>
-              </View>
-            )}
-
-            {/* Компактная таблица изменений */}
-            <ScrollView style={sd.scroll} showsVerticalScrollIndicator={false}
-                        contentContainerStyle={sd.scrollContent}>
-              {changes.length === 0 ? (
-                <Text style={sd.empty}>{t('diffNoChanges')}</Text>
-              ) : (
-                <>
-                  {/* Шапка таблицы */}
-                  <View style={sd.tableHead}>
-                    <Text style={[sd.tableHeadCell, sd.colField]}>Поле</Text>
-                    <Text style={[sd.tableHeadCell, sd.colOld]}>{t('diffWas')}</Text>
-                    <Text style={sd.tableArrow}>{' '}</Text>
-                    <Text style={[sd.tableHeadCell, sd.colNew]}>{t('diffNow')}</Text>
-                  </View>
-                  {/* Строки изменений */}
-                  {changes.map((c, i) => {
-                    const isLong = (c.oldStr || '').length > 60 || (c.newStr || '').length > 60;
-                    if (isLong) {
-                      return (
-                        <View key={i} style={[sd.tableRowExpanded, i % 2 === 0 && sd.tableRowEven]}>
-                          <Text style={sd.expandedFieldLabel}>{c.label}</Text>
-                          <View style={sd.expandedValuesRow}>
-                            <View style={sd.expandedBlock}>
-                              <Text style={sd.expandedBlockLabel}>{t('diffWas')}</Text>
-                              <ScrollView style={sd.expandedScroll} nestedScrollEnabled>
-                                <Text style={sd.expandedOldText}>{c.oldStr}</Text>
-                              </ScrollView>
-                            </View>
-                            <View style={sd.expandedBlock}>
-                              <Text style={sd.expandedBlockLabel}>{t('diffNow')}</Text>
-                              <ScrollView style={sd.expandedScroll} nestedScrollEnabled>
-                                <Text style={sd.expandedNewText}>{c.newStr}</Text>
-                              </ScrollView>
-                            </View>
-                          </View>
-                        </View>
-                      );
-                    }
-                    return (
-                      <View key={i} style={[sd.tableRow, i % 2 === 0 && sd.tableRowEven]}>
-                        <Text style={[sd.tableCell, sd.colField, sd.fieldText]} numberOfLines={2}>
-                          {c.label}
-                        </Text>
-                        <Text style={[sd.tableCell, sd.colOld, sd.oldText]} numberOfLines={2}>
-                          {c.oldStr}
-                        </Text>
-                        <Text style={sd.tableArrow}>→</Text>
-                        <Text style={[sd.tableCell, sd.colNew, sd.newText]} numberOfLines={2}>
-                          {c.newStr}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </>
-              )}
-            </ScrollView>
-
-            {/* Зона принятия решения — за пределами ScrollView */}
-            <View style={sd.actionZone}>
-              {!rejectMode ? (
-                /* Состояние A: кнопки «Одобрить» и «Отклонить» */
-                <View style={sd.actionBtns}>
-                  <TouchableOpacity style={sd.approveBtn} onPress={handleApprove}>
-                    <Text style={sd.approveBtnText}>{`✓ ${t('diffApprove')}`}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={sd.rejectBtn} onPress={() => setRejectMode(true)}>
-                    <Text style={sd.rejectBtnText}>{`✕ ${t('diffReject')}`}</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                /* Состояние B: форма ввода причины отклонения */
-                <>
-                  <TextInput
-                    style={sd.rejectInput}
-                    placeholder={t('diffRejectPlaceholder')}
-                    placeholderTextColor="#ADB5BD"
-                    value={reason}
-                    onChangeText={(v) => {
-                      setReason(v);
-                      if (rejectError) setRejectError('');
-                    }}
-                    multiline
-                    numberOfLines={3}
-                    autoFocus
-                  />
-                  {!!rejectError && (
-                    <Text style={sd.rejectErrorText}>{rejectError}</Text>
-                  )}
-                  <View style={sd.rejectActions}>
-                    <TouchableOpacity
-                      style={sd.backBtn}
-                      onPress={() => { setRejectMode(false); setReason(''); }}
-                    >
-                      <Text style={sd.backBtnText}>Назад</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={sd.rejectConfirmBtn} onPress={handleRejectConfirm}>
-                      <Text style={sd.rejectConfirmBtnText}>{t('diffReject')}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
-            </View>
-
-          </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
-    </Modal>
-  );
-}
-
-function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff, onViewReview, onViewEditReview, onNavigateToProperty }) {
-  const { t } = useLanguage();
+function NotificationItem({ item, onDelete, onNavigateToProperty }) {
   const time = dayjs(item.created_at).fromNow();
-  const needsAction = ACTION_TYPES.has(item.type) && !item.action_taken;
   const isRead = !!item.is_read;
-  const [rejectMode, setRejectMode] = useState(false);
-  const [reason, setReason] = useState('');
-  const [rejectError, setRejectError] = useState('');
-  const [reasonExpanded, setReasonExpanded] = useState(false);
-  const NAVIGABLE_TYPES = new Set(['property_submitted', 'edit_submitted', 'property_approved', 'edit_approved', 'property_rejected', 'edit_rejected']);
-  const REJECTED_TYPES = new Set(['property_rejected', 'edit_rejected', 'price_rejected']);
+  const normalizedTitle = (item.title || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
   const normalizedBody = (item.body || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
-  const reasonPrefixes = [t('diffReason') || 'Reason:', 'Reason:', 'Причина:']
-    .map(v => String(v || '').trim())
-    .filter(Boolean);
-  const extractedReason = (() => {
-    if (!REJECTED_TYPES.has(item.type) || !normalizedBody) return '';
-    for (const prefix of reasonPrefixes) {
-      if (normalizedBody.toLowerCase().startsWith(prefix.toLowerCase())) {
-        return normalizedBody.slice(prefix.length).trim();
-      }
-    }
-    return '';
-  })();
-  const canExpandReason = extractedReason.length > 0;
-  const canNavigateToProperty = !!item.property_id && NAVIGABLE_TYPES.has(item.type);
+  const canNavigateToProperty = !!item.property_id;
 
   return (
     <View style={[s.item, !item.is_read && s.itemUnread]}>
       <View style={s.itemRow}>
-        {/* Цветная точка статуса: красная — ждёт действия, тиловая — выполнено, серая — инфо */}
         <View style={s.statusDot}>
-          <View style={[
-            s.statusDotInner,
-            isRead
-              ? s.statusDotRead
-              : needsAction
-                ? s.statusDotPending
-                : ['property_approved', 'edit_approved', 'price_approved'].includes(item.type)
-                  ? s.statusDotDone
-                  : ['property_rejected', 'edit_rejected', 'price_rejected'].includes(item.type)
-                    ? s.statusDotRejected
-                    : s.statusDotInfo
-          ]} />
+          <View style={[s.statusDotInner, isRead ? s.statusDotRead : s.statusDotInfo]} />
         </View>
         <View style={s.itemBody}>
           {canNavigateToProperty ? (
             <TouchableOpacity onPress={() => onNavigateToProperty?.(item.property_id)} activeOpacity={0.7}>
               <Text style={[s.itemTitle, s.itemTitleLink, isRead && s.itemTitleRead, isRead && s.itemTitleLinkRead]}>
-                {(item.title || '').replace(/^[^\p{L}\p{N}]+/u, '').trim()}
+                {normalizedTitle}
               </Text>
             </TouchableOpacity>
           ) : (
-            <Text style={[s.itemTitle, isRead && s.itemTitleRead]}>
-              {(item.title || '').replace(/^[^\p{L}\p{N}]+/u, '').trim()}
-            </Text>
+            <Text style={[s.itemTitle, isRead && s.itemTitleRead]}>{normalizedTitle}</Text>
           )}
-          {!!item.body && !(REJECTED_TYPES.has(item.type) && canExpandReason) && (
-            <Text style={[s.itemBodyText, isRead && s.itemBodyTextRead]}>
-              {normalizedBody}
-            </Text>
-          )}
-          {canExpandReason && (
-            <>
-              <TouchableOpacity onPress={() => setReasonExpanded(v => !v)} activeOpacity={0.7}>
-                <Text style={[s.reasonToggleText, s.reasonToggleTextRejected, isRead && s.reasonToggleTextRead]}>
-                  {reasonExpanded ? '▾ ' : '▸ '}
-                  {t('propRejectionReason') || 'Reason:'}
-                </Text>
-              </TouchableOpacity>
-              {reasonExpanded && (
-                <View style={[s.reasonExpandedBox, isRead && s.reasonExpandedBoxRead]}>
-                  <Text style={[s.reasonExpandedText, isRead && s.reasonExpandedTextRead]}>{extractedReason}</Text>
-                </View>
-              )}
-            </>
+          {!!normalizedBody && (
+            <Text style={[s.itemBodyText, isRead && s.itemBodyTextRead]}>{normalizedBody}</Text>
           )}
           <Text style={[s.itemTime, isRead && s.itemTimeRead]}>{time}</Text>
         </View>
@@ -366,90 +57,16 @@ function NotificationItem({ item, onDelete, onApprove, onReject, onViewDiff, onV
           <Text style={[s.itemDeleteText, isRead && s.itemDeleteTextRead]}>✕</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Кнопки действия — только для Админа, только если не выполнено */}
-      {needsAction && (
-        (item.type === 'edit_submitted' || item.type === 'property_submitted') ? (
-          /* Для edit_submitted и property_submitted: pill-кнопка открытия правой review-панели */
-          <TouchableOpacity
-            style={s.diffBtn}
-            onPress={() => item.type === 'edit_submitted' ? onViewEditReview(item) : onViewReview(item)}
-          >
-            <Text style={s.diffBtnText}>🔍 Посмотреть и принять решение</Text>
-          </TouchableOpacity>
-        ) : (
-          /* Для price_submitted: стандартные inline-кнопки */
-          <>
-            {!rejectMode && (
-              <View style={s.actionRow}>
-                <TouchableOpacity style={s.approveBtn} onPress={() => onApprove(item)}>
-                  <Text style={s.approveBtnText}>{`✓ ${t('diffApprove')}`}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.rejectBtn} onPress={() => setRejectMode(true)}>
-                  <Text style={s.rejectBtnText}>{`✕ ${t('diffReject')}`}</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            {rejectMode && (
-              <View style={s.rejectForm}>
-                <TextInput
-                  style={s.rejectInput}
-                  placeholder={t('diffRejectPlaceholder')}
-                  value={reason}
-                  onChangeText={(v) => {
-                    setReason(v);
-                    if (rejectError) setRejectError('');
-                  }}
-                  autoFocus
-                />
-                {!!rejectError && (
-                  <Text style={s.rejectErrorText}>
-                    {t('propRejectReasonRequired') || t('diffRejectPlaceholder') || 'Reason is required'}
-                  </Text>
-                )}
-                <View style={s.rejectFormActions}>
-                  <TouchableOpacity style={s.rejectCancelBtn} onPress={() => { setRejectMode(false); setReason(''); }}>
-                    <Text style={s.rejectCancelText}>Назад</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.rejectConfirmBtn}
-                    onPress={() => {
-                      const trimmed = (reason || '').trim();
-                      if (!trimmed) {
-                        setRejectError(t('propRejectReasonRequired') || t('diffRejectPlaceholder') || 'Reason is required');
-                        return;
-                      }
-                      setRejectError('');
-                      onReject(item, trimmed);
-                    }}
-                  >
-                    <Text style={s.rejectConfirmText}>{t('diffReject')}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </>
-        )
-      )}
-
-      {/* Уже выполнено */}
-      {ACTION_TYPES.has(item.type) && item.action_taken && (
-        <Text style={s.actionDone}>✓ Действие выполнено</Text>
-      )}
     </View>
   );
 }
 
-export default function WebNotificationBell({ userId, user, onPropertiesChanged, onNavigateToProperty }) {
+export default function WebNotificationBell({ userId, onNavigateToProperty }) {
   const { t } = useLanguage();
   const [unread, setUnread]         = useState(0);
   const [open, setOpen]             = useState(false);
   const [notifications, setNotifs]  = useState([]);
   const [loading, setLoading]       = useState(false);
-  const [actionError, setActionError] = useState('');
-  const actionErrorTimerRef           = useRef(null);
-  const [diffModal, setDiffModal]     = useState(null); // { draft, originalProperty, notif } или null
-  const [reviewModal, setReviewModal] = useState(null); // { notif, property } или null
   const loadedRef = useRef(false);
   const openRef = useRef(false);
 
@@ -465,12 +82,10 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged,
     setLoading(false);
   }, []);
 
-  // Загружаем счётчик при монтировании
   useEffect(() => {
     loadCount();
   }, [loadCount]);
 
-  // Realtime: обновляем счётчик при новых уведомлениях
   useEffect(() => {
     if (!userId) return;
     const channel = supabase
@@ -486,16 +101,6 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged,
     return () => { supabase.removeChannel(channel); };
   }, [userId, loadCount, loadAll]);
 
-  // Cleanup auto-dismiss timer on unmount
-  useEffect(() => () => clearTimeout(actionErrorTimerRef.current), []);
-
-  const showActionError = useCallback((message) => {
-    clearTimeout(actionErrorTimerRef.current);
-    setActionError(message);
-    actionErrorTimerRef.current = setTimeout(() => setActionError(''), 5000);
-  }, []);
-
-
   const handleOpen = async () => {
     setOpen(true);
     openRef.current = true;
@@ -503,7 +108,6 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged,
       loadedRef.current = true;
       await loadAll();
     }
-    // Помечаем все как прочитанные
     if (unread > 0) {
       await markAllRead();
       setUnread(0);
@@ -516,179 +120,9 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged,
     setNotifs(prev => prev.filter(n => n.id !== id));
   };
 
-  const handleApprove = useCallback(async (notif) => {
-    try {
-      if (notif.property_id) {
-        const { data: draft } = await supabase
-          .from('property_drafts')
-          .select('id')
-          .eq('property_id', notif.property_id)
-          .eq('user_id', notif.sender_id)
-          .eq('status', 'pending')
-          .maybeSingle();
-
-        if (draft) {
-          await approvePropertyDraft(draft.id);
-        } else {
-          await approveProperty(notif.property_id);
-        }
-      }
-      // Помечаем только после успешной операции
-      await markActionTaken(notif.id);
-      setNotifs(prev => prev.map(n =>
-        n.id === notif.id ? { ...n, action_taken: true } : n
-      ));
-      onPropertiesChanged?.();
-      if (notif.sender_id) {
-        const typeMap = {
-          property_submitted: 'property_approved',
-          edit_submitted: 'edit_approved',
-          price_submitted: 'price_approved',
-        };
-        await sendNotification({
-          recipientId: notif.sender_id,
-          senderId: userId,
-          type: typeMap[notif.type] || 'property_approved',
-          title: t('changesApproved'),
-          body: notif.title,
-          propertyId: notif.property_id,
-        });
-      }
-    } catch (e) {
-      console.error('approve error', e);
-      showActionError(t('approveError'));
-    }
-  }, [onPropertiesChanged, t, userId, showActionError]);
-
-  const handleReject = useCallback(async (notif, reason) => {
-    const trimmed = (reason || '').trim();
-    if (!trimmed) {
-      showActionError(t('propRejectReasonRequired') || t('diffRejectPlaceholder') || 'Reason is required');
-      return false;
-    }
-    try {
-      if (notif.property_id) {
-        const { data: draft } = await supabase
-          .from('property_drafts')
-          .select('id')
-          .eq('property_id', notif.property_id)
-          .eq('user_id', notif.sender_id)
-          .eq('status', 'pending')
-          .maybeSingle();
-
-        if (draft) {
-          await rejectPropertyDraft(draft.id, trimmed);
-        } else {
-          await rejectProperty(notif.property_id, trimmed);
-        }
-      }
-      // Помечаем только после успешной операции (включая запись в историю)
-      await markActionTaken(notif.id);
-      setNotifs(prev => prev.map(n =>
-        n.id === notif.id ? { ...n, action_taken: true } : n
-      ));
-      onPropertiesChanged?.();
-      if (notif.sender_id) {
-        const typeMap = {
-          property_submitted: 'property_rejected',
-          edit_submitted: 'edit_rejected',
-          price_submitted: 'price_rejected',
-        };
-        const contextTitle = (notif.title || '').trim();
-        await sendNotification({
-          recipientId: notif.sender_id,
-          senderId: userId,
-          type: typeMap[notif.type] || 'property_rejected',
-          title: contextTitle ? `${t('changesRejected')} · ${contextTitle}` : t('changesRejected'),
-          body: `${t('diffReason')} ${trimmed}`,
-          propertyId: notif.property_id,
-        });
-      }
-      return true;
-    } catch (e) {
-      console.error('reject error', e);
-      showActionError(t('rejectError'));
-      return false;
-    }
-  }, [onPropertiesChanged, showActionError, t, userId]);
-
-  // Загружаем объект для просмотра и принятия решения (property_submitted)
-  const handleViewReview = async (notif) => {
-    if (!notif.property_id) return;
-    try {
-      const { data: property } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('id', notif.property_id)
-        .single();
-      if (property) {
-        setOpen(false);
-        openRef.current = false;
-        setReviewModal({ notif, property });
-      }
-    } catch (e) {
-      console.warn('handleViewReview error', e);
-    }
-  };
-
-  // Загружаем черновик + оригинал и открываем правую review-панель (edit_submitted)
-  const handleViewEditReview = async (notif) => {
-    if (!notif.property_id) return;
-    try {
-      const [propRes, draftRes] = await Promise.all([
-        supabase.from('properties').select('*').eq('id', notif.property_id).single(),
-        supabase
-          .from('property_drafts')
-          .select('*')
-          .eq('property_id', notif.property_id)
-          .eq('user_id', notif.sender_id)
-          .eq('status', 'pending')
-          .maybeSingle(),
-      ]);
-      if (propRes.data) {
-        const preview = draftRes.data
-          ? { ...propRes.data, ...(draftRes.data.draft_data || {}) }
-          : propRes.data;
-        setOpen(false);
-        openRef.current = false;
-        setReviewModal({ notif, property: preview });
-      }
-    } catch (e) {
-      console.warn('handleViewEditReview error', e);
-    }
-  };
-
-  // Загружаем черновик и оригинальный объект для показа diff
-  const handleViewDiff = async (notif) => {
-    if (!notif.property_id) return;
-    try {
-      const [draftRes, propRes] = await Promise.all([
-        supabase
-          .from('property_drafts')
-          .select('*')
-          .eq('property_id', notif.property_id)
-          .eq('status', 'pending')
-          .maybeSingle(),
-        supabase
-          .from('properties')
-          .select('*')
-          .eq('id', notif.property_id)
-          .single(),
-      ]);
-      if (draftRes.data && propRes.data) {
-        // Сохраняем notif чтобы вызвать handleApprove/handleReject прямо из DiffModal
-        setDiffModal({ draft: draftRes.data, originalProperty: propRes.data, notif });
-      }
-    } catch (e) {
-      console.warn('handleViewDiff error', e);
-    }
-  };
-
   const handleClose = () => {
     setOpen(false);
     openRef.current = false;
-    setActionError('');
-    clearTimeout(actionErrorTimerRef.current);
   };
 
   const handleNavigateToPropertyFromBell = (propertyId) => {
@@ -723,19 +157,6 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged,
                 </TouchableOpacity>
               </View>
 
-              {/* Ошибка действия (approve/reject) */}
-              {!!actionError && (
-                <View style={s.actionErrorBanner}>
-                  <Text style={s.actionErrorText}>{actionError}</Text>
-                  <TouchableOpacity
-                    onPress={() => { setActionError(''); clearTimeout(actionErrorTimerRef.current); }}
-                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                  >
-                    <Text style={s.actionErrorClose}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
               {/* Список */}
               <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
                 {loading && (
@@ -752,11 +173,6 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged,
                     key={n.id}
                     item={n}
                     onDelete={handleDelete}
-                    onApprove={handleApprove}
-                    onReject={handleReject}
-                    onViewDiff={handleViewDiff}
-                    onViewReview={handleViewReview}
-                    onViewEditReview={handleViewEditReview}
                     onNavigateToProperty={handleNavigateToPropertyFromBell}
                   />
                 ))}
@@ -766,51 +182,6 @@ export default function WebNotificationBell({ userId, user, onPropertiesChanged,
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
-
-      {/* Модальное окно просмотра изменений с принятием решения (edit_submitted) */}
-      <DiffModal
-        visible={!!diffModal}
-        onClose={() => setDiffModal(null)}
-        draft={diffModal?.draft}
-        originalProperty={diffModal?.originalProperty}
-        onApprove={() => {
-          if (diffModal?.notif) handleApprove(diffModal.notif);
-          setDiffModal(null);
-        }}
-        onReject={async (reason) => {
-          if (!diffModal?.notif) return false;
-          const ok = await handleReject(diffModal.notif, reason);
-          if (ok === true) setDiffModal(null);
-          return ok;
-        }}
-      />
-
-      {/* Правая панель просмотра нового объекта (property_submitted) — read-only + review actions */}
-      <WebPropertyEditPanel
-        visible={!!reviewModal}
-        mode="edit"
-        property={reviewModal?.property}
-        onClose={() => setReviewModal(null)}
-        onSaved={() => setReviewModal(null)}
-        user={user}
-        readOnly={true}
-        reviewMode={true}
-        onApprove={() => {
-          if (reviewModal?.notif) handleApprove(reviewModal.notif);
-          setReviewModal(null);
-        }}
-        onReject={async (reason) => {
-          const trimmed = (reason || '').trim();
-          if (!trimmed) {
-            showActionError(t('propRejectReasonRequired') || t('diffRejectPlaceholder') || 'Reason is required');
-            return false;
-          }
-          if (!reviewModal?.notif) return false;
-          const ok = await handleReject(reviewModal.notif, trimmed);
-          if (ok === true) setReviewModal(null);
-          return ok;
-        }}
-      />
     </View>
   );
 }
@@ -864,20 +235,6 @@ const s = StyleSheet.create({
   closeBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
   closeBtnText: { fontSize: 13, color: C.muted, fontWeight: '700' },
 
-  actionErrorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFF5F5',
-    borderBottomWidth: 1,
-    borderBottomColor: '#FFCDD2',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  actionErrorText: { flex: 1, fontSize: 13, color: C.danger, fontWeight: '600', lineHeight: 18 },
-  actionErrorClose: { fontSize: 14, color: C.danger, fontWeight: '700' },
-
   list: { maxHeight: 440 },
 
   item: {
@@ -901,9 +258,6 @@ const s = StyleSheet.create({
     height: 10,
     borderRadius: 5,
   },
-  statusDotPending:  { backgroundColor: '#E53935' },
-  statusDotDone:     { backgroundColor: '#3D7D82' },
-  statusDotRejected: { backgroundColor: '#E53935' },
   statusDotInfo:     { backgroundColor: '#CED4DA' },
   statusDotRead:     { backgroundColor: '#B0B7C3' },
   itemBody: { flex: 1, gap: 3 },
@@ -913,334 +267,14 @@ const s = StyleSheet.create({
   itemTitleLinkRead: { color: '#2F343A', textDecorationColor: '#9AA1AA' },
   itemBodyText: { fontSize: 12, color: C.muted, lineHeight: 17 },
   itemBodyTextRead: { color: '#5F6670' },
-  reasonToggleText: { fontSize: 12, color: ACCENT, fontWeight: '600', lineHeight: 17 },
-  reasonToggleTextRejected: { color: '#C62828' },
-  reasonToggleTextRead: { color: '#5F6670' },
-  reasonExpandedBox: {
-    backgroundColor: '#FFF5F5',
-    borderWidth: 1,
-    borderColor: '#FFCDD2',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  reasonExpandedBoxRead: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#D6DAE0',
-  },
-  reasonExpandedText: { fontSize: 12, color: '#C62828', lineHeight: 17 },
-  reasonExpandedTextRead: { color: '#4F5661' },
   itemTime: { fontSize: 11, color: C.muted, marginTop: 2 },
   itemTimeRead: { color: '#7A828C' },
   itemDelete: { padding: 4 },
   itemDeleteText: { fontSize: 13, color: C.muted },
   itemDeleteTextRead: { color: '#8A919B' },
 
-  actionRow: { flexDirection: 'row', gap: 8, marginTop: 10, marginLeft: 48 },
-  // Одобрить — тиловый акцент (Primary системы, не зелёный)
-  approveBtn: { flex: 1, backgroundColor: '#EAF4F5', borderWidth: 1, borderColor: '#B2D8DB', borderRadius: 8, paddingVertical: 7, alignItems: 'center' },
-  approveBtnText: { fontSize: 13, fontWeight: '700', color: '#3D7D82' },
-  // Отклонить — тихий красный (честный сигнал без крика)
-  rejectBtn: { flex: 1, backgroundColor: '#FFF5F5', borderWidth: 1, borderColor: '#FFCDD2', borderRadius: 8, paddingVertical: 7, alignItems: 'center' },
-  rejectBtnText: { fontSize: 13, fontWeight: '700', color: '#C62828' },
-
-  rejectForm: { marginTop: 10, marginLeft: 48, gap: 8 },
-  rejectInput: { borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: C.text, outlineWidth: 0 },
-  rejectErrorText: { fontSize: 12, color: C.danger, fontWeight: '600' },
-  rejectFormActions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
-  rejectCancelBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.border },
-  rejectCancelText: { fontSize: 13, color: C.muted, fontWeight: '600' },
-  // Финальное подтверждение отклонения — тихий danger (не яркий красный фон)
-  rejectConfirmBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: '#FFF5F5', borderWidth: 1, borderColor: '#FFCDD2' },
-  rejectConfirmText: { fontSize: 13, color: '#C62828', fontWeight: '700' },
-  // Успешное действие — тиловый, не зелёный
-  actionDone: { marginTop: 8, marginLeft: 48, fontSize: 12, color: '#3D7D82', fontWeight: '600' },
-
-  // Pill-кнопка «Посмотреть изменения» для edit_submitted
-  diffBtn: {
-    marginLeft: 48,
-    marginTop: 8,
-    marginBottom: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#B2D8DB',
-    backgroundColor: '#EAF4F5',
-    alignSelf: 'flex-start',
-  },
-  diffBtnText: {
-    fontSize: 12,
-    color: '#3D7D82',
-    fontWeight: '600',
-  },
-
   emptyWrap: { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyIcon: { fontSize: 36 },
   emptyText: { fontSize: 14, color: C.muted, textAlign: 'center', padding: 20 },
-});
-
-// Стили для модального окна DiffModal (табличный дизайн)
-const sd = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  popup: {
-    width: '100%',
-    maxWidth: 660,
-    maxHeight: 520,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.22,
-    shadowRadius: 32,
-  },
-
-  // Шапка модала
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
-    backgroundColor: '#FFFFFF',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  title: { fontSize: 16, fontWeight: '800', color: '#212529' },
-  subtitle: { fontSize: 12, color: '#6C757D', marginTop: 2 },
-  closeBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: '#F4F6F9',
-    alignItems: 'center', justifyContent: 'center',
-    marginLeft: 8,
-  },
-  closeBtnText: { fontSize: 14, color: '#6C757D', fontWeight: '700' },
-
-  // Счётчик изменений
-  countRow: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    backgroundColor: '#F4F6F9',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
-  },
-  countText: { fontSize: 12, color: '#6C757D', fontWeight: '600' },
-
-  scroll: { maxHeight: 320 },
-  scrollContent: { paddingVertical: 0 },
-
-  empty: {
-    textAlign: 'center',
-    padding: 32,
-    color: '#6C757D',
-    fontSize: 14,
-  },
-
-  // Шапка таблицы
-  tableHead: {
-    flexDirection: 'row',
-    backgroundColor: '#F4F6F9',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
-  },
-  tableHeadCell: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#ADB5BD',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-
-  // Строки таблицы
-  tableRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingRight: 56,
-    paddingVertical: 13,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F4F6F9',
-    minHeight: 40,
-    alignItems: 'center',
-  },
-  tableRowEven: {
-    backgroundColor: '#FAFBFC',
-  },
-  tableRowExpanded: {
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F4F6F9',
-  },
-  expandedFieldLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#495057',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 8,
-  },
-  expandedValuesRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  expandedBlock: {
-    flex: 1,
-  },
-  expandedBlockLabel: {
-    fontSize: 11,
-    color: '#ADB5BD',
-    marginBottom: 4,
-  },
-  expandedScroll: {
-    maxHeight: 80,
-  },
-  expandedOldText: {
-    fontSize: 13,
-    color: '#333333',
-    lineHeight: 18,
-  },
-  expandedNewText: {
-    fontSize: 13,
-    color: '#1a1a1a',
-    lineHeight: 18,
-  },
-  tableCell: {
-    fontSize: 13,
-  },
-
-  // Стрелка между «Было» и «Стало»
-  tableArrow: {
-    fontSize: 14,
-    color: '#CED4DA',
-    paddingHorizontal: 8,
-    flexShrink: 0,
-    textAlign: 'center',
-    alignSelf: 'center',
-  },
-
-  // Колонки — пропорции
-  colField: { flex: 3, paddingRight: 8, color: '#495057', fontWeight: '500' },
-  colOld:   { flex: 2, paddingRight: 8, textAlign: 'center' },
-  colNew:   { flex: 2, textAlign: 'center' },
-
-  // Стили значений
-  fieldText: {},
-  oldText: {
-    color: '#ADB5BD',
-    textDecorationLine: 'line-through',
-    textAlign: 'center',
-  },
-  newText: {
-    color: '#3D7D82',
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-
-  // Зона принятия решения — фиксирована внизу модала, за пределами ScrollView
-  actionZone: {
-    borderTopWidth: 1,
-    borderTopColor: '#E9ECEF',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 10,
-  },
-  actionBtns: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  // Одобрить — Primary-кнопка системы (тил, белый текст)
-  approveBtn: {
-    flex: 1,
-    backgroundColor: '#3D7D82',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  approveBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  // Отклонить — тихий красный (честный сигнал без крика)
-  rejectBtn: {
-    flex: 1,
-    backgroundColor: '#FFF5F5',
-    borderWidth: 1,
-    borderColor: '#FFCDD2',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  rejectBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#C62828',
-  },
-  rejectInput: {
-    borderWidth: 1,
-    borderColor: '#E9ECEF',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 13,
-    color: '#212529',
-    minHeight: 72,
-    outlineWidth: 0,
-    textAlignVertical: 'top',
-  },
-  rejectErrorText: {
-    fontSize: 12,
-    color: '#C62828',
-    fontWeight: '600',
-    marginTop: -2,
-    marginBottom: 2,
-  },
-  rejectActions: {
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'flex-end',
-  },
-  backBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E9ECEF',
-  },
-  backBtnText: {
-    fontSize: 13,
-    color: '#6C757D',
-    fontWeight: '600',
-  },
-  // Финальное подтверждение — тихий Danger по системе (не яркий красный)
-  rejectConfirmBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#FFF5F5',
-    borderWidth: 1,
-    borderColor: '#FFCDD2',
-  },
-  rejectConfirmBtnText: {
-    fontSize: 13,
-    color: '#C62828',
-    fontWeight: '700',
-  },
 });
 

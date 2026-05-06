@@ -1,21 +1,23 @@
 /**
- * Role-based feature limits and permissions.
- * Roles: standard, premium, admin
+ * Plan-based feature limits and permissions.
+ * Plans: standard, premium, korshun
+ * (TD-001: переименовано из ROLE.ADMIN в PLAN.KORSHUN — каноничное значение
+ *  `users_profile.plan`. Старая колонка `role` удалена.)
  */
 
-export const ROLES = {
+export const PLANS = {
   STANDARD: 'standard',
   PREMIUM: 'premium',
-  ADMIN: 'admin',
+  KORSHUN: 'korshun',
 };
 
-/** Max photos per property by role */
-const PHOTO_LIMIT_BY_ROLE = {
-  [ROLES.STANDARD]: 10,
-  [ROLES.PREMIUM]: 30,
-  [ROLES.ADMIN]: 30,
+/** Max photos per property by plan */
+const PHOTO_LIMIT_BY_PLAN = {
+  [PLANS.STANDARD]: 10,
+  [PLANS.PREMIUM]: 30,
+  [PLANS.KORSHUN]: 30,
 };
 
-export function getPhotoLimitForProperty(role) {
-  return PHOTO_LIMIT_BY_ROLE[role] ?? 10;
+export function getPhotoLimitForProperty(plan) {
+  return PHOTO_LIMIT_BY_PLAN[plan] ?? 10;
 }

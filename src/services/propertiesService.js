@@ -1,6 +1,55 @@
 import { supabase } from './supabase';
 import { syncIfEnabled } from './dataUploadService';
 import { broadcastChange } from './companyChannel';
+import { deletePhotoFromStorage } from './storageService';
+import { sendNotification } from './notificationsService';
+
+// TD-051: whitelist of fields the client is allowed to write to `properties`.
+// Server-only fields (id, user_id, company_id, created_at, updated_at) are
+// explicitly NOT here — they are set by the service layer or DB.
+// responsible_agent_id is included because admins legitimately set it from
+// the UI; agent-role guard for reassignment lives in the role check
+// (see TD-049 / role audit).
+const ALLOWED_CLIENT_FIELDS = [
+  'name', 'code', 'code_suffix', 'type',
+  'location_id', 'city', 'district', 'google_maps_link', 'website_url', 'address',
+  'houses_count', 'floors', 'bedrooms', 'bathrooms', 'area', 'floor_number',
+  'beach_distance', 'market_distance',
+  'description', 'comments', 'currency',
+  'price_monthly', 'price_monthly_is_from',
+  'booking_deposit', 'booking_deposit_is_from',
+  'save_deposit', 'save_deposit_is_from',
+  'commission', 'commission_is_from',
+  'owner_commission_one_time', 'owner_commission_one_time_is_percent',
+  'owner_commission_monthly', 'owner_commission_monthly_is_percent',
+  'electricity_price', 'water_price', 'water_price_type', 'gas_price',
+  'internet_price', 'cleaning_price', 'exit_cleaning_price',
+  'air_conditioners', 'internet_speed', 'pets_allowed', 'long_term_booking',
+  'amenities', 'photos', 'photos_thumb', 'videos', 'video_url',
+  'parent_id',
+  'owner_id', 'owner_id_2',
+  'responsible_agent_id',
+];
+
+function pickAllowed(updates) {
+  if (!updates || typeof updates !== 'object') return {};
+  const out = {};
+  for (const key of ALLOWED_CLIENT_FIELDS) {
+    if (key in updates) out[key] = updates[key];
+  }
+  return out;
+}
+
+// TD-067: количество объектов в локации. HEAD-запрос count='exact' — без выгрузки.
+export async function getPropertiesCountByLocation(locationId) {
+  if (!locationId) return 0;
+  const { count, error } = await supabase
+    .from('properties')
+    .select('id', { count: 'exact', head: true })
+    .eq('location_id', locationId);
+  if (error) return 0;
+  return count || 0;
+}
 
 export async function getProperties(agentId = null) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -49,6 +98,37 @@ async function resolveAgentCompanyId(userId) {
   }
 }
 
+async function resolveCompanyOwnerId(companyId) {
+  if (!companyId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('companies')
+      .select('owner_id')
+      .eq('id', companyId)
+      .maybeSingle();
+    if (error) return null;
+    return data?.owner_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function notifyAdminPropertyCreated({ adminId, senderId, propertyId, propertyName }) {
+  if (!adminId || adminId === senderId) return;
+  try {
+    await sendNotification({
+      recipientId: adminId,
+      senderId,
+      type: 'property_created',
+      title: 'Agent added a new property',
+      body: (propertyName || '').length > 80 ? `${propertyName.slice(0, 77)}…` : (propertyName || ''),
+      propertyId,
+    });
+  } catch (e) {
+    console.warn('[properties] property_created notification failed:', e?.message);
+  }
+}
+
 async function isActiveAgentMember(userId) {
   try {
     const { data, error } = await supabase
@@ -69,36 +149,47 @@ async function isActiveAgentMember(userId) {
   }
 }
 
-async function resolveCreatePropertyStatus(userId, requestedStatus) {
-  const agentMember = await isActiveAgentMember(userId);
-  if (agentMember) return 'pending';
-  return requestedStatus || 'approved';
-}
-
-export async function createProperty({ name, code, type, location_id, owner_id, property_status, company_id }) {
+export async function createProperty({ name, code, type, location_id, owner_id, company_id }) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
   const effectiveCompanyId = company_id ?? await resolveAgentCompanyId(session.user.id);
-  const effectivePropertyStatus = await resolveCreatePropertyStatus(session.user.id, property_status);
+  const agentMember = await isActiveAgentMember(session.user.id);
 
   const { data, error } = await supabase
     .from('properties')
     .insert({
       user_id: session.user.id,
-      responsible_agent_id: session.user.id,
+      responsible_agent_id: agentMember ? session.user.id : null,
       name: name || '',
       code: code || '',
       type: type || 'house',
       location_id: location_id || null,
       owner_id: owner_id || null,
-      property_status: effectivePropertyStatus,
       company_id: effectiveCompanyId,
     })
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === '23505') {
+      const e = new Error('Property code must be unique within the company');
+      e.code = 'DUPLICATE_PROPERTY_CODE';
+      throw e;
+    }
+    throw new Error(error.message);
+  }
+
+  if (agentMember) {
+    const adminId = await resolveCompanyOwnerId(effectiveCompanyId);
+    await notifyAdminPropertyCreated({
+      adminId,
+      senderId: session.user.id,
+      propertyId: data.id,
+      propertyName: data.name,
+    });
+  }
+
   syncIfEnabled();
   broadcastChange('properties');
   return data;
@@ -110,13 +201,12 @@ export async function createPropertyFull(updates) {
   if (!session?.user) throw new Error('Not authenticated');
 
   const effectiveCompanyId = updates.company_id ?? await resolveAgentCompanyId(session.user.id);
-  const effectivePropertyStatus = await resolveCreatePropertyStatus(session.user.id, updates.property_status);
+  const agentMember = await isActiveAgentMember(session.user.id);
 
   const row = {
+    ...pickAllowed(updates),
     user_id: session.user.id,
     responsible_agent_id: updates.responsible_agent_id ?? session.user.id,
-    ...updates,
-    property_status: effectivePropertyStatus,
     company_id: effectiveCompanyId,
   };
 
@@ -126,7 +216,25 @@ export async function createPropertyFull(updates) {
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === '23505') {
+      const e = new Error('Property code must be unique within the company');
+      e.code = 'DUPLICATE_PROPERTY_CODE';
+      throw e;
+    }
+    throw new Error(error.message);
+  }
+
+  if (agentMember) {
+    const adminId = await resolveCompanyOwnerId(effectiveCompanyId);
+    await notifyAdminPropertyCreated({
+      adminId,
+      senderId: session.user.id,
+      propertyId: data.id,
+      propertyName: data.name,
+    });
+  }
+
   syncIfEnabled();
   broadcastChange('properties');
   return data;
@@ -136,53 +244,91 @@ export async function updateProperty(id, updates) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
+  // If the responsible agent is changing, snapshot the previous value so we
+  // can decide whether to notify the new agent after the update.
+  const responsibleChanging = updates && Object.prototype.hasOwnProperty.call(updates, 'responsible_agent_id');
+  let oldResponsible = null;
+  if (responsibleChanging) {
+    const { data: prev } = await supabase
+      .from('properties')
+      .select('responsible_agent_id')
+      .eq('id', id)
+      .maybeSingle();
+    oldResponsible = prev?.responsible_agent_id ?? null;
+  }
+
   const { data, error } = await supabase
     .from('properties')
-    .update(updates)
+    .update(pickAllowed(updates))
     .eq('id', id)
     .select();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === '23505') {
+      const e = new Error('Property code must be unique within the company');
+      e.code = 'DUPLICATE_PROPERTY_CODE';
+      throw e;
+    }
+    throw new Error(error.message);
+  }
+  const saved = data?.[0] ?? null;
+
+  // Notify the newly-assigned responsible agent (best-effort).
+  if (responsibleChanging && saved) {
+    try {
+      const newResponsible = saved.responsible_agent_id ?? null;
+      if (newResponsible && newResponsible !== session.user.id && newResponsible !== oldResponsible) {
+        const propertyName = saved.name || '';
+        await sendNotification({
+          recipientId: newResponsible,
+          senderId: session.user.id,
+          type: 'property_assigned',
+          title: 'New property assigned to you',
+          body: propertyName.length > 80 ? `${propertyName.slice(0, 77)}…` : propertyName,
+          propertyId: saved.id,
+        });
+      }
+    } catch (e) {
+      console.warn('[properties] property_assigned notification failed:', e?.message);
+    }
+  }
+
   syncIfEnabled();
   broadcastChange('properties');
-  return data?.[0] ?? null;
+  return saved;
 }
 
 export async function deleteProperty(id) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('Not authenticated');
 
-  // Defense-in-depth: only role='agent' team members cannot delete approved properties.
-  // Company owners (admin) are exempt from this restriction (LOCK-001).
-  const { data: propData } = await supabase
-    .from('properties')
-    .select('property_status')
-    .eq('id', id)
-    .maybeSingle();
-
-  if (propData?.property_status === 'approved') {
-    const { data: memberRow } = await supabase
-      .from('company_members')
-      .select('role')
-      .eq('user_id', session.user.id)
-      .eq('role', 'agent')
+  // TD-053: Delete photos from Storage before CASCADE deletes records
+  try {
+    const { data: propPhotos } = await supabase
+      .from('properties')
+      .select('photos, photos_thumb')
+      .eq('id', id)
       .maybeSingle();
-    if (memberRow) {
-      throw new Error('Approved properties cannot be deleted by agents.');
+
+    const { data: childPhotos } = await supabase
+      .from('properties')
+      .select('photos, photos_thumb')
+      .eq('parent_id', id);
+
+    const collect = (arr) => (arr || []).filter(u => u && typeof u === 'string');
+    const allPhotos = [
+      ...collect(propPhotos?.photos),
+      ...collect(propPhotos?.photos_thumb),
+      ...((childPhotos || []).flatMap(c => [...collect(c.photos), ...collect(c.photos_thumb)])),
+    ];
+
+    for (const url of allPhotos) {
+      try {
+        await deletePhotoFromStorage(url);
+      } catch {}
     }
-  }
-
-  // Удаляем незакрытые уведомления на модерацию, связанные с этим объектом,
-  // чтобы у админа в Bell не висели уведомления об удалённом объекте.
-  const { error: notifError } = await supabase
-    .from('notifications')
-    .delete()
-    .eq('property_id', id)
-    .in('type', ['property_submitted', 'edit_submitted', 'price_submitted'])
-    .eq('action_taken', false);
-
-  if (notifError) {
-    console.warn('[deleteProperty] failed to clean up notifications:', notifError.message);
+  } catch (e) {
+    console.warn('[deleteProperty] photo cleanup failed:', e.message);
   }
 
   const { error } = await supabase
@@ -206,7 +352,7 @@ export async function updatePropertiesDistrictForLocation(locationId, oldDistric
 
   const { data: props, error: fetchErr } = await supabase
     .from('properties')
-    .select('id, type, resort_id')
+    .select('id, type, parent_id')
     .eq('user_id', session.user.id)
     .eq('location_id', locationId)
     .eq('district', oldDistrict);
@@ -239,7 +385,7 @@ export async function updateResortChildrenDistrict(resortId, district) {
   const { data: children, error: fetchErr } = await supabase
     .from('properties')
     .select('id')
-    .eq('resort_id', resortId)
+    .eq('parent_id', resortId)
     .eq('user_id', session.user.id);
 
   if (fetchErr || !children?.length) return;
@@ -255,6 +401,15 @@ export async function updateResortChildrenDistrict(resortId, district) {
 /** Admin: назначить ответственного агента (null = Компания). Каскад на детей резорта/кондо. */
 export async function updatePropertyResponsible(propertyId, responsibleAgentId, cascade = false) {
   const value = responsibleAgentId ?? null;
+
+  // Snapshot the previous responsible agent so we can decide whether the
+  // new agent needs to be notified after the update.
+  const { data: prev } = await supabase
+    .from('properties')
+    .select('responsible_agent_id, name')
+    .eq('id', propertyId)
+    .maybeSingle();
+
   const { data, error } = await supabase
     .from('properties')
     .update({ responsible_agent_id: value })
@@ -268,272 +423,32 @@ export async function updatePropertyResponsible(propertyId, responsibleAgentId, 
     await supabase
       .from('properties')
       .update({ responsible_agent_id: value })
-      .eq('resort_id', propertyId);
+      .eq('parent_id', propertyId);
+  }
+
+  // Notify the newly assigned agent (only when responsibility actually
+  // changed and the new agent is not the caller themselves). Best-effort.
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const sender = session?.user?.id;
+    const oldAgent = prev?.responsible_agent_id ?? null;
+    const newAgent = value;
+    if (sender && newAgent && newAgent !== sender && newAgent !== oldAgent) {
+      const propertyName = data?.name || prev?.name || '';
+      await sendNotification({
+        recipientId: newAgent,
+        senderId: sender,
+        type: 'property_assigned',
+        title: 'New property assigned to you',
+        body: propertyName.length > 80 ? `${propertyName.slice(0, 77)}…` : propertyName,
+        propertyId: data.id,
+      });
+    }
+  } catch (e) {
+    console.warn('[properties] property_assigned notification failed:', e?.message);
   }
 
   syncIfEnabled();
   return data;
 }
 
-export async function approveProperty(propertyId) {
-  const { error } = await supabase
-    .from('properties')
-    .update({ property_status: 'approved' })
-    .eq('id', propertyId);
-  if (error) throw new Error(error.message);
-  broadcastChange('properties');
-}
-
-export async function rejectProperty(propertyId, reason) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const { error } = await supabase
-    .from('properties')
-    .update({ property_status: 'rejected', rejection_reason: reason || '' })
-    .eq('id', propertyId);
-  if (error) throw new Error(error.message);
-
-  // Пишем запись в журнал отклонений
-  const { error: histErr } = await supabase.from('property_rejection_history').insert({
-    property_id:    propertyId,
-    reason:         reason || '',
-    rejection_type: 'property_submitted',
-    rejected_by:    session?.user?.id ?? null,
-  });
-  if (histErr) throw new Error(histErr.message);
-
-  broadcastChange('properties');
-}
-
-// =============================================================================
-// СИСТЕМА ЧЕРНОВИКОВ (Property Drafts)
-// Агент отправляет изменения на одобрение Администратору.
-// Оригинал в properties НЕ меняется до момента одобрения.
-// =============================================================================
-
-/**
- * Отправить черновик изменений объекта на одобрение Администратору.
- * Делает UPSERT — если черновик уже существует, обновляет его.
- * НЕ изменяет таблицу properties.
- *
- * @param {string} propertyId - UUID объекта
- * @param {object} draftData - объект со всеми изменёнными полями
- * @returns {object} запись черновика
- */
-export async function submitPropertyDraft(propertyId, draftData) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) throw new Error('Not authenticated');
-
-  const { data, error } = await supabase
-    .from('property_drafts')
-    .upsert(
-      {
-        property_id: propertyId,
-        user_id: session.user.id,
-        draft_data: draftData,
-        status: 'pending',
-        rejection_reason: null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'property_id,user_id' }
-    )
-    .select()
-    .single();
-
-  if (error) throw new Error(error.message);
-
-  // Reset property_status back to 'pending' so admin screens immediately show
-  // "In Review" state with approve/reject buttons — no complex adminAgentDraft query needed.
-  const { error: statusErr } = await supabase
-    .from('properties')
-    .update({ property_status: 'pending' })
-    .eq('id', propertyId);
-  if (statusErr) console.warn('[submitPropertyDraft] property_status reset failed:', statusErr.message);
-
-  // Signal admin screens to refresh
-  broadcastChange('properties');
-  return data;
-}
-
-/**
- * Получить активный (pending) черновик текущего агента для указанного объекта.
- *
- * @param {string} propertyId - UUID объекта
- * @returns {object|null} черновик или null
- */
-export async function getPropertyDraft(propertyId) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return null;
-
-  const { data, error } = await supabase
-    .from('property_drafts')
-    .select('*')
-    .eq('property_id', propertyId)
-    .eq('user_id', session.user.id)
-    .eq('status', 'pending')
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    console.error('getPropertyDraft error:', error.message);
-    return null;
-  }
-
-  return data;
-}
-
-/**
- * Для Администратора: получить все pending черновики объектов компании.
- * Включает имя объекта, код и имя агента.
- *
- * @param {string} companyId - UUID компании
- * @returns {Array<{draft, propertyName, propertyCode, agentName}>}
- */
-export async function getPendingDraftsForAdmin(companyId) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return [];
-
-  const { data, error } = await supabase
-    .from('property_drafts')
-    .select(`
-      *,
-      properties!inner(name, code, company_id),
-      users_profile:user_id(id, name, last_name, email)
-    `)
-    .eq('properties.company_id', companyId)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('getPendingDraftsForAdmin error:', error.message);
-    return [];
-  }
-
-  return (data || []).map((row) => ({
-    draft: {
-      id: row.id,
-      property_id: row.property_id,
-      user_id: row.user_id,
-      draft_data: row.draft_data,
-      status: row.status,
-      rejection_reason: row.rejection_reason,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    },
-    propertyName: row.properties?.name || '',
-    propertyCode: row.properties?.code || '',
-    agentName: [row.users_profile?.name, row.users_profile?.last_name]
-               .filter(Boolean).join(' ') || row.users_profile?.email || '',
-  }));
-}
-
-/**
- * Администратор одобряет черновик: применяет draft_data к объекту,
- * ставит статус черновика 'approved' и property_status объекта 'approved'.
- *
- * @param {string} draftId - UUID черновика
- * @returns {object} обновлённая запись объекта
- */
-export async function approvePropertyDraft(draftId) {
-  // Загружаем черновик
-  const { data: draft, error: draftErr } = await supabase
-    .from('property_drafts')
-    .select('*')
-    .eq('id', draftId)
-    .single();
-
-  if (draftErr) throw new Error(draftErr.message);
-  if (!draft) throw new Error('Draft not found');
-
-  // Применяем изменения к объекту и одобряем черновик последовательно
-  const { data: updatedProperty, error: propErr } = await supabase
-    .from('properties')
-    .update({ ...draft.draft_data, property_status: 'approved' })
-    .eq('id', draft.property_id)
-    .select()
-    .single();
-
-  if (propErr) throw new Error(propErr.message);
-
-  const { error: approveErr } = await supabase
-    .from('property_drafts')
-    .update({ status: 'approved', updated_at: new Date().toISOString() })
-    .eq('id', draftId);
-
-  if (approveErr) throw new Error(approveErr.message);
-
-  syncIfEnabled();
-  broadcastChange('properties');
-  return updatedProperty;
-}
-
-/**
- * Администратор отклоняет черновик: ставит статус 'rejected' с причиной.
- * Данные в properties НЕ меняются. Объект возвращается в статус 'approved'.
- *
- * @param {string} draftId - UUID черновика
- * @param {string} reason - причина отклонения
- */
-export async function rejectPropertyDraft(draftId, reason) {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  // Загружаем черновик чтобы получить property_id и тип уведомления
-  const { data: draft, error: draftErr } = await supabase
-    .from('property_drafts')
-    .select('property_id, status')
-    .eq('id', draftId)
-    .single();
-
-  if (draftErr) throw new Error(draftErr.message);
-  if (!draft) throw new Error('Draft not found');
-
-  // Отклоняем черновик
-  const { error: rejectErr } = await supabase
-    .from('property_drafts')
-    .update({
-      status: 'rejected',
-      rejection_reason: reason || '',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', draftId);
-
-  if (rejectErr) throw new Error(rejectErr.message);
-
-  // Обновляем сам объект: статус rejected + причина (критично для UI агента)
-  const { error: propErr } = await supabase
-    .from('properties')
-    .update({ property_status: 'rejected', rejection_reason: reason || '' })
-    .eq('id', draft.property_id);
-
-  if (propErr) throw new Error(propErr.message);
-
-  // Пишем запись в журнал отклонений
-  const { error: histErr } = await supabase.from('property_rejection_history').insert({
-    property_id:    draft.property_id,
-    reason:         reason || '',
-    rejection_type: 'edit_submitted',
-    rejected_by:    session?.user?.id ?? null,
-  });
-  if (histErr) throw new Error(histErr.message);
-
-  syncIfEnabled();
-  broadcastChange('properties');
-}
-
-/**
- * Получить полную историю отклонений объекта, отсортированную от новых к старым.
- * @param {string} propertyId - UUID объекта
- * @returns {Array} массив записей { id, reason, rejection_type, rejected_by, created_at }
- */
-export async function getPropertyRejectionHistory(propertyId) {
-  const { data, error } = await supabase
-    .from('property_rejection_history')
-    .select('id, reason, rejection_type, rejected_by, created_at')
-    .eq('property_id', propertyId)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('getPropertyRejectionHistory error:', error.message);
-    return [];
-  }
-  return data || [];
-}

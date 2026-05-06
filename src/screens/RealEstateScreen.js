@@ -24,7 +24,7 @@ import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
 import { useRoute, useNavigation, useIsFocused } from '@react-navigation/native';
 import { createProperty, updateProperty, deleteProperty } from '../services/propertiesService';
-import { sendNotification, getUnreadCount, getTotalCount } from '../services/notificationsService';
+import { getUnreadCount, getTotalCount } from '../services/notificationsService';
 import { supabase } from '../services/supabase';
 import PropertyNotificationsModal from '../components/PropertyNotificationsModal';
 import AddPropertyModal from '../components/AddPropertyModal';
@@ -75,7 +75,7 @@ export default function RealEstateScreen({ onReady }) {
   const propertyToOpen = route.params?.propertyToOpen ?? null;
   const { t } = useLanguage();
   const { properties, propertiesLoading: loading, refreshProperties, contacts } = useAppData();
-  const canAdd = !user?.teamMembership || user?.teamPermissions?.can_add_property;
+  const canAdd = !user?.teamMembership || user?.teamPermissions?.can_manage_property;
 
   useEffect(() => { onReady?.(); }, []);
   const [filterVisible, setFilterVisible] = useState(false);
@@ -206,21 +206,27 @@ export default function RealEstateScreen({ onReady }) {
     });
   }, []);
 
+  const keyExtractor = useCallback((item) => item.id, []);
+  const renderItem = useCallback(({ item }) => (
+    <PropertyItem
+      item={item}
+      expanded={expandedIds.has(item.id)}
+      onToggle={toggleItemExpand}
+      onPress={navigateToProperty}
+      t={t}
+    />
+  ), [expandedIds, toggleItemExpand, navigateToProperty, t]);
+
   const handleSaveProperty = useCallback(async (data) => {
     try {
-      const isAgent = !!user?.teamMembership;
-      const propertyData = isAgent
-        ? { ...data, property_status: 'pending' }
-        : data;
       const {
         name,
         code,
         type,
         location_id,
         owner_id,
-        property_status,
         ...detailsToUpdate
-      } = propertyData;
+      } = data;
 
       const created = await createProperty({
         name: name || '',
@@ -228,7 +234,6 @@ export default function RealEstateScreen({ onReady }) {
         type: type || 'house',
         location_id: location_id || null,
         owner_id: owner_id || null,
-        property_status: property_status || 'approved',
       });
 
       const { responsible_agent_id, user_id, company_id, ...safeDetailsToUpdate } = detailsToUpdate;
@@ -239,25 +244,10 @@ export default function RealEstateScreen({ onReady }) {
 
       setWizardVisible(false);
       refreshProperties();
-      if (isAgent) {
-        Alert.alert(t('addProperty'), t('propSentForApproval') || 'Объект отправлен на утверждение администратору');
-        const adminId = user?.teamMembership?.adminId;
-        if (adminId && created?.id) {
-          const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email || '';
-          await sendNotification({
-            recipientId: adminId,
-            senderId: user.id,
-            type: 'property_submitted',
-            title: `${agentName} ${t('notifPropChangesMiddle')} «${created.name || created.code || ''}»`,
-            body: t('notifApprovalRequired'),
-            propertyId: created.id,
-          });
-        }
-      }
     } catch (e) {
       Alert.alert(t('error'), e.message);
     }
-  }, [refreshProperties, t, user?.teamMembership, user?.id, user?.name, user?.lastName, user?.email]);
+  }, [refreshProperties, t]);
 
   const handleDeleteProperty = useCallback((prop) => {
     Alert.alert(t('pdDeleteTitle'), t('pdDeleteConfirm'), [
@@ -277,15 +267,9 @@ export default function RealEstateScreen({ onReady }) {
   }, [refreshProperties, t]);
 
   // ─── Derived data — memoized so they only recompute when inputs change ─────
-  const { listToShow, drafts, uniqueCities, uniqueDistricts, hasActiveFilter } = useMemo(() => {
-    const draftStatuses = new Set(['pending', 'rejected']);
-    const drafts = properties.filter(p => draftStatuses.has(p.property_status));
-    const approvedProperties = properties.filter(p => !p.property_status || p.property_status === 'approved');
-
-    // Когда включён inReview — ищем по всем объектам (включая pending/rejected)
-    const filterBase = filterValues?.inReview === true ? properties : approvedProperties;
-    const topLevel = filterBase.filter(p => !p.resort_id);
-    const children = filterBase.filter(p => p.resort_id);
+  const { listToShow, uniqueCities, uniqueDistricts, hasActiveFilter } = useMemo(() => {
+    const topLevel = properties.filter(p => !p.parent_id);
+    const children = properties.filter(p => p.parent_id);
     const getParent = (id) => properties.find(pr => pr.id === id);
 
     const hasActiveFilter = filterValues && (
@@ -297,8 +281,7 @@ export default function RealEstateScreen({ onReady }) {
       filterValues.priceMax != null ||
       filterValues.pets === true ||
       filterValues.longTerm === true ||
-      (filterValues.amenities?.length ?? 0) > 0 ||
-      filterValues.inReview === true
+      (filterValues.amenities?.length ?? 0) > 0
     );
 
     const q = searchQuery.trim().toLowerCase();
@@ -306,10 +289,6 @@ export default function RealEstateScreen({ onReady }) {
     const filterFn = (p, parent) => {
       if (!filterValues) return true;
       const f = filterValues;
-      // Когда включён фильтр "На проверке" — показываем только pending/rejected
-      if (f.inReview === true) {
-        return p.property_status === 'pending' || p.property_status === 'rejected';
-      }
       const cityVal = p.city ?? parent?.city;
       const districtVal = p.district ?? parent?.district;
       if (f.city && cityVal !== f.city) return false;
@@ -317,7 +296,7 @@ export default function RealEstateScreen({ onReady }) {
       const unitParentType = parent?.type;
       if (f.types?.length > 0) {
         const matches = f.types.some(tp => {
-          if (tp === 'house') return !p.resort_id && HOUSE_LIKE_TYPES.has(p.type);
+          if (tp === 'house') return !p.parent_id && HOUSE_LIKE_TYPES.has(p.type);
           if (tp === 'resort') return unitParentType === 'resort';
           if (tp === 'condo') return unitParentType === 'condo';
           return false;
@@ -364,7 +343,7 @@ export default function RealEstateScreen({ onReady }) {
           flatUnits.push({ ...p, _parentName: null, _parentType: null });
       });
       children.forEach(p => {
-        const parent = getParent(p.resort_id);
+        const parent = getParent(p.parent_id);
         if (filterFn(p, parent) && searchMatch(p, parent)) {
           flatUnits.push({
             ...p,
@@ -398,17 +377,16 @@ export default function RealEstateScreen({ onReady }) {
 
     const allCities = [
       ...topLevel.map(p => p.city),
-      ...children.map(p => (getParent(p.resort_id)?.city ?? p.city)),
+      ...children.map(p => (getParent(p.parent_id)?.city ?? p.city)),
     ].filter(Boolean);
 
     const allDistricts = [
       ...topLevel.map(p => p.district),
-      ...children.map(p => (getParent(p.resort_id)?.district ?? p.district)),
+      ...children.map(p => (getParent(p.parent_id)?.district ?? p.district)),
     ].filter(Boolean);
 
     return {
       listToShow: list,
-      drafts,
       uniqueCities: [...new Set(allCities)].sort(),
       uniqueDistricts: [...new Set(allDistricts)].sort(),
       hasActiveFilter: Boolean(hasActiveFilter),
@@ -542,103 +520,21 @@ export default function RealEstateScreen({ onReady }) {
         <View style={styles.emptyWrap}>
           <ActivityIndicator size="large" color="#999" />
         </View>
-      ) : listToShow.length === 0 && (hasActiveFilter || drafts.length === 0) ? (
+      ) : listToShow.length === 0 ? (
         <View style={styles.emptyWrap}>
           <Text style={styles.emptyText}>{t('realEstateEmpty')}</Text>
         </View>
       ) : (
         <FlatList
           data={listToShow}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <PropertyItem
-              item={item}
-              expanded={expandedIds.has(item.id)}
-              onToggle={toggleItemExpand}
-              onPress={navigateToProperty}
-              t={t}
-            />
-          )}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           removeClippedSubviews
           initialNumToRender={12}
           maxToRenderPerBatch={8}
           windowSize={5}
-          ListFooterComponent={drafts.length > 0 && !hasActiveFilter ? (
-            <View style={styles.draftsSection}>
-              <Text style={styles.draftsSectionTitle}>{t('draftsSectionTitle')}</Text>
-              {drafts.map(item => {
-                const visualType = item.type === 'resort_house'
-                  ? 'resort'
-                  : item.type === 'condo_apartment'
-                    ? 'condo'
-                    : item.type;
-                const typeColor = visualType === 'resort' ? '#81C784' : visualType === 'condo' ? '#64B5F6' : '#FFD54F';
-                const typeIcon = visualType === 'resort'
-                  ? require('../../assets/icon-property-resort.png')
-                  : visualType === 'condo'
-                    ? require('../../assets/icon-property-condo.png')
-                    : require('../../assets/icon-property-house.png');
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={styles.draftCard}
-                    onPress={() => navigateToProperty(item)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.draftCardInfo}>
-                      <View style={styles.draftCardMainRow}>
-                        <Image source={typeIcon} style={styles.draftCardTypeIcon} resizeMode="contain" />
-                        <Text style={styles.draftCardName} numberOfLines={1}>{item.name || '—'}</Text>
-                      </View>
-                      {!!item.code && <Text style={styles.draftCardCode}>{item.code}</Text>}
-                    </View>
-                    <View style={[
-                      styles.draftStatusBadge,
-                      item.property_status === 'rejected' && styles.draftStatusBadgeRejected,
-                    ]}>
-                      <Text style={[
-                        styles.draftStatusText,
-                        item.property_status === 'rejected' && styles.draftStatusTextRejected,
-                      ]}>
-                        {item.property_status === 'rejected'
-                          ? t('statusRejected')
-                          : t('statusPending')}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.draftDeleteBtn}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      onPress={() => {
-                        Alert.alert(
-                          t('pdDeleteTitle') || 'Удалить',
-                          t('pdDeleteConfirm') || 'Удалить черновик?',
-                          [
-                            { text: t('no') || 'Нет', style: 'cancel' },
-                            {
-                              text: t('yes') || 'Да', style: 'destructive',
-                              onPress: async () => {
-                                try {
-                                  await deleteProperty(item.id);
-                                  refreshProperties();
-                                } catch (e) {
-                                  Alert.alert(t('error'), e.message);
-                                }
-                              },
-                            },
-                          ]
-                        );
-                      }}
-                    >
-                      <Text style={styles.draftDeleteIcon}>🗑</Text>
-                    </TouchableOpacity>
-                    <View style={[styles.draftTypeStripe, { backgroundColor: typeColor }]} />
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ) : null}
         />
       )}
 
@@ -829,90 +725,5 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 20,
     paddingBottom: 100,
-  },
-  draftsSection: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 24,
-  },
-  draftsSectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.subtitle,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 10,
-  },
-  draftCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F3',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D5D5D0',
-    borderStyle: 'dashed',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 8,
-    opacity: 0.75,
-  },
-  draftCardInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  draftCardMainRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  draftCardTypeIcon: {
-    width: 18,
-    height: 18,
-  },
-  draftCardName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.title,
-  },
-  draftCardCode: {
-    fontSize: 12,
-    color: COLORS.subtitle,
-  },
-  draftStatusBadge: {
-    backgroundColor: '#FFF8E1',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: '#FFE082',
-    marginLeft: 8,
-  },
-  draftStatusBadgeRejected: {
-    backgroundColor: '#FFF5F5',
-    borderColor: '#FFCDD2',
-  },
-  draftStatusText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#F59E0B',
-  },
-  draftStatusTextRejected: {
-    color: '#E53935',
-  },
-  draftDeleteBtn: {
-    marginLeft: 8,
-    padding: 4,
-  },
-  draftDeleteIcon: {
-    fontSize: 13,
-  },
-  draftTypeStripe: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 5,
-    borderTopLeftRadius: 11,
-    borderBottomLeftRadius: 11,
   },
 });

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import 'dayjs/locale/en';
@@ -43,46 +43,50 @@ export function LanguageProvider({ children }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    Promise.all([getStoredLanguage(), getStoredCurrency()])
-      .then(([lang, cur]) => {
+    // Валюту НЕ читаем из AsyncStorage: единственный источник истины — БД
+    // (users_profile.settings.selectedCurrency). App.js устанавливает её через
+    // setCurrency после getCurrentUser. Иначе кэш на устройстве перетирает
+    // значение из БД из-за гонки между двумя useEffect'ами при старте.
+    getStoredLanguage()
+      .then((lang) => {
         setLanguageState(lang);
         applyDayjsLocale(lang);
-        setCurrencyState(cur);
         setReady(true);
       })
       .catch(() => {
         setLanguageState('en');
         applyDayjsLocale('en');
-        setCurrencyState('THB');
         setReady(true);
       });
   }, []);
 
-  const setLanguage = (lang) => {
+  const setLanguage = useCallback((lang) => {
     if (['en', 'th', 'ru'].includes(lang)) {
       setLanguageState(lang);
       setStoredLanguage(lang);
       applyDayjsLocale(lang);
     }
-  };
+  }, []);
 
-  const setCurrency = (cur) => {
+  const setCurrency = useCallback((cur) => {
     if (VALID_CURRENCIES.includes(cur)) {
       setCurrencyState(cur);
       setStoredCurrency(cur);
     }
-  };
+  }, []);
 
-  const translate = (key) => t(language, key);
+  const translate = useCallback((key) => t(language, key), [language]);
+
+  const value = useMemo(() => ({
+    language, setLanguage,
+    currency, setCurrency,
+    currencySymbol: getCurrencySymbol(currency),
+    t: translate,
+    ready,
+  }), [language, currency, ready, setLanguage, setCurrency, translate]);
 
   return (
-    <LanguageContext.Provider value={{
-      language, setLanguage,
-      currency, setCurrency,
-      currencySymbol: getCurrencySymbol(currency),
-      t: translate,
-      ready,
-    }}>
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   );

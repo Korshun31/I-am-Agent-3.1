@@ -7,13 +7,12 @@
 **Архитектура: push-signal + fetch on demand**
 
 ```
-Action (approve/reject/save)
+Action (save / delete)
   → broadcastChange('properties')   [companyChannel]
     → WebMainScreen: refreshKey.properties++
       → WebPropertiesScreen: useEffect([refreshKey]) → load()
         → getProperties() → setProperties(props)
         → setSelected(prev → fresh)   // sync selected panel
-        → setHistoryRefreshKey(k+1)   // sync rejection history
 ```
 
 **Принцип**: не слушать каждое изменение в БД постоянно. Только целевые сигналы после конкретных действий.
@@ -39,7 +38,7 @@ UI Layer (React Native / Web)
 
 Service Layer
   └── src/services/
-      ├── propertiesService.js   — CRUD + approve/reject + history
+      ├── propertiesService.js   — CRUD
       ├── notificationsService.js
       ├── bookingsService.js
       ├── companyService.js
@@ -48,8 +47,8 @@ Service Layer
 
 Data Layer (Supabase / PostgreSQL)
   ├── properties
-  ├── property_drafts
-  ├── property_rejection_history  ← append-only журнал
+  ├── property_drafts             ← снято 2026-04-30, DROP в этапе 3
+  ├── property_rejection_history  ← снято 2026-04-30, DROP в этапе 3
   ├── bookings
   ├── companies
   ├── company_members
@@ -80,52 +79,11 @@ Data Layer (Supabase / PostgreSQL)
 
 ---
 
-## Notification Review Flow
+## Notification Review Flow / History Refresh Chain / Auto-approve — сняты 2026-04-30 (этап 2)
 
-```
-WebNotificationBell
-├── handleApprove(notif)
-│   ├── approvePropertyDraft(draft.id) или approveProperty(propertyId)
-│   ├── markActionTaken(notif.id)
-│   ├── onPropertiesChanged?.()  → setRefreshKey(properties+1)
-│   └── sendNotification(agent)
-│
-└── handleReject(notif, reason)
-    ├── rejectPropertyDraft(draft.id, reason) или rejectProperty(propertyId, reason)
-    │   ├── properties.update({ property_status, rejection_reason })
-    │   └── property_rejection_history.insert(...)  ← новая запись
-    ├── markActionTaken(notif.id)
-    ├── onPropertiesChanged?.()  → setRefreshKey(properties+1)
-    └── sendNotification(agent)
-```
+Все три блока описывали flow модерации (approve/reject/history). Модерация выпилена. `handleApprove`, `handleReject`, `handleViewEditReview` удалены из `WebNotificationBell`. `historyRefreshKey`, `getPropertyRejectionHistory`, auto-approve логика в `WebPropertyEditPanel.handleSave` удалены. См. ADR-015.
 
----
-
-## History Refresh Chain
-
-```
-setRefreshKey(properties+1)
-  → useEffect([refreshKey])
-    → load()
-    → setDraftRefreshKey(k+1)
-    → setHistoryRefreshKey(k+1)
-      → PropertyDetail useEffect([property.id, property.property_status, historyRefreshKey])
-        → getPropertyRejectionHistory(property.id)
-          → render нумерованного списка
-```
-
----
-
-## Auto-approve при admin save rejected
-
-```
-WebPropertyEditPanel.handleSave (mode='edit')
-  IF isCompanyAdmin && property.property_status === 'rejected'
-    → updates.property_status = 'approved'
-    → updates.rejection_reason = ''
-    → updateProperty(property.id, updates)
-    → sendNotification(property.user_id, type='property_approved')
-```
+Вместо review-flow админу теперь приходят информационные уведомления `property_created` и `booking_created` — без действий.
 
 ---
 
@@ -135,13 +93,12 @@ WebPropertyEditPanel.handleSave (mode='edit')
 
 | Тип данных | Механизм обновления |
 |---|---|
-| Объекты, статусы, история | `broadcastChange` → `refreshKey` → `load()` |
+| Объекты | `broadcastChange` → `refreshKey` → `load()` |
 | Инициатор действия (своя сессия) | `onPropertiesChanged()` → `setRefreshKey` → `load()` |
 | Уведомления (bell + browser) | Realtime `postgres_changes` на таблицу `notifications` |
 | Права и локации агента | `broadcastChange('permissions')` → `setUser(freshUser)` |
-| История отклонений | `historyRefreshKey` (локальный) + `refreshKey` (глобальный) |
 
-**Нет постоянной слежки за БД.** Каждый экран обновляется только тогда, когда получает сигнал от конкретного действия (approve / reject / save / permissions change).
+**Нет постоянной слежки за БД.** Каждый экран обновляется только тогда, когда получает сигнал от конкретного действия (save / delete / permissions change).
 
 **Realtime подписки** существуют ровно в двух местах:
 1. `WebNotificationBell` — подписка на `notifications` для мгновенной доставки уведомлений.

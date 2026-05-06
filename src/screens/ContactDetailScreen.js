@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
+import { useAppData } from '../context/AppDataContext';
 import { deleteContact, updateContact } from '../services/contactsService';
 import { getBookings, deleteBooking } from '../services/bookingsService';
 import { cancelBookingReminders } from '../services/bookingRemindersService';
@@ -67,8 +68,8 @@ function getBookingNumber(booking, samePropertyBookings) {
 
 function buildPropertyCode(property, properties) {
   if (!property) return '—';
-  if (property.resort_id) {
-    const parent = properties.find(p => p.id === property.resort_id);
+  if (property.parent_id) {
+    const parent = properties.find(p => p.id === property.parent_id);
     return parent ? (parent.code || '') + (property.code_suffix ? ` (${property.code_suffix})` : '') : (property.code || '—');
   }
   return property.code || '—';
@@ -96,6 +97,7 @@ function compareByCodeOrName(a, b) {
 
 export default function ContactDetailScreen({ contact, onBack, onContactUpdated, onContactDeleted, user }) {
   const { t } = useLanguage();
+  const { refreshContacts: refreshGlobalContacts, refreshProperties: refreshGlobalProperties, refreshBookings: refreshGlobalBookings } = useAppData();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [currentContact, setCurrentContact] = useState(contact);
   const isAgent = !!user?.teamMembership;
@@ -169,7 +171,17 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
   };
 
   const handleDelete = () => {
-    Alert.alert(t('deleteContactConfirmTitle'), t('deleteContactConfirmMessage'), [
+    // TD-105 / TD-106: считаем привязанные объекты (для собственника) или брони (для клиента),
+    // и если связи есть — показываем расширенное предупреждение с количеством.
+    const linkedCount = isOwner
+      ? properties.filter(p => p.owner_id === c.id || p.owner_id_2 === c.id).length
+      : bookings.length;
+    const message = linkedCount > 0
+      ? (isOwner ? t('deleteOwnerWithPropertiesMessage') : t('deleteClientWithBookingsMessage'))
+          .replace('{count}', String(linkedCount))
+      : t('deleteContactConfirmMessage');
+
+    Alert.alert(t('deleteContactConfirmTitle'), message, [
       { text: t('no'), style: 'cancel' },
       {
         text: t('yes'),
@@ -177,6 +189,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
         onPress: async () => {
           try {
             await deleteContact(c.id);
+            refreshGlobalContacts();
             onContactDeleted?.(c.id);
             onBack();
           } catch (e) {
@@ -190,6 +203,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
   const handleEditSave = async (data) => {
     try {
       const updated = await updateContact(c.id, data);
+      refreshGlobalContacts();
       setCurrentContact(updated);
       onContactUpdated?.(updated);
     } catch (e) {
@@ -230,11 +244,11 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
   const getParent = (id) => properties.find(pr => pr.id === id);
   const ownsProperty = (p) => p.owner_id === ownerId || p.owner_id_2 === ownerId;
 
-  const ownerTopLevel = properties.filter(p => !p.resort_id && ownsProperty(p));
+  const ownerTopLevel = properties.filter(p => !p.parent_id && ownsProperty(p));
 
   const ownerChildren = properties.filter((p) => {
-    if (!p.resort_id || !ownsProperty(p)) return false;
-    const parent = getParent(p.resort_id);
+    if (!p.parent_id || !ownsProperty(p)) return false;
+    const parent = getParent(p.parent_id);
     if (!parent) return true;
     if (ownsProperty(parent)) return false;
     return true;
@@ -243,7 +257,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
   const ownerPropertiesList = [
     ...ownerTopLevel.map(p => ({ ...p, _parentName: null, _parentType: null })),
     ...ownerChildren.map(p => {
-      const parent = getParent(p.resort_id);
+      const parent = getParent(p.parent_id);
       return { ...p, _parentName: parent?.name || parent?.code || '', _parentType: parent?.type || null };
     }),
   ].sort((a, b) => {
@@ -282,6 +296,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
               onPress: async () => {
                 try {
                   await deleteProperty(selectedProperty.id);
+                  refreshGlobalProperties();
                   setSelectedProperty(null);
                   setRefreshPropertiesTrigger(prev => prev + 1);
                 } catch (e) {
@@ -313,6 +328,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
             try {
               await cancelBookingReminders(id);
               await deleteBooking(id);
+              refreshGlobalBookings();
               setSelectedBooking(null);
               setSelectedBookingTitle('');
               setSelectedBookingProperty(null);

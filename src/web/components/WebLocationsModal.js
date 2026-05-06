@@ -4,6 +4,8 @@ import {
   TextInput, Animated, Modal, ActivityIndicator, Image, Platform,
 } from 'react-native';
 import { getLocations, createLocation, updateLocation, deleteLocation, getLocationDistricts, setLocationDistricts, updateDistrictName, removeDistrict } from '../../services/locationsService';
+import { getPropertiesCountByLocation } from '../../services/propertiesService';
+import { useLanguage } from '../../context/LanguageContext';
 
 const ACCENT = '#3D7D82';
 const C = {
@@ -84,6 +86,7 @@ function DropdownField({ label, value, placeholder, options, onSelect, searchPla
 }
 
 export default function WebLocationsModal({ visible, onClose, onSaved }) {
+  const { t } = useLanguage();
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editingLoc, setEditingLoc] = useState(null);
@@ -95,6 +98,7 @@ export default function WebLocationsModal({ visible, onClose, onSaved }) {
   const [districts, setDistricts] = useState([]);
   const [newDistrict, setNewDistrict] = useState('');
   const [showAddDistrict, setShowAddDistrict] = useState(false);
+  const [districtError, setDistrictError] = useState('');
   
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -147,6 +151,8 @@ export default function WebLocationsModal({ visible, onClose, onSaved }) {
     setEditingLoc(null);
     setError('');
     setShowAddDistrict(false);
+    setDistrictError('');
+    setNewDistrict('');
   };
 
   const handleEdit = async (loc) => {
@@ -181,6 +187,23 @@ export default function WebLocationsModal({ visible, onClose, onSaved }) {
 
   const handleSave = async () => {
     if (!country) { setError('Выберите страну'); return; }
+
+    // Если юзер ввёл район в input, но не нажал «+» — добавляем сами перед сохранением.
+    let finalDistricts = districts;
+    const pending = newDistrict.trim();
+    if (pending) {
+      if (districts.some(d => String(d).toLowerCase() === pending.toLowerCase())) {
+        setDistrictError(t('duplicateDistrictError'));
+        setShowAddDistrict(true);
+        return;
+      }
+      finalDistricts = [...districts, pending].sort();
+      setDistricts(finalDistricts);
+      setNewDistrict('');
+      setShowAddDistrict(false);
+      setDistrictError('');
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -199,21 +222,28 @@ export default function WebLocationsModal({ visible, onClose, onSaved }) {
       }
 
       if (locId) {
-        await setLocationDistricts(locId, districts);
+        await setLocationDistricts(locId, finalDistricts);
       }
 
       await loadLocations();
       resetForm();
       onSaved?.();
     } catch (e) {
-      setError(e.message);
+      setError(e?.code === 'DUPLICATE_LOCATION' ? t('duplicateLocationError') : e.message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Удалить эту локацию? Все связанные районы также будут удалены.')) return;
+    // TD-067: блокируем если у локации есть привязанные объекты.
+    let propsCount = 0;
+    try { propsCount = await getPropertiesCountByLocation(id); } catch {}
+    if (propsCount > 0) {
+      alert(`${t('deleteLocationBlockedTitle')}\n\n${t('deleteLocationBlockedText').replace('{count}', String(propsCount))}`);
+      return;
+    }
+    if (!confirm(`${t('deleteLocationConfirm')}\n\n${t('deleteLocationConfirmMessage')}`)) return;
     try {
       await deleteLocation(id);
       await loadLocations();
@@ -226,10 +256,11 @@ export default function WebLocationsModal({ visible, onClose, onSaved }) {
   const addDistrict = () => {
     const val = newDistrict.trim();
     if (!val) return;
-    if (districts.includes(val)) {
-      setNewDistrict('');
+    if (districts.some(d => String(d).toLowerCase() === val.toLowerCase())) {
+      setDistrictError(t('duplicateDistrictError'));
       return;
     }
+    setDistrictError('');
     setDistricts(prev => [...prev, val].sort());
     setNewDistrict('');
     setShowAddDistrict(false);
@@ -301,21 +332,24 @@ export default function WebLocationsModal({ visible, onClose, onSaved }) {
                 </View>
                 
                 {showAddDistrict ? (
-                  <View style={s.addDistrictRow}>
-                    <TextInput
-                      style={s.districtInput}
-                      value={newDistrict}
-                      onChangeText={setNewDistrict}
-                      placeholder="Название района"
-                      autoFocus
-                      onSubmitEditing={addDistrict}
-                    />
-                    <TouchableOpacity style={s.districtAddConfirm} onPress={addDistrict}>
-                      <Text style={s.districtAddConfirmText}>+</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <>
+                    <View style={s.addDistrictRow}>
+                      <TextInput
+                        style={s.districtInput}
+                        value={newDistrict}
+                        onChangeText={(v) => { setNewDistrict(v); if (districtError) setDistrictError(''); }}
+                        placeholder="Название района"
+                        autoFocus
+                        onSubmitEditing={addDistrict}
+                      />
+                      <TouchableOpacity style={s.districtAddConfirm} onPress={addDistrict}>
+                        <Text style={s.districtAddConfirmText}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {districtError ? <Text style={s.districtErrorText}>{districtError}</Text> : null}
+                  </>
                 ) : (
-                  <TouchableOpacity style={s.addDistrictBtn} onPress={() => setShowAddDistrict(true)}>
+                  <TouchableOpacity style={s.addDistrictBtn} onPress={() => { setShowAddDistrict(true); setDistrictError(''); }}>
                     <Text style={s.addDistrictBtnText}>+ Добавить район</Text>
                   </TouchableOpacity>
                 )}
@@ -429,7 +463,8 @@ const s = StyleSheet.create({
   saveBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
   cancelBtn: { flex: 1, height: 42, borderWidth: 1, borderColor: C.border, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   cancelBtnText: { color: C.muted, fontWeight: '600', fontSize: 14 },
-  errorText: { color: C.danger, fontSize: 12, marginBottom: 12 },
+  errorText: { color: C.danger, fontSize: 14, fontWeight: '700', marginBottom: 12 },
+  districtErrorText: { color: '#E53935', fontSize: 14, fontWeight: '700', marginTop: 6 },
   
   listSection: { flex: 1 },
   listTitle: { fontSize: 14, fontWeight: '800', color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 },

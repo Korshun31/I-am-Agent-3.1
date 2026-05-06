@@ -16,9 +16,10 @@ const ACCENT_LIGHT = '#B2D8DB';
 export default function WebLayout({ children, activeTab, onTabChange, fullHeight, user, onPropertiesChanged, onNavigateToProperty }) {
   const { t } = useLanguage();
   const menuItems = [
-    { id: 'dashboard',  label: t('dashboard') },
+    { id: 'dashboard',  label: t('dashboard')  },
     { id: 'properties', label: t('base')       },
     { id: 'bookings',   label: t('bookings')   },
+    { id: 'statistics', label: t('statistics') },
     { id: 'contacts',   label: t('contacts')   },
     { id: 'profile',    label: t('myAccount')  },
   ];

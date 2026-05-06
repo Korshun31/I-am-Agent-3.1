@@ -10,6 +10,9 @@ import {
   Image,
   Linking,
   Alert,
+  Modal,
+  Pressable,
+  TextInput,
 } from 'react-native';
 import Constants from 'expo-constants';
 import MyDetailsEditModal from '../components/MyDetailsEditModal';
@@ -21,8 +24,8 @@ import AddLocationsModal from '../components/AddLocationsModal';
 import DataUploadModal from '../components/DataUploadModal';
 import { useLanguage } from '../context/LanguageContext';
 import { useUser } from '../context/UserContext';
-import { ROLES } from '../constants/roleFeatures';
-import { updateUserProfile, getCurrentUser, canChangePassword } from '../services/authService';
+import { PLANS } from '../constants/roleFeatures';
+import { updateUserProfile, getCurrentUser, canChangePassword, deleteOwnAccount, signOut } from '../services/authService';
 import { getLocations, createLocation, updateLocation, deleteLocation, setLocationDistricts } from '../services/locationsService';
 
 const COLORS = {
@@ -37,6 +40,7 @@ const COLORS = {
   iconGray: '#6B6B6B',
   logoutRed: '#E85D4C',
   contactLink: '#D81B60',
+  companyYellowGreen: '#D4E89E',
 };
 
 const BLOCK_VERTICAL_PADDING = 16; // Верхний и нижний отступ блока: от края до первой/последней строки
@@ -44,7 +48,7 @@ const BLOCK_ROW_GAP = 8; // Отступ между строками внутр�
 const LOCATIONS_BOTTOM_PADDING = 10;
 const ANIM_DURATION = 280;
 
-export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, onOpenStatistics, isVisible }) {
+export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, onOpenContacts, onOpenStatistics, isVisible }) {
   const { user = {} } = useUser();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsClosing, setSettingsClosing] = useState(false);
@@ -56,10 +60,13 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
   const [notificationsModalVisible, setNotificationsModalVisible] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState({});
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
-  const [selectedCurrency, setSelectedCurrency] = useState('USD');
   const [addLocationsModalVisible, setAddLocationsModalVisible] = useState(false);
   const [editLocationData, setEditLocationData] = useState(null);
   const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [dataUploadModalVisible, setDataUploadModalVisible] = useState(false);
   const [locationsContentHeight, setLocationsContentHeight] = useState(0);
   const [allowChangePassword, setAllowChangePassword] = useState(false);
@@ -67,7 +74,7 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
   const [companyClosing, setCompanyClosing] = useState(false);
   const [companyContentHeight, setCompanyContentHeight] = useState(0);
   const [settingsContentHeight, setSettingsContentHeight] = useState(0);
-  const { language, setLanguage, setCurrency, t } = useLanguage();
+  const { language, setLanguage, currency, setCurrency, t } = useLanguage();
   const settingsHeight = useRef(new Animated.Value(0)).current;
   const settingsWasOpen = useRef(false);
   const locationsHeight = useRef(new Animated.Value(0)).current;
@@ -75,8 +82,8 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
   const companyHeight = useRef(new Animated.Value(0)).current;
   const companyWasOpen = useRef(false);
   const prevTabVisible = useRef(false);
-  const { email = '', name = '', lastName = '', phone = '', telegram = '', documentNumber = '', extraPhones = [], extraEmails = [], whatsapp = '', photoUri = '', workAs = '', companyInfo = {}, role = 'standard' } = user;
-  const isAdmin = role === ROLES.ADMIN;
+  const { email = '', name = '', lastName = '', phone = '', telegram = '', documentNumber = '', extraPhones = [], extraEmails = [], whatsapp = '', photoUri = '', workAs = '', companyInfo = {}, plan = 'standard' } = user;
+  const isAdmin = plan === PLANS.KORSHUN;
 
   const displayName = [name, lastName].filter(Boolean).join(' ') || name || null;
 
@@ -117,10 +124,17 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
     Linking.openURL('https://wa.me/' + digits);
   };
 
+  // Анимация запускается только при реальном изменении состояния (открыли/закрыли).
+  // На mount и при обновлении contentHeight (через onLayout) — мгновенный setValue,
+  // чтобы не блокировать JS-thread и не вызывать задержку при первом тапе на вкладку.
   useEffect(() => {
     const toValue = settingsOpen ? settingsContentHeight : 0;
     const wasOpen = settingsWasOpen.current;
     settingsWasOpen.current = settingsOpen;
+    if (wasOpen === settingsOpen) {
+      settingsHeight.setValue(toValue);
+      return;
+    }
     if (wasOpen && !settingsOpen) setSettingsClosing(true);
     Animated.timing(settingsHeight, {
       toValue,
@@ -135,6 +149,10 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
     const toValue = companySectionOpen ? companyContentHeight : 0;
     const wasOpen = companyWasOpen.current;
     companyWasOpen.current = companySectionOpen;
+    if (wasOpen === companySectionOpen) {
+      companyHeight.setValue(toValue);
+      return;
+    }
     if (wasOpen && !companySectionOpen) setCompanyClosing(true);
     Animated.timing(companyHeight, {
       toValue,
@@ -149,6 +167,10 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
     const toValue = locationsOpen ? locationsContentHeight + LOCATIONS_BOTTOM_PADDING : 0;
     const wasOpen = locationsWasOpen.current;
     locationsWasOpen.current = locationsOpen;
+    if (wasOpen === locationsOpen) {
+      locationsHeight.setValue(toValue);
+      return;
+    }
     if (wasOpen && !locationsOpen) setLocationsClosing(true);
     Animated.timing(locationsHeight, {
       toValue,
@@ -174,36 +196,62 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
     refreshCanChangePassword();
   }, [user?.id]);
 
-  useEffect(() => {
-    if (isVisible && !prevTabVisible.current) {
-      setCompanySectionOpen(false);
-      setSettingsOpen(false);
-      setLocationsOpen(false);
-      // Обновляем данные профиля при возврате на вкладку (синхронизация с вебом)
-      getCurrentUser().then((profile) => {
-        if (profile) onUserUpdate?.(profile);
-      }).catch(() => {});
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText.trim() !== 'DELETE') {
+      setDeleteError(t('deleteAccountTypeDelete') || 'Type DELETE to confirm');
+      return;
     }
-    prevTabVisible.current = isVisible;
-  }, [isVisible]);
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await deleteOwnAccount();
+      await signOut();
+      onLogout?.();
+    } catch (e) {
+      if (e?.message?.includes('CANNOT_DELETE_HAS_AGENTS')) {
+        setDeleteError(t('deleteAccountHasAgents') || 'Deactivate all team members before deleting your account.');
+      } else {
+        setDeleteError(e?.message || 'Error');
+      }
+      setDeleting(false);
+    }
+  };
 
+  // При возврате на вкладку — читаем настройки из user пропса (UserContext,
+  // грузится при логине, обновляется через realtime). Без сетевого запроса —
+  // вкладка открывается мгновенно. Свежесть прав агента уже идёт через
+  // companyChannel-подписку.
+  useEffect(() => {
+    if (!isVisible || prevTabVisible.current) {
+      prevTabVisible.current = isVisible;
+      return;
+    }
+    // Защита от гонки: вкладка может стать видимой раньше чем профиль
+    // догрузился из БД. В этот момент user.selectedCurrency = null
+    // (из initialUser), и записать дефолт 'USD' значит затереть реальный
+    // выбор юзера в LanguageContext+AsyncStorage. Откладываем до загрузки.
+    if (!user?.id) return;
+    setCompanySectionOpen(false);
+    setSettingsOpen(false);
+    setLocationsOpen(false);
+    const lang = ['en', 'th', 'ru'].includes(user.language) ? user.language : 'en';
+    setLanguage(lang);
+    setNotificationSettings(user.notificationSettings || {});
+    prevTabVisible.current = isVisible;
+  }, [isVisible, user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Локации грузим один раз при появлении email (не каждый возврат на вкладку).
   useEffect(() => {
     if (!email) return;
-    getCurrentUser().then((profile) => {
-      if (!profile) return;
-      const lang = ['en', 'th', 'ru'].includes(profile.app_language) ? profile.app_language : 'en';
-      const curr = ['USD', 'EUR', 'RUB', 'THB'].includes(profile.selectedCurrency) ? profile.selectedCurrency : 'USD';
-      setLanguage(lang);
-      setNotificationSettings(profile.notificationSettings || {});
-      setSelectedCurrency(curr);
-    }).catch(() => {});
     loadLocations();
   }, [email]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveAgentSettings = async (updates) => {
     try {
       await updateUserProfile(updates);
-    } catch {}
+    } catch (e) {
+      Alert.alert(t('error') || 'Error', e?.message || String(e));
+    }
   };
 
   return (
@@ -217,8 +265,9 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
             style={styles.logoutBtn}
             onPress={() => {
               Alert.alert(t('logoutConfirmTitle'), t('logoutConfirmMessage'), [
-                { text: t('no'), style: 'cancel' },
-                { text: t('yes'), style: 'destructive', onPress: () => onLogout() },
+                { text: t('cancel'), style: 'cancel' },
+                { text: t('logoutAllDevices'), style: 'destructive', onPress: () => onLogout({ scope: 'global' }) },
+                { text: t('logoutThisDevice'), onPress: () => onLogout({ scope: 'local' }) },
               ]);
             }}
             activeOpacity={0.7}
@@ -347,6 +396,31 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
           </>
         ) : null}
       </View>
+
+      {/* Company — видим только для админов (не агентов) */}
+      {!user?.isAgentRole && (
+        <TouchableOpacity
+          style={[styles.menuBlock, styles.companyBlock]}
+          activeOpacity={0.85}
+          onPress={() => {
+            const isPremium = ['premium', 'korshun'].includes(user?.plan);
+            if (!isPremium) {
+              Alert.alert(
+                t('premiumFeature'),
+                t('companyModePremiumOnly'),
+                [{ text: 'OK' }]
+              );
+              return;
+            }
+            onOpenCompany?.();
+          }}
+        >
+          <View style={styles.menuBlockLeft}>
+            <Text style={styles.menuBlockEmoji}>🏢</Text>
+            <Text style={styles.menuBlockLabel}>{t('company')}</Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* Settings — раздвижной, высота от содержимого (onLayout) */}
       <View style={styles.settingsWrap}>
@@ -513,6 +587,79 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
         </View>
       </TouchableOpacity>
 
+      {/* Delete Account */}
+      <TouchableOpacity
+        style={{ marginTop: 30, marginBottom: 20, paddingVertical: 14, alignItems: 'center' }}
+        onPress={() => { setDeleteConfirmVisible(true); setDeleteConfirmText(''); setDeleteError(''); }}
+        activeOpacity={0.7}
+      >
+        <Text style={{ color: '#C62828', fontSize: 15, fontWeight: '600' }}>
+          {t('deleteAccountBtn') || 'Delete account'}
+        </Text>
+      </TouchableOpacity>
+
+      <Modal visible={deleteConfirmVisible} transparent animationType="fade">
+        <Pressable style={{
+          flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'center', alignItems: 'center', padding: 24,
+        }} onPress={() => setDeleteConfirmVisible(false)}>
+          <Pressable style={{
+            backgroundColor: '#fff', borderRadius: 20, padding: 24,
+            width: '100%', maxWidth: 340,
+          }} onPress={e => e.stopPropagation()}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#C62828', marginBottom: 12, textAlign: 'center' }}>
+              {t('deleteAccountTitle') || 'Delete account'}
+            </Text>
+            <Text style={{ fontSize: 14, color: '#5A5A5A', marginBottom: 16, textAlign: 'center', lineHeight: 20 }}>
+              {t('deleteAccountWarning') || 'This action cannot be undone. All your data will be permanently deleted.'}
+            </Text>
+            <Text style={{ fontSize: 13, color: '#5A5A5A', marginBottom: 8, textAlign: 'center' }}>
+              {t('deleteAccountTypePrompt') || 'Type DELETE to confirm:'}
+            </Text>
+            <TextInput
+              style={{
+                height: 48, borderWidth: 2, borderColor: '#FFCDD2', borderRadius: 12,
+                textAlign: 'center', fontSize: 18, fontWeight: '700', color: '#C62828',
+                marginBottom: 12,
+              }}
+              value={deleteConfirmText}
+              onChangeText={v => { setDeleteConfirmText(v); setDeleteError(''); }}
+              placeholder="DELETE"
+              placeholderTextColor="#ccc"
+              autoCapitalize="characters"
+            />
+            {deleteError ? (
+              <Text style={{ color: '#C62828', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
+                {deleteError}
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#C62828', borderRadius: 12, paddingVertical: 14,
+                alignItems: 'center', marginBottom: 10,
+                opacity: deleting ? 0.5 : 1,
+              }}
+              onPress={handleDeleteAccount}
+              disabled={deleting}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>
+                {deleting ? '...' : (t('deleteAccountConfirmBtn') || 'Delete permanently')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingVertical: 10, alignItems: 'center' }}
+              onPress={() => setDeleteConfirmVisible(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#6B6B6B', fontSize: 14 }}>
+                {t('cancel') || 'Cancel'}
+              </Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <View style={styles.bottomSpacer} />
       </ScrollView>
     </View>
@@ -566,9 +713,8 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
     <CurrencyModal
       visible={currencyModalVisible}
       onClose={() => setCurrencyModalVisible(false)}
-      selectedCurrency={selectedCurrency}
+      selectedCurrency={currency}
       onSave={(c) => {
-        setSelectedCurrency(c);
         setCurrency(c);
         setCurrencyModalVisible(false);
         saveAgentSettings({ selectedCurrency: c });
@@ -611,7 +757,8 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenContacts, 
           setEditLocationData(null);
           loadLocations();
         } catch (e) {
-          Alert.alert('Error', e.message);
+          const msg = e?.code === 'DUPLICATE_LOCATION' ? t('duplicateLocationError') : e.message;
+          Alert.alert('Error', msg);
         }
       }}
     />
@@ -889,8 +1036,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.contactLink,
   },
+  companyBlock: { backgroundColor: COLORS.companyYellowGreen },
   contactsBlock: { backgroundColor: COLORS.contactsPink },
   statisticsBlock: { backgroundColor: COLORS.statisticsPurple },
+  menuBlockEmoji: { fontSize: 22, marginRight: 10 },
   menuBlockIcon: { fontSize: 22, marginRight: 12 },
   menuBlockIconImage: {
     width: 26,

@@ -101,8 +101,8 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
         return;
       }
       let resort = null;
-      if (prop.resort_id) {
-        resort = all.find(p => p.id === prop.resort_id) || null;
+      if (prop.parent_id) {
+        resort = all.find(p => p.id === prop.parent_id) || null;
       }
       const owners = await getContacts('owners');
       const owner = prop.owner_id ? owners.find(o => o.id === prop.owner_id) : null;
@@ -257,7 +257,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
       {/* Кнопки управления: агент видит их только для своих бронирований */}
       {(() => {
         const isTeamMember = !!(user?.teamMembership);
-        const isOwnBooking = !isTeamMember || booking?.agentId === user?.id;
+        const isOwnBooking = !isTeamMember || booking?.responsibleAgentId === user?.id;
         if (!isOwnBooking) return null;
         return (
           <View style={styles.actionsRow}>
@@ -401,8 +401,8 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
             <DetailRow label={t('bookingTotalPrice')} value={b.totalPrice != null ? formatPrice(b.totalPrice, bookingSym) : null} />
             <DetailRow label={t('pdBookingDeposit')} value={b.bookingDeposit != null ? formatPrice(b.bookingDeposit, bookingSym) : null} />
             <DetailRow label={t('pdSaveDeposit')} value={b.saveDeposit != null ? formatPrice(b.saveDeposit, bookingSym) : null} />
-            <DetailRow label={t('ownerCommissionOneTime')} value={b.ownerCommissionOneTime != null ? formatPrice(b.ownerCommissionOneTime, bookingSym) : null} />
-            <DetailRow label={t('ownerCommissionMonthly')} value={b.ownerCommissionMonthly != null ? formatPrice(b.ownerCommissionMonthly, bookingSym) : null} />
+            <DetailRow label={t('bookingOwnerCommOnce')} value={b.ownerCommissionOneTime != null ? (b.ownerCommissionOneTimeIsPercent && b.priceMonthly ? `${formatPrice(Math.round((Number(b.ownerCommissionOneTime) / 100) * Number(b.priceMonthly)), bookingSym)} (${Number(b.ownerCommissionOneTime).toLocaleString()}%)` : formatPrice(b.ownerCommissionOneTime, bookingSym)) : null} />
+            <DetailRow label={t('ownerCommissionMonthly')} value={b.ownerCommissionMonthly != null ? (b.ownerCommissionMonthlyIsPercent && b.priceMonthly ? `${formatPrice(Math.round((Number(b.ownerCommissionMonthly) / 100) * Number(b.priceMonthly)), bookingSym)} (${Number(b.ownerCommissionMonthly).toLocaleString()}%)` : formatPrice(b.ownerCommissionMonthly, bookingSym)) : null} />
             <DetailRow label={t('pdCommission')} value={b.commission != null ? formatPrice(b.commission, bookingSym) : null} />
           </View>
         ) : null}

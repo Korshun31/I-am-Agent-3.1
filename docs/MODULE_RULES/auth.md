@@ -25,7 +25,6 @@ flow.
 |---|---|---|
 | Регистрация | AU-REG | email+пароль → auth user → profile → workspace (если нет приглашения) |
 | Логин по email | AU-LOGIN | email+пароль → session → profile |
-| OAuth | AU-OAUTH | Google/Facebook → session → profile |
 | Восстановление сессии | AU-SESSION | При старте: getSession → profile |
 | Восстановление пароля | AU-RESET | Забыл пароль → magic link (планируется) |
 | Смена пароля | AU-PASSWORD | Re-auth → new password |
@@ -38,26 +37,25 @@ flow.
 
 ### Регистрация (AU-REG)
 
-**AU-REG-1.** Для регистрации требуются: email (обязательно), пароль (обязательно, >= 8 символов — см. AU-REG-10; сейчас реализовано >= 6 — TD-031), имя (опционально).
+**AU-REG-1.** Для регистрации требуются: email (обязательно), пароль (обязательно, >= 8 символов плюс проверка по списку популярных паролей — см. AU-REG-10, TD-031 закрыт), имя (опционально).
 
 **AU-REG-2.** Пароль и подтверждение пароля должны совпадать. Проверка на клиенте до отправки.
 
-**AU-REG-3.** *(планируется — TD-015)* Email должен быть верифицирован до предоставления доступа к основному интерфейсу. После
-signUp пользователь должен видеть экран "Проверьте почту" вместо main screen. Вход разрешён только после подтверждения email.
+**AU-REG-3.** *(TD-015, закрыт 2026-04-30)* Email верифицируется до доступа к основному интерфейсу. `signUp` возвращает `{ pendingConfirmation: true, email }` если в Supabase Dashboard включена галочка confirmation. Registration переключает на экран `EmailConfirmationPending`. Юзер кликает по ссылке → Supabase редиректит на сайт с хешем `type=signup` → `App.js` показывает `EmailConfirmedSuccess`. signIn возвращает `EMAIL_NOT_CONFIRMED` если юзер пытается войти до подтверждения. Native deep links для мобильного — TD-118.
 
-**AU-REG-4.** *(планируется — TD-016)* Регистрация с одноразовых email-адресов (mailinator.com, tempmail.com и т.д.) должна быть
+**AU-REG-4.** *(TD-016, ✅ ЗАКРЫТ 2026-05-05)* Регистрация с одноразовых email-адресов (mailinator.com, tempmail.com и т.д.) заблокирована. `src/utils/disposableEmails.js` — список из 57 доменов, проверка `isDisposableEmail` вызывается в `authService.signUp` до запроса в Supabase, возвращает inline-ошибку через перевод `disposableEmailNotAllowed` (en/th/ru). Старое описание ниже —
 заблокирована на клиенте при отправке формы.
 
 **AU-REG-5.** При регистрации нового пользователя DB-триггер `handle_new_user()` выполняет **условную** логику:
 
 **Если** для email нового пользователя существует принятое приглашение (`company_invitations` со статусом `accepted`):
-- Создаёт **только** `users_profile` (id, email, name, role='standard')
+- Создаёт **только** `users_profile` (id, email, name, settings)
 - **НЕ** создаёт workspace (company)
 - **НЕ** создаёт запись в `company_members`
 - Пользователь получит membership через `join_company_via_invitation` (как agent)
 
 **Если** приглашения нет (обычная самостоятельная регистрация):
-- Создаёт `users_profile` (id, email, name, role='standard')
+- Создаёт `users_profile` (id, email, name, settings)
 - Создаёт **Workspace** — запись в таблице `companies` (owner_id = user.id, name = '', status = 'active')
 - Создаёт запись в `company_members` (company_id, user_id, role = 'admin', status = 'active')
 
@@ -74,8 +72,7 @@ CONFLICT DO NOTHING, signUp использует upsert), но является 
 **AU-REG-6.** Привилегированные тарифы (premium, korshun) **НЕ назначаются** через хардкод в коде. Назначение тарифа производится
 через Supabase Dashboard (SQL Editor) или через административный интерфейс.
 
-**AU-REG-6.1.** *(TD-018)* Сейчас в `signUp()` есть хардкод email `korshun31@list.ru`, который назначает `plan: 'korshun'` и `role:
-'admin'`. Этот хардкод должен быть удалён. План назначается вручную через SQL после регистрации.
+**AU-REG-6.1.** *(TD-018, закрыт 2026-04-27, коммит `1c1ba40`)* Хардкод email-а в `signUp()` удалён. Тариф `korshun` назначается вручную через Supabase Dashboard (SQL Editor) после регистрации.
 
 **AU-REG-7.** При регистрации устанавливаются настройки по умолчанию: `language: 'en'`, `selectedCurrency: 'USD'`.
 
@@ -99,9 +96,7 @@ workspace
 При принятии: максимум 5 попыток ввода кода (TD-027). После превышения — приглашение отзывается, админу уведомление "превышено
 количество попыток".
 
-**AU-REG-10.** *(TD-031)* Требования к паролю слишком слабые — только >= 6 символов. Индустриальный стандарт (OWASP/NIST): минимум 8
- символов + проверка по списку самых популярных паролей (top-100: "123456", "password", "qwerty"). Не требовать
-спецсимволы/заглавные — это устаревшая практика.
+**AU-REG-10.** *(TD-031, ✅ ЗАКРЫТ, коммит `9f4ffec`)* Требование к паролю — минимум 8 символов плюс проверка по списку 30 самых популярных паролей (`123456`, `password`, `qwerty` и т.п.). Спецсимволы/заглавные не требуем — это устаревшая практика по OWASP/NIST.
 
 **AU-REG-11.** *(TD-034)* signUp() перезаписывает settings триггера: `update({ settings: { language: 'en', selectedCurrency: 'USD' }
  })` — это полная перезапись, не merge. Если триггер `handle_new_user` в будущем будет устанавливать settings — signUp их затрёт.
@@ -117,33 +112,13 @@ workspace
 
 **AU-LOGIN-4.** Клавиатурная навигация: Enter на поле email → фокус на пароль. Enter на поле пароль → submit формы.
 
-**AU-LOGIN-5.** *(TD-032)* Нет защиты от brute force. Можно пробовать неограниченное количество паролей. Рекомендация: после 5
-неудачных попыток — временная блокировка (15-30 минут) или CAPTCHA. Как минимум — экспоненциальная задержка на клиенте.
+**AU-LOGIN-5.** *(TD-032, закрыт 2026-04-27, коммит `28bcbd3`)* Клиентская защита от brute force на Login: 3 неудачных попытки на email → блокировка кнопки на 60 секунд. Счётчик и время блокировки хранятся в AsyncStorage по ключу email-а в нижнем регистре, переживают перезагрузку приложения. На вебе AsyncStorage работает поверх localStorage браузера. Серверный rate-limit + CAPTCHA — отдельный security TD на потом.
 
-**AU-LOGIN-6.** *(TD-039)* Login.js не показывает индикатор загрузки при нажатии кнопки входа (в отличие от Registration.js, где
-loading state есть). Пользователь может нажать повторно. Добавить `loading` state + `disabled={loading}` + спиннер.
+**AU-LOGIN-6.** *(TD-039, закрыт 2026-04-30)* В `Login.js` добавлен `loading` state. `handleLogin` ставит `setLoading(true)` перед `signIn`, в `finally` сбрасывает. Кнопка `disabled={isLocked || loading}`, текст переключается на `t('saving')`. Повторное нажатие во время входа невозможно. Паритет с `Registration.js`.
 
-### OAuth (AU-OAUTH)
+### OAuth (AU-OAUTH) — удалён
 
-**AU-OAUTH-1.** Поддерживаются провайдеры: Google, Facebook. Apple — удалён.
-
-**AU-OAUTH-2.** OAuth кнопки **временно скрыты** в UI до завершения security review. В коде функции `signInWithGoogle()` и
-`signInWithFacebook()` существуют и работают.
-
-**AU-OAUTH-3.** Web-flow: стандартный OAuth redirect через Supabase. Mobile-flow: через `expo-auth-session` +
-`WebBrowser.openAuthSessionAsync`.
-
-**AU-OAUTH-4.** Google OAuth: всегда показывать выбор аккаунта (`prompt: 'select_account'`).
-
-**AU-OAUTH-5.** При OAuth-авторизации DB-триггер `handle_new_user()` применяет ту же условную логику, что и при email-регистрации (AU-REG-5): если есть принятое приглашение для email — только profile, иначе — profile + workspace + admin.
-
-**AU-OAUTH-8.** *(TD-041, критический при включении OAuth)* OAuth flow (Google/Facebook) не проходит через экран регистрации и не проверяет pending-приглашения. Если новый пользователь входит через Google с email, на который есть pending-приглашение — он получит workspace, а потом не сможет принять приглашение (блокировка check_email_exists). **Решение**: после первого OAuth-входа нового пользователя (до показа main screen) проверять `check_pending_invitation(email)`. Если найдено — показывать то же модальное окно что и при регистрации: "Компания X вас пригласила. Принять / Отклонить". При принятии — ввод кода → deactivate workspace → join как agent. При отклонении — удалить приглашение → продолжить как обычный пользователь. Пока OAuth кнопки скрыты (AU-OAUTH-2), проблема не проявляется.
-
-**AU-OAUTH-6.** *(TD-033)* Mobile OAuth использует implicit flow (access_token в URL фрагменте) — устаревший и менее безопасный
-подход. Supabase поддерживает PKCE flow (`flowType: 'pkce'` в конфигурации клиента). Рекомендация: переключить на PKCE.
-
-**AU-OAUTH-7.** *(TD-036)* `signInWithGoogle` и `signInWithFacebook` — почти идентичные функции (~45 строк каждая), отличаются
-только названием провайдера. Рекомендация: объединить в `signInWithOAuthProvider(provider, options)`.
+OAuth-вход (Google/Facebook) убран из продукта (TD-116, 2026-05-03). Все функции, кнопки, стили и переводы удалены. История: TD-033 снят 2026-04-30 как обоснование выпиливания.
 
 ### Восстановление сессии (AU-SESSION)
 
@@ -153,9 +128,7 @@ main screen. Если нет → login screen.
 **AU-SESSION-2.** Во время проверки сессии пользователь должен видеть **Preloader** (splash screen с лого), а не Login. Это касается
  всех платформ, включая web.
 
-**AU-SESSION-2.1.** *(TD-019)* Сейчас на web вместо Preloader показывается Login во время проверки сессии. Это приводит к мельканию
-Login для залогиненных пользователей. Решение: показывать Preloader (или минимальный splash — лого + spinner) на web так же как на
-mobile.
+**AU-SESSION-2.1.** *(TD-019, закрыт 2026-04-30)* В `App.js` стадия `screen === 'preloader'` рендерит `<Preloader />` на обеих платформах. Залогиненный пользователь больше не видит мелькание Login при перезагрузке. Preloader работает на вебе через React Native Web без дополнительных правок.
 
 **AU-SESSION-3.** Auth state listener слушает события `SIGNED_OUT` и `TOKEN_REFRESHED_ERROR`. При получении → `resetUser()` → login
 screen.
@@ -164,8 +137,7 @@ screen.
 
 ### Восстановление пароля (AU-RESET)
 
-**AU-RESET-1.** *(планируется — TD-014)* На экране Login должна быть ссылка "Забыл пароль". По нажатию → экран ввода email →
-`supabase.auth.resetPasswordForEmail(email)` → письмо с magic link → пользователь задаёт новый пароль.
+**AU-RESET-1.** *(TD-014, закрыт 2026-04-30)* На Login есть ссылка «Забыли пароль?» → экран `ForgotPassword.js` (поле email + `requestPasswordReset` → `supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })`). После клика по recovery-ссылке Supabase шлёт событие `PASSWORD_RECOVERY` → listener в `App.js` переключает на `UpdatePassword.js` (два поля + подтверждение → `setNewPassword` → `signOut` → возврат на Login). На мобильном recovery-ссылка открывается в браузере, юзер устанавливает пароль через веб и потом входит в приложение с новым паролем.
 
 ### Смена пароля (AU-PASSWORD)
 
@@ -192,10 +164,9 @@ screen.
 | `user.isAgentRole` | derived | `true` если `teamRole === 'agent'` |
 | `user.isAdminRole` | derived | `true` если пользователь — владелец компании |
 | `user.workAs` | derived | `'company'` если есть active company, иначе `'private'` |
-| `user.teamPermissions` | `company_members.permissions` | JSONB с флагами: `can_add_property`, `can_edit_prices` и т.д. |
+| `user.teamPermissions` | `company_members.permissions` | JSONB с флагами: `can_manage_property`, `can_manage_bookings` (старые ключи `can_add_property`, `can_edit_info`, `can_edit_prices`, `can_book`, `can_delete_booking`, `can_see_financials`, `can_manage_clients` сняты 2026-04-30 в этапе 2 — упрощение прав) |
 
-**AU-PROFILE-3.** Поле `users_profile.role` — **устаревшее, содержит мусор**. НЕ использовать для определения ни роли, ни тарифа.
-См. TD-001.
+**AU-PROFILE-3.** Колонка `users_profile.role` удалена в миграции `20260503000002_drop_users_profile_role.sql` (TD-001 закрыт 2026-05-03). Тариф — строго `users_profile.plan`.
 
 **AU-PROFILE-4.** Для проверки "что может пользователь" использовать `user.isAgentRole` / `user.isAdminRole` и
 `user.teamPermissions`. **Никогда** не использовать `!!user.teamMembership` (backward compat, будет удалено).
@@ -208,9 +179,7 @@ screen.
 **Планируемое направление**: переход к permission-based access control, где роль определяет набор дефолтных permissions, а все
 проверки в коде идут через `user.teamPermissions.*`, а не через `user.isXxxRole`.
 
-**AU-PROFILE-7.** *(TD-035)* `getUserProfile()` делает 4-5 последовательных запросов к БД (users_profile, companies,
-company_members, agent_location_access, companies повторно). Это замедляет каждый логин и восстановление сессии. Рекомендация:
-создать RPC-функцию `get_full_user_profile(p_user_id UUID)` с LEFT JOIN'ами — ускорение в 3-5 раз.
+**AU-PROFILE-7.** *(TD-035, ✅ ЗАКРЫТ 2026-05-03)* `getUserProfile()` использует одну RPC `get_full_user_profile(p_user_id UUID)` с SECURITY DEFINER (миграция `20260503000003`). Внутри один JOIN по `users_profile` + активной компании + `company_members` + `agent_location_access`, возвращает JSONB с 20+ полями. Раньше было 4-5 последовательных запросов — ускорение в 3-5 раз.
 
 ### Редактирование профиля (AU-EDIT)
 
@@ -226,8 +195,7 @@ company_members, agent_location_access, companies повторно). Это за
 **AU-LOGOUT-2.** Logout не очищает локальный кэш приложения (AsyncStorage, expo-image cache и т.д.). При повторном входе данные
 загрузятся быстрее.
 
-**AU-LOGOUT-3.** *(TD-037)* Нет функции "Выйти со всех устройств". Supabase поддерживает `signOut({ scope: 'global' })`.
-Рекомендация: добавить кнопку в настройках аккаунта.
+**AU-LOGOUT-3.** *(TD-037, ✅ ЗАКРЫТ 2026-05-03)* Функция «Выйти со всех устройств» работает. `authService.signOut({ scope })` принимает параметр и пробрасывает в `supabase.auth.signOut`. На мобильном Alert при выходе расширен до трёх кнопок (Отмена / «Только это устройство» / «Все устройства»). На вебе — мини-модалка с тем же выбором.
 
 ### UserContext (AU-CTX)
 
@@ -238,9 +206,7 @@ company_members, agent_location_access, companies повторно). Это за
 
 **AU-CTX-3.** `handleUserUpdate()` — частичный merge. Используется при редактировании профиля (name, phone и т.д.).
 
-**AU-CTX-3.1.** *(TD-020)* `handleUserUpdate` не обрабатывает системные поля (`teamRole`, `isAgentRole`, `isAdminRole`, `plan`,
-`teamMembership`, `teamPermissions`). Если эти поля изменились на сервере (например, админ изменил права агента), они не попадут в
-UserContext через `handleUserUpdate`. Требуется доработка.
+**AU-CTX-3.1.** *(TD-020, ✅ ЗАКРЫТ 2026-05-03)* `handleUserUpdate` теперь идёт через единый `normalizeUser`. `initialUser` расширен с 9 контактных полей до 20 каноничных (плюс `plan`, `teamRole`, `isAgentRole`, `isAdminRole`, `teamMembership`, `teamPermissions`, `language`, `selectedCurrency` и т. д.). Системные поля корректно мержатся с дефолтами, не теряются при апдейте.
 
 **AU-CTX-4.** `resetUser()` — сброс к `initialUser`. Используется при logout и при TOKEN_REFRESHED_ERROR.
 
@@ -281,22 +247,22 @@ UserContext через `handleUserUpdate`. Требуется доработка
 
 | TD | Описание | Приоритет |
 |---|---|---|
-| **TD-001** | `users_profile.role` содержит мусор — удалить поле | Критический |
-| **TD-014** | Нет flow "Забыл пароль" | Средний |
-| **TD-015** | Нет верификации email при регистрации | Критический |
-| **TD-016** | Нет блокировки одноразовых email-адресов | Средний |
+| **TD-001** | ✅ ЗАКРЫТ 2026-05-03 — колонка `users_profile.role` удалена (миграции `20260503000001`+`20260503000002`); JS перешёл на `user.plan` | Закрыт |
+| **TD-014** | ✅ ЗАКРЫТ 2026-04-30 — полный recovery flow: ForgotPassword + UpdatePassword + listener PASSWORD_RECOVERY | Закрыт |
+| **TD-015** | ✅ ЗАКРЫТ 2026-04-30 — экраны EmailConfirmationPending + EmailConfirmedSuccess, обработка в signUp/signIn | Закрыт |
+| **TD-016** | ✅ ЗАКРЫТ 2026-05-05 — `src/utils/disposableEmails.js` (57 доменов), `authService.signUp` бросает `DISPOSABLE_EMAIL`, `Registration.js` показывает перевод `disposableEmailNotAllowed`. e2e 5/5 PASS | Закрыт |
 | **TD-017** | Триггер `handle_new_user()` не в файлах миграций — может потеряться при пересоздании БД | Критический |
-| **TD-018** | Хардкод email `korshun31@list.ru` в signUp() — убрать, назначать план через DB | Средний |
-| **TD-019** | Web: Login мелькает вместо Preloader при восстановлении сессии | Низкий |
-| **TD-020** | `handleUserUpdate` не обрабатывает системные поля (teamRole, plan и т.д.) | Средний |
-| **TD-031** | Слабые требования к паролю (6 символов, нет проверки популярных) | Критический |
-| **TD-032** | Нет защиты от brute force при логине | Критический |
-| **TD-033** | OAuth mobile — implicit flow вместо PKCE | Критический |
+| **TD-018** | ✅ ЗАКРЫТ 2026-04-27 — хардкод email удалён, тариф назначается через SQL Editor | Закрыт |
+| **TD-019** | ✅ ЗАКРЫТ 2026-04-30 — `App.js` рендерит `<Preloader />` на стадии preloader для обеих платформ | Закрыт |
+| **TD-020** | ✅ ЗАКРЫТ 2026-05-03 — `handleUserUpdate` идёт через `normalizeUser`, `initialUser` расширен до 20 канонических полей | Закрыт |
+| **TD-031** | ✅ ЗАКРЫТ (коммит `9f4ffec`) — пароль ≥ 8 символов плюс проверка по списку 30 популярных | Закрыт |
+| **TD-032** | ✅ ЗАКРЫТ 2026-04-27 — клиентская защита: 3 попытки на email → 60 сек блок, переживает reload | Закрыт |
+| **TD-033** | ✅ СНЯТ 2026-04-30 — OAuth-кнопки уходят из продукта; чистка остатков кода — TD-116 | Снят |
 | **TD-034** | signUp перезаписывает settings триггера (не merge) | Средний |
-| **TD-035** | getUserProfile — 5 последовательных запросов вместо 1 RPC | Средний |
-| **TD-036** | signInWithGoogle/Facebook — дублирование кода (~90 строк) | Низкий |
-| **TD-037** | Нет "Выйти со всех устройств" | Средний |
+| **TD-035** | ✅ ЗАКРЫТ 2026-05-03 — RPC `get_full_user_profile` с SECURITY DEFINER (миграция `20260503000003`); 1 запрос вместо 5 | Закрыт |
+| **TD-036** | ✅ СНЯТ 2026-05-03 — обе OAuth-функции удалены вместе с TD-116, дублировать больше нечего | Снят |
+| **TD-037** | ✅ ЗАКРЫТ 2026-05-03 — `signOut({ scope: 'global' })` + Alert/мини-модалка с тремя кнопками на мобайле и вебе | Закрыт |
 | **TD-038** | Нет удаления аккаунта (требование App Store, GDPR, PDPA) | Критический |
-| **TD-039** | Login.js — нет индикатора загрузки на кнопке входа | Низкий |
+| **TD-039** | ✅ ЗАКРЫТ 2026-04-30 — Login.js: loading state + disabled + текст «Сохранение…» во время входа | Закрыт |
 | **TD-040** | Экран регистрации не проверяет pending-приглашения — нужна проверка + модальное окно выбора + уведомления админу | Критический |
-| **TD-041** | OAuth flow не проверяет pending-приглашения — новый пользователь через Google/Facebook получит workspace, даже если на его email есть приглашение. Нужна проверка после первого OAuth-входа + модальное окно выбора. Не критично пока OAuth скрыт. | Средний |
+| **TD-041** | ✅ СНЯТ 2026-05-03 — OAuth удалён вместе с TD-116, проверять pending-приглашения для несуществующего входа не нужно | Снят |

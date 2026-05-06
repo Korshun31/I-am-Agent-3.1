@@ -152,7 +152,13 @@ export default function WebFlightTracker() {
         )}
 
         {/* Самолётик — кнопка (всегда в правом нижнем углу карточки) */}
-        <TouchableOpacity style={s.fabArea} onPress={toggle} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={s.fabArea}
+          onPress={toggle}
+          activeOpacity={0.8}
+          accessibilityLabel="Flight tracker"
+          {...(Platform.OS === 'web' ? { title: 'Flight tracker' } : {})}
+        >
           <Text style={s.fabIco}>✈</Text>
         </TouchableOpacity>
       </Animated.View>

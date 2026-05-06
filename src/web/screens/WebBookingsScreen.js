@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Image, TextInput, Pressable,
+  ActivityIndicator, TextInput, Pressable,
 } from 'react-native';
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
+import { getPropertyTypeColors } from '../constants/propertyTypeColors';
 
-import { getBookings, deleteBooking } from '../../services/bookingsService';
-import { getProperties } from '../../services/propertiesService';
-import { getContacts } from '../../services/contactsService';
+import { deleteBooking } from '../../services/bookingsService';
+import { useAppData } from '../../context/AppDataContext';
 import { supabase } from '../../services/supabase';
 import WebBookingEditPanel from '../components/WebBookingEditPanel';
+import WebBookingDetailPanel from '../components/WebBookingDetailPanel';
 import WebPropertyDetailPanel from '../components/WebPropertyDetailPanel';
+import { buildConfirmationHTML } from '../../services/bookingConfirmationService';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -30,6 +32,8 @@ const MONTH_W = 130;   // px per month column
 const ROW_H   = 48;    // px per property row
 const LEFT_W  = 130;   // px for left property name column
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
+// TD-095: список удобств для фильтра — синхронизирован с FilterBottomSheet (мобильный) и CURSOR_RULES 2.7.
+const FILTER_AMENITY_KEYS = ['swimming_pool', 'gym', 'parking', 'washing_machine'];
 
 const BOOKING_COLORS = [
   '#4FC3F7','#81C784','#FFB74D','#BA68C8',
@@ -38,11 +42,6 @@ const BOOKING_COLORS = [
   '#FFCC02','#80CBC4','#EF9A9A','#90A4AE',
 ];
 
-const TYPE_COLOR = {
-  house:  { border: '#C2920E', bg: '#FFFDE7', text: '#C2920E' },
-  resort: { border: '#2E7D32', bg: '#E8F5E9', text: '#2E7D32' },
-  condo:  { border: '#1565C0', bg: '#E3F2FD', text: '#1565C0' },
-};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,31 +51,12 @@ function getEffectiveType(prop) {
   return prop.effectiveType || prop.type || 'house';
 }
 
-function fmt(n, sym) {
-  if (n == null) return '—';
-  return Number(n).toLocaleString('ru-RU') + ' ' + (sym || '฿');
-}
-
-function fmtDate(d) {
-  if (!d) return '—';
-  return dayjs(d).format('DD.MM.YY');
-}
-
-function fmtDateLong(d) {
-  if (!d) return '—';
-  return dayjs(d).format('DD MMM YYYY');
-}
-
-function nightsCount(checkIn, checkOut) {
-  if (!checkIn || !checkOut) return 0;
-  return dayjs(checkOut).diff(dayjs(checkIn), 'day');
-}
-
-  // Build timeline: 12 months back → 24 months forward = ~37 months
+  // Build timeline: 36 months back → 36 months forward (~6 лет вокруг сегодня).
+  // TD-097: расширили окно, чтобы пикер года мог скроллить по диапазону.
   function buildMonths() {
     const today = dayjs();
-    const start = today.subtract(12, 'month').startOf('month');
-    const end   = today.add(24, 'month').endOf('month');
+    const start = today.subtract(36, 'month').startOf('month');
+    const end   = today.add(36, 'month').endOf('month');
     const months = [];
     let m = start;
     while (m.isBefore(end) || m.isSame(end, 'month')) {
@@ -151,399 +131,69 @@ function filterProperties(properties, bookings, filter, userId) {
   // 'myBookings' (agent) — только объекты с бронированиями самого агента
   if (filter === 'myBookings') {
     const agentProps = new Set(
-      bookings.filter(b => b.agentId === userId).map(b => b.propertyId)
+      bookings.filter(b => b.responsibleAgentId === userId).map(b => b.propertyId)
     );
     return properties.filter(p => agentProps.has(p.id));
   }
   return properties;
 }
 
-// ─── Booking Status Badge ─────────────────────────────────────────────────────
-
-function statusInfo(checkIn, checkOut, t) {
-  const today = dayjs();
-  const ci = dayjs(checkIn);
-  const co = dayjs(checkOut);
-  if (co.isBefore(today, 'day'))  return { label: t ? t('bookingStatusDone')     : 'Done',     color: C.muted,  bg: '#F0F0F0' };
-  if (ci.isAfter(today, 'day'))   return { label: t ? t('bookingStatusUpcoming') : 'Upcoming',  color: C.blue,   bg: C.blueBg };
-  return                                  { label: t ? t('bookingStatusActive')   : 'Active',   color: C.green,  bg: C.greenBg };
-}
-
-// ─── Booking Detail Panel ─────────────────────────────────────────────────────
-
-function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, user }) {
-  const { t } = useLanguage();
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-// Guard: agent can edit/delete only bookings they personally created (agentId = own id)
-const canEditBooking   = !user?.teamMembership || (booking?.agentId === user?.id && !!user?.teamPermissions?.can_book);
-const canDeleteBooking = !user?.teamMembership || booking?.agentId === user?.id;
-
-  if (!booking) return null;
-
-  const psym = getCurrencySymbol(property?.currency || 'THB');
-  const st = statusInfo(booking.checkIn, booking.checkOut, t);
-  const nights = nightsCount(booking.checkIn, booking.checkOut);
-  const tc = TYPE_COLOR[getEffectiveType(property)] || TYPE_COLOR.house;
-
-  const handleDelete = async () => {
-    setDeleting(true);
-    try {
-      await deleteBooking(booking.id);
-      onDelete();
-    } catch (e) {
-      if (e.message === 'BOOKING_DELETE_FORBIDDEN') {
-        alert(t('bookingDeleteForbidden') || 'Нет прав на удаление этого бронирования.');
-      } else {
-        alert(t('errorPrefix') + ' ' + e.message);
-      }
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  function Section({ title, children }) {
-    return (
-      <View style={d.section}>
-        <Text style={d.sectionTitle}>{title}</Text>
-        {children}
-      </View>
-    );
-  }
-
-  function InfoRow({ label, value, accent }) {
-    if (value == null || value === '' || value === '—') return null;
-    return (
-      <View style={d.infoRow}>
-        <Text style={d.infoLabel}>{label}</Text>
-        <Text style={[d.infoValue, accent && { color: ACCENT, fontWeight: '700' }]}>{value}</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={d.container}>
-      {/* Header */}
-      <View style={d.header}>
-        <View style={{ flex: 1 }}>
-          <View style={[d.statusBadge, { backgroundColor: st.bg }]}>
-            <Text style={[d.statusText, { color: st.color }]}>{st.label}</Text>
-          </View>
-          <Text style={d.propName} numberOfLines={1}>
-            {property?.name || t('bookingProperty')}
-          </Text>
-          <View style={d.propMeta}>
-            <View style={[d.typeDot, { backgroundColor: tc.border }]} />
-            <Text style={[d.propCode, { color: tc.text }]}>
-              {property?.code || ''}
-              {property?.code_suffix ? ` (${property.code_suffix})` : ''}
-            </Text>
-            {property?.city ? <Text style={d.propCity}> · {property.city}</Text> : null}
-          </View>
-        </View>
-        <View style={d.headerActions}>
-          {canEditBooking && (
-            <TouchableOpacity style={d.editBtn} onPress={onEdit}>
-              <Text style={d.editBtnText}>{t('edit')}</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity style={d.closeBtn} onPress={onClose}>
-            <Text style={d.closeBtnText}>✕</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {confirmDelete && (
-        <View style={d.confirmBar}>
-          <Text style={d.confirmText}>{t('bookingDeleteConfirm')}</Text>
-          <TouchableOpacity style={d.confirmYes} onPress={handleDelete} disabled={deleting}>
-            <Text style={d.confirmYesText}>{deleting ? '...' : t('delete')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={d.confirmNo} onPress={() => setConfirmDelete(false)}>
-            <Text style={d.confirmNoText}>{t('cancel')}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <ScrollView style={d.scroll} showsVerticalScrollIndicator={false}>
-        {/* Dates */}
-        <Section title={t('bookingSectionDates')}>
-          <View style={d.datesRow}>
-            <View style={d.dateBlock}>
-              <Text style={d.dateLabel}>{t('checkIn')}</Text>
-              <Text style={d.dateValue}>{fmtDateLong(booking.checkIn)}</Text>
-              {booking.checkInTime ? <Text style={d.dateTime}>{booking.checkInTime}</Text> : null}
-            </View>
-            <View style={d.dateSep}>
-              <Text style={d.dateSepLine}>→</Text>
-              <Text style={d.dateSepNights}>{nights} {t('nightsShort')}</Text>
-            </View>
-            <View style={d.dateBlock}>
-              <Text style={d.dateLabel}>{t('checkOut')}</Text>
-              <Text style={d.dateValue}>{fmtDateLong(booking.checkOut)}</Text>
-              {booking.checkOutTime ? <Text style={d.dateTime}>{booking.checkOutTime}</Text> : null}
-            </View>
-          </View>
-        </Section>
-
-        {/* Client */}
-        <Section title={t('bookingSectionClient')}>
-          {booking.notMyCustomer ? (
-            <Text style={d.ownerLabel}>{t('bookingNotMyClient')}</Text>
-          ) : (
-            <>
-              <InfoRow label={t('name')} value={contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() : '—'} />
-              <InfoRow label={t('bookingPassportId')} value={booking.passportId} />
-              {contact?.phone ? <InfoRow label={t('contactPhoneLabel')} value={contact.phone} /> : null}
-              {contact?.telegram ? <InfoRow label="Telegram" value={contact.telegram} /> : null}
-            </>
-          )}
-        </Section>
-
-        {/* Prices */}
-        <Section title={t('bookingSectionCost')}>
-          <InfoRow label={t('bookingRentMonthly')} value={fmt(booking.priceMonthly, psym)} accent />
-          <InfoRow label={t('bookingTotalLabel')} value={fmt(booking.totalPrice, psym)} accent />
-          <InfoRow label={t('bookingDepositLabel')} value={fmt(booking.bookingDeposit, psym)} />
-          <InfoRow label={t('bookingSaveDeposit')} value={fmt(booking.saveDeposit, psym)} />
-          <InfoRow label={t('bookingAgentComm')} value={fmt(booking.commission, psym)} />
-          <InfoRow
-            label={t('bookingOwnerCommOnce')}
-            value={booking.ownerCommissionOneTime != null
-              ? (property?.owner_commission_one_time_is_percent
-                  ? `${Number(booking.ownerCommissionOneTime).toLocaleString()}%`
-                  : fmt(booking.ownerCommissionOneTime, psym))
-              : null}
-          />
-          <InfoRow
-            label={t('bookingOwnerCommMonthly')}
-            value={booking.ownerCommissionMonthly != null
-              ? (property?.owner_commission_monthly_is_percent
-                  ? `${Number(booking.ownerCommissionMonthly).toLocaleString()}%`
-                  : fmt(booking.ownerCommissionMonthly, psym))
-              : null}
-          />
-        </Section>
-
-        {/* Guests */}
-        {(booking.adults || booking.children || booking.pets) ? (
-          <Section title={t('bookingSectionGuests')}>
-            <InfoRow label={t('bookingAdultsLabel')} value={booking.adults} />
-            <InfoRow label={t('bookingChildrenLabel')} value={booking.children} />
-            {booking.pets ? <InfoRow label={t('bookingHasPets')} value="✓" /> : null}
-          </Section>
-        ) : null}
-
-        {/* Comments */}
-        {booking.comments ? (
-          <Section title={t('bookingSectionComment')}>
-            <Text style={d.commentText}>{booking.comments}</Text>
-          </Section>
-        ) : null}
-
-        {/* Photos */}
-        {booking.photos?.length > 0 ? (
-          <Section title={t('bookingSectionPhotos')}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
-              {booking.photos.map((url, i) => (
-                <Image key={i} source={{ uri: url }} style={d.photo} resizeMode="cover" />
-              ))}
-            </ScrollView>
-          </Section>
-        ) : null}
-
-        {/* Delete — только своё бронирование и при наличии разрешения */}
-        {canDeleteBooking && (
-          <View style={d.deleteRow}>
-            <TouchableOpacity
-              style={d.deleteBtn}
-              onPress={() => setConfirmDelete(true)}
-            >
-              <Text style={d.deleteBtnText}>{t('delete')}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={{ height: 32 }} />
-      </ScrollView>
-    </View>
-  );
-}
-
-const d = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.surface, borderLeftWidth: 1, borderLeftColor: C.border },
-  header: { flexDirection: 'row', alignItems: 'flex-start', padding: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: C.border },
-  statusBadge: { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 6 },
-  statusText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
-  propName: { fontSize: 17, fontWeight: '700', color: C.text, marginBottom: 4 },
-  propMeta: { flexDirection: 'row', alignItems: 'center' },
-  typeDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
-  propCode: { fontSize: 13, fontWeight: '700' },
-  propCity: { fontSize: 13, color: C.muted },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 12 },
-  editBtn: {
-    backgroundColor: '#EAF4F5',
-    borderRadius: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderWidth: 1.5,
-    borderColor: '#B2D8DB',
-  },
-  editBtnText: { fontSize: 14, color: '#3D7D82', fontWeight: '700' },
-  closeBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  closeBtnText: { fontSize: 18, color: C.muted },
-  confirmBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3F3', padding: 12, borderBottomWidth: 1, borderBottomColor: '#FFCDD2', gap: 8 },
-  confirmText: { flex: 1, fontSize: 13, color: C.text },
-  confirmYes: { backgroundColor: '#E53935', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6 },
-  confirmYesText: { fontSize: 12, color: '#FFF', fontWeight: '700' },
-  confirmNo: { borderWidth: 1, borderColor: C.border, borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6 },
-  confirmNoText: { fontSize: 12, color: C.muted },
-  scroll: { flex: 1 },
-  section: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: C.border },
-  sectionTitle: { fontSize: 10, fontWeight: '800', color: C.light, letterSpacing: 1, marginBottom: 10 },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
-  infoLabel: { fontSize: 13, color: C.muted, flex: 1 },
-  infoValue: { fontSize: 13, color: C.text, fontWeight: '500', textAlign: 'right', flex: 1 },
-  datesRow: { flexDirection: 'row', alignItems: 'center' },
-  dateBlock: { flex: 1 },
-  dateLabel: { fontSize: 11, color: C.light, fontWeight: '700', letterSpacing: 0.5, marginBottom: 3 },
-  dateValue: { fontSize: 14, color: C.text, fontWeight: '600' },
-  dateTime: { fontSize: 12, color: C.muted, marginTop: 2 },
-  dateSep: { alignItems: 'center', paddingHorizontal: 12 },
-  dateSepLine: { fontSize: 16, color: C.light },
-  dateSepNights: { fontSize: 11, color: C.muted, marginTop: 2 },
-  ownerLabel: { fontSize: 14, color: C.muted, fontStyle: 'italic', paddingVertical: 4 },
-  commentText: { fontSize: 13, color: C.text, lineHeight: 20 },
-  photo: { width: 90, height: 90, borderRadius: 8, marginRight: 8 },
-  deleteRow: { padding: 20, paddingBottom: 0 },
-  deleteBtn: { borderWidth: 1, borderColor: '#FFCDD2', borderRadius: 8, padding: 12, alignItems: 'center' },
-  deleteBtnText: { fontSize: 13, color: '#E53935', fontWeight: '600' },
-});
-
 // ─── Gantt Chart ──────────────────────────────────────────────────────────────
-
-
-// ─── List View ────────────────────────────────────────────────────────────────
-
-function ListView({ bookings, properties, contacts, colorMap, onSelectBooking, selectedBookingId }) {
-  const { t } = useLanguage();
-  const today = dayjs().format('YYYY-MM-DD');
-
-  const upcoming = bookings.filter(b => b.checkIn > today).sort((a, b) => a.checkIn.localeCompare(b.checkIn));
-  const current  = bookings.filter(b => b.checkIn <= today && b.checkOut >= today).sort((a, b) => a.checkOut.localeCompare(b.checkOut));
-  const past     = bookings.filter(b => b.checkOut < today).sort((a, b) => b.checkOut.localeCompare(a.checkOut));
-
-  function Group({ title, color, items }) {
-    if (!items.length) return null;
-    return (
-      <View style={lv.group}>
-        <View style={[lv.groupHeader, { borderLeftColor: color }]}>
-          <Text style={[lv.groupTitle, { color }]}>{title}</Text>
-          <Text style={lv.groupCount}>{items.length}</Text>
-        </View>
-        {items.map(bk => {
-          const prop = properties.find(p => p.id === bk.propertyId);
-          const contact = contacts.find(c => c.id === bk.contactId);
-          const tc = TYPE_COLOR[getEffectiveType(prop)] || TYPE_COLOR.house;
-          const color = colorMap[bk.id] || '#90A4AE';
-          const isSelected = bk.id === selectedBookingId;
-          const nights = nightsCount(bk.checkIn, bk.checkOut);
-          const fullCode = prop ? (prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '')) : '—';
-          const clientName = bk.notMyCustomer
-            ? t('bookingNotMyClient')
-            : (contact ? `${contact.name || ''} ${contact.lastName || ''}`.trim() || '—' : '—');
-
-          return (
-            <TouchableOpacity
-              key={bk.id}
-              style={[lv.row, isSelected && lv.rowSelected]}
-              onPress={() => onSelectBooking(bk)}
-              activeOpacity={0.75}
-            >
-              <View style={[lv.colorDot, { backgroundColor: color }]} />
-              <View style={[lv.codeChip, { borderColor: tc.border, backgroundColor: tc.bg }]}>
-                <Text style={[lv.codeText, { color: tc.text }]}>{fullCode}</Text>
-              </View>
-              <View style={lv.propInfo}>
-                <Text style={lv.propName} numberOfLines={1}>{prop?.name || '—'}</Text>
-                <Text style={lv.clientName} numberOfLines={1}>{clientName}</Text>
-              </View>
-              <View style={lv.dates}>
-                <Text style={lv.dateIn}>{fmtDate(bk.checkIn)}</Text>
-                <Text style={lv.dateArrow}>→</Text>
-                <Text style={lv.dateOut}>{fmtDate(bk.checkOut)}</Text>
-                <Text style={lv.nights}>{nights}{t('bookingNights')[0]}</Text>
-              </View>
-              <View style={lv.price}>
-                {bk.totalPrice ? (
-                  <Text style={lv.priceText}>{Number(bk.totalPrice).toLocaleString('ru-RU')} {getCurrencySymbol(prop?.currency || 'THB')}</Text>
-                ) : (
-                  <Text style={lv.priceEmpty}>—</Text>
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView style={lv.scroll} showsVerticalScrollIndicator={false}>
-      <Group title={t('bookingStatusActive')}   color={C.green} items={current}  />
-      <Group title={t('bookingStatusUpcoming')} color={C.blue}  items={upcoming} />
-      <Group title={t('bookingStatusDone')}     color={C.muted} items={past}     />
-      <View style={{ height: 40 }} />
-    </ScrollView>
-  );
-}
-
-const lv = StyleSheet.create({
-  scroll: { flex: 1 },
-  group: { marginBottom: 4 },
-  groupHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, borderLeftWidth: 3, backgroundColor: '#FAFBFC', borderBottomWidth: 1, borderBottomColor: C.border },
-  groupTitle: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-  groupCount: { marginLeft: 8, fontSize: 12, color: C.muted, fontWeight: '600' },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.surface, gap: 10 },
-  rowSelected: { backgroundColor: '#EAF4F5' },
-  colorDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
-  codeChip: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, flexShrink: 0 },
-  codeText: { fontSize: 11, fontWeight: '700' },
-  propInfo: { flex: 1, minWidth: 0 },
-  propName: { fontSize: 13, color: C.text, fontWeight: '600' },
-  clientName: { fontSize: 12, color: C.muted, marginTop: 1 },
-  dates: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
-  dateIn: { fontSize: 12, color: C.text, fontWeight: '500' },
-  dateArrow: { fontSize: 11, color: C.light },
-  dateOut: { fontSize: 12, color: C.text, fontWeight: '500' },
-  nights: { fontSize: 11, color: C.muted, marginLeft: 4 },
-  price: { minWidth: 90, alignItems: 'flex-end', flexShrink: 0 },
-  priceText: { fontSize: 13, color: ACCENT, fontWeight: '700' },
-  priceEmpty: { fontSize: 13, color: C.light },
-});
 
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export default function WebBookingsScreen({ user, refreshKey }) {
+function WebBookingsScreenInner({ user }) {
   const { t } = useLanguage();
-  const [bookings, setBookings]     = useState([]);
-  const [properties, setProperties] = useState([]);
-  const [contacts, setContacts]     = useState([]);
-  const [owners, setOwners]         = useState([]);
-  const [loading, setLoading]       = useState(true);
+  const {
+    bookings,
+    properties: ctxProperties,
+    contacts,
+    teamMembers,
+    bookingsLoading, propertiesLoading, contactsLoading,
+    refreshBookings, refreshProperties,
+  } = useAppData();
+  const owners = useMemo(() => (contacts || []).filter(c => c.type === 'owners'), [contacts]);
+  const properties = useMemo(() => {
+    const parentMap = {};
+    (ctxProperties || []).forEach(p => { parentMap[p.id] = p; });
+    return (ctxProperties || [])
+      .filter(p => p.parent_id || HOUSE_LIKE_TYPES.has(p.type))
+      .map(p => {
+        if (p.parent_id) {
+          const parent = parentMap[p.parent_id];
+          return { ...p, effectiveType: parent?.type || 'resort' };
+        }
+        return { ...p, effectiveType: 'house' };
+      });
+  }, [ctxProperties]);
+  const loading = bookingsLoading || propertiesLoading || contactsLoading;
   const [myCompanyName, setMyCompanyName] = useState('');
-  const [viewMode, setViewMode]     = useState('gantt'); // 'gantt' | 'list'
   const [propFilter, setPropFilter] = useState('all');   // 'all' | 'mine'
+  const [cityFilters, setCityFilters] = useState([]); // TD-092: multi-select
+  const [typeFilters, setTypeFilters] = useState([]); // TD-093: multi-select 'house' | 'resort' | 'condo'
   const [districtFilters, setDistrictFilters] = useState([]); // multi-select
   const [bedroomsFilters, setBedroomsFilters] = useState([]); // multi-select
+  const [priceMin, setPriceMin]   = useState(''); // TD-094
+  const [priceMax, setPriceMax]   = useState(''); // TD-094
+  const [amenityFilters, setAmenityFilters] = useState([]); // TD-095
   const [petsFilter, setPetsFilter]           = useState(false);
   const [longTermFilter, setLongTermFilter]   = useState(false);
+  const [responsibleFilter, setResponsibleFilter] = useState('all'); // 'all' | 'none' | <agentUserId>
+  const [cityOpen, setCityOpen]         = useState(false);
+  const [typeOpen, setTypeOpen]         = useState(false);
   const [districtOpen, setDistrictOpen] = useState(false);
   const [bedroomsOpen, setBedroomsOpen] = useState(false);
+  const [amenityOpen, setAmenityOpen]   = useState(false);
+  const [yearOpen, setYearOpen]         = useState(false); // TD-097
+  const [responsibleOpen, setResponsibleOpen] = useState(false);
+  const cityLeaveTimer     = useRef(null);
+  const typeLeaveTimer     = useRef(null);
   const districtLeaveTimer = useRef(null);
   const bedroomsLeaveTimer = useRef(null);
+  const amenityLeaveTimer  = useRef(null);
+  const yearLeaveTimer     = useRef(null);
+  const responsibleLeaveTimer = useRef(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [editPanelMode, setEditPanelMode]     = useState(null); // null | 'create' | 'edit'
   const [createTemplate, setCreateTemplate]   = useState(null);
@@ -552,9 +202,31 @@ export default function WebBookingsScreen({ user, refreshKey }) {
 
   const months   = useMemo(() => buildMonths(), []);
   const totalW   = useMemo(() => timelineWidth(months), [months]);
+  // TD-097: список годов для пикера — на основе диапазона months.
+  const yearOptions = useMemo(() => {
+    const set = new Set(months.map(m => m.year()));
+    return [...set].sort((a, b) => a - b);
+  }, [months]);
+  const handleYearJump = (year) => {
+    const targetX = dateToPx(`${year}-01-01`, months);
+    const node = ganttScrollRef.current;
+    if (node) node.scrollLeft = Math.max(0, targetX);
+    setYearOpen(false);
+  };
+  // Общий helper: закрывает все dropdown'ы кроме указанного. Предотвращает
+  // ситуацию когда два списка открыты одновременно.
+  const closeOtherDropdowns = (except) => {
+    if (except !== 'city')        setCityOpen(false);
+    if (except !== 'type')        setTypeOpen(false);
+    if (except !== 'district')    setDistrictOpen(false);
+    if (except !== 'bedrooms')    setBedroomsOpen(false);
+    if (except !== 'amenity')     setAmenityOpen(false);
+    if (except !== 'year')        setYearOpen(false);
+    if (except !== 'responsible') setResponsibleOpen(false);
+  };
   const colorMap = useMemo(() => assignColors(bookings), [bookings]);
 
-  const canCreate = !user?.teamMembership || !!user?.teamPermissions?.can_book;
+  const canCreate = !user?.teamMembership || !!user?.teamPermissions?.can_manage_bookings;
 
   const handleGanttCellPress = (prop, date) => {
     setCreateTemplate({ propertyId: prop.id, checkIn: date });
@@ -586,48 +258,15 @@ export default function WebBookingsScreen({ user, refreshKey }) {
 
   const ganttScrollRef = useRef(null); // single scroll container for gantt
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const agentId = user?.teamMembership ? user.id : null;
-      const [bk, pr, co, ow] = await Promise.all([
-        getBookings(null, null, agentId),
-        getProperties(agentId),
-        getContacts('clients'),
-        getContacts('owners'),
-      ]);
-      setBookings(bk);
-      // Build parent map for effective type resolution
-      const parentMap = {};
-      pr.forEach(p => { parentMap[p.id] = p; });
-      // Only bookable units: standalone houses + all child units (houses in resorts, apartments in condos)
-      // Child units can have type 'house', 'resort', or 'condo' in DB depending on parent type
-      const bookable = pr
-        .filter(p => p.resort_id || HOUSE_LIKE_TYPES.has(p.type))
-        .map(p => {
-          if (p.resort_id) {
-            const parent = parentMap[p.resort_id];
-            return { ...p, effectiveType: parent?.type || 'resort' };
-          }
-          return { ...p, effectiveType: 'house' };
-        });
-      setProperties(bookable);
-      setContacts(co);
-      setOwners(ow);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (refreshKey) load(); }, [refreshKey]);
+  const reload = useCallback(() => {
+    refreshBookings();
+    refreshProperties();
+  }, [refreshBookings, refreshProperties]);
 
 
   // Auto-scroll gantt so current month is the 2nd visible column
   useEffect(() => {
-    if (!loading && viewMode === 'gantt') {
+    if (!loading) {
       const currentMonthX = dateToPx(dayjs().startOf('month').format('YYYY-MM-DD'), months);
       const offset = Math.max(0, currentMonthX - MONTH_W);
       setTimeout(() => {
@@ -635,7 +274,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
         if (node) node.scrollLeft = offset;
       }, 150);
     }
-  }, [loading, viewMode]);
+  }, [loading]);
 
   const selectedProperty = selectedBooking
     ? properties.find(p => p.id === selectedBooking.propertyId)
@@ -644,50 +283,108 @@ export default function WebBookingsScreen({ user, refreshKey }) {
     ? contacts.find(c => c.id === selectedBooking.contactId)
     : null;
 
-  // Уникальные районы из загруженных объектов
+  const handlePrintConfirmation = (booking) => {
+    try {
+      const property = properties.find(p => p.id === booking.propertyId);
+      const contact = contacts.find(c => c.id === booking.contactId);
+      const allBookings = bookings.filter(b => b.propertyId === booking.propertyId);
+      const idx = allBookings
+        .sort((a, b) => new Date(a.createdAt || a.checkIn) - new Date(b.createdAt || b.checkIn))
+        .findIndex(b => b.id === booking.id);
+      const year = new Date(booking.checkIn).getFullYear();
+      const confirmationNumber = `${idx >= 0 ? idx + 1 : 1}/${String(year % 100).padStart(2, '0')}`;
+      const html = buildConfirmationHTML({
+        booking,
+        property: property || {},
+        contact: contact || {},
+        profile: user || {},
+        confirmationNumber,
+        language: t('lang') || 'en',
+      });
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        setTimeout(() => printWindow.print(), 500);
+      }
+    } catch (e) {
+      alert(e.message || 'Error generating confirmation');
+    }
+  };
+
+  // Уникальные города и районы из загруженных объектов
+  const uniqueCities = useMemo(() =>
+    [...new Set(properties.map(p => p.city).filter(Boolean))].sort(),
+  [properties]);
   const uniqueDistricts = useMemo(() =>
     [...new Set(properties.map(p => p.district).filter(Boolean))].sort(),
   [properties]);
 
+  // Активные агенты команды у которых есть хотя бы один назначенный дом
+  const responsibleAgents = useMemo(() => {
+    const agentIdsWithProps = new Set(
+      properties.map(p => p.responsible_agent_id).filter(Boolean)
+    );
+    return (teamMembers || [])
+      .filter(m => agentIdsWithProps.has(m.user_id ?? m.id))
+      .map(m => ({
+        id: m.user_id ?? m.id,
+        name: ([m.name, m.last_name || m.lastName].filter(Boolean).join(' ') || m.email || '—'),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [properties, teamMembers]);
+
+  const hasUnassignedProperty = useMemo(
+    () => properties.some(p => !p.responsible_agent_id),
+    [properties]
+  );
+
   // Filter + search properties
   const visibleProps = useMemo(() => {
     let result = filterProperties(properties, bookings, propFilter, user?.id);
+    if (cityFilters.length > 0)     result = result.filter(p => cityFilters.includes(p.city));
+    if (typeFilters.length > 0)     result = result.filter(p => typeFilters.includes(p.effectiveType || p.type));
     if (districtFilters.length > 0) result = result.filter(p => districtFilters.includes(p.district));
     if (bedroomsFilters.length > 0) result = result.filter(p => bedroomsFilters.includes(p.bedrooms));
+    // TD-094: фильтр по цене price_monthly. Если поле null/0 — объект не пройдёт фильтр.
+    const minNum = parseFloat(priceMin);
+    const maxNum = parseFloat(priceMax);
+    if (Number.isFinite(minNum)) result = result.filter(p => Number(p.price_monthly) >= minNum);
+    if (Number.isFinite(maxNum)) result = result.filter(p => Number(p.price_monthly) <= maxNum);
+    // TD-095: удобства хранятся как объект { swimming_pool: true, gym: false, ... }.
+    // Объект пройдёт фильтр только если у него все выбранные удобства === true.
+    if (amenityFilters.length > 0) {
+      result = result.filter(p => {
+        const am = p.amenities || {};
+        return amenityFilters.every(a => am[a]);
+      });
+    }
     if (petsFilter)     result = result.filter(p => p.pets_allowed);
     if (longTermFilter) result = result.filter(p => p.long_term_booking);
+    if (responsibleFilter === 'none') {
+      result = result.filter(p => !p.responsible_agent_id);
+    } else if (responsibleFilter !== 'all') {
+      result = result.filter(p => p.responsible_agent_id === responsibleFilter);
+    }
     if (search.trim()) {
+      // TD-096: поиск по коду, имени объекта, имени собственника (owner_id и owner_id_2).
       const q = search.trim().toLowerCase();
+      const ownerName = (id) => {
+        if (!id) return '';
+        const o = owners.find(x => x.id === id);
+        if (!o) return '';
+        return [o.name, o.lastName].filter(Boolean).join(' ').toLowerCase();
+      };
       result = result.filter(p =>
-        (p.name || '').toLowerCase().includes(q) ||
         (p.code || '').toLowerCase().includes(q) ||
-        (p.district || '').toLowerCase().includes(q)
+        (p.name || '').toLowerCase().includes(q) ||
+        ownerName(p.owner_id).includes(q) ||
+        ownerName(p.owner_id_2).includes(q)
       );
     }
     return result;
-  }, [properties, bookings, propFilter, districtFilters, bedroomsFilters, petsFilter, longTermFilter, search]);
+  }, [properties, bookings, propFilter, cityFilters, typeFilters, districtFilters, bedroomsFilters, priceMin, priceMax, amenityFilters, petsFilter, longTermFilter, responsibleFilter, search, owners]);
 
-  const visibleBookings = useMemo(() => {
-    if (viewMode !== 'list') return bookings;
-    let result = bookings;
-    if (propFilter === 'mine') result = result.filter(b => !b.notMyCustomer);
-    if (propFilter === 'company') result = result.filter(b => !b.notMyCustomer);
-    if (propFilter === 'myBookings') result = result.filter(b => b.agentId === user?.id);
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      result = result.filter(b => {
-        const prop = properties.find(p => p.id === b.propertyId);
-        const contact = contacts.find(c => c.id === b.contactId);
-        return (prop?.name || '').toLowerCase().includes(q) ||
-          (prop?.code || '').toLowerCase().includes(q) ||
-          (contact?.name || '').toLowerCase().includes(q) ||
-          (contact?.lastName || '').toLowerCase().includes(q);
-      });
-    }
-    return result;
-  }, [bookings, properties, contacts, viewMode, search, propFilter]);
-
-  const showDetail = !!selectedBooking;
 
   if (loading) {
     return (
@@ -720,7 +417,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
               </TouchableOpacity>
             )}
           </View>
-          {(!user?.teamMembership || user?.teamPermissions?.can_book) && (
+          {(!user?.teamMembership || user?.teamPermissions?.can_manage_bookings) && (
             <TouchableOpacity style={s.addBtn} onPress={() => { setCreateTemplate(null); setSelectedBooking(null); setEditPanelMode('create'); }}>
               <Text style={s.addBtnText}>+ {t('bookingsAddBtn')}</Text>
             </TouchableOpacity>
@@ -753,6 +450,85 @@ export default function WebBookingsScreen({ user, refreshKey }) {
               ))}
             </View>
 
+            {/* TD-092: Dropdown — Город (мультивыбор) */}
+            <View
+              style={s.dropdownWrap}
+              onMouseEnter={() => { if (cityLeaveTimer.current) clearTimeout(cityLeaveTimer.current); }}
+              onMouseLeave={() => { cityLeaveTimer.current = setTimeout(() => setCityOpen(false), 300); }}
+            >
+              <TouchableOpacity
+                style={[s.dropdownBtn, cityFilters.length > 0 && s.dropdownBtnActive]}
+                onPress={() => { closeOtherDropdowns('city'); setCityOpen(o => !o); }}
+              >
+                <Text style={[s.dropdownBtnText, cityFilters.length > 0 && s.dropdownBtnTextActive]}>
+                  {cityFilters.length > 0 ? `${t('filterCity')} (${cityFilters.length})` : t('filterCity')} ▾
+                </Text>
+              </TouchableOpacity>
+              {cityOpen && (
+                <View style={s.dropdownList}>
+                  {uniqueCities.map(c => {
+                    const selected = cityFilters.includes(c);
+                    return (
+                      <TouchableOpacity
+                        key={c} style={s.dropdownItem}
+                        onPress={() => setCityFilters(prev =>
+                          selected ? prev.filter(x => x !== c) : [...prev, c]
+                        )}
+                      >
+                        <View style={s.dropdownItemRow}>
+                          <View style={[s.dropdownCheckbox, selected && s.dropdownCheckboxChecked]}>
+                            {selected && <Text style={s.dropdownCheckmark}>✓</Text>}
+                          </View>
+                          <Text style={[s.dropdownItemText, selected && s.dropdownItemTextActive]}>{c}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {uniqueCities.length === 0 && (
+                    <Text style={s.dropdownEmpty}>{t('noData')}</Text>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* TD-093: Dropdown — Тип объекта (мультивыбор: house/resort/condo) */}
+            <View
+              style={s.dropdownWrap}
+              onMouseEnter={() => { if (typeLeaveTimer.current) clearTimeout(typeLeaveTimer.current); }}
+              onMouseLeave={() => { typeLeaveTimer.current = setTimeout(() => setTypeOpen(false), 300); }}
+            >
+              <TouchableOpacity
+                style={[s.dropdownBtn, typeFilters.length > 0 && s.dropdownBtnActive]}
+                onPress={() => { closeOtherDropdowns('type'); setTypeOpen(o => !o); }}
+              >
+                <Text style={[s.dropdownBtnText, typeFilters.length > 0 && s.dropdownBtnTextActive]}>
+                  {typeFilters.length > 0 ? `${t('filterType')} (${typeFilters.length})` : t('filterType')} ▾
+                </Text>
+              </TouchableOpacity>
+              {typeOpen && (
+                <View style={s.dropdownList}>
+                  {['house', 'resort', 'condo'].map(typeKey => {
+                    const selected = typeFilters.includes(typeKey);
+                    return (
+                      <TouchableOpacity
+                        key={typeKey} style={s.dropdownItem}
+                        onPress={() => setTypeFilters(prev =>
+                          selected ? prev.filter(x => x !== typeKey) : [...prev, typeKey]
+                        )}
+                      >
+                        <View style={s.dropdownItemRow}>
+                          <View style={[s.dropdownCheckbox, selected && s.dropdownCheckboxChecked]}>
+                            {selected && <Text style={s.dropdownCheckmark}>✓</Text>}
+                          </View>
+                          <Text style={[s.dropdownItemText, selected && s.dropdownItemTextActive]}>{t(typeKey)}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+
             {/* Dropdown: Район (мультивыбор) */}
             <View
               style={s.dropdownWrap}
@@ -761,7 +537,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
             >
               <TouchableOpacity
                 style={[s.dropdownBtn, districtFilters.length > 0 && s.dropdownBtnActive]}
-                onPress={() => { setDistrictOpen(o => !o); setBedroomsOpen(false); }}
+                onPress={() => { closeOtherDropdowns('district'); setDistrictOpen(o => !o); }}
               >
                 <Text style={[s.dropdownBtnText, districtFilters.length > 0 && s.dropdownBtnTextActive]}>
                   {districtFilters.length > 0 ? `${t('filterDistrict')} (${districtFilters.length})` : t('filterDistrict')} ▾
@@ -802,7 +578,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
             >
               <TouchableOpacity
                 style={[s.dropdownBtn, bedroomsFilters.length > 0 && s.dropdownBtnActive]}
-                onPress={() => { setBedroomsOpen(o => !o); setDistrictOpen(false); }}
+                onPress={() => { closeOtherDropdowns('bedrooms'); setBedroomsOpen(o => !o); }}
               >
                 <Text style={[s.dropdownBtnText, bedroomsFilters.length > 0 && s.dropdownBtnTextActive]}>
                   {bedroomsFilters.length > 0 ? `${t('filterBedrooms')} (${bedroomsFilters.length})` : t('filterBedrooms')} ▾
@@ -833,6 +609,162 @@ export default function WebBookingsScreen({ user, refreshKey }) {
               )}
             </View>
 
+            {/* TD-094: Цена аренды от/до */}
+            <View style={s.priceRangeWrap}>
+              <TextInput
+                style={[s.priceInput, priceMin && s.priceInputActive]}
+                placeholder={t('filterPriceFromPlaceholder') || (t('priceFrom') || 'from')}
+                placeholderTextColor="#999"
+                value={priceMin}
+                onChangeText={(v) => setPriceMin(v.replace(/[^0-9]/g, ''))}
+                keyboardType="numeric"
+              />
+              <Text style={s.priceRangeDash}>—</Text>
+              <TextInput
+                style={[s.priceInput, priceMax && s.priceInputActive]}
+                placeholder={t('filterPriceToPlaceholder') || (t('priceTo') || 'to')}
+                placeholderTextColor="#999"
+                value={priceMax}
+                onChangeText={(v) => setPriceMax(v.replace(/[^0-9]/g, ''))}
+                keyboardType="numeric"
+              />
+            </View>
+
+            {/* TD-095: Dropdown — Удобства (мультивыбор: бассейн/спортзал/парковка/стиралка) */}
+            <View
+              style={s.dropdownWrap}
+              onMouseEnter={() => { if (amenityLeaveTimer.current) clearTimeout(amenityLeaveTimer.current); }}
+              onMouseLeave={() => { amenityLeaveTimer.current = setTimeout(() => setAmenityOpen(false), 300); }}
+            >
+              <TouchableOpacity
+                style={[s.dropdownBtn, amenityFilters.length > 0 && s.dropdownBtnActive]}
+                onPress={() => { closeOtherDropdowns('amenity'); setAmenityOpen(o => !o); }}
+              >
+                <Text style={[s.dropdownBtnText, amenityFilters.length > 0 && s.dropdownBtnTextActive]}>
+                  {amenityFilters.length > 0 ? `${t('filterAmenities')} (${amenityFilters.length})` : t('filterAmenities')} ▾
+                </Text>
+              </TouchableOpacity>
+              {amenityOpen && (
+                <View style={s.dropdownList}>
+                  {FILTER_AMENITY_KEYS.map(key => {
+                    const selected = amenityFilters.includes(key);
+                    return (
+                      <TouchableOpacity
+                        key={key} style={s.dropdownItem}
+                        onPress={() => setAmenityFilters(prev =>
+                          selected ? prev.filter(x => x !== key) : [...prev, key]
+                        )}
+                      >
+                        <View style={s.dropdownItemRow}>
+                          <View style={[s.dropdownCheckbox, selected && s.dropdownCheckboxChecked]}>
+                            {selected && <Text style={s.dropdownCheckmark}>✓</Text>}
+                          </View>
+                          <Text style={[s.dropdownItemText, selected && s.dropdownItemTextActive]}>{t('amenity_' + key)}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+
+            {/* TD-097: Dropdown — Год (Gantt jump) */}
+            <View
+              style={s.dropdownWrap}
+              onMouseEnter={() => { if (yearLeaveTimer.current) clearTimeout(yearLeaveTimer.current); }}
+              onMouseLeave={() => { yearLeaveTimer.current = setTimeout(() => setYearOpen(false), 300); }}
+            >
+              <TouchableOpacity
+                style={s.dropdownBtn}
+                onPress={() => { closeOtherDropdowns('year'); setYearOpen(o => !o); }}
+              >
+                <Text style={s.dropdownBtnText}>{t('filterYear')} ▾</Text>
+              </TouchableOpacity>
+              {yearOpen && (
+                <View style={s.dropdownList}>
+                  {yearOptions.map(year => (
+                    <TouchableOpacity
+                      key={year} style={s.dropdownItem}
+                      onPress={() => handleYearJump(year)}
+                    >
+                      <Text style={s.dropdownItemText}>{year}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Dropdown: Ответственный (single-select, только админу) */}
+            {!user?.teamMembership && (responsibleAgents.length > 0 || hasUnassignedProperty) && (
+              <View
+                style={s.dropdownWrap}
+                onMouseEnter={() => { if (responsibleLeaveTimer.current) clearTimeout(responsibleLeaveTimer.current); }}
+                onMouseLeave={() => { responsibleLeaveTimer.current = setTimeout(() => setResponsibleOpen(false), 300); }}
+              >
+                <TouchableOpacity
+                  style={[s.dropdownBtn, responsibleFilter !== 'all' && s.dropdownBtnActive]}
+                  onPress={() => { closeOtherDropdowns('responsible'); setResponsibleOpen(o => !o); }}
+                >
+                  <Text style={[s.dropdownBtnText, responsibleFilter !== 'all' && s.dropdownBtnTextActive]}>
+                    {(() => {
+                      if (responsibleFilter === 'all') return `${t('filterResponsible')} ▾`;
+                      if (responsibleFilter === 'none') return `${t('filterResponsibleNone')} ▾`;
+                      const a = responsibleAgents.find(x => x.id === responsibleFilter);
+                      return `${a ? a.name : t('filterResponsible')} ▾`;
+                    })()}
+                  </Text>
+                </TouchableOpacity>
+                {responsibleOpen && (
+                  <View style={s.dropdownList}>
+                    <TouchableOpacity
+                      style={s.dropdownItem}
+                      onPress={() => { setResponsibleFilter('all'); setResponsibleOpen(false); }}
+                    >
+                      <View style={s.dropdownItemRow}>
+                        <View style={[s.dropdownRadio, responsibleFilter === 'all' && s.dropdownRadioChecked]}>
+                          {responsibleFilter === 'all' && <View style={s.dropdownRadioDot} />}
+                        </View>
+                        <Text style={[s.dropdownItemText, responsibleFilter === 'all' && s.dropdownItemTextActive]}>
+                          {t('filterResponsibleAll')}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                    {responsibleAgents.map(a => {
+                      const selected = responsibleFilter === a.id;
+                      return (
+                        <TouchableOpacity
+                          key={a.id} style={s.dropdownItem}
+                          onPress={() => { setResponsibleFilter(a.id); setResponsibleOpen(false); }}
+                        >
+                          <View style={s.dropdownItemRow}>
+                            <View style={[s.dropdownRadio, selected && s.dropdownRadioChecked]}>
+                              {selected && <View style={s.dropdownRadioDot} />}
+                            </View>
+                            <Text style={[s.dropdownItemText, selected && s.dropdownItemTextActive]}>{a.name}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                    {hasUnassignedProperty && (
+                      <TouchableOpacity
+                        style={s.dropdownItem}
+                        onPress={() => { setResponsibleFilter('none'); setResponsibleOpen(false); }}
+                      >
+                        <View style={s.dropdownItemRow}>
+                          <View style={[s.dropdownRadio, responsibleFilter === 'none' && s.dropdownRadioChecked]}>
+                            {responsibleFilter === 'none' && <View style={s.dropdownRadioDot} />}
+                          </View>
+                          <Text style={[s.dropdownItemText, responsibleFilter === 'none' && s.dropdownItemTextActive]}>
+                            {t('filterResponsibleNone')}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Разделитель */}
             <View style={s.filterDivider} />
 
@@ -853,15 +785,23 @@ export default function WebBookingsScreen({ user, refreshKey }) {
             </TouchableOpacity>
 
             {/* Кнопка сброса всех фильтров */}
-            {(districtFilters.length > 0 || bedroomsFilters.length > 0 || petsFilter || longTermFilter || propFilter !== 'all') && (
+            {(cityFilters.length > 0 || typeFilters.length > 0 || districtFilters.length > 0 || bedroomsFilters.length > 0
+              || amenityFilters.length > 0 || priceMin || priceMax
+              || petsFilter || longTermFilter || propFilter !== 'all' || responsibleFilter !== 'all') && (
               <TouchableOpacity
                 style={s.resetBtn}
                 onPress={() => {
+                  setCityFilters([]);
+                  setTypeFilters([]);
                   setDistrictFilters([]);
                   setBedroomsFilters([]);
+                  setAmenityFilters([]);
+                  setPriceMin('');
+                  setPriceMax('');
                   setPetsFilter(false);
                   setLongTermFilter(false);
                   setPropFilter('all');
+                  setResponsibleFilter('all');
                 }}
                 activeOpacity={0.7}
               >
@@ -875,12 +815,9 @@ export default function WebBookingsScreen({ user, refreshKey }) {
 
       {/* ── Body ── */}
       <View style={s.body}>
-        {/* Left + Gantt / List */}
-        <View style={[s.mainArea, showDetail && s.mainAreaWithDetail]}>
-          {viewMode === 'gantt' ? (
-            <>
-              {/* Gantt: single overflow:auto container — CSS sticky works for both axes */}
-              <View style={s.ganttOuter}>
+        <View style={s.mainArea}>
+          {/* Gantt: single overflow:auto container — CSS sticky works for both axes */}
+          <View style={s.ganttOuter}>
                 <View ref={ganttScrollRef} style={s.ganttScroll}>
                   <View style={{ minWidth: LEFT_W + totalW }}>
                     {/* Sticky header row */}
@@ -902,7 +839,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
 
                     {/* Property rows */}
                     {visibleProps.map((prop, pi) => {
-                      const tc = TYPE_COLOR[getEffectiveType(prop)] || TYPE_COLOR.house;
+                      const tc = getPropertyTypeColors(getEffectiveType(prop));
                       const fullCode = prop.code + (prop.code_suffix ? ` (${prop.code_suffix})` : '');
                       const propBookings = bookings.filter(b => b.propertyId === prop.id);
                       // Contract flags (company-first)
@@ -930,11 +867,13 @@ export default function WebBookingsScreen({ user, refreshKey }) {
                               if (date) handleGanttCellPress(prop, date);
                             } : undefined}
                           >
-                            {/* Month background bands */}
+                            {/* Подсветка прошлых/текущего месяцев — только для тех, где она нужна.
+                                Остальная сетка (границы месяцев + разделители недель) идёт CSS-фоном на ganttRow. */}
                             {months.map((m, mi) => {
                               const now = dayjs();
                               const isMPast = m.isBefore(now, 'month');
                               const isMCurrent = m.isSame(now, 'month');
+                              if (!isMPast && !isMCurrent) return null;
                               return (
                                 <View
                                   key={mi}
@@ -945,11 +884,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
                                     isMPast && s.monthBandPast,
                                     isMCurrent && s.monthBandCurrent,
                                   ]}
-                                >
-                                  {[0.25, 0.5, 0.75].map(frac => (
-                                    <View key={frac} style={[s.weekDivider, { left: MONTH_W * frac }]} />
-                                  ))}
-                                </View>
+                                />
                               );
                             })}
                             <View style={[s.todayLine, { left: todayX }]} />
@@ -963,7 +898,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
                               const companyName = myCompanyName || user?.companyInfo?.name || user?.teamMembership?.companyName || '';
 
                               // Per-booking contract flags
-                              const isOwnBooking   = bk.agentId === user?.id;
+                              const isOwnBooking   = bk.responsibleAgentId === user?.id;
                               const isAdminBooking = isAgent && isResponsibleProperty && !isOwnBooking;
                               const canOpenBooking = !isAgent || (isResponsibleProperty && isOwnBooking);
 
@@ -995,34 +930,23 @@ export default function WebBookingsScreen({ user, refreshKey }) {
                   </View>
                 </View>
               </View>
-            </>
-          ) : (
-            <ListView
-              bookings={visibleBookings}
-              properties={properties}
-              contacts={contacts}
-              colorMap={colorMap}
-              onSelectBooking={setSelectedBooking}
-              selectedBookingId={selectedBooking?.id}
-            />
-          )}
         </View>
 
-        {/* Detail panel */}
-        {showDetail && (
-          <View style={s.detailPanel}>
-            <BookingDetail
-              booking={selectedBooking}
-              property={selectedProperty}
-              contact={selectedContact}
-              onEdit={() => setEditPanelMode('edit')}
-              onDelete={() => { setSelectedBooking(null); load(); }}
-              onClose={() => setSelectedBooking(null)}
-              user={user}
-            />
-          </View>
-        )}
       </View>
+
+      {/* Booking detail panel — slides from RIGHT */}
+      <WebBookingDetailPanel
+        visible={!!selectedBooking && editPanelMode === null}
+        booking={selectedBooking}
+        property={selectedProperty}
+        contact={selectedContact}
+        user={user}
+        teamMembers={teamMembers}
+        onEdit={() => setEditPanelMode('edit')}
+        onDelete={() => { setSelectedBooking(null); reload(); }}
+        onClose={() => setSelectedBooking(null)}
+        onPrint={() => selectedBooking && handlePrintConfirmation(selectedBooking)}
+      />
 
       {/* Property detail panel — slides from RIGHT */}
       <WebPropertyDetailPanel
@@ -1030,6 +954,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
         property={propDetailProperty}
         bookings={bookings}
         owners={owners}
+        teamMembers={teamMembers}
         onClose={() => setPropDetailProperty(null)}
         user={user}
       />
@@ -1048,7 +973,7 @@ export default function WebBookingsScreen({ user, refreshKey }) {
         onClose={() => setEditPanelMode(null)}
         onSaved={(saved) => {
           setEditPanelMode(null);
-          load();
+          reload();
           if (saved) setSelectedBooking(saved);
         }}
         user={user}
@@ -1129,6 +1054,15 @@ const s = StyleSheet.create({
   dropdownBtnActive: { borderColor: ACCENT, backgroundColor: C.accentBg },
   dropdownBtnText: { fontSize: 12, color: C.muted, fontWeight: '600' },
   dropdownBtnTextActive: { color: ACCENT, fontWeight: '700' },
+  // TD-094: фильтр цена от/до
+  priceRangeWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  priceInput: {
+    width: 70, paddingHorizontal: 8, paddingVertical: 6,
+    borderRadius: 8, borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.bg, fontSize: 12, color: C.text,
+  },
+  priceInputActive: { borderColor: ACCENT, backgroundColor: C.accentBg },
+  priceRangeDash:   { color: C.muted, fontSize: 12 },
   dropdownList: {
     position: 'absolute', top: 36, left: 0, zIndex: 999,
     backgroundColor: C.surface, borderRadius: 10, borderWidth: 1, borderColor: C.border,
@@ -1149,6 +1083,14 @@ const s = StyleSheet.create({
   },
   dropdownCheckboxChecked: { backgroundColor: ACCENT, borderColor: ACCENT },
   dropdownCheckmark: { color: '#FFF', fontSize: 11, fontWeight: '700', lineHeight: 13 },
+  dropdownRadio: {
+    width: 18, height: 18, borderRadius: 9,
+    borderWidth: 1.5, borderColor: C.border,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.surface,
+  },
+  dropdownRadioChecked: { borderColor: ACCENT },
+  dropdownRadioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: ACCENT },
   dropdownItemText: { fontSize: 13, color: C.text },
   dropdownItemTextActive: { color: ACCENT, fontWeight: '600' },
   dropdownEmpty: { padding: 14, fontSize: 13, color: C.muted, textAlign: 'center' },
@@ -1176,22 +1118,9 @@ const s = StyleSheet.create({
   },
   resetBtnText: { fontSize: 12, color: ACCENT, fontWeight: '700' },
 
-  // View toggle (row 2 right)
-  viewToggle: {
-    flexDirection: 'row',
-    backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.border,
-    overflow: 'hidden',
-  },
-  viewBtn: { paddingHorizontal: 14, paddingVertical: 6 },
-  viewBtnActive: { backgroundColor: ACCENT },
-  viewBtnText: { fontSize: 12, color: C.muted, fontWeight: '600' },
-  viewBtnTextActive: { color: '#FFF', fontWeight: '700' },
-
   // Body
   body: { flex: 1, flexDirection: 'row' },
   mainArea: { flex: 1, overflow: 'hidden' },
-  mainAreaWithDetail: { flex: 1 },
-  detailPanel: { width: 360, borderLeftWidth: 1, borderLeftColor: C.border },
 
   // Gantt
   ganttOuter: { flex: 1, overflow: 'hidden' },
@@ -1224,7 +1153,14 @@ const s = StyleSheet.create({
   ganttLeftCellSelected: { backgroundColor: '#FCE4EC' },
   ganttCode: { fontSize: 12, fontWeight: '700' },
   ganttPropName: { fontSize: 10, color: C.muted, marginTop: 1 },
-  ganttRow: { height: ROW_H, position: 'relative' },
+  ganttRow: {
+    height: ROW_H,
+    position: 'relative',
+    // Фоновая сетка через CSS вместо тысяч DOM-элементов:
+    // — широкие линии границ месяцев (каждые MONTH_W пикселей),
+    // — тонкие линии разделителей недель (каждые MONTH_W/4 = 32.5 пикселя).
+    backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${MONTH_W - 1}px, rgba(0,0,0,0.1) ${MONTH_W - 1}px, rgba(0,0,0,0.1) ${MONTH_W}px), repeating-linear-gradient(to right, transparent 0, transparent ${MONTH_W / 4 - 0.5}px, rgba(0,0,0,0.045) ${MONTH_W / 4 - 0.5}px, rgba(0,0,0,0.045) ${MONTH_W / 4}px)`,
+  },
   monthBand: {
     position: 'absolute', top: 0, bottom: 1, width: MONTH_W,
     borderRightWidth: 1, borderRightColor: 'rgba(0,0,0,0.1)',
@@ -1247,3 +1183,5 @@ const s = StyleSheet.create({
   barLabel: { flex: 1, fontSize: 12, color: 'rgba(0,0,0,0.8)', fontWeight: '500', textAlign: 'center', marginHorizontal: 4 },
   barDateR: { fontSize: 11, color: 'rgba(0,0,0,0.7)', fontWeight: '500' },
 });
+
+export default React.memo(WebBookingsScreenInner);

@@ -1,16 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Switch, Animated, Modal, ActivityIndicator, Image, Platform,
 } from 'react-native';
-import { updateProperty, createPropertyFull, createProperty, submitPropertyDraft, updatePropertyResponsible } from '../../services/propertiesService';
-import { getCompanyLocations, getLocationsForAgent, getLocationDistricts } from '../../services/locationsService';
-import { getContacts } from '../../services/contactsService';
-import { getActiveTeamMembers } from '../../services/companyService';
-import { sendNotification } from '../../services/notificationsService';
+import { updateProperty, createPropertyFull, createProperty, updatePropertyResponsible, updateResortChildrenDistrict } from '../../services/propertiesService';
+import { getCompanyLocations, getLocationsForAgent, getLocationDistricts, addLocationDistrict } from '../../services/locationsService';
+import { useAppData } from '../../context/AppDataContext';
 import { supabase } from '../../services/supabase';
+import { deletePhotoFromStorage } from '../../services/storageService';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
+import ContactPicker from './ContactPicker';
+import WebContactEditPanel from './WebContactEditPanel';
+import { resizeImageFile } from '../utils/resizeImageFile';
+import WebPhotoGalleryModal from './WebPhotoGalleryModal';
 
 const ICON_TAB_MAIN      = require('../../../assets/icon-tab-main.png');
 const ICON_TAB_PRICES    = require('../../../assets/icon-tab-prices.png');
@@ -114,7 +117,10 @@ function resetTypeSpecificFields(nextType, prevForm) {
 function sanitizeUpdatesByType(type, updates) {
   const next = { ...updates };
   if (type === 'resort' || type === 'condo') {
-    for (const key of UNIT_DETAIL_FIELDS) next[key] = null;
+    // Поля юнита (internet_speed, air_conditioners, цены, площади и т.д.) у контейнера не существуют по бизнесу,
+    // и схема БД требует валидных значений (например internet_speed — text NOT NULL DEFAULT '').
+    // Поэтому не зануляем — удаляем ключи целиком, чтобы БД использовала default'ы при INSERT и не трогала при UPDATE.
+    for (const key of UNIT_DETAIL_FIELDS) delete next[key];
     next.price_monthly_is_from = false;
     next.booking_deposit_is_from = false;
     next.save_deposit_is_from = false;
@@ -330,6 +336,7 @@ function buildForm(property, parentProperty) {
       responsible_agent_id: property.responsible_agent_id || null,
       city: property.city || '',
       district: property.district || '',
+      address: property.address || '',
       houses_count: property.houses_count ?? '',
       floors: property.floors ?? '',
       bedrooms: property.bedrooms ?? '',
@@ -367,7 +374,10 @@ function buildForm(property, parentProperty) {
       long_term_booking: property.long_term_booking ?? null,
       amenities: property.amenities || {},
       photos: property.photos || [],
-      video_url: property.video_url || '',
+      photos_thumb: property.photos_thumb || [],
+      videos: Array.isArray(property.videos) && property.videos.length
+        ? property.videos
+        : (property.video_url ? [property.video_url] : []),
       currency: property.currency || 'THB',
     };
   }
@@ -381,6 +391,7 @@ function buildForm(property, parentProperty) {
     responsible_agent_id: null,
     city: parentProperty?.city || '',
     district: parentProperty?.district || '',
+    address: parentProperty?.address || '',
     houses_count: '', floors: '',
     bedrooms: '', bathrooms: '', area: '', floor_number: '',
     beach_distance: parentProperty?.beach_distance ?? '',
@@ -405,7 +416,8 @@ function buildForm(property, parentProperty) {
     long_term_booking: parentProperty?.long_term_booking ?? null,
     amenities: parentProperty?.amenities ? { ...parentProperty.amenities } : {},
     photos: [],
-    video_url: '',
+    photos_thumb: [],
+    videos: [],
     currency: 'THB',
   };
 }
@@ -420,19 +432,12 @@ function buildForm(property, parentProperty) {
 export default function WebPropertyEditPanel({
   visible, mode, property, parentProperty, onClose, onSaved, userCurrency, user,
   readOnly = false,
-  reviewMode = false,
-  onApprove = null,
-  onReject = null,
 }) {
   const { t } = useLanguage();
 
   // Разрешения агента / роли
   const isAgent = !!user?.teamMembership;
   const isCompanyAdmin = !isAgent && !!(user?.workAs === 'company' && user?.companyId);
-  const canEditInfo = !isAgent || user?.teamPermissions?.can_edit_info;
-  const canEditPrices = !isAgent || user?.teamPermissions?.can_edit_prices;
-  // Agent edit flow must always re-submit rejected properties through draft moderation.
-  const needsApproval = isAgent && (!canEditInfo || property?.property_status === 'rejected');
 
   // In edit mode use the currency stored on the property; in create mode use the user's selected currency
   const activeCurrency = (mode === 'edit' && property?.currency) ? property.currency : (userCurrency || 'THB');
@@ -445,8 +450,12 @@ export default function WebPropertyEditPanel({
   const [form, setForm] = useState(() => buildForm(property, parentProperty));
   const [locations, setLocations] = useState([]);
   const [districts, setDistricts] = useState([]);
-  const [owners, setOwners] = useState([]);
-  const [panelTeamMembers, setPanelTeamMembers] = useState([]);
+  const [newDistrictInput, setNewDistrictInput] = useState('');
+  const [addingDistrict, setAddingDistrict] = useState(false);
+  const [addDistrictError, setAddDistrictError] = useState('');
+  const { contacts: ctxContacts, teamMembers: ctxTeamMembers, refreshContacts } = useAppData();
+  const owners = useMemo(() => (ctxContacts || []).filter(c => c.type === 'owners'), [ctxContacts]);
+  const panelTeamMembers = ctxTeamMembers || [];
 
   // Load available locations based on user role
   useEffect(() => {
@@ -469,16 +478,10 @@ export default function WebPropertyEditPanel({
     getLocationDistricts(form.location_id).then(setDistricts).catch(() => setDistricts([]));
   }, [form.location_id]);
 
-  // Admin only: load owner contacts and team members for pickers
-  useEffect(() => {
-    if (!visible || !isCompanyAdmin) return;
-    getContacts('owners').then(setOwners).catch(() => setOwners([]));
-    getActiveTeamMembers(user.companyId).then(setPanelTeamMembers).catch(() => setPanelTeamMembers([]));
-  }, [visible, isCompanyAdmin, user?.companyId]);
 
   // Determine if this is a parent resort/condo (not a child unit)
   const effectiveType = mode === 'create-unit' ? (parentProperty?.type || 'house') : (property?.type || form.type);
-  const isChildUnit = mode === 'create-unit' || Boolean(property?.resort_id);
+  const isChildUnit = mode === 'create-unit' || Boolean(property?.parent_id);
   const isParent = !isChildUnit && (effectiveType === 'resort' || effectiveType === 'condo');
   const isCondoApartment = (mode === 'create-unit' && parentProperty?.type === 'condo')
     || (mode === 'edit' && property?.type === 'condo_apartment');
@@ -488,9 +491,9 @@ export default function WebPropertyEditPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [reviewRejectMode, setReviewRejectMode] = useState(false);
-  const [reviewReason, setReviewReason] = useState('');
-  const [reviewRejectError, setReviewRejectError] = useState('');
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [videoUrlInput, setVideoUrlInput] = useState('');
   const slideAnim    = useRef(new Animated.Value(540)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(false);
@@ -502,9 +505,6 @@ export default function WebPropertyEditPanel({
       setForm(buildForm(property, parentProperty));
       setTab('main');
       setError('');
-      setReviewRejectMode(false);
-      setReviewReason('');
-      setReviewRejectError('');
       Animated.parallel([
         Animated.spring(slideAnim, {
           toValue: 0,
@@ -537,7 +537,61 @@ export default function WebPropertyEditPanel({
   }, [visible, property?.id]);
 
   const set = readOnly ? () => {} : (key, val) => setForm(f => ({ ...f, [key]: val }));
+
+  // TD-070: добавить новый район в location_districts и выбрать его. Доступно и админу, и агенту.
+  // Использует addLocationDistrict (атомарный INSERT ON CONFLICT) — безопасно при одновременных
+  // вызовах разными пользователями.
+  const handleAddNewDistrict = async () => {
+    const trimmed = (newDistrictInput || '').trim();
+    if (!trimmed || !form.location_id || addingDistrict) return;
+    // Case-insensitive проверка локально перед запросом.
+    const lower = trimmed.toLowerCase();
+    if (districts.some(d => d.toLowerCase() === lower)) {
+      setAddDistrictError(t('duplicateDistrictError'));
+      return;
+    }
+    setAddingDistrict(true);
+    setAddDistrictError('');
+    try {
+      await addLocationDistrict(form.location_id, trimmed);
+      setDistricts(prev => [...new Set([...prev, trimmed])].sort());
+      set('district', trimmed);
+      setNewDistrictInput('');
+    } catch (e) {
+      console.warn('[addLocationDistrict] failed:', e?.message);
+      setAddDistrictError(e?.code === 'DUPLICATE_DISTRICT' ? t('duplicateDistrictError') : (e?.message || t('errorUpload')));
+    } finally {
+      setAddingDistrict(false);
+    }
+  };
   const setAmenity = readOnly ? () => {} : (key, val) => setForm(f => ({ ...f, amenities: { ...f.amenities, [key]: val } }));
+
+  // Inline создание контакта-собственника прямо из формы объекта.
+  const [newOwnerVisible, setNewOwnerVisible] = useState(false);
+  const [newOwnerInitialName, setNewOwnerInitialName] = useState('');
+  const [newOwnerTarget, setNewOwnerTarget] = useState('owner_id'); // 'owner_id' | 'owner_id_2'
+
+  const handleRequestNewOwner = useCallback((target, prefillName) => {
+    setNewOwnerTarget(target);
+    setNewOwnerInitialName(prefillName || '');
+    setNewOwnerVisible(true);
+  }, []);
+
+  const handleNewOwnerSaved = useCallback((saved) => {
+    const contact = Array.isArray(saved) ? saved[0] : saved;
+    if (contact?.id) {
+      refreshContacts();
+      setForm(f => ({ ...f, [newOwnerTarget]: contact.id }));
+    }
+    setNewOwnerVisible(false);
+  }, [newOwnerTarget, refreshContacts]);
+
+  // Не закрываем форму объекта пока открыто окно создания собственника —
+  // иначе несохранённые данные нового контакта потеряются вместе с анимацией.
+  const handleClose = useCallback(() => {
+    if (newOwnerVisible) return;
+    onClose?.();
+  }, [newOwnerVisible, onClose]);
   const handleTypeChange = useCallback((nextType) => {
     setForm((prev) => {
       if (mode !== 'create') return prev;
@@ -567,11 +621,12 @@ export default function WebPropertyEditPanel({
     let updates = {
       name: form.name.trim(),
       code: form.code.trim().toUpperCase(),
-      code_suffix: form.code_suffix.trim() || null,
+      code_suffix: form.code_suffix.trim().toUpperCase() || null,
       type: targetType,
       location_id: form.location_id || null,
       city: cityValue || null,
       district: districtValue || null,
+      address: form.address.trim() || null,
       houses_count: numOrNull(form.houses_count),
       floors: numOrNull(form.floors),
       bedrooms: numOrNull(form.bedrooms),
@@ -609,10 +664,13 @@ export default function WebPropertyEditPanel({
       long_term_booking: form.long_term_booking,
       amenities: form.amenities,
       photos: form.photos || [],
-      video_url: form.video_url.trim() || null,
+      photos_thumb: form.photos_thumb || [],
+      videos: Array.isArray(form.videos) ? form.videos.filter(v => v && v.trim()) : [],
+      video_url: null,
       currency: activeCurrency,
-      ...(isCompanyAdmin && !isChildUnit && { owner_id: form.owner_id || null }),
-      ...(isCompanyAdmin && isChildUnit  && { owner_id_2: form.owner_id_2 || null }),
+      // TD-048: agent тоже задаёт owner при создании объекта (PR-CR-12 / CT-VIS-2).
+      ...(!isChildUnit && { owner_id: form.owner_id || null }),
+      ...(isChildUnit  && { owner_id_2: form.owner_id_2 || null }),
       // responsible_agent_id: parent resort/condo → cascade separately after save;
       //                       child unit         → inherited, never touch here;
       //                       standalone house   → plain field update.
@@ -622,92 +680,60 @@ export default function WebPropertyEditPanel({
 
     try {
       let saved;
-      const adminId = user?.teamMembership?.adminId;
-      const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email;
 
       if (mode === 'edit') {
-        if (needsApproval) {
-          await submitPropertyDraft(property.id, updates);
-          if (adminId) {
-            await sendNotification({
-              recipientId: adminId,
-              senderId: user.id,
-              type: 'edit_submitted',
-              title: `${agentName} ${t('notifPropChangesMiddle')} «${updates.name}»`,
-              body: t('notifApprovalRequired'),
-              propertyId: property.id,
-            });
+        // TD-063: удаляем из storage те фото и миниатюры, которых больше нет в форме.
+        const oldPhotos = Array.isArray(property?.photos) ? property.photos : [];
+        const oldThumbs = Array.isArray(property?.photos_thumb) ? property.photos_thumb : [];
+        const newPhotosSet = new Set(updates.photos || []);
+        const newThumbsSet = new Set(updates.photos_thumb || []);
+        for (const url of oldPhotos) {
+          if (url && !newPhotosSet.has(url)) {
+            try { await deletePhotoFromStorage(url); } catch {}
           }
-          onSaved(null);
-          return;
         }
-        // Авто-принятие: админ сохраняет отклонённый объект -> статус становится approved
-        const isCompanyAdmin = !!(user?.workAs === 'company' && user?.companyId);
-        const wasRejected = property?.property_status === 'rejected';
-        if (isCompanyAdmin && wasRejected) {
-          updates.property_status = 'approved';
-          updates.rejection_reason = '';
+        for (const url of oldThumbs) {
+          if (url && !newThumbsSet.has(url)) {
+            try { await deletePhotoFromStorage(url); } catch {}
+          }
         }
         saved = await updateProperty(property.id, updates);
-        // Parent resort/condo: cascade responsible to all child units
         if (isCompanyAdmin && isParent) {
           await updatePropertyResponsible(property.id, form.responsible_agent_id || null, true);
           if (saved) saved = { ...saved, responsible_agent_id: form.responsible_agent_id || null };
         }
-        // Уведомить агента об одобрении после авто-принятия
-        if (isCompanyAdmin && wasRejected && saved && property.user_id) {
-          await sendNotification({
-            recipientId: property.user_id,
-            senderId: user.id,
-            type: 'property_approved',
-            title: t('changesApproved'),
-            body: `🏠 ${updates.name}`,
-            propertyId: property.id,
-          });
+        if (
+          (targetType === 'resort' || targetType === 'condo') &&
+          String(updates.district || '') !== String(property.district || '')
+        ) {
+          await updateResortChildrenDistrict(property.id, updates.district);
         }
       } else if (mode === 'create-unit') {
         const unitType = getUnitTypeForParent(parentProperty?.type);
         saved = await createPropertyFull({
           ...updates,
-          resort_id: parentProperty.id,
+          parent_id: parentProperty.id,
           type: unitType,
           responsible_agent_id: parentProperty.responsible_agent_id ?? null,
-          property_status: isAgent ? 'pending' : 'approved',
         });
-        if (isAgent && adminId) {
-          await sendNotification({
-            recipientId: adminId,
-            senderId: user.id,
-            type: 'property_submitted',
-              title: `🏠 ${agentName} ${t('notifAddedPropertyTo')} ${parentProperty.name}`,
-              body: `${t('notifLabelProperty')} ${updates.name} · ${t('notifLabelCode')} ${updates.code}`,
-            propertyId: saved.id,
-          });
-        }
       } else {
         saved = await createProperty({
           name: updates.name,
           code: updates.code,
           type: updates.type,
-          property_status: isAgent ? 'pending' : 'approved',
         });
         if (saved?.id) {
           saved = await updateProperty(saved.id, updates);
-          if (isAgent && adminId) {
-            await sendNotification({
-              recipientId: adminId,
-              senderId: user.id,
-              type: 'property_submitted',
-              title: `🏠 ${agentName} ${t('notifAddedProperty')} «${updates.name}»`,
-              body: `${t('notifLabelCode')} ${updates.code} · ${t('notifLabelType')} ${updates.type}`,
-              propertyId: saved.id,
-            });
-          }
         }
       }
       onSaved(saved);
     } catch (e) {
-      setError(e.message || t('errorSave'));
+      if (e?.code === 'DUPLICATE_PROPERTY_CODE') {
+        setError(t('duplicatePropertyCodeError'));
+        setTab('main');
+      } else {
+        setError(e.message || t('errorSave'));
+      }
     } finally {
       setSaving(false);
     }
@@ -726,18 +752,37 @@ export default function WebPropertyEditPanel({
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const newUrls = [];
+        const newThumbs = [];
         for (const file of files) {
-          const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-          const fileName = `${session.user.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const resized = await resizeImageFile(file, 1200, 0.85);
+          const thumb = await resizeImageFile(file, 150, 0.85);
+          const baseName = `${session.user.id}/${Date.now()}_${Math.random().toString(36).slice(2)}`;
+          const fullPath = `${baseName}.jpg`;
+          const thumbPath = `${baseName}_thumb.jpg`;
           const { error: upErr } = await supabase.storage
             .from(PHOTOS_BUCKET)
-            .upload(fileName, file, { upsert: true, contentType: file.type });
+            .upload(fullPath, resized, { upsert: true, contentType: 'image/jpeg' });
           if (upErr) { setError(`${t('errorPrefix')} ${upErr.message}`); continue; }
-          const { data: pub } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(fileName);
+          const { error: thumbErr } = await supabase.storage
+            .from(PHOTOS_BUCKET)
+            .upload(thumbPath, thumb, { upsert: true, contentType: 'image/jpeg' });
+          if (thumbErr) {
+            // Не оставляем оригинал-сирту в Storage если миниатюра не залилась.
+            try { await supabase.storage.from(PHOTOS_BUCKET).remove([fullPath]); } catch {}
+            setError(`${t('errorPrefix')} ${thumbErr.message}`);
+            continue;
+          }
+          const { data: pub } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(fullPath);
+          const { data: pubThumb } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(thumbPath);
           newUrls.push(pub.publicUrl);
+          newThumbs.push(pubThumb.publicUrl);
         }
         if (newUrls.length) {
-          setForm(f => ({ ...f, photos: [...(f.photos || []), ...newUrls] }));
+          setForm(f => ({
+            ...f,
+            photos: [...(f.photos || []), ...newUrls],
+            photos_thumb: [...(f.photos_thumb || []), ...newThumbs],
+          }));
         }
       } catch (e) {
         setError(`${t('errorUpload')}: ${e.message}`);
@@ -749,12 +794,14 @@ export default function WebPropertyEditPanel({
   };
 
   const handleRemovePhoto = (idx) => {
-    setForm(f => ({ ...f, photos: f.photos.filter((_, i) => i !== idx) }));
+    setForm(f => ({
+      ...f,
+      photos: f.photos.filter((_, i) => i !== idx),
+      photos_thumb: (f.photos_thumb || []).filter((_, i) => i !== idx),
+    }));
   };
 
-  const title = reviewMode
-    ? `${t('propertyReviewTitle')}: ${property?.name || ''}`
-    : mode === 'edit'
+  const title = mode === 'edit'
     ? `${t('editProperty')}: ${property?.name || ''}`
     : mode === 'create-unit'
     ? `${t('addPropertyUnit')} ${parentProperty?.name || ''}`
@@ -790,7 +837,7 @@ export default function WebPropertyEditPanel({
         )}
       </View>
 
-      {mode !== 'create-unit' && !(mode === 'edit' && property?.resort_id) && (
+      {mode !== 'create-unit' && !(mode === 'edit' && property?.parent_id) && (
         <FieldRow label={t('propType')}>
           <FieldSelect
             value={form.type}
@@ -835,68 +882,147 @@ export default function WebPropertyEditPanel({
                 <Text style={s.fieldInputReadonlyHint}>🔒</Text>
               </View>
             ) : (
-              <FieldDropdown
-                value={form.district}
-                options={districts.map(d => ({ value: d, label: d }))}
-                onChange={v => set('district', v)}
-                placeholder={districts.length ? (t('filterDistrict') + '...') : '—'}
-                disabled={!form.location_id || districts.length === 0}
-                readOnly={readOnly}
-              />
+              <>
+                <FieldDropdown
+                  value={form.district}
+                  options={districts.map(d => ({ value: d, label: d }))}
+                  onChange={v => set('district', v)}
+                  placeholder={districts.length ? (t('filterDistrict') + '...') : '—'}
+                  disabled={!form.location_id || districts.length === 0}
+                  readOnly={readOnly}
+                />
+                {/* TD-070: добавить новый район — доступно и админу, и агенту. */}
+                {!readOnly && form.location_id && (
+                  <>
+                    <View style={s.addDistrictRow}>
+                      <TextInput
+                        style={s.addDistrictInput}
+                        placeholder={t('addNewDistrictPlaceholder')}
+                        placeholderTextColor={C.light}
+                        value={newDistrictInput}
+                        onChangeText={(v) => { setNewDistrictInput(v); if (addDistrictError) setAddDistrictError(''); }}
+                        editable={!addingDistrict}
+                        onSubmitEditing={handleAddNewDistrict}
+                      />
+                      <TouchableOpacity
+                        style={[s.addDistrictBtn, (!newDistrictInput.trim() || addingDistrict) && s.addDistrictBtnDisabled]}
+                        onPress={handleAddNewDistrict}
+                        disabled={!newDistrictInput.trim() || addingDistrict}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={s.addDistrictBtnText}>{addingDistrict ? '…' : t('addDistrictBtn')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {addDistrictError ? <Text style={s.addDistrictError}>{addDistrictError}</Text> : null}
+                  </>
+                )}
+              </>
             )}
           </FieldRow>
         </View>
       </View>
 
-      {/* ── Owners + Responsible — admin only ── */}
-      {isCompanyAdmin && !readOnly && (
-        <>
-          <SectionDivider title={t('propOwners')} />
+      {/* ── Owners — visible to admin and agent (TD-048 / PR-CR-12).
+          В readOnly (просмотр через уведомление / approval) — статичные плашки с именами. */}
+      <>
+        <SectionDivider title={t('propOwners')} />
 
-          {isChildUnit ? (
-            <>
-              <FieldRow label={`${t('propOwner1')} 🔒`}>
+        {isChildUnit ? (
+          <>
+            <FieldRow label={`${t('propOwner1')} 🔒`}>
+              <View style={s.fieldInputReadonly}>
+                <Text style={s.fieldInputReadonlyText}>
+                  {(() => {
+                    const parentOwnerId = parentProperty?.owner_id ?? property?.owner_id;
+                    const o = owners.find(c => c.id === parentOwnerId);
+                    return o ? [o.name, o.lastName].filter(Boolean).join(' ') : '—';
+                  })()}
+                </Text>
+                <Text style={s.fieldInputReadonlyHint}>🔒</Text>
+              </View>
+            </FieldRow>
+            <FieldRow label={t('propOwner2')}>
+              {readOnly ? (
                 <View style={s.fieldInputReadonly}>
                   <Text style={s.fieldInputReadonlyText}>
                     {(() => {
-                      const parentOwnerId = parentProperty?.owner_id ?? property?.owner_id;
-                      const o = owners.find(c => c.id === parentOwnerId);
+                      const o = owners.find(c => c.id === form.owner_id_2);
                       return o ? [o.name, o.lastName].filter(Boolean).join(' ') : '—';
                     })()}
                   </Text>
-                  <Text style={s.fieldInputReadonlyHint}>🔒</Text>
                 </View>
-              </FieldRow>
-              <FieldRow label={t('propOwner2')}>
-                <FieldDropdown
+              ) : (
+                <ContactPicker
                   value={form.owner_id_2 || ''}
-                  options={[
-                    { value: '', label: '—' },
-                    ...owners.map(c => ({ value: c.id, label: [c.name, c.lastName].filter(Boolean).join(' ') })),
-                  ]}
+                  contacts={owners}
                   onChange={v => set('owner_id_2', v || null)}
+                  canCreateContact={true}
+                  onRequestNewContact={(prefill) => handleRequestNewOwner('owner_id_2', prefill)}
+                  texts={{
+                    placeholder:       t('propPickOwner'),
+                    searchPlaceholder: t('propSearchOwner'),
+                    addNewLabel:       t('propAddNewOwner'),
+                    removeLabel:       t('propRemoveOwner'),
+                    noResults:         t('noResults'),
+                  }}
                 />
-              </FieldRow>
-            </>
-          ) : (
-            <FieldRow label={t('propOwner1')}>
-              <FieldDropdown
-                value={form.owner_id || ''}
-                options={[
-                  { value: '', label: '—' },
-                  ...owners.map(c => ({ value: c.id, label: [c.name, c.lastName].filter(Boolean).join(' ') })),
-                ]}
-                onChange={v => set('owner_id', v || null)}
-              />
+              )}
             </FieldRow>
-          )}
+          </>
+        ) : (
+          <FieldRow label={t('propOwner1')}>
+            {readOnly ? (
+              <View style={s.fieldInputReadonly}>
+                <Text style={s.fieldInputReadonlyText}>
+                  {(() => {
+                    const o = owners.find(c => c.id === form.owner_id);
+                    return o ? [o.name, o.lastName].filter(Boolean).join(' ') : '—';
+                  })()}
+                </Text>
+              </View>
+            ) : (
+              <ContactPicker
+                value={form.owner_id || ''}
+                contacts={owners}
+                onChange={v => set('owner_id', v || null)}
+                canCreateContact={true}
+                onRequestNewContact={(prefill) => handleRequestNewOwner('owner_id', prefill)}
+                texts={{
+                  placeholder:       t('propPickOwner'),
+                  searchPlaceholder: t('propSearchOwner'),
+                  addNewLabel:       t('propAddNewOwner'),
+                  removeLabel:       t('propRemoveOwner'),
+                  noResults:         t('noResults'),
+                }}
+              />
+            )}
+          </FieldRow>
+        )}
+      </>
 
+      {/* ── Responsible agent — admin only.
+          В readOnly показываем имя ответственного как плашку (для approval-режима). */}
+      {isCompanyAdmin && user?.companyInfo?.name?.trim() ? (
+        <>
           <SectionDivider title={t('propResponsiblePicker')} />
           {isChildUnit ? (
             <FieldRow label={t('propResponsibleLabel')}>
               <View style={s.fieldInputReadonly}>
                 <Text style={s.fieldInputReadonlyText}>{t('propResponsibleInherited')}</Text>
                 <Text style={s.fieldInputReadonlyHint}>🔒</Text>
+              </View>
+            </FieldRow>
+          ) : readOnly ? (
+            <FieldRow label={t('propResponsibleLabel')}>
+              <View style={s.fieldInputReadonly}>
+                <Text style={s.fieldInputReadonlyText}>
+                  {(() => {
+                    const id = form.responsible_agent_id;
+                    if (!id) return user?.companyInfo?.name || t('workAsCompany');
+                    const m = panelTeamMembers.find(x => x.user_id === id);
+                    return m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : '—';
+                  })()}
+                </Text>
               </View>
             </FieldRow>
           ) : (
@@ -923,7 +1049,7 @@ export default function WebPropertyEditPanel({
             </FieldRow>
           )}
         </>
-      )}
+      ) : null}
 
       <SectionDivider title={t('propParams')} />
 
@@ -994,6 +1120,10 @@ export default function WebPropertyEditPanel({
           </FieldRow>
         </View>
       </View>
+
+      <FieldRow label={t('pdAddress')}>
+        <FieldInput value={form.address} onChangeText={v => set('address', v)} placeholder={t('pdAddressPlaceholder')} readOnly={readOnly} />
+      </FieldRow>
 
       <FieldRow label={t('propGoogleMapsLink')}>
         <FieldInput value={form.google_maps_link} onChangeText={v => set('google_maps_link', v)} placeholder="https://maps.google.com/..." readOnly={readOnly} />
@@ -1118,13 +1248,12 @@ export default function WebPropertyEditPanel({
   const renderPhotosTab = () => (
     <>
       <SectionDivider title={t('pdPhotos')} />
-      {reviewMode && (
-        <Text style={s.reviewModeLabel}>👁 {t('reviewMode') || 'Режим просмотра'}</Text>
-      )}
       <View style={s.photosGrid}>
         {(form.photos || []).map((uri, idx) => (
           <View key={idx} style={s.photoThumb}>
-            <Image source={{ uri }} style={s.photoThumbImg} resizeMode="cover" />
+            <TouchableOpacity activeOpacity={0.85} onPress={() => { setGalleryIndex(idx); setGalleryOpen(true); }} style={{ width: '100%', height: '100%' }}>
+              <Image source={{ uri: (form.photos_thumb || [])[idx] || uri }} style={s.photoThumbImg} resizeMode="cover" />
+            </TouchableOpacity>
             {!readOnly && (
               <TouchableOpacity style={s.photoRemoveBtn} onPress={() => handleRemovePhoto(idx)}>
                 <Text style={s.photoRemoveText}>✕</Text>
@@ -1143,20 +1272,51 @@ export default function WebPropertyEditPanel({
       </View>
 
       <SectionDivider title={t('pdVideo')} />
-      <View style={s.fieldRow}>
-        <TextInput
-          style={[s.input, readOnly && s.fieldInputReadonlyStyle]}
-          value={form.video_url}
-          onChangeText={readOnly ? undefined : (v => set('video_url', v))}
-          placeholder={readOnly ? '' : t('propVideoLink')}
-          placeholderTextColor={C.light}
-          autoCapitalize="none"
-          keyboardType="url"
-          editable={!readOnly}
-          selectTextOnFocus={!readOnly}
-          caretHidden={!!readOnly}
-        />
-      </View>
+      {(form.videos || []).map((url, i) => (
+        <View key={i} style={s.videoRowItem}>
+          <Text style={s.videoUrlText} numberOfLines={1}>{url}</Text>
+          {!readOnly && (
+            <TouchableOpacity
+              onPress={() => set('videos', form.videos.filter((_, idx) => idx !== i))}
+              activeOpacity={0.7}
+            >
+              <Text style={s.videoRemoveText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ))}
+      {!readOnly && (
+        <View style={s.addDistrictRow}>
+          <TextInput
+            style={s.addDistrictInput}
+            placeholder={t('propVideoLink')}
+            placeholderTextColor={C.light}
+            value={videoUrlInput}
+            onChangeText={setVideoUrlInput}
+            autoCapitalize="none"
+            keyboardType="url"
+            onSubmitEditing={() => {
+              const trimmed = videoUrlInput.trim();
+              if (!trimmed) return;
+              set('videos', [...(form.videos || []), trimmed]);
+              setVideoUrlInput('');
+            }}
+          />
+          <TouchableOpacity
+            style={[s.addDistrictBtn, !videoUrlInput.trim() && s.addDistrictBtnDisabled]}
+            disabled={!videoUrlInput.trim()}
+            onPress={() => {
+              const trimmed = videoUrlInput.trim();
+              if (!trimmed) return;
+              set('videos', [...(form.videos || []), trimmed]);
+              setVideoUrlInput('');
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={s.addDistrictBtnText}>+</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </>
   );
 
@@ -1208,14 +1368,14 @@ export default function WebPropertyEditPanel({
   if (!mounted) return null;
 
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={handleClose}>
       <View style={s.overlay}>
         {/* Dim backdrop — animated opacity */}
         <Animated.View
           style={[s.backdrop, { opacity: backdropAnim }]}
           pointerEvents={visible ? 'auto' : 'none'}
         >
-          <TouchableOpacity style={{ flex: 1 }} onPress={onClose} activeOpacity={1} />
+          <TouchableOpacity style={{ flex: 1 }} onPress={handleClose} activeOpacity={1} />
         </Animated.View>
 
         {/* Sliding panel */}
@@ -1231,7 +1391,7 @@ export default function WebPropertyEditPanel({
                 </Text>
               )}
             </View>
-            <TouchableOpacity style={s.closeBtn} onPress={onClose}>
+            <TouchableOpacity style={s.closeBtn} onPress={handleClose}>
               <Text style={s.closeBtnText}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -1264,89 +1424,47 @@ export default function WebPropertyEditPanel({
           <View style={s.footer}>
             {error ? <Text style={s.footerError}>{error}</Text> : null}
 
-            {reviewMode ? (
-              /* ── Review mode: Одобрить / Отклонить ── */
-              reviewRejectMode ? (
-                <>
-                  <TextInput
-                    style={s.reviewRejectInput}
-                    placeholder={t('diffRejectPlaceholder')}
-                    placeholderTextColor={C.light}
-                    value={reviewReason}
-                    onChangeText={(v) => {
-                      setReviewReason(v);
-                      if (reviewRejectError) setReviewRejectError('');
-                    }}
-                    multiline
-                    numberOfLines={3}
-                    autoFocus
-                  />
-                  {!!reviewRejectError && (
-                    <Text style={s.reviewRejectErrorText}>{reviewRejectError}</Text>
-                  )}
-                  <View style={s.footerBtns}>
-                    <TouchableOpacity style={s.cancelBtn}
-                      onPress={() => { setReviewRejectMode(false); setReviewReason(''); setReviewRejectError(''); }}>
-                      <Text style={s.cancelBtnText}>{t('reviewBack')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[s.saveBtn, { backgroundColor: '#FFF5F5', borderColor: '#FFCDD2' }]}
-                      onPress={async () => {
-                        const trimmed = (reviewReason || '').trim();
-                        if (!trimmed) {
-                          setReviewRejectError(t('propRejectReasonRequired') || 'Причина обязательна');
-                          return;
-                        }
-                        setReviewRejectError('');
-                        const ok = await onReject?.(trimmed);
-                        if (ok === false) {
-                          setReviewRejectError(t('rejectError') || t('errorSave'));
-                          return;
-                        }
-                        if (ok === true) onClose();
-                      }}>
-                      <Text style={[s.saveBtnText, { color: '#C62828' }]}>{t('diffReject')}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              ) : (
-                <View style={s.footerBtns}>
-                  <TouchableOpacity
-                    style={[s.cancelBtn, { borderColor: '#FFCDD2' }]}
-                    onPress={() => setReviewRejectMode(true)}>
-                    <Text style={[s.cancelBtnText, { color: '#C62828' }]}>{`✕ ${t('diffReject')}`}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.saveBtn, { backgroundColor: ACCENT, borderColor: ACCENT }]}
-                    onPress={async () => {
-                      const ok = await onApprove?.();
-                      if (ok === true) onClose();
-                    }}>
-                    <Text style={[s.saveBtnText, { color: '#FFF' }]}>{`✓ ${t('diffApprove')}`}</Text>
-                  </TouchableOpacity>
-                </View>
-              )
-            ) : (
-              /* ── Normal mode: Отмена + Сохранить ── */
-              <View style={s.footerBtns}>
-                <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
-                  <Text style={s.cancelBtnText}>{t('cancel')}</Text>
-                </TouchableOpacity>
+            <View style={s.footerBtns}>
+              <TouchableOpacity style={s.cancelBtn} onPress={handleClose}>
+                <Text style={s.cancelBtnText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              {!readOnly && (
                 <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
                   {saving
                     ? <ActivityIndicator size="small" color="#FFF" />
                     : <Text style={s.saveBtnText}>
-                        {mode === 'edit'
-                          ? (needsApproval ? t('submitForReview') : t('save'))
-                          : `＋ ${t('add')}`}
+                        {mode === 'edit' ? t('save') : `＋ ${t('add')}`}
                       </Text>
                   }
                 </TouchableOpacity>
-              </View>
-            )}
+              )}
+            </View>
           </View>
         </Animated.View>
       </View>
+
+      {/* Панель создания нового собственника — открывается поверх формы объекта */}
+      <WebContactEditPanel
+        visible={newOwnerVisible}
+        mode="add"
+        lockType="owners"
+        contact={(() => {
+          const parts = (newOwnerInitialName || '').trim().split(/\s+/).filter(Boolean);
+          if (parts.length === 0) return null;
+          return { name: parts[0], lastName: parts.slice(1).join(' ') };
+        })()}
+        onClose={() => setNewOwnerVisible(false)}
+        onSaved={handleNewOwnerSaved}
+      />
+
+      <WebPhotoGalleryModal
+        visible={galleryOpen}
+        photos={form.photos || []}
+        initialIndex={galleryIndex}
+        canDelete={!readOnly}
+        onClose={() => setGalleryOpen(false)}
+        onDelete={(_next, _url, idx) => handleRemovePhoto(idx)}
+      />
     </Modal>
   );
 }
@@ -1470,30 +1588,6 @@ const s = StyleSheet.create({
     backgroundColor: '#F8F9FA',
     borderColor: '#E9ECEF',
   },
-  reviewModeLabel: {
-    fontSize: 12,
-    color: C.muted,
-    textAlign: 'center',
-    paddingVertical: 6,
-    paddingBottom: 10,
-    fontStyle: 'italic',
-  },
-  // Reject reason input in review footer
-  reviewRejectInput: {
-    borderWidth: 1, borderColor: C.border, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 10,
-    fontSize: 13, color: C.text,
-    minHeight: 72, outlineWidth: 0, textAlignVertical: 'top',
-    marginBottom: 8,
-  },
-  reviewRejectErrorText: {
-    fontSize: 12,
-    color: '#C62828',
-    fontWeight: '600',
-    marginTop: -2,
-    marginBottom: 8,
-  },
-
   row2: { flexDirection: 'row', gap: 12 },
   row3: { flexDirection: 'row', gap: 12 },
 
@@ -1561,7 +1655,7 @@ const s = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: C.border,
     gap: 8,
   },
-  footerError: { fontSize: 13, color: ACCENT },
+  footerError: { fontSize: 14, color: '#E53935', fontWeight: '700' },
   footerBtns: { flexDirection: 'row', gap: 10 },
   cancelBtn: {
     flex: 1, height: 44, borderRadius: 14,
@@ -1577,4 +1671,22 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   saveBtnText: { fontSize: 14, fontWeight: '700', color: ACCENT },
+  // TD-070: добавление нового района прямо в форме объекта.
+  addDistrictRow:        { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 },
+  addDistrictInput:      {
+    flex: 1, paddingVertical: 8, paddingHorizontal: 10,
+    borderRadius: 8, borderWidth: 1, borderColor: C.border,
+    fontSize: 13, color: C.text, backgroundColor: C.surface,
+  },
+  addDistrictBtn:        {
+    paddingVertical: 8, paddingHorizontal: 12,
+    borderRadius: 8, backgroundColor: C.accentBg,
+    borderWidth: 1, borderColor: ACCENT,
+  },
+  addDistrictBtnDisabled:{ opacity: 0.4 },
+  addDistrictBtnText:    { fontSize: 13, color: ACCENT, fontWeight: '600' },
+  addDistrictError:      { fontSize: 14, color: '#E53935', fontWeight: '700', marginTop: 4, marginLeft: 2 },
+  videoRowItem:          { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingHorizontal: 10, marginBottom: 6, backgroundColor: C.bg, borderRadius: 8 },
+  videoUrlText:          { flex: 1, fontSize: 13, color: C.text },
+  videoRemoveText:       { fontSize: 16, color: '#E53935', paddingHorizontal: 6 },
 });

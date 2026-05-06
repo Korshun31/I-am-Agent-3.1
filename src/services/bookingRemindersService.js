@@ -47,9 +47,11 @@ export async function scheduleBookingReminders(bookingId, checkInYMD, reminderDa
     triggerDate.setDate(triggerDate.getDate() - n);
     if (triggerDate.getTime() <= Date.now()) continue;
 
-    const trigger = Platform.OS === 'android'
-      ? { date: triggerDate, channelId: NOTIFICATION_CHANNEL_ID }
-      : triggerDate;
+    const trigger = {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: triggerDate,
+      ...(Platform.OS === 'android' && { channelId: NOTIFICATION_CHANNEL_ID }),
+    };
 
     await Notifications.scheduleNotificationAsync({
       content: {

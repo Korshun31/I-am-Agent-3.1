@@ -393,7 +393,7 @@ export default function AgentCalendarScreen({ onReady }) {
     const getPropertyLabel = (b) => {
       const prop = propsMap[b.propertyId];
       if (!prop) return '—';
-      const resort = prop.resort_id ? propsMap[prop.resort_id] : null;
+      const resort = prop.parent_id ? propsMap[prop.parent_id] : null;
       const code = resort ? (resort.code || resort.name) : (prop.code || prop.name);
       const unit = prop.code_suffix ? ` (${prop.code_suffix})` : '';
       return `${code}${unit}`.trim() || '—';
@@ -401,7 +401,7 @@ export default function AgentCalendarScreen({ onReady }) {
     const getObjectDisplayName = (b) => {
       const prop = propsMap[b.propertyId];
       if (!prop) return '—';
-      const parent = prop.resort_id ? propsMap[prop.resort_id] : null;
+      const parent = prop.parent_id ? propsMap[prop.parent_id] : null;
       if (parent) return (parent.name || parent.code || '').trim() || '—';
       return (prop.name || prop.code || '').trim() || '—';
     };
@@ -594,7 +594,7 @@ export default function AgentCalendarScreen({ onReady }) {
       if (!booking?.propertyId) return null;
       const prop = properties.find(p => p.id === booking.propertyId);
       if (!prop) return null;
-      const resort = prop.resort_id ? (properties.find(p => p.id === prop.resort_id) || null) : null;
+      const resort = prop.parent_id ? (properties.find(p => p.id === prop.parent_id) || null) : null;
       const owners = contacts.filter(c => c.type === 'owners');
       const owner = prop.owner_id ? owners.find(o => o.id === prop.owner_id) : null;
       const owner2 = prop.owner_id_2 ? owners.find(o => o.id === prop.owner_id_2) : null;

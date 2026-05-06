@@ -5,54 +5,41 @@ import WebDashboardScreen from './screens/WebDashboardScreen';
 import WebPropertiesScreen from './screens/WebPropertiesScreen';
 import WebContactsScreen from './screens/WebContactsScreen';
 import WebBookingsScreen from './screens/WebBookingsScreen';
+import WebStatisticsScreen from './screens/WebStatisticsScreen';
 import WebAccountScreen from './screens/WebAccountScreen';
 import WebFlightTracker from './components/WebFlightTracker';
 import { supabase } from '../services/supabase';
 import { getUserProfile } from '../services/authService';
 import { useLanguage } from '../context/LanguageContext';
-import { initCompanyChannel, destroyCompanyChannel } from '../services/companyChannel';
+import { useUser } from '../context/UserContext';
+import { useAppData } from '../context/AppDataContext';
 
 const FULL_HEIGHT_TABS = new Set(['properties', 'contacts', 'bookings', 'profile']);
 
 /**
  * Точка входа в веб-интерфейс.
+ * TD-020: user теперь приходит только из UserContext (общий с App.js / mobile),
+ * локальный useState убран. Обновления — через updateUser/handleUserUpdate.
  */
-export default function WebMainScreen({ user: initialUser, onLogout }) {
+export default function WebMainScreen({ onLogout }) {
   const { t } = useLanguage();
-  const [user, setUser] = useState(initialUser);
+  const { user, updateUser, handleUserUpdate } = useUser();
+  const { refreshProperties, refreshBookings } = useAppData();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [propertiesInitialId, setPropertiesInitialId] = useState(null);
   const [visited, setVisited] = useState(() => new Set(['dashboard']));
-  const [refreshKey, setRefreshKey] = useState({
-    properties: 0, bookings: 0, contacts: 0, calendar_events: 0,
-  });
 
   // Обновляем полный профиль пользователя при монтировании (с teamMembership, teamPermissions и т.д.)
   useEffect(() => {
+    if (!user?.id) return;
     const fetchUser = async () => {
-      const freshUser = await getUserProfile(initialUser.id);
-      if (freshUser) setUser(freshUser);
+      const freshUser = await getUserProfile(user.id);
+      if (freshUser) updateUser(freshUser);
     };
     fetchUser();
-  }, [initialUser.id]);
-
-  // Broadcast: обновляем данные через лёгкий канал компании
-  useEffect(() => {
-    if (!user?.id) return;
-    const companyId = user?.teamMembership?.companyId || user?.companyId;
-    if (!companyId) return;
-    initCompanyChannel(companyId, {
-      properties: () => setRefreshKey(k => ({ ...k, properties: k.properties + 1 })),
-      bookings: () => setRefreshKey(k => ({ ...k, bookings: k.bookings + 1 })),
-      contacts: () => setRefreshKey(k => ({ ...k, contacts: k.contacts + 1 })),
-      calendar_events: () => setRefreshKey(k => ({ ...k, calendar_events: k.calendar_events + 1 })),
-      permissions: async () => {
-        const freshUser = await getUserProfile(user.id);
-        if (freshUser) setUser(freshUser);
-      },
-    });
-    return () => destroyCompanyChannel();
-  }, [user?.id, user?.companyId, user?.teamMembership?.companyId]);
+    // Грузим только при первом монтировании по id; updateUser стабилен (из контекста).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Realtime notifications logic
   useEffect(() => {
@@ -159,39 +146,46 @@ export default function WebMainScreen({ user: initialUser, onLogout }) {
       onTabChange={handleTabChange}
       fullHeight={FULL_HEIGHT_TABS.has(activeTab)}
       user={user}
-      onPropertiesChanged={() => setRefreshKey(k => ({ ...k, properties: k.properties + 1 }))}
+      onPropertiesChanged={() => { refreshProperties(); refreshBookings(); }}
       onNavigateToProperty={navigateToProperty}
     >
       {/* Dashboard — монтируется сразу */}
       <View style={[styles.tabWrap, tabStyle('dashboard')]}>
-        <WebDashboardScreen user={user} refreshKey={refreshKey.calendar_events} />
+        <WebDashboardScreen user={user} />
       </View>
 
       {/* Properties — монтируется при первом посещении */}
       {visited.has('properties') && (
         <View style={[styles.tabWrap, tabStyle('properties')]}>
-          <WebPropertiesScreen initialPropertyId={propertiesInitialId} user={user} refreshKey={refreshKey.properties} />
+          <WebPropertiesScreen initialPropertyId={propertiesInitialId} user={user} />
         </View>
       )}
 
       {/* Contacts — монтируется при первом посещении */}
       {visited.has('contacts') && (
         <View style={[styles.tabWrap, tabStyle('contacts')]}>
-          <WebContactsScreen onNavigateToProperty={navigateToProperty} user={user} refreshKey={refreshKey.contacts} />
+          <WebContactsScreen onNavigateToProperty={navigateToProperty} user={user} />
         </View>
       )}
 
       {/* Bookings — монтируется при первом посещении */}
       {visited.has('bookings') && (
         <View style={[styles.tabWrap, tabStyle('bookings')]}>
-          <WebBookingsScreen user={user} refreshKey={refreshKey.bookings} />
+          <WebBookingsScreen user={user} />
+        </View>
+      )}
+
+      {/* Statistics — монтируется при первом посещении */}
+      {visited.has('statistics') && (
+        <View style={[styles.tabWrap, tabStyle('statistics')]}>
+          <WebStatisticsScreen user={user} />
         </View>
       )}
 
       {/* Account — монтируется при первом посещении */}
       {visited.has('profile') && (
         <View style={[styles.tabWrap, tabStyle('profile')]}>
-          <WebAccountScreen user={user} onLogout={onLogout} onUserUpdate={setUser} />
+          <WebAccountScreen user={user} onLogout={onLogout} onUserUpdate={handleUserUpdate} />
         </View>
       )}
 

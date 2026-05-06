@@ -6,6 +6,7 @@ import {
 import { createContact, updateContact } from '../../services/contactsService';
 import { supabase } from '../../services/supabase';
 import { useLanguage } from '../../context/LanguageContext';
+import { resizeImageFile } from '../utils/resizeImageFile';
 
 const ACCENT = '#3D7D82';
 const C = {
@@ -165,7 +166,7 @@ function TypeSelect({ value, onChange, t }) {
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
-export default function WebContactEditPanel({ visible, mode, contact, onClose, onSaved, lockType }) {
+export default function WebContactEditPanel({ visible, mode, contact, onClose, onSaved, lockType, customCreate }) {
   const { t } = useLanguage();
   const METHOD_TYPES = getMethodTypes(t);
   const slideAnim = useRef(new Animated.Value(440)).current;
@@ -173,8 +174,10 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
   const [mounted, setMounted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
+  const photoInputRef = useRef(null);
 
   const [form, setForm] = useState({
     type: 'clients', name: '', lastName: '',
@@ -182,6 +185,7 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
   });
   const [contactMethods, setContactMethods] = useState([]);
   const [documents, setDocuments] = useState([]);
+  const [photoUri, setPhotoUri] = useState('');
 
   // Animation
   useEffect(() => {
@@ -214,6 +218,7 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
       });
       setContactMethods(fieldsToMethods(contact));
       setDocuments(contact.documents || []);
+      setPhotoUri(contact.photoUri || '');
     } else {
       setForm({
         type:           lockType || contact?.type || 'clients',
@@ -225,6 +230,7 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
       });
       setContactMethods([]);
       setDocuments([]);
+      setPhotoUri('');
     }
   }, [visible, mode, contact]);
 
@@ -274,6 +280,36 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
     return () => document.body.removeChild(input);
   }, []);
 
+  // TD-104: Web file input для одного фото-аватара контакта со сжатием.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.style.display = 'none';
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setUploadingPhoto(true);
+      try {
+        const resized = await resizeImageFile(file, 1200, 0.85);
+        const path = `avatars/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+        const { error: upErr } = await supabase.storage.from('contact-photos').upload(path, resized);
+        if (upErr) throw upErr;
+        const { data } = supabase.storage.from('contact-photos').getPublicUrl(path);
+        setPhotoUri(data.publicUrl);
+      } catch {
+        setError(t('errorUpload'));
+      } finally {
+        setUploadingPhoto(false);
+        input.value = '';
+      }
+    };
+    photoInputRef.current = input;
+    document.body.appendChild(input);
+    return () => document.body.removeChild(input);
+  }, []);
+
   const handleSave = async () => {
     if (!form.name.trim()) { setError(`${t('fieldRequired')}: ${t('ctName')}`); return; }
     setError('');
@@ -288,14 +324,20 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
         documentNumber: form.documentNumber.trim(),
         ...methodsToPayload(contactMethods),
         documents,
+        photoUri,
       };
       let saved;
+      let existed = false;
       if (mode === 'edit' && contact) {
         saved = await updateContact(contact.id, payload);
+      } else if (typeof customCreate === 'function') {
+        const result = await customCreate(payload);
+        saved = result?.contact ?? result;
+        existed = !!result?.existed;
       } else {
         saved = await createContact(payload);
       }
-      onSaved(saved);
+      onSaved(saved, { existed });
     } catch (e) {
       setError(e.message || t('errorSave'));
     } finally {
@@ -333,6 +375,29 @@ export default function WebContactEditPanel({ visible, mode, contact, onClose, o
 
         {/* Form */}
         <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
+
+          {/* TD-104: фото-аватар контакта */}
+          <View style={s.avatarRow}>
+            <TouchableOpacity
+              style={s.avatarCircle}
+              onPress={() => photoInputRef.current?.click()}
+              disabled={uploadingPhoto}
+              activeOpacity={0.8}
+            >
+              {uploadingPhoto ? (
+                <ActivityIndicator size="small" color={ACCENT} />
+              ) : photoUri ? (
+                <Image source={{ uri: photoUri }} style={s.avatarImg} resizeMode="cover" />
+              ) : (
+                <Text style={s.avatarPlaceholder}>+</Text>
+              )}
+            </TouchableOpacity>
+            {photoUri && !uploadingPhoto && (
+              <TouchableOpacity style={s.avatarRemove} onPress={() => setPhotoUri('')} activeOpacity={0.7}>
+                <Text style={s.avatarRemoveText}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           {/* Тип — скрываем если тип зафиксирован */}
           {!lockType && (
@@ -552,6 +617,14 @@ const s = StyleSheet.create({
   docAdd:       { width: 80, height: 80, borderRadius: 10, borderWidth: 2, borderColor: C.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 2 },
   docAddIcon:   { fontSize: 22, color: C.light },
   docAddText:   { fontSize: 11, color: C.muted },
+
+  // TD-104: фото-аватар контакта
+  avatarRow:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 },
+  avatarCircle:     { width: 96, height: 96, borderRadius: 48, borderWidth: 2, borderColor: C.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: C.bg },
+  avatarImg:        { width: '100%', height: '100%' },
+  avatarPlaceholder:{ fontSize: 32, color: C.light, fontWeight: '300' },
+  avatarRemove:     { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  avatarRemoveText: { fontSize: 12, color: '#FFF', fontWeight: '700' },
 
   // Error
   errorBanner: {

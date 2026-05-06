@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import {
   View,
@@ -11,8 +11,17 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Logo, { COLORS } from '../components/Logo';
-import { signIn, signInWithGoogle, signInWithFacebook } from '../services/authService';
+import { signIn } from '../services/authService';
+
+// TD-032: brute-force protection. After MAX_ATTEMPTS wrong passwords for the
+// same email, block the login button for LOCK_DURATION_MS. Counter is keyed
+// by lowercased email and persisted in AsyncStorage so it survives reloads.
+const MAX_ATTEMPTS = 3;
+const LOCK_DURATION_MS = 60 * 1000;
+const ATTEMPTS_KEY = (email) => `loginAttempts:${(email || '').trim().toLowerCase()}`;
+const LOCK_KEY     = (email) => `loginLockedUntil:${(email || '').trim().toLowerCase()}`;
 
 // Тени в стиле макета: выраженные drop shadow, «слоистость»
 const inputShadow = {
@@ -37,45 +46,107 @@ const buttonShadow = {
   elevation: 5,
 };
 
-export default function Login({ onSignUp, onLogin }) {
+export default function Login({ onSignUp, onLogin, onForgotPassword }) {
   const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [lockedUntil, setLockedUntil] = useState(0);
+  const [now, setNow] = useState(Date.now());
+  const [loading, setLoading] = useState(false);
   const passwordRef = useRef(null);
 
+  // Tick every second while the form is locked, so the countdown re-renders.
+  useEffect(() => {
+    if (lockedUntil <= Date.now()) return undefined;
+    const id = setInterval(() => {
+      const t1 = Date.now();
+      setNow(t1);
+      if (t1 >= lockedUntil) {
+        setLockedUntil(0);
+        setLoginError('');
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [lockedUntil]);
+
+  // When user changes the email, look up any persisted lock for that email.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const em = (email || '').trim().toLowerCase();
+      if (!em) {
+        if (!cancelled) { setLockedUntil(0); setLoginError(''); }
+        return;
+      }
+      try {
+        const raw = await AsyncStorage.getItem(LOCK_KEY(em));
+        const until = raw ? parseInt(raw, 10) : 0;
+        if (cancelled) return;
+        if (until && until > Date.now()) {
+          setLockedUntil(until);
+          setNow(Date.now());
+        } else {
+          setLockedUntil(0);
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [email]);
+
+  const isLocked = lockedUntil > now;
+  const secondsLeft = isLocked ? Math.ceil((lockedUntil - now) / 1000) : 0;
+
+  const recordFailedAttempt = async (em) => {
+    try {
+      const raw = await AsyncStorage.getItem(ATTEMPTS_KEY(em));
+      const prev = parseInt(raw, 10);
+      const next = (Number.isFinite(prev) ? prev : 0) + 1;
+      if (next >= MAX_ATTEMPTS) {
+        const until = Date.now() + LOCK_DURATION_MS;
+        await AsyncStorage.setItem(LOCK_KEY(em), String(until));
+        await AsyncStorage.removeItem(ATTEMPTS_KEY(em));
+        setLockedUntil(until);
+        setNow(Date.now());
+      } else {
+        await AsyncStorage.setItem(ATTEMPTS_KEY(em), String(next));
+      }
+    } catch {}
+  };
+
+  const resetLoginAttempts = async (em) => {
+    try {
+      await AsyncStorage.multiRemove([ATTEMPTS_KEY(em), LOCK_KEY(em)]);
+    } catch {}
+  };
+
   const handleLogin = async () => {
+    if (isLocked || loading) return;
     setLoginError('');
     const em = (email || '').trim();
     const pw = password || '';
     if (!em) { setLoginError(t('enterEmail')); return; }
     if (!pw) { setLoginError(t('enterPassword')); return; }
+    setLoading(true);
     try {
       const userData = await signIn({ email: em, password: pw });
+      await resetLoginAttempts(em.toLowerCase());
       onLogin?.(userData);
     } catch (err) {
       const msg = err?.message || '';
       if (msg.includes('Invalid login credentials')) {
+        await recordFailedAttempt(em.toLowerCase());
         setLoginError(t('wrongPassword'));
+      } else if (msg === 'PROFILE_NOT_FOUND') {
+        setLoginError(t('loginProfileNotFound'));
+      } else if (msg === 'EMAIL_NOT_CONFIRMED') {
+        // TD-015: юзер пытается войти, но не подтвердил email через письмо.
+        setLoginError(t('emailNotConfirmedHint'));
       } else {
         setLoginError(msg || t('saveFailed'));
       }
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithGoogle();
-    } catch (e) {
-      Alert.alert(t('error'), e.message);
-    }
-  };
-
-  const handleFacebookLogin = async () => {
-    try {
-      await signInWithFacebook();
-    } catch (e) {
-      Alert.alert(t('error'), e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -129,29 +200,27 @@ export default function Login({ onSignUp, onLogin }) {
           </View>
 
           <TouchableOpacity
-            style={[styles.loginButton, buttonShadow]}
+            style={[styles.loginButton, buttonShadow, (isLocked || loading) && styles.loginButtonDisabled]}
             activeOpacity={0.8}
             onPress={handleLogin}
+            disabled={isLocked || loading}
           >
-            <Text style={styles.loginButtonText}>{t('login')}</Text>
+            <Text style={styles.loginButtonText}>{loading ? t('saving') : t('login')}</Text>
           </TouchableOpacity>
 
-          {/* <Text style={styles.orText}>{t('orSignIn')}</Text> */}
-          {/* <View style={styles.socialRow}>
-            <TouchableOpacity style={[styles.socialBtn, inputShadow]} activeOpacity={0.8} onPress={handleGoogleLogin}>
-              <Text style={styles.socialIconGoogle}>G</Text>
+          {/* TD-014: ссылка на экран сброса пароля */}
+          {onForgotPassword && (
+            <TouchableOpacity onPress={onForgotPassword} activeOpacity={0.7} style={styles.forgotLink}>
+              <Text style={styles.forgotLinkText}>{t('forgotPasswordLink')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.socialBtn, styles.socialBtnFacebook, inputShadow]}
-              activeOpacity={0.8}
-              onPress={handleFacebookLogin}
-            >
-              <Text style={styles.socialIconFacebook}>f</Text>
-            </TouchableOpacity>
-          </View> */}
+          )}
         </View>
 
-        {loginError ? (
+        {isLocked ? (
+          <Text style={styles.loginError}>
+            {(t('loginLockedTryAgain') || 'Too many failed attempts. Try again in {seconds} s.').replace('{seconds}', String(secondsLeft))}
+          </Text>
+        ) : loginError ? (
           <Text style={styles.loginError}>{loginError}</Text>
         ) : null}
 
@@ -249,44 +318,24 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 26,
   },
+  loginButtonDisabled: {
+    opacity: 0.5,
+  },
   loginButtonText: {
     color: '#FFF',
     fontSize: 17,
     fontWeight: '700',
   },
-  orText: {
-    fontSize: 14,
+  forgotLink: {
+    alignSelf: 'center',
+    marginTop: -10,
+    marginBottom: 20,
+    padding: 8,
+  },
+  forgotLinkText: {
     color: COLORS.subtitle,
-    marginBottom: 18,
-    textAlign: 'center',
-  },
-  socialRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 18,
-    marginBottom: 44,
-  },
-  socialBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: '#FFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 0,
-  },
-  socialBtnFacebook: {
-    backgroundColor: COLORS.facebookBlue,
-  },
-  socialIconGoogle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#5F6368',
-  },
-  socialIconFacebook: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#FFF',
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
   signUpRow: {
     flexDirection: 'row',

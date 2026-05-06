@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
@@ -23,14 +21,13 @@ import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
+import { getVideoThumbnailUrl } from '../utils/videoThumbnail';
 import { useAppData } from '../context/AppDataContext';
-import { getProperties, updateProperty, createProperty, deleteProperty, updateResortChildrenDistrict, updatePropertyResponsible, submitPropertyDraft, getPropertyDraft, getPropertyRejectionHistory, approveProperty, rejectProperty, approvePropertyDraft, rejectPropertyDraft } from '../services/propertiesService';
-import { supabase } from '../services/supabase';
-import { sendNotification } from '../services/notificationsService';
+import { getProperties, updateProperty, createProperty, deleteProperty, updateResortChildrenDistrict, updatePropertyResponsible } from '../services/propertiesService';
 import { getActiveTeamMembers } from '../services/companyService';
 import { deletePhotoFromStorage } from '../services/storageService';
 import { getContacts } from '../services/contactsService';
-import { getBookings, deleteBooking, updateBooking } from '../services/bookingsService';
+import { getBookings, deleteBooking, getBookingsCountForProperty } from '../services/bookingsService';
 import { cancelBookingReminders } from '../services/bookingRemindersService';
 import PropertyEditWizard from '../components/PropertyEditWizard';
 import AddBookingModal from '../components/AddBookingModal';
@@ -150,17 +147,10 @@ function ResortHouseItem({ item, expanded, onToggle, resortCode, onPress, t }) {
   });
 
   const codeDisplay = (resortCode != null ? resortCode : item.code) + (item.code_suffix ? ` (${item.code_suffix})` : '');
-  const isPending = item.property_status === 'pending';
-  const isRejected = item.property_status === 'rejected';
-  const isInReview = isPending || isRejected;
 
   return (
     <View
-      style={
-        isInReview
-          ? [styles.resortHouseCard, styles.childCardInReview, { borderLeftColor: '#A8E6A3' }]
-          : [styles.resortHouseCard, { backgroundColor: 'rgba(168,230,163,0.7)', borderColor: '#A8E6A3' }]
-      }
+      style={[styles.resortHouseCard, { backgroundColor: 'rgba(168,230,163,0.7)', borderColor: '#A8E6A3' }]}
     >
       <View style={styles.resortHouseRow}>
         <TouchableOpacity
@@ -173,13 +163,6 @@ function ResortHouseItem({ item, expanded, onToggle, resortCode, onPress, t }) {
           <Text style={styles.resortHouseName} numberOfLines={1}>{item.name}</Text>
           <Text style={styles.resortHouseCode}>{codeDisplay}</Text>
         </TouchableOpacity>
-        {isInReview && (
-          <View style={[styles.childStatusBadge, isRejected ? styles.childStatusBadgeRejected : styles.childStatusBadgePending]}>
-            <Text style={[styles.childStatusBadgeText, isRejected ? styles.childStatusBadgeTextRejected : styles.childStatusBadgeTextPending]}>
-              {isPending ? t('statusPending') : t('statusRejected')}
-            </Text>
-          </View>
-        )}
         <TouchableOpacity onPress={onToggle} activeOpacity={0.5} style={styles.resortHouseExpandBtn}>
           <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
             <RNImage source={require('../../assets/icon-arrow-down.png')} style={styles.resortHouseArrow} resizeMode="contain" />
@@ -391,20 +374,6 @@ const galleryStyles = StyleSheet.create({
   saveMenuText: { fontSize: 15, color: '#FFF', fontWeight: '500' },
 });
 
-function getVideoThumbnailUrl(url) {
-  if (!url || typeof url !== 'string') return null;
-  const u = url.trim();
-  let id = null;
-  const ytMatch = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-  if (ytMatch) id = { type: 'youtube', id: ytMatch[1] };
-  const vimeoMatch = u.match(/vimeo\.com\/(?:video\/)?(\d+)/);
-  if (vimeoMatch) id = { type: 'vimeo', id: vimeoMatch[1] };
-  if (!id) return null;
-  if (id.type === 'youtube') return `https://img.youtube.com/vi/${id.id}/hqdefault.jpg`;
-  if (id.type === 'vimeo') return `https://vumbnail.com/${id.id}.jpg`;
-  return null;
-}
-
 function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
   return (
     <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
@@ -501,6 +470,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
   const marketDistance = p.market_distance ?? resort?.market_distance;
   const city = p.city ?? resort?.city;
   const district = p.district ?? resort?.district;
+  const address = p.address || resort?.address || '';
   const googleMapsLink = p.google_maps_link || resort?.google_maps_link;
   const codeDisplay = resort
     ? (resort.code || '') + (p.code_suffix ? ` (${p.code_suffix})` : '')
@@ -512,6 +482,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         <InfoRow label={t('propertyCode')} value={codeDisplay} labelBold />
         <InfoRow label={t('pdCity')} value={city} labelBold />
         <InfoRow label={t('propDistrict')} value={district} labelBold />
+        {address ? <InfoRow label={t('pdAddress')} value={address} labelBold /> : null}
         {!hideLocation && (googleMapsLink ? (
           <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(googleMapsLink)} labelBold />
         ) : (
@@ -686,7 +657,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
   const loadResortHouses = useCallback(async () => {
     try {
       const all = await getProperties();
-      setResortHouses(sortByInternalCode(all.filter(h => h.resort_id === p.id)));
+      setResortHouses(sortByInternalCode(all.filter(h => h.parent_id === p.id)));
     } catch {}
   }, [p.id]);
 
@@ -750,6 +721,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
         <InfoRow label={t('propertyCode')} value={p.code} labelBold />
         <InfoRow label={t('pdCity')} value={p.city} labelBold />
         <InfoRow label={t('propDistrict')} value={p.district} labelBold />
+        {p.address ? <InfoRow label={t('pdAddress')} value={p.address} labelBold /> : null}
         {!hideLocation && (p.google_maps_link ? (
           <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
         ) : (
@@ -874,17 +846,10 @@ function CondoApartmentItem({ item, expanded, onToggle, onPress, t }) {
   });
 
   const codeDisplay = (item.code_suffix ? `${item.code || ''} (${item.code_suffix})` : item.code) || '';
-  const isPending = item.property_status === 'pending';
-  const isRejected = item.property_status === 'rejected';
-  const isInReview = isPending || isRejected;
 
   return (
     <View
-      style={
-        isInReview
-          ? [styles.resortHouseCard, styles.childCardInReview, { borderLeftColor: '#64B5F6' }]
-          : [styles.resortHouseCard, { backgroundColor: '#BBDEFB', borderColor: '#64B5F6' }]
-      }
+      style={[styles.resortHouseCard, { backgroundColor: '#BBDEFB', borderColor: '#64B5F6' }]}
     >
       <View style={styles.resortHouseRow}>
         <TouchableOpacity
@@ -897,13 +862,6 @@ function CondoApartmentItem({ item, expanded, onToggle, onPress, t }) {
           <Text style={styles.resortHouseName} numberOfLines={1}>{item.name}</Text>
           <Text style={styles.resortHouseCode}>{codeDisplay}</Text>
         </TouchableOpacity>
-        {isInReview && (
-          <View style={[styles.childStatusBadge, isRejected ? styles.childStatusBadgeRejected : styles.childStatusBadgePending]}>
-            <Text style={[styles.childStatusBadgeText, isRejected ? styles.childStatusBadgeTextRejected : styles.childStatusBadgeTextPending]}>
-              {isPending ? t('statusPending') : t('statusRejected')}
-            </Text>
-          </View>
-        )}
         <TouchableOpacity onPress={onToggle} activeOpacity={0.5} style={styles.resortHouseExpandBtn}>
           <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
             <RNImage source={require('../../assets/icon-arrow-down.png')} style={styles.resortHouseArrow} resizeMode="contain" />
@@ -931,7 +889,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
   const loadApartments = useCallback(async () => {
     try {
       const all = await getProperties();
-      setApartments(sortByInternalCode(all.filter(a => a.resort_id === p.id)));
+      setApartments(sortByInternalCode(all.filter(a => a.parent_id === p.id)));
     } catch {}
   }, [p.id]);
 
@@ -989,6 +947,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
         <InfoRow label={t('propertyCode')} value={p.code} labelBold />
         <InfoRow label={t('pdCity')} value={p.city} labelBold />
         <InfoRow label={t('propDistrict')} value={p.district} labelBold />
+        {p.address ? <InfoRow label={t('pdAddress')} value={p.address} labelBold /> : null}
         {!hideLocation && (p.google_maps_link ? (
           <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
         ) : (
@@ -1112,16 +1071,11 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const isAgentRole = user?.isAgentRole ?? isTeamMember;
   const isAdmin = user?.workAs === 'company' && !!(user?.companyId); // web-паттерн: явная проверка company mode
   const isAdminRole = user?.isAdminRole ?? (!user?.teamMembership && !!user?.companyId);
-  const canBook = user?.teamPermissions?.can_book;
-  const canEditInfo = !isTeamMember || user?.teamPermissions?.can_edit_info;
-  const canEditPrices = !isTeamMember || user?.teamPermissions?.can_edit_prices;
-  const needsApproval = isTeamMember && (!canEditInfo || !canEditPrices || p?.property_status === 'rejected');
-  const isApproved = !p?.property_status || p?.property_status === 'approved';
-  const isParentContainer = (p?.type === 'resort' || p?.type === 'condo') && !p?.resort_id;
+  const canBook = user?.teamPermissions?.can_manage_bookings;
+  const isParentContainer = (p?.type === 'resort' || p?.type === 'condo') && !p?.parent_id;
   const propertiesList = Array.isArray(properties) ? properties : [];
-  const hasApprovedChildren = propertiesList.some((child) => child.resort_id === p?.id && child.property_status === 'approved');
-  const needsSecondDeleteConfirm = isAdminRole && isParentContainer && hasApprovedChildren;
-  // Agent may delete only their own non-approved property (LOCK-001)
+  const hasChildren = propertiesList.some((child) => child.parent_id === p?.id);
+  const needsSecondDeleteConfirm = isAdminRole && isParentContainer && hasChildren;
   const isCreator = p?.user_id === user?.id;
   const [wizardVisible, setWizardVisible] = useState(false);
   const [teamMembers, setTeamMembers] = useState([]);
@@ -1147,143 +1101,13 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   const [selectedClientContact, setSelectedClientContact] = useState(null);
   const [editBookingModalVisible, setEditBookingModalVisible] = useState(false);
   const [editBookingToEdit, setEditBookingToEdit] = useState(null);
-  const [pendingDraft, setPendingDraft] = useState(null);
-  const [rejectionHistory, setRejectionHistory] = useState([]);
-  // Admin moderation: pending draft from any agent (different from own pendingDraft)
-  const [adminAgentDraft, setAdminAgentDraft] = useState(null);
-  const [rejectFormVisible, setRejectFormVisible] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectReasonError, setRejectReasonError] = useState(false);
-  const [moderating, setModerating] = useState(false);
 
-  // Priority-based display status — computed AFTER all useState declarations so that
-  // pendingDraft and adminAgentDraft hold their actual state values (not Babel-hoisted undefined).
-  const hasPendingDraft = Boolean(pendingDraft);
-  const hasAdminAgentDraft = isAdmin && Boolean(adminAgentDraft);
-  let displayStatus = null;
-  if (hasPendingDraft || hasAdminAgentDraft) {
-    displayStatus = 'in_review';
-  } else if (p?.property_status === 'rejected') {
-    displayStatus = 'rejected';
-  } else if (p?.property_status === 'pending') {
-    displayStatus = 'in_review';
-  }
-
-  // Загружаем pending-черновик и историю отклонений при смене объекта или обновлении списка.
-  // cancel-флаг предотвращает setState после размонтирования.
-  // Синхронизируем p с актуальными данными из AppDataContext (как web делает с selected).
+  // Синхронизируем p с актуальными данными из AppDataContext.
   useEffect(() => {
-    let cancelled = false;
-    if (!p?.id) {
-      setPendingDraft(null);
-      setRejectionHistory([]);
-      return;
-    }
-    // Sync local property state with fresh data from AppDataContext (mirrors web's setSelected sync)
-    if (properties?.length) {
-      const fresh = properties.find(x => x.id === p.id);
-      if (fresh && fresh.property_status !== p.property_status) {
-        setP(fresh);
-      }
-    }
-    getPropertyDraft(p.id)
-      .then(draft => { if (!cancelled) setPendingDraft(draft); })
-      .catch(() => {});
-    getPropertyRejectionHistory(p.id)
-      .then(history => { if (!cancelled) setRejectionHistory(history); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [p?.id, p?.property_status, properties]);
-
-  // Admin: load any agent's pending draft for this property.
-  // Extracted into useCallback so it can be called both on screen focus (useFocusEffect)
-  // and whenever isAdmin or p?.id changes (useEffect below).
-  const loadAdminDraft = useCallback(() => {
-    if (!isAdmin || !p?.id) {
-      setAdminAgentDraft(null);
-      return undefined;
-    }
-    let cancelled = false;
-    supabase
-      .from('property_drafts')
-      .select('id, user_id')
-      .eq('property_id', p.id)
-      .eq('status', 'pending')
-      .limit(1)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          console.warn('[adminAgentDraft] query error:', error.message, error.code);
-          return;
-        }
-        setAdminAgentDraft(data || null);
-        if (data) {
-          setRejectFormVisible(false);
-          setRejectReason('');
-          setRejectReasonError(false);
-        }
-      })
-      .catch(e => console.warn('[adminAgentDraft] unexpected error:', e?.message));
-    return () => { cancelled = true; };
-  }, [isAdmin, p?.id]);
-
-  // Fire every time the screen gains focus (mirrors web's draftRefreshKey mechanism).
-  // Guarantees fresh data when admin navigates to the screen after agent resubmits.
-  useFocusEffect(useCallback(() => { return loadAdminDraft(); }, [loadAdminDraft]));
-
-  // Also fire when isAdmin or p?.id changes while screen is already mounted.
-  useEffect(() => { return loadAdminDraft(); }, [loadAdminDraft]);
-
-  // Re-run when AppDataContext properties refresh (triggered by broadcastChange after agent resubmit).
-  // This covers the case where admin is already on the screen when agent sends for review.
-  useEffect(() => {
-    if (isAdmin && p?.id) return loadAdminDraft();
-  }, [isAdmin, p?.id, properties, loadAdminDraft]);
-
-  // Admin realtime ping: lightweight subscription on property_drafts for this property.
-  // When the agent submits a new draft, the admin sees the status switch to in_review immediately.
-  // One targeted channel per open detail screen — minimal server load.
-  useEffect(() => {
-    if (!isAdmin || !p?.id) return;
-
-    // Realtime ping: accelerates update when property_drafts is in supabase_realtime publication.
-    // Falls back gracefully to the properties-dep useEffect above if publication is not enabled.
-    const reloadAdminDraft = () => {
-      supabase
-        .from('property_drafts')
-        .select('id, user_id')
-        .eq('property_id', p.id)
-        .eq('status', 'pending')
-        .limit(1)
-        .maybeSingle()
-        .then(({ data }) => {
-          setAdminAgentDraft(data || null);
-          if (data) {
-            setRejectFormVisible(false);
-            setRejectReason('');
-            setRejectReasonError(false);
-          }
-        })
-        .catch(() => {});
-    };
-
-    const channel = supabase
-      .channel(`admin-draft-watch-${p.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'property_drafts',
-          filter: `property_id=eq.${p.id}`,
-        },
-        reloadAdminDraft,
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [isAdmin, p?.id]);
+    if (!p?.id || !properties?.length) return;
+    const fresh = properties.find(x => x.id === p.id);
+    if (fresh && fresh !== p) setP(fresh);
+  }, [p?.id, properties]);
 
   const loadResortData = useCallback(async (resortId) => {
     if (!resortId) { setResort(null); return; }
@@ -1352,8 +1176,8 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
   }, [property, loadOwnerData]);
 
   useEffect(() => {
-    loadResortData(property?.resort_id);
-  }, [property?.resort_id, loadResortData]);
+    loadResortData(property?.parent_id);
+  }, [property?.parent_id, loadResortData]);
 
   const scrollViewRef = useRef(null);
   useEffect(() => {
@@ -1401,8 +1225,14 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       setGalleryIndex(Math.min(galleryIndex, newPhotos.length - 1));
     }
     try {
+      const oldThumbs = Array.isArray(p.photos_thumb) ? p.photos_thumb : [];
+      const oldPhotos = Array.isArray(p.photos) ? p.photos : [];
+      const deletedIdx = oldPhotos.indexOf(deletedUrl);
+      const deletedThumb = deletedIdx >= 0 ? oldThumbs[deletedIdx] : null;
+      const newThumbs = oldThumbs.filter((_, i) => i !== deletedIdx);
       await deletePhotoFromStorage(deletedUrl);
-      const updated = await updateProperty(p.id, { photos: newPhotos });
+      if (deletedThumb) await deletePhotoFromStorage(deletedThumb);
+      const updated = await updateProperty(p.id, { photos: newPhotos, photos_thumb: newThumbs });
       setP(prev => ({ ...prev, ...updated }));
       onPropertyUpdated?.();
     } catch (e) {
@@ -1424,134 +1254,57 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     }
   }, [p?.id, onPropertyUpdated, onBack, t]);
 
-  const handleDeletePress = useCallback(() => {
-    if (!needsSecondDeleteConfirm) {
-      onDelete?.();
-      return;
-    }
-    Alert.alert(
-      t('deletePropertyTitle'),
-      t('pdDeleteConfirm'),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('deleteAction'),
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              t('deleteContainerWithUnitsTitle'),
-              t('deleteContainerWithUnitsText'),
-              [
-                { text: t('cancel'), style: 'cancel' },
-                {
-                  text: t('deleteAction'),
-                  style: 'destructive',
-                  onPress: async () => {
-                    await handleDirectDelete();
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
-  }, [needsSecondDeleteConfirm, onDelete, t, handleDirectDelete]);
+  const handleDeletePress = useCallback(async () => {
+    // TD-061: для не-контейнера подтверждение делает родитель через onDelete (Alert с pdDeleteConfirm).
+    // Здесь добавляем предварительный alert с count броней, если они есть.
+    let bookingsCount = 0;
+    try { bookingsCount = await getBookingsCountForProperty(p.id); } catch {}
 
-  // ── Admin moderation: Approve ──────────────────────────────────────────────
-  const handleAdminApprove = useCallback(() => {
-    Alert.alert(
-      t('approveConfirmTitle'),
-      t('approveConfirmMsg'),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('propApprove'),
-          onPress: async () => {
-            setModerating(true);
-            try {
-              if (adminAgentDraft) {
-                // edit_submitted flow: approve the agent's draft
-                const updated = await approvePropertyDraft(adminAgentDraft.id);
-                setP(prev => ({ ...prev, ...(updated || {}), property_status: 'approved' }));
-                setAdminAgentDraft(null);
-                setPendingDraft(null);
-                await sendNotification({
-                  recipientId: adminAgentDraft.user_id,
-                  senderId: user.id,
-                  type: 'edit_approved',
-                  title: t('changesApproved'),
-                  body: p.name,
-                  propertyId: p.id,
-                });
-              } else {
-                // property_submitted flow: approve the property directly
-                await approveProperty(p.id);
-                setP(prev => ({ ...prev, property_status: 'approved' }));
-                if (p.user_id) {
-                  await sendNotification({
-                    recipientId: p.user_id,
-                    senderId: user.id,
-                    type: 'property_approved',
-                    title: t('changesApproved'),
-                    body: p.name,
-                    propertyId: p.id,
-                  });
-                }
-              }
-              onPropertyUpdated?.();
-            } catch (e) {
-              Alert.alert(t('error') || 'Error', e.message || 'Failed to approve');
-            } finally {
-              setModerating(false);
-            }
-          },
-        },
-      ],
-    );
-  }, [adminAgentDraft, p, user, t, onPropertyUpdated]);
-
-  // ── Admin moderation: Reject ───────────────────────────────────────────────
-  const handleAdminReject = useCallback(async () => {
-    const trimmed = rejectReason.trim();
-    if (!trimmed) {
-      setRejectReasonError(true);
-      return;
-    }
-    setModerating(true);
-    try {
-      if (adminAgentDraft) {
-        await rejectPropertyDraft(adminAgentDraft.id, trimmed);
-        setAdminAgentDraft(null);
-        setP(prev => ({ ...prev, property_status: 'rejected', rejection_reason: trimmed }));
+    const showBookingsAlertIfAny = (afterConfirm) => {
+      if (bookingsCount > 0) {
+        Alert.alert(
+          t('deletePropertyTitle'),
+          t('deletePropertyWithBookingsText').replace('{count}', String(bookingsCount)),
+          [
+            { text: t('cancel'), style: 'cancel' },
+            { text: t('deleteAction'), style: 'destructive', onPress: afterConfirm },
+          ]
+        );
       } else {
-        await rejectProperty(p.id, trimmed);
-        setP(prev => ({ ...prev, property_status: 'rejected', rejection_reason: trimmed }));
+        afterConfirm();
       }
-      // Refresh rejection history to include the new entry
-      getPropertyRejectionHistory(p.id).then(setRejectionHistory).catch(() => {});
-      // Notify the agent
-      const agentId = adminAgentDraft?.user_id ?? p.user_id;
-      if (agentId) {
-        await sendNotification({
-          recipientId: agentId,
-          senderId: user.id,
-          type: adminAgentDraft ? 'edit_rejected' : 'property_rejected',
-          title: t('changesRejected'),
-          body: `${t('diffReason')} ${trimmed}`,
-          propertyId: p.id,
-        });
-      }
-      setRejectFormVisible(false);
-      setRejectReason('');
-      setRejectReasonError(false);
-      onPropertyUpdated?.();
-    } catch (e) {
-      Alert.alert(t('error') || 'Error', e.message || 'Failed to reject');
-    } finally {
-      setModerating(false);
+    };
+
+    if (!needsSecondDeleteConfirm) {
+      showBookingsAlertIfAny(() => onDelete?.());
+      return;
     }
-  }, [adminAgentDraft, rejectReason, p, user, t, onPropertyUpdated]);
+
+    // Контейнер с детьми: сохраняем двойное подтверждение (pdDeleteConfirm → deleteContainerWithUnitsText).
+    showBookingsAlertIfAny(() => {
+      Alert.alert(
+        t('deletePropertyTitle'),
+        t('pdDeleteConfirm'),
+        [
+          { text: t('cancel'), style: 'cancel' },
+          {
+            text: t('deleteAction'),
+            style: 'destructive',
+            onPress: () => {
+              Alert.alert(
+                t('deleteContainerWithUnitsTitle'),
+                t('deleteContainerWithUnitsText'),
+                [
+                  { text: t('cancel'), style: 'cancel' },
+                  { text: t('deleteAction'), style: 'destructive', onPress: async () => { await handleDirectDelete(); } },
+                ]
+              );
+            },
+          },
+        ]
+      );
+    });
+  }, [p?.id, needsSecondDeleteConfirm, onDelete, t, handleDirectDelete]);
 
   const handleWizardSave = async (updates) => {
     try {
@@ -1562,29 +1315,14 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           await deletePhotoFromStorage(url);
         }
       }
-      if (needsApproval) {
-        // Отправляем черновик — оригинал не трогаем
-        await submitPropertyDraft(p.id, updates);
-        const adminId = user?.teamMembership?.adminId;
-        if (adminId) {
-          const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email || '';
-          await sendNotification({
-            recipientId: adminId,
-            senderId: user.id,
-            type: 'edit_submitted',
-            title: `${agentName} ${t('notifPropChangesMiddle')} «${p.name}»`,
-            body: t('notifApprovalRequired'),
-            propertyId: p.id,
-          });
+      const oldThumbs = Array.isArray(p.photos_thumb) ? p.photos_thumb : [];
+      const newThumbs = Array.isArray(updates.photos_thumb) ? updates.photos_thumb : [];
+      for (const url of oldThumbs) {
+        if (url && !newThumbs.includes(url)) {
+          await deletePhotoFromStorage(url);
         }
-        // Обновляем local state черновика
-        getPropertyDraft(p.id).then(setPendingDraft).catch(() => {});
-        setWizardVisible(false);
-        Alert.alert(t('draftSentAlertTitle'), t('draftSentAlertBody'));
-        return; // НЕ вызываем onPropertyUpdated — данные не изменились
       }
 
-      // Агент с разрешениями или Админ — сохраняем напрямую
       const updated = await updateProperty(p.id, updates);
       const merged = { ...p, ...updated };
       setP(merged);
@@ -1612,7 +1350,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
   const draftHouseInResort = {
     type: 'resort_house',
-    resort_id: p.id,
+    parent_id: p.id,
     name: '',
     code: p.code || '',
     city: p.city || '',
@@ -1622,11 +1360,12 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     district: p.district || '',
     google_maps_link: p.google_maps_link || '',
     address: p.address || '',
+    currency: p.currency || null,
   };
 
   const draftApartmentInCondo = {
     type: 'condo_apartment',
-    resort_id: p.id,
+    parent_id: p.id,
     name: '',
     code: p.code || '',
     city: p.city || '',
@@ -1636,13 +1375,14 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     district: p.district || '',
     google_maps_link: p.google_maps_link || '',
     address: p.address || '',
+    currency: p.currency || null,
   };
 
   const handleAddHouseSave = async (updates) => {
     try {
       const fullData = {
         ...updates,
-        resort_id: p.id,
+        parent_id: p.id,
         city: p.city || '',
         district: p.district || '',
         owner_id: p.owner_id || null,
@@ -1655,7 +1395,6 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         location_id,
         owner_id,
         responsible_agent_id,
-        property_status,
         ...detailsToUpdate
       } = fullData;
 
@@ -1666,7 +1405,6 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         location_id: location_id || null,
         owner_id: owner_id || null,
         responsible_agent_id: responsible_agent_id ?? null,
-        property_status: property_status || (isTeamMember ? 'pending' : 'approved'),
       });
 
       if (created?.id) {
@@ -1679,21 +1417,6 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
       if (created?.id && Object.keys(safeDetailsToUpdate).length > 0) {
         await updateProperty(created.id, safeDetailsToUpdate);
-      }
-
-      if (isTeamMember && created?.id) {
-        const adminId = user?.teamMembership?.adminId;
-        if (adminId) {
-          const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email;
-          await sendNotification({
-            recipientId: adminId,
-            senderId: user?.id,
-            type: 'property_submitted',
-            title: `🏠 ${agentName} ${t('notifAddedPropertyTo')} ${p.name}`,
-            body: `${t('notifLabelProperty')} ${name || ''} · ${t('notifLabelCode')} ${code || ''}`,
-            propertyId: created.id,
-          });
-        }
       }
 
       setAddHouseWizardVisible(false);
@@ -1709,7 +1432,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     try {
       const fullData = {
         ...updates,
-        resort_id: p.id,
+        parent_id: p.id,
         city: p.city || '',
         district: p.district || '',
         owner_id: p.owner_id || null,
@@ -1722,7 +1445,6 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         location_id,
         owner_id,
         responsible_agent_id,
-        property_status,
         ...detailsToUpdate
       } = fullData;
 
@@ -1733,7 +1455,6 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         location_id: location_id || null,
         owner_id: owner_id || null,
         responsible_agent_id: responsible_agent_id ?? null,
-        property_status: property_status || (isTeamMember ? 'pending' : 'approved'),
       });
 
       if (created?.id) {
@@ -1746,21 +1467,6 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
       if (created?.id && Object.keys(safeDetailsToUpdate).length > 0) {
         await updateProperty(created.id, safeDetailsToUpdate);
-      }
-
-      if (isTeamMember && created?.id) {
-        const adminId = user?.teamMembership?.adminId;
-        if (adminId) {
-          const agentName = [user?.name, user?.lastName].filter(Boolean).join(' ') || user?.email;
-          await sendNotification({
-            recipientId: adminId,
-            senderId: user?.id,
-            type: 'property_submitted',
-            title: `🏠 ${agentName} ${t('notifAddedPropertyTo')} ${p.name}`,
-            body: `${t('notifLabelProperty')} ${name || ''} · ${t('notifLabelCode')} ${code || ''}`,
-            propertyId: created.id,
-          });
-        }
       }
 
       setAddApartmentWizardVisible(false);
@@ -1846,7 +1552,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     );
   }
 
-  const companyDisplayName = user?.companyInfo?.name || 'Компания';
+  const companyDisplayName = user?.companyInfo?.name || t('workAsCompany');
   const responsibleName = (!currentResponsible || currentResponsible === user?.id)
     ? companyDisplayName
     : (() => {
@@ -1866,8 +1572,8 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 
       {/* Строка действий */}
       <View style={styles.actionsRow}>
-        {/* Удалить — для не-агентов всегда; для agent-role только если создатель + не approved (LOCK-001) */}
-        {(!isAgentRole || (isCreator && !isApproved)) && (
+        {/* Удалить — все могут удалять свои объекты; admin-режим всегда */}
+        {(!isAgentRole || isCreator) && (
           <TouchableOpacity style={styles.actionBtn} onPress={handleDeletePress} activeOpacity={0.7}>
             <RNImage source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
           </TouchableOpacity>
@@ -1877,8 +1583,8 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
             <RNImage source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
           </TouchableOpacity>
-          {/* Добавить бронирование / добавить дом — только для approved, для агента только если есть can_book */}
-          {isApproved && (!isTeamMember || canBook) && (
+          {/* Добавить бронирование / добавить дом — для агента только если есть can_manage_bookings */}
+          {(!isTeamMember || canBook) && (
             <TouchableOpacity
               style={styles.actionBtn}
               activeOpacity={0.7}
@@ -1897,100 +1603,6 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
           )}
         </View>
       </View>
-
-      {/* ── Status block (uses pre-computed displayStatus) ── */}
-      {displayStatus && (
-        <View style={styles.statusBlockWrap}>
-          <View style={[styles.statusBadge, displayStatus === 'rejected' ? styles.statusBadgeRejected : styles.statusBadgePending]}>
-            <Text style={[styles.statusBadgeText, displayStatus === 'rejected' ? styles.statusBadgeTextRejected : styles.statusBadgeTextPending]}>
-              {displayStatus === 'rejected' ? t('propRejected') : t('filterInReview')}
-            </Text>
-            {displayStatus === 'rejected' && (
-              <Text style={styles.statusBadgeSubtitle}>{t('propRejectedSubtitle')}</Text>
-            )}
-          </View>
-
-          {rejectionHistory.length > 0 && (
-            <View style={styles.rejHistoryBlock}>
-              <Text style={styles.rejHistoryTitle}>{t('propRejectionHistory')}</Text>
-              {rejectionHistory.map((item, index) => {
-                const isLatest = index === 0;
-                const num = rejectionHistory.length - index;
-                return (
-                  <View key={item.id} style={styles.rejHistoryItem}>
-                    <Text style={[styles.rejHistoryNum, isLatest && styles.rejHistoryNumLatest]}>
-                      {`#${num}`}
-                    </Text>
-                    <Text style={[styles.rejHistoryReason, isLatest && styles.rejHistoryReasonLatest]}>
-                      {item.reason}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* ── Admin moderation actions (only when admin + displayStatus = in_review) ── */}
-      {isAdmin && displayStatus === 'in_review' && (
-        <View style={styles.adminActionsWrap}>
-          {!rejectFormVisible ? (
-            <View style={styles.adminActionRow}>
-              <TouchableOpacity
-                style={[styles.adminActionBtn, styles.adminActionApprove, moderating && styles.adminActionDisabled]}
-                onPress={handleAdminApprove}
-                disabled={moderating}
-                activeOpacity={0.75}
-              >
-                <Text style={styles.adminActionApproveText}>{t('propApprove')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.adminActionBtn, styles.adminActionReject, moderating && styles.adminActionDisabled]}
-                onPress={() => { setRejectFormVisible(true); setRejectReason(''); setRejectReasonError(false); }}
-                disabled={moderating}
-                activeOpacity={0.75}
-              >
-                <Text style={styles.adminActionRejectText}>{t('propReject')}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.rejectForm}>
-              <Text style={styles.rejectFormLabel}>{t('propRejectionReason')}</Text>
-              <TextInput
-                style={[styles.rejectFormInput, rejectReasonError && styles.rejectFormInputError]}
-                value={rejectReason}
-                onChangeText={v => { setRejectReason(v); if (rejectReasonError) setRejectReasonError(false); }}
-                placeholder={t('propRejectReasonPlaceholder')}
-                placeholderTextColor="#AAAAAA"
-                multiline
-                editable={!moderating}
-              />
-              {rejectReasonError && (
-                <Text style={styles.rejectFormErrorText}>{t('propRejectReasonRequired')}</Text>
-              )}
-              <View style={styles.adminActionRow}>
-                <TouchableOpacity
-                  style={[styles.adminActionBtn, styles.adminActionCancel]}
-                  onPress={() => { setRejectFormVisible(false); setRejectReason(''); setRejectReasonError(false); }}
-                  disabled={moderating}
-                  activeOpacity={0.75}
-                >
-                  <Text style={styles.adminActionCancelText}>{t('cancel')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.adminActionBtn, styles.adminActionSubmitReject, moderating && styles.adminActionDisabled]}
-                  onPress={handleAdminReject}
-                  disabled={moderating}
-                  activeOpacity={0.75}
-                >
-                  <Text style={styles.adminActionSubmitRejectText}>{t('propRejectSubmit')}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-        </View>
-      )}
 
       <ScrollView ref={scrollViewRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {p.type === 'resort' ? (
@@ -2011,9 +1623,9 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
               setSelectedBookingTitle(codePart || '');
               setSelectedBookingProperty(property || null);
             }}
-            onOpenBookingCalendar={isApproved ? (ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); } : undefined}
+            onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
             hideLocation={false}
-            responsibleName={isAdmin ? responsibleName : undefined}
+            responsibleName={(isAdmin && user?.companyInfo?.name?.trim()) ? responsibleName : undefined}
           />
         ) : p.type === 'condo' ? (
           <CondoDetailContent
@@ -2031,9 +1643,9 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
               setSelectedBookingTitle(codePart || '');
               setSelectedBookingProperty(property || null);
             }}
-            onOpenBookingCalendar={isApproved ? (ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); } : undefined}
+            onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
             hideLocation={false}
-            responsibleName={isAdmin ? responsibleName : undefined}
+            responsibleName={(isAdmin && user?.companyInfo?.name?.trim()) ? responsibleName : undefined}
           />
         ) : (
           <HouseDetailContent
@@ -2046,15 +1658,15 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             onOwner2Press={handleOwner2Press}
             onPhotoPress={handlePhotoPress}
             onVideoPress={handleVideoPress}
-            resort={p.resort_id ? resort : null}
+            resort={p.parent_id ? resort : null}
             refreshBookingsTrigger={refreshBookingsTrigger}
             onBookingPress={(b, codePart) => {
               setSelectedBooking(b);
               setSelectedBookingTitle(codePart || '');
             }}
-            onOpenBookingCalendar={isApproved ? (ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); } : undefined}
+            onOpenBookingCalendar={(ids, subtitle) => { setCalendarPropertyIds(ids || []); setCalendarSubtitle(subtitle || ''); setCalendarModalVisible(true); }}
             hideLocation={false}
-            responsibleName={isAdmin ? responsibleName : undefined}
+            responsibleName={(isAdmin && user?.companyInfo?.name?.trim()) ? responsibleName : undefined}
           />
         )}
 
@@ -2073,7 +1685,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
       <PropertyEditWizard
         visible={wizardVisible}
         property={p}
-        parentResort={p.resort_id ? resort : null}
+        parentResort={p.parent_id ? resort : null}
         onClose={() => setWizardVisible(false)}
         onSave={handleWizardSave}
       />
@@ -2412,13 +2024,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     overflow: 'hidden',
   },
-  childCardInReview: {
-    backgroundColor: '#ECECE7',
-    borderColor: '#9FA6AD',
-    borderWidth: 1.5,
-    borderStyle: 'solid',
-    borderLeftWidth: 5,
-  },
   resortHouseRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2448,31 +2053,6 @@ const styles = StyleSheet.create({
     color: '#D81B60',
     marginRight: 10,
   },
-  childStatusBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    marginRight: 8,
-  },
-  childStatusBadgePending: {
-    backgroundColor: '#FFF8E1',
-    borderColor: '#FFE082',
-  },
-  childStatusBadgeRejected: {
-    backgroundColor: '#FFF5F5',
-    borderColor: '#FFCDD2',
-  },
-  childStatusBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  childStatusBadgeTextPending: {
-    color: '#F57F17',
-  },
-  childStatusBadgeTextRejected: {
-    color: '#C62828',
-  },
   resortHouseExpandBtn: {
     paddingVertical: 6,
     paddingLeft: 10,
@@ -2496,177 +2076,5 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     marginBottom: 12,
-  },
-  draftBanner: {
-    backgroundColor: '#FFF8E1',
-    borderWidth: 1,
-    borderColor: '#FFE082',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginHorizontal: 16,
-    marginBottom: 12,
-  },
-  draftBannerText: {
-    fontSize: 13,
-    color: '#F57F17',
-    fontWeight: '600',
-  },
-  statusBlockWrap: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    gap: 8,
-  },
-  statusBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-  },
-  statusBadgePending: {
-    backgroundColor: '#FFF8E1',
-    borderColor: '#FFE082',
-  },
-  statusBadgeRejected: {
-    backgroundColor: '#FFF5F5',
-    borderColor: '#FFCDD2',
-  },
-  statusBadgeText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  statusBadgeTextPending: {
-    color: '#F57F17',
-  },
-  statusBadgeTextRejected: {
-    color: '#C62828',
-  },
-  statusBadgeSubtitle: {
-    fontSize: 12,
-    color: '#C62828',
-    marginTop: 2,
-    fontWeight: '400',
-  },
-  rejHistoryBlock: {
-    backgroundColor: '#FAFAFA',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#F0E0E0',
-    padding: 12,
-    gap: 6,
-  },
-  rejHistoryTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#999',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 4,
-  },
-  rejHistoryItem: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'flex-start',
-  },
-  rejHistoryNum: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#BBBBBB',
-    minWidth: 28,
-  },
-  rejHistoryNumLatest: {
-    color: '#C62828',
-    fontWeight: '700',
-  },
-  rejHistoryReason: {
-    flex: 1,
-    fontSize: 13,
-    color: '#AAAAAA',
-    lineHeight: 18,
-  },
-  rejHistoryReasonLatest: {
-    color: '#C62828',
-    fontWeight: '600',
-  },
-  adminActionsWrap: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-  },
-  adminActionRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  adminActionBtn: {
-    flex: 1,
-    borderRadius: 8,
-    paddingVertical: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  adminActionApprove: {
-    backgroundColor: '#3D7D82',
-  },
-  adminActionApproveText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  adminActionReject: {
-    backgroundColor: '#FFF0F0',
-    borderWidth: 1,
-    borderColor: '#FFCDD2',
-  },
-  adminActionRejectText: {
-    color: '#C62828',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  adminActionCancel: {
-    backgroundColor: '#F2F2F7',
-  },
-  adminActionCancelText: {
-    color: '#555555',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  adminActionSubmitReject: {
-    backgroundColor: '#C62828',
-  },
-  adminActionSubmitRejectText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  adminActionDisabled: {
-    opacity: 0.5,
-  },
-  rejectForm: {
-    gap: 8,
-  },
-  rejectFormLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#555555',
-    marginBottom: 2,
-  },
-  rejectFormInput: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#1C1C1E',
-    minHeight: 72,
-    textAlignVertical: 'top',
-    backgroundColor: '#FAFAFA',
-  },
-  rejectFormInputError: {
-    borderColor: '#C62828',
-  },
-  rejectFormErrorText: {
-    fontSize: 12,
-    color: '#C62828',
-    marginTop: -4,
   },
 });

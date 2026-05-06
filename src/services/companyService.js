@@ -1,4 +1,15 @@
 import { supabase } from './supabase';
+import { broadcastOneShot } from './companyChannel';
+
+const COMPANY_NAME_MIN_LENGTH = 2;
+const COMPANY_NAME_MAX_LENGTH = 80;
+
+function assertValidCompanyName(name) {
+  const trimmed = typeof name === 'string' ? name.trim() : '';
+  if (trimmed.length < COMPANY_NAME_MIN_LENGTH || trimmed.length > COMPANY_NAME_MAX_LENGTH) {
+    throw new Error('COMPANY_NAME_INVALID');
+  }
+}
 
 /**
  * Загружает компанию текущего пользователя (активную или неактивную).
@@ -31,8 +42,12 @@ export async function activateCompany(companyData = {}) {
 
   const userId = session.user.id;
 
+  if (companyData.name !== undefined) {
+    assertValidCompanyName(companyData.name);
+  }
+
   const dbData = {
-    name: companyData.name || '',
+    name: typeof companyData.name === 'string' ? companyData.name.trim() : '',
     phone: companyData.phone || null,
     email: companyData.email || null,
     logo_url: companyData.logoUrl || null,
@@ -54,14 +69,19 @@ export async function activateCompany(companyData = {}) {
   let companyId;
 
   if (existing) {
-    // Реактивируем и обновляем данные
+    // Реактивируем: если данные переданы — обновляем, иначе только меняем статус
+    const hasData = Object.values(companyData).some(v => v !== undefined && v !== null && v !== '');
+    const updatePayload = hasData
+      ? { ...dbData, status: 'active', updated_at: new Date().toISOString() }
+      : { status: 'active', updated_at: new Date().toISOString() };
     await supabase
       .from('companies')
-      .update({ ...dbData, status: 'active', updated_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq('id', existing.id);
     companyId = existing.id;
   } else {
-    // Создаём новую
+    // Создаём новую — имя обязательно
+    assertValidCompanyName(dbData.name);
     const { data: created, error } = await supabase
       .from('companies')
       .insert({ ...dbData, owner_id: userId, status: 'active' })
@@ -86,8 +106,11 @@ export async function activateCompany(companyData = {}) {
  * Обновляет данные компании (название, телефон и т.д.)
  */
 export async function updateCompany(companyId, companyData) {
+  if (companyData.name !== undefined) {
+    assertValidCompanyName(companyData.name);
+  }
   const dbData = {};
-  if (companyData.name !== undefined) dbData.name = companyData.name;
+  if (companyData.name !== undefined) dbData.name = companyData.name.trim();
   if (companyData.phone !== undefined) dbData.phone = companyData.phone || null;
   if (companyData.email !== undefined) dbData.email = companyData.email || null;
   if (companyData.logoUrl !== undefined) dbData.logo_url = companyData.logoUrl || null;
@@ -184,51 +207,88 @@ export function mapCompanyToInfo(company) {
   };
 }
 
-const INVITE_BASE_URL = 'https://i-am-agent-3-1.vercel.app';
-
 /**
- * Создаёт приглашение в команду.
- * Проверяет что email не зарегистрирован (личная база защищена).
- * Возвращает ссылку и секретный код для передачи агенту.
- * Выбрасывает 'EMAIL_EXISTS' если email уже в системе.
+ * Создаёт приглашение в команду через Edge Function `invite-agent`.
+ * Бэк сам проверяет права админа, свободность email, rate-limit
+ * и шлёт magic-link через Supabase Auth + наш Email Template.
+ * Параметр companyId сейчас не используется (бэк определяет company по JWT админа),
+ * оставлен для обратной совместимости вызовов.
+ *
+ * Бросает Error с понятным сообщением. Возможные коды (берутся из Edge Function):
+ *  - EMAIL_OCCUPIED        — email уже зарегистрирован в системе
+ *  - EMAIL_OCCUPIED_ORPHAN — email занят неактивным auth-аккаунтом, нужен другой
+ *  - RATE_LIMITED          — превышен лимит 10 приглашений в минуту
+ *  - NOT_ADMIN             — вызывающий не является admin компании
+ *  - COMPANY_NOT_ACTIVATED — у компании пустое поле name
  */
 export async function createInvitation(companyId, email) {
-  const normalizedEmail = email.toLowerCase().trim();
+  return invokeInviteAgent({ email, resend: false });
+}
 
-  const { data: exists } = await supabase.rpc('check_email_exists', { p_email: normalizedEmail });
-  if (exists) throw new Error('EMAIL_EXISTS');
+/**
+ * Перевыпускает magic-link для уже существующего приглашения по тому же email.
+ * Используется кнопкой "Отправить повторно" в карточке приглашения,
+ * когда оригинальная ссылка просрочена (24 часа от выдачи).
+ * Бэк находит запись по email + company, обновляет expires_at и status='sent',
+ * шлёт письмо с прежним invite_token.
+ *
+ * Бросает Error если активного приглашения нет (INVITATION_NOT_FOUND).
+ */
+export async function resendInvitation(email) {
+  return invokeInviteAgent({ email, resend: true });
+}
 
-  const { data: code } = await supabase.rpc('generate_secret_code');
+async function invokeInviteAgent(payload) {
+  const normalizedEmail = (payload.email || '').toLowerCase().trim();
+  if (!normalizedEmail) throw new Error('EMAIL_REQUIRED');
 
-  const { data, error } = await supabase
-    .from('company_invitations')
-    .insert({
-      company_id: companyId,
-      email: normalizedEmail,
-      secret_code: code,
-    })
-    .select('id, invite_token, secret_code, expires_at')
-    .single();
+  const { data, error } = await supabase.functions.invoke('invite-agent', {
+    body: { email: normalizedEmail, resend: payload.resend === true },
+  });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    let code = 'UNKNOWN';
+    let serverMessage = error.message || '';
+    if (error.context && typeof error.context.json === 'function') {
+      try {
+        const parsed = await error.context.json();
+        if (parsed && typeof parsed === 'object') {
+          code = parsed.code || code;
+          serverMessage = parsed.error || serverMessage;
+        }
+      } catch (_) {}
+    }
+    const e = new Error(serverMessage || 'Failed to send invitation');
+    e.code = code;
+    throw e;
+  }
+
+  if (!data || data.success !== true) {
+    const e = new Error((data && data.error) || 'Invitation failed');
+    e.code = (data && data.code) || 'UNKNOWN';
+    throw e;
+  }
 
   return {
-    id: data.id,
+    email: data.email,
     inviteToken: data.invite_token,
-    secretCode: data.secret_code,
-    expiresAt: data.expires_at,
-    inviteLink: `${INVITE_BASE_URL}/?token=${data.invite_token}`,
+    companyName: data.company_name,
+    resent: data.resent === true,
   };
 }
 
 /**
  * Загружает данные команды: участники + активные приглашения.
  */
-/** Получить активных участников команды для выпадающего списка "Ответственный". */
+/** Получить активных участников команды для выпадающего списка "Ответственный".
+ *  RPC `get_company_team` возвращает всех — включая deactivated. Фильтруем
+ *  по status='active' на клиенте, чтобы пикеры не показывали уволенных
+ *  агентов (B21). Метод `getTeamData` ниже намеренно НЕ фильтрует —
+ *  админу в общем списке нужны и неактивные. */
 export async function getActiveTeamMembers(companyId) {
   const { data, error } = await supabase.rpc('get_company_team', { p_company_id: companyId });
   if (error) throw new Error(error.message);
-  return data || [];
+  return (data || []).filter(m => m.status === 'active');
 }
 
 export async function getTeamData(companyId) {
@@ -236,9 +296,9 @@ export async function getTeamData(companyId) {
     supabase.rpc('get_company_team', { p_company_id: companyId }),
     supabase
       .from('company_invitations')
-      .select('id, email, status, created_at, expires_at, invite_token, secret_code')
+      .select('id, email, status, created_at, expires_at, invite_token, secret_code, attempts')
       .eq('company_id', companyId)
-      .in('status', ['sent', 'pending'])
+      .in('status', ['sent', 'pending', 'revoked'])
       .order('created_at', { ascending: false }),
   ]);
 
@@ -248,9 +308,6 @@ export async function getTeamData(companyId) {
   };
 }
 
-/**
- * Отзывает приглашение (пока не принято).
- */
 export async function revokeInvitation(invitationId) {
   const { error } = await supabase
     .from('company_invitations')
@@ -261,11 +318,17 @@ export async function revokeInvitation(invitationId) {
 
 /**
  * Обновить разрешения участника команды.
+ * Принимает две галочки упрощённой модели прав: can_manage_property и can_manage_bookings.
+ * Старые ключи прав физически удалены этапом 3 (cleanup-миграция).
  */
 export async function updateMemberPermissions(memberId, permissions) {
+  const next = {
+    can_manage_property: !!permissions?.can_manage_property,
+    can_manage_bookings: !!permissions?.can_manage_bookings,
+  };
   const { error } = await supabase
     .from('company_members')
-    .update({ permissions })
+    .update({ permissions: next })
     .eq('id', memberId);
   if (error) throw new Error(error.message);
 }
@@ -325,5 +388,12 @@ export async function joinCompanyViaInvitation(token) {
   // RPC returns joined_company_id / joined_company_name (avoids plpgsql OUT-param shadowing company_id)
   const cid = row?.joined_company_id ?? row?.company_id;
   const cname = row?.joined_company_name ?? row?.company_name;
+
+  // Notify the company's existing online sessions (admin already in the
+  // Team tab) so they refresh the team list without a manual reload.
+  if (cid) {
+    try { await broadcastOneShot(cid, 'team'); } catch {}
+  }
+
   return row && (cid != null || cname != null) ? { companyId: cid, companyName: cname } : null;
 }

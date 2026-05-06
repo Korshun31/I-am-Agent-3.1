@@ -32,13 +32,13 @@ No test runner is configured. Verification is done via `scripts/verify-build.js`
 ### Platform Routing
 
 `App.js` is the root. After auth, it routes based on `Platform.OS`:
-- `=== 'web'` → `WebMainScreen` (no AppDataContext)
-- otherwise → `MainNavigator` wrapped in `AppDataProvider`
+- `=== 'web'` → `WebMainScreen` wrapped in `AppDataProvider` (web migrated to the shared data context in commit `84e6508`).
+- otherwise → `MainNavigator` wrapped in `AppDataProvider`.
 
 ### State Management (Context API)
 
 - **`UserContext`** — current user profile, role, plan, company membership, permissions. Used everywhere.
-- **`AppDataContext`** — shared data for mobile only: properties, bookings, contacts, calendar events. Exposes `refreshProperties()`, `refreshBookings()`, `refreshContacts()`, `refreshCalendarEvents()`, `refreshAll()`.
+- **`AppDataContext`** — shared data for both mobile and web (web joined the same context in commit `84e6508`): properties, bookings, contacts, calendar events. Exposes `refreshProperties()`, `refreshBookings()`, `refreshContacts()`, `refreshCalendarEvents()`, `refreshAll()`.
 - **`LanguageContext`** — active language (en/th/ru), currency (THB/USD/EUR/RUB), dayjs locale.
 
 ### Data Layer (Services)

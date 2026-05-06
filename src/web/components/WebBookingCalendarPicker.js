@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
+import { buildOccupiedSet } from '../../utils/bookingOccupancy';
 
 const ACCENT = '#3D7D82';
 const C = {
@@ -29,21 +30,6 @@ function sanitizeISODate(dateStr) {
 function formatSafeDate(dateStr, format) {
   const safe = sanitizeISODate(dateStr);
   return safe ? dayjs(safe).format(format) : '—';
-}
-
-// Строим множество занятых дней [checkIn, checkOut)
-function buildOccupiedSet(bookedRanges) {
-  const set = new Set();
-  (bookedRanges || []).forEach(({ checkIn, checkOut }) => {
-    if (!checkIn || !checkOut) return;
-    let d = dayjs(checkIn);
-    const end = dayjs(checkOut); // checkOut — НЕ включаем
-    while (d.isBefore(end, 'day')) {
-      set.add(d.format('YYYY-MM-DD'));
-      d = d.add(1, 'day');
-    }
-  });
-  return set;
 }
 
 // Проверяем, есть ли занятая дата в диапазоне (для валидации выбора)

@@ -16,6 +16,7 @@ import { useLanguage } from '../context/LanguageContext';
 import AddContactModal from '../components/AddContactModal';
 import ContactDetailScreen from './ContactDetailScreen';
 import { getContacts, createContact, migrateContactPhotos } from '../services/contactsService';
+import { useAppData } from '../context/AppDataContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -70,6 +71,7 @@ const BOTTOM_TAB_OFFSET_DOWN = 25; // дополнительное смещен�
 export default function ContactsScreen({ onBack }) {
   const { t } = useLanguage();
   const { user } = useUser();
+  const { refreshContacts: refreshGlobalContacts } = useAppData();
   const [sidebarTabIndex, setSidebarTabIndex] = useState(1);
   const activeTab = SIDEBAR_TABS[sidebarTabIndex]?.key ?? 'clients';
   const [searchQuery, setSearchQuery] = useState('');
@@ -107,6 +109,7 @@ export default function ContactsScreen({ onBack }) {
     try {
       await createContact(data);
       loadContacts();
+      refreshGlobalContacts();
     } catch (e) {
       Alert.alert(t('error'), e.message);
     }

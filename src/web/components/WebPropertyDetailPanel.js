@@ -6,6 +6,11 @@ import {
 import dayjs from 'dayjs';
 import { getContactById } from '../../services/contactsService';
 import { useLanguage } from '../../context/LanguageContext';
+import { getVideoThumbnailUrl } from '../../utils/videoThumbnail';
+import { getCurrencySymbol } from '../../utils/currency';
+import { pluralByLang } from '../../utils/pluralize';
+import { PROPERTY_TYPE_COLORS, getPropertyTypeColors } from '../constants/propertyTypeColors';
+import WebPhotoGalleryModal from './WebPhotoGalleryModal';
 
 const ICON_PHONE    = require('../../../assets/icon-contact-phone.png');
 const ICON_WHATSAPP = require('../../../assets/icon-contact-whatsapp.png');
@@ -21,14 +26,6 @@ const C = {
   text:    '#1A1D23',
   muted:   '#6B7280',
   light:   '#B0B7C3',
-};
-
-const TYPE_COLOR = {
-  house:           { border: '#C2920E', bg: '#FFFBEB', text: '#92680A', pill: '#FEF3C7' },
-  resort:          { border: '#16A34A', bg: '#F0FDF4', text: '#15803D', pill: '#DCFCE7' },
-  condo:           { border: '#2563EB', bg: '#EFF6FF', text: '#1D4ED8', pill: '#DBEAFE' },
-  resort_house:    { border: '#16A34A', bg: '#F0FDF4', text: '#15803D', pill: '#DCFCE7' },
-  condo_apartment: { border: '#2563EB', bg: '#EFF6FF', text: '#1D4ED8', pill: '#DBEAFE' },
 };
 
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
@@ -49,12 +46,13 @@ function fmt(n) {
 
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
-export default function WebPropertyDetailPanel({ visible, property, bookings = [], onClose, user }) {
-  const { t } = useLanguage();
+export default function WebPropertyDetailPanel({ visible, property, bookings = [], onClose, user, teamMembers = [] }) {
+  const { t, language } = useLanguage();
   const slideAnim    = useRef(new Animated.Value(500)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const mountedRef   = useRef(false);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [owner, setOwner] = useState(null);
 
   // Reset photo index and load owner when property changes
@@ -83,7 +81,7 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
 
   if (!visible && !mountedRef.current) return null;
 
-  const tc   = property ? (TYPE_COLOR[getEffectiveType(property)] || TYPE_COLOR.house) : TYPE_COLOR.house;
+  const tc   = property ? getPropertyTypeColors(getEffectiveType(property)) : PROPERTY_TYPE_COLORS.house;
   const TYPE_KEY_MAP = { resort_house: 'resortHouse', condo_apartment: 'condoApartment' };
   const typeKey = TYPE_KEY_MAP[getEffectiveType(property)] ?? getEffectiveType(property);
   const code = property ? (property.code + (property.code_suffix ? ` (${property.code_suffix})` : '')) : '—';
@@ -119,6 +117,9 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
                 📍 {property.city}{property.district ? `, ${property.district}` : ''}
               </Text>
             ) : null}
+            {property?.address ? (
+              <Text style={st.cityText}>{property.address}</Text>
+            ) : null}
           </View>
           <TouchableOpacity style={st.closeBtn} onPress={onClose}>
             <Text style={st.closeBtnText}>✕</Text>
@@ -134,7 +135,9 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
             const idx    = Math.min(photoIndex, total - 1);
             return (
               <View style={st.photoWrap}>
-                <Image source={{ uri: photos[idx] }} style={st.photo} resizeMode="cover" />
+                <TouchableOpacity activeOpacity={0.95} onPress={() => setGalleryOpen(true)} style={{ width: '100%', height: '100%' }}>
+                  <Image source={{ uri: photos[idx] }} style={st.photo} resizeMode="cover" />
+                </TouchableOpacity>
 
                 {/* Arrows — only if more than 1 photo */}
                 {total > 1 && (
@@ -174,9 +177,40 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
           })() : (
             <View style={[st.photoPlaceholder, { backgroundColor: tc.bg }]}>
               <Text style={{ fontSize: 36 }}>🏠</Text>
-              <Text style={[st.photoPlaceholderText, { color: tc.text }]}>Фото не добавлены</Text>
+              <Text style={[st.photoPlaceholderText, { color: tc.text }]}>{t('propNoPhotos')}</Text>
             </View>
           )}
+
+          {(() => {
+            const videos = Array.isArray(property?.videos) && property.videos.length
+              ? property.videos
+              : (property?.video_url ? [property.video_url] : []);
+            if (videos.length === 0) return null;
+            return (
+              <View style={st.videosWrap}>
+                <Text style={st.videosTitle}>{t('pdVideo')}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  {videos.map((url, i) => {
+                    const thumb = getVideoThumbnailUrl(url);
+                    return (
+                      <TouchableOpacity key={i} onPress={() => Linking.openURL(url)} activeOpacity={0.7} style={st.videoThumbWrap}>
+                        {thumb ? (
+                          <Image source={{ uri: thumb }} style={st.videoThumb} resizeMode="cover" />
+                        ) : (
+                          <View style={[st.videoThumb, { backgroundColor: '#222', alignItems: 'center', justifyContent: 'center' }]}>
+                            <Text style={{ color: '#FFF', fontSize: 24 }}>▶</Text>
+                          </View>
+                        )}
+                        <View style={st.videoPlayOverlay}>
+                          <Text style={st.videoPlayIcon}>▶</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            );
+          })()}
 
           {/* Stats */}
           {(property?.bedrooms != null || property?.bathrooms != null || property?.area != null || property?.price_monthly != null) && (
@@ -184,13 +218,13 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
               {property.bedrooms != null && (
                 <View style={st.statCard}>
                   <Text style={st.statValue}>{property.bedrooms}</Text>
-                  <Text style={st.statLabel}>Спален</Text>
+                  <Text style={st.statLabel}>{t('propBedrooms')}</Text>
                 </View>
               )}
               {property.bathrooms != null && (
                 <View style={st.statCard}>
                   <Text style={st.statValue}>{property.bathrooms}</Text>
-                  <Text style={st.statLabel}>Санузлов</Text>
+                  <Text style={st.statLabel}>{t('propBathrooms')}</Text>
                 </View>
               )}
               {property.area != null && (
@@ -202,13 +236,34 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
               {property.price_monthly != null && (
                 <View style={[st.statCard, st.statCardAccent]}>
                   <Text style={[st.statValue, { color: ACCENT }]}>
-                    {property.price_monthly_is_from ? 'от ' : ''}{fmt(property.price_monthly)}
+                    {property.price_monthly_is_from ? `${t('propFrom')} ` : ''}{fmt(property.price_monthly)}
                   </Text>
-                  <Text style={[st.statLabel, { color: ACCENT }]}>฿/мес</Text>
+                  <Text style={[st.statLabel, { color: ACCENT }]}>{getCurrencySymbol(property.currency)}{t('perMonth')}</Text>
                 </View>
               )}
             </View>
           )}
+
+          {/* Ответственный за объект — только админ компании с командой.
+              У одиночки без приглашённых агентов карточка не имеет смысла. */}
+          {!user?.teamMembership && property && (teamMembers || []).length > 0 ? (() => {
+            const ra = property.responsible_agent_id ?? null;
+            let name;
+            if (!ra) {
+              name = user?.companyInfo?.name || 'Company';
+            } else {
+              const m = teamMembers.find(x => (x.user_id ?? x.id) === ra);
+              name = m ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email) : '—';
+            }
+            return (
+              <View style={st.card}>
+                <Text style={st.cardTitle}>ОТВЕТСТВЕННЫЙ ЗА ОБЪЕКТ</Text>
+                <View style={st.cardBody}>
+                  <Text style={st.ownerName}>{name}</Text>
+                </View>
+              </View>
+            );
+          })() : null}
 
           {/* Owner */}
           {owner && (
@@ -317,13 +372,13 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
                           {dayjs(b.checkIn).format('DD MMM')} — {dayjs(b.checkOut).format('DD MMM YYYY')}
                         </Text>
                         <Text style={st.bookingMeta}>
-                          {nights} {nights === 1 ? 'ночь' : nights < 5 ? 'ночи' : 'ночей'}
-                          {b.totalPrice ? `  ·  ฿ ${fmt(b.totalPrice)}` : ''}
+                          {nights} {pluralByLang(nights, language, { one: t('nightOne'), few: t('nightFew'), many: t('nightMany') })}
+                          {b.totalPrice ? `  ·  ${getCurrencySymbol(property?.currency)} ${fmt(b.totalPrice)}` : ''}
                         </Text>
                       </View>
                       {isActive && (
                         <View style={st.activeBadge}>
-                          <Text style={st.activeBadgeText}>Сейчас</Text>
+                          <Text style={st.activeBadgeText}>{t('bookingActiveNow')}</Text>
                         </View>
                       )}
                     </View>
@@ -346,6 +401,14 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
           <View style={{ height: 16 }} />
         </ScrollView>
       </Animated.View>
+
+      <WebPhotoGalleryModal
+        visible={galleryOpen}
+        photos={property?.photos || []}
+        initialIndex={photoIndex}
+        canDelete={false}
+        onClose={() => setGalleryOpen(false)}
+      />
     </>
   );
 }
@@ -462,4 +525,10 @@ const st = StyleSheet.create({
   locationIcon:     { width: 18, height: 18, opacity: 0.7 },
   locationBtnText:  { flex: 1, fontSize: 13, fontWeight: '600', color: '#1D4ED8' },
   locationBtnArrow: { fontSize: 14, color: C.muted },
+  videosWrap:       { paddingHorizontal: 16, paddingTop: 12 },
+  videosTitle:      { fontSize: 13, fontWeight: '700', color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  videoThumbWrap:   { width: 140, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#000', position: 'relative' },
+  videoThumb:       { width: '100%', height: '100%' },
+  videoPlayOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  videoPlayIcon:    { fontSize: 28, color: '#FFF', textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 4 },
 });

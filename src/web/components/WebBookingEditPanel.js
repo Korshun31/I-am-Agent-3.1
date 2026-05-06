@@ -1,15 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Switch, Animated, Modal, ActivityIndicator, Platform, Image,
 } from 'react-native';
 import dayjs from 'dayjs';
-import { createBooking, updateBooking, getBookings } from '../../services/bookingsService';
+import { createBooking, updateBooking } from '../../services/bookingsService';
+import { findOrCreateBookingClient } from '../../services/contactsService';
+import { useAppData } from '../../context/AppDataContext';
 import WebContactEditPanel from './WebContactEditPanel';
 import WebBookingCalendarPicker from './WebBookingCalendarPicker';
+import ContactPicker from './ContactPicker';
 import { supabase } from '../../services/supabase';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
+import { resizeImageFile } from '../utils/resizeImageFile';
+import { computeTotalPrice, computeMonthlyBreakdown } from '../../utils/bookingPricing';
+import { getPropertyTypeColors } from '../constants/propertyTypeColors';
 
 const ACCENT = '#3D7D82';
 const C = {
@@ -25,12 +31,6 @@ const C = {
   accentBg: '#EAF4F5',
   green:    '#4AA87D',
   greenBg:  '#F0FAF5',
-};
-
-const TYPE_COLOR = {
-  house:  { border: '#C2920E', bg: '#FFFBEB', text: '#92680A', pill: '#FEF3C7' },
-  resort: { border: '#16A34A', bg: '#F0FDF4', text: '#15803D', pill: '#DCFCE7' },
-  condo:  { border: '#2563EB', bg: '#EFF6FF', text: '#1D4ED8', pill: '#DBEAFE' },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -51,6 +51,7 @@ function buildForm(booking, property) {
       propertyId:             booking.propertyId || '',
       contactId:              booking.contactId  || '',
       notMyCustomer:          !!booking.notMyCustomer,
+      responsibleAgentId:     booking.responsibleAgentId ?? null,
       passportId:             booking.passportId || '',
       checkIn:                sanitizeISODate(booking.checkIn) || '',
       checkOut:               sanitizeISODate(booking.checkOut) || '',
@@ -70,12 +71,15 @@ function buildForm(booking, property) {
       pets:                   !!booking.pets,
       comments:               booking.comments || '',
       photos:                 booking.photos || [],
+      reminderDays:           booking.reminderDays || [],
+      monthlyBreakdown:       Array.isArray(booking.monthlyBreakdown) ? booking.monthlyBreakdown : [],
     };
   }
   return {
     propertyId:             property?.id || '',
     contactId:              '',
     notMyCustomer:          false,
+    responsibleAgentId:     null,
     passportId:             '',
     checkIn:                '',
     checkOut:               '',
@@ -95,6 +99,8 @@ function buildForm(booking, property) {
     pets:                   false,
     comments:               '',
     photos:                 [],
+    reminderDays:           [],
+    monthlyBreakdown:       [],
   };
 }
 
@@ -172,7 +178,7 @@ function PropertyPicker({ value, properties, onChange, t }) {
   const [search, setSearch] = useState('');
   const searchRef = useRef(null);
   const prop = properties.find(p => p.id === value);
-  const tc = prop ? (TYPE_COLOR[prop.type] || TYPE_COLOR.house) : null;
+  const tc = prop ? getPropertyTypeColors(prop.type) : null;
 
   const filtered = properties.filter(pr => {
     const q = search.toLowerCase();
@@ -233,7 +239,7 @@ function PropertyPicker({ value, properties, onChange, t }) {
               <Text style={s.dropdownEmpty}>{t('noResults')}</Text>
             )}
             {filtered.map(pr => {
-              const tc2 = TYPE_COLOR[pr.type] || TYPE_COLOR.house;
+              const tc2 = getPropertyTypeColors(pr.type);
               const isActive = pr.id === value;
               return (
                 <TouchableOpacity
@@ -265,128 +271,6 @@ function PropertyPicker({ value, properties, onChange, t }) {
 }
 
 // ─── Contact Picker ───────────────────────────────────────────────────────────
-
-function ContactPicker({ value, contacts, onChange, onRequestNewContact, t, canManageClients }) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const searchRef = useRef(null);
-  const contact = contacts.find(c => c.id === value);
-
-  const filtered = contacts.filter(c => {
-    const q = search.toLowerCase();
-    const name = `${c.name || ''} ${c.lastName || ''}`.toLowerCase();
-    return name.includes(q) || (c.phone || '').includes(q);
-  });
-
-  useEffect(() => {
-    if (open) setTimeout(() => searchRef.current?.focus(), 50);
-  }, [open]);
-
-  return (
-    <View>
-      <TouchableOpacity style={s.pickerTrigger} onPress={() => setOpen(!open)} activeOpacity={0.8}>
-        {contact ? (
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={s.contactAvatar}>
-              <Text style={s.contactAvatarText}>
-                {(contact.name || contact.lastName || '?')[0].toUpperCase()}
-              </Text>
-            </View>
-            <View>
-              <Text style={s.pickerMainText}>
-                {`${contact.name || ''} ${contact.lastName || ''}`.trim() || '—'}
-              </Text>
-              {contact.phone ? <Text style={s.pickerSubText}>{contact.phone}</Text> : null}
-            </View>
-          </View>
-        ) : (
-          <Text style={s.pickerPlaceholder}>{t('bkPickClient')}</Text>
-        )}
-        <Text style={s.pickerChevron}>{open ? '▲' : '▼'}</Text>
-      </TouchableOpacity>
-
-      {open && (
-        <View style={s.dropdown}>
-          <View style={s.searchWrap}>
-            <Text style={s.searchIcon}>🔍</Text>
-            <TextInput
-              ref={searchRef}
-              style={s.searchInput}
-              value={search}
-              onChangeText={setSearch}
-              placeholder={t('bkSearchClient')}
-              placeholderTextColor={C.light}
-            />
-            {search ? (
-              <TouchableOpacity onPress={() => setSearch('')}>
-                <Text style={s.searchClear}>✕</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-
-          <ScrollView style={{ maxHeight: 240 }} nestedScrollEnabled>
-            {/* ── Добавить нового клиента — только если есть разрешение ── */}
-            {canManageClients && (
-              <TouchableOpacity
-                style={s.addNewContactRow}
-                onPress={() => {
-                  setOpen(false);
-                  onRequestNewContact?.(search);
-                }}
-              >
-                <View style={s.addNewContactIcon}>
-                  <Text style={{ fontSize: 15, color: '#FFF', lineHeight: 18, marginTop: -1 }}>+</Text>
-                </View>
-                <Text style={s.addNewContactText}>
-                  {search ? `${t('bkAddNewContact')} "${search}"` : t('bkAddNewContact')}
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {/* ── Убрать выбранного ── */}
-            {value ? (
-              <TouchableOpacity
-                style={[s.dropdownItem, { backgroundColor: '#FFF5F5' }]}
-                onPress={() => { onChange(''); setOpen(false); }}
-              >
-                <Text style={{ fontSize: 13, color: '#DC2626' }}>✕  {t('bkRemoveClient')}</Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {filtered.length === 0 && (
-              <Text style={s.dropdownEmpty}>{t('noResults')}</Text>
-            )}
-            {filtered.map(c => {
-              const isActive = c.id === value;
-              const name = `${c.name || ''} ${c.lastName || ''}`.trim();
-              return (
-                <TouchableOpacity
-                  key={c.id}
-                  style={[s.dropdownItem, isActive && { backgroundColor: C.accentBg }]}
-                  onPress={() => { onChange(c.id); setOpen(false); setSearch(''); }}
-                  activeOpacity={0.75}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                    <View style={s.contactAvatar}>
-                      <Text style={s.contactAvatarText}>
-                        {(name || c.phone || '?')[0].toUpperCase()}
-                      </Text>
-                    </View>
-                    <View>
-                      <Text style={s.dropdownItemName}>{name || '—'}</Text>
-                      {c.phone ? <Text style={s.dropdownItemSub}>{c.phone}</Text> : null}
-                    </View>
-                  </View>
-                  {isActive && <Text style={{ color: ACCENT, fontSize: 16 }}>✓</Text>}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
-    </View>
-  );
-}
 
 // ─── Counter Input ────────────────────────────────────────────────────────────
 
@@ -435,11 +319,11 @@ function PhotoGrid({ photos, onAdd, onRemove, uploading, t }) {
 
 export default function WebBookingEditPanel({ visible, mode, booking, properties, contacts, onClose, onSaved, user }) {
   const { t, currency: userCurrency } = useLanguage();
+  const { teamMembers, bookings: ctxBookings } = useAppData();
 
   // Разрешения агента
   const isAgent = !!user?.teamMembership;
-  const canSeeFinancials = !isAgent || user?.teamPermissions?.can_see_financials;
-  const canManageClients = !isAgent || !!user?.teamPermissions?.can_book;
+  const canCreateContact = !isAgent || !!user?.teamPermissions?.can_manage_bookings;
 
   const [form, setForm]             = useState(() => buildForm(booking, null));
   const [saving, setSaving]         = useState(false);
@@ -448,14 +332,27 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
   const [mounted, setMounted]       = useState(false);
   const [newContactVisible, setNewContactVisible] = useState(false);
   const [newContactInitialName, setNewContactInitialName] = useState('');
-  const [localContacts, setLocalContacts] = useState(contacts);
+  // Пикер клиента в форме брони показывает только клиентов; собственники сюда попадать не должны.
+  const [localContacts, setLocalContacts] = useState(() => (contacts || []).filter(c => c.type === 'clients'));
+  const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
+
+  const BOOKING_REMINDER_OPTIONS = [
+    { days: 1, key: 'bookingReminder1d' },
+    { days: 3, key: 'bookingReminder3d' },
+    { days: 7, key: 'bookingReminder1w' },
+    { days: 30, key: 'bookingReminder1m' },
+  ];
   const [calendarVisible, setCalendarVisible] = useState(false);
-  const [propertyBookings, setPropertyBookings] = useState([]);
   const fileInputRef                = useRef(null);
   const prevContactIdRef            = useRef(null);
 
-  // Sync contacts when prop changes
-  useEffect(() => { setLocalContacts(contacts); }, [contacts]);
+  // Sync contacts when prop changes (только клиенты — см. инициализацию выше).
+  useEffect(() => { setLocalContacts((contacts || []).filter(c => c.type === 'clients')); }, [contacts]);
+
+  const propertyBookings = useMemo(
+    () => form.propertyId ? (ctxBookings || []).filter(b => b.propertyId === form.propertyId) : [],
+    [ctxBookings, form.propertyId]
+  );
 
   const slideAnim    = useRef(new Animated.Value(540)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
@@ -482,17 +379,6 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     }
   }, [visible, booking]);
 
-  // Загружаем бронирования выбранного объекта для отображения занятых дат
-  useEffect(() => {
-    if (!form.propertyId) { setPropertyBookings([]); return; }
-    const pid = form.propertyId;
-    getBookings().then(all => {
-      if (pid !== form.propertyId) return;
-      setPropertyBookings((all || []).filter(b => b.propertyId === pid));
-    }).catch(() => setPropertyBookings([]));
-  }, [form.propertyId]);
-
-
   // Auto-fill passportId when contactId changes (not when user edits passportId manually)
   useEffect(() => {
     if (form.notMyCustomer) return;
@@ -508,19 +394,20 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     }
   }, [form.contactId, form.notMyCustomer, localContacts]);
 
-  // Auto-compute total price
+  // Авторасчёт total price. Если включена помесячная разбивка — total = сумма
+  // amount по месяцам (юзер может вручную править суммы); иначе — стандартный
+  // computeTotalPrice по price_monthly с пропорцией для неполного месяца.
   useEffect(() => {
-    if (form.priceMonthly && form.checkIn && form.checkOut) {
-      const nights = dayjs(form.checkOut).diff(dayjs(form.checkIn), 'day');
-      if (nights > 0) {
-        const monthly = numOrNull(form.priceMonthly);
-        if (monthly) {
-          const total = Math.round(monthly * nights / 30);
-          setForm(f => ({ ...f, totalPrice: String(total) }));
-        }
-      }
+    const breakdown = Array.isArray(form.monthlyBreakdown) ? form.monthlyBreakdown : [];
+    if (breakdown.length > 0) {
+      const sum = breakdown.reduce((acc, m) => acc + (Number(m.amount) || 0), 0);
+      setForm(f => ({ ...f, totalPrice: String(sum) }));
+      return;
     }
-  }, [form.priceMonthly, form.checkIn, form.checkOut]);
+    const monthly = numOrNull(form.priceMonthly);
+    const total = computeTotalPrice(form.checkIn, form.checkOut, monthly);
+    if (total != null) setForm(f => ({ ...f, totalPrice: String(total) }));
+  }, [form.priceMonthly, form.checkIn, form.checkOut, form.monthlyBreakdown]);
 
   // Web file input handler
   useEffect(() => {
@@ -535,10 +422,12 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
       if (!files.length) return;
       setUploadingPhoto(true);
       try {
+        // TD-074: сжатие фото бронирования до 1200px JPEG 0.85 перед загрузкой —
+        // паритет с мобильным AddBookingModal, экономит место в Storage и время.
         const urls = await Promise.all(files.map(async file => {
-          const ext = file.name.split('.').pop();
-          const path = `bookings/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-          const { error: upErr } = await supabase.storage.from('property-photos').upload(path, file);
+          const resized = await resizeImageFile(file, 1200, 0.85);
+          const path = `bookings/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+          const { error: upErr } = await supabase.storage.from('property-photos').upload(path, resized);
           if (upErr) throw upErr;
           const { data } = supabase.storage.from('property-photos').getPublicUrl(path);
           return data.publicUrl;
@@ -570,20 +459,27 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
     setNewContactVisible(true);
   };
 
-  const handleNewContactSaved = (saved) => {
+  const handleNewContactSaved = (saved, meta) => {
     const contact = Array.isArray(saved) ? saved[0] : saved;
     if (contact?.id) {
-      setLocalContacts(prev => [contact, ...prev]);
+      setLocalContacts(prev => {
+        const without = prev.filter(c => c.id !== contact.id);
+        return [contact, ...without];
+      });
       set('contactId', contact.id);
       set('passportId', contact.documentNumber || '');
     }
     setNewContactVisible(false);
+    if (meta?.existed && typeof window !== 'undefined' && window.alert) {
+      window.alert(t('clientLinkedExisting'));
+    }
   };
 
   const handleSave = async () => {
     if (!form.propertyId) { setError(t('bkErrNoProperty')); return; }
     if (!form.checkIn || !form.checkOut) { setError(t('bkErrNoDates')); return; }
     if (form.checkIn >= form.checkOut) { setError(t('bkErrDateOrder')); return; }
+    if (!form.notMyCustomer && !form.contactId) { setError(t('bookingSelectClient') || 'Please select a client'); return; }
 
     setSaving(true);
     setError('');
@@ -592,6 +488,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
         propertyId:             form.propertyId,
         contactId:              form.notMyCustomer ? null : (form.contactId || null),
         notMyCustomer:          form.notMyCustomer,
+        responsibleAgentId:     form.responsibleAgentId ?? null,
         passportId:             form.passportId || null,
         checkIn:                form.checkIn,
         checkOut:               form.checkOut,
@@ -611,7 +508,8 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
         pets:                   form.pets,
         comments:               form.comments || null,
         photos:                 form.photos || [],
-        reminderDays:           booking?.reminderDays ?? [],
+        reminderDays:           form.reminderDays || [],
+        monthlyBreakdown:       form.monthlyBreakdown || [],
         currency:               activeCurrency,
       };
 
@@ -688,6 +586,10 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                     setForm(f => ({
                       ...f,
                       propertyId:     id,
+                      // When the property changes, the responsible agent must be re-picked:
+                      // the previous agent is unlikely to be responsible for the new property,
+                      // and the DB integrity trigger would reject the save otherwise.
+                      responsibleAgentId: f.propertyId === id ? f.responsibleAgentId : null,
                       priceMonthly:   pr?.price_monthly   != null ? String(pr.price_monthly)   : f.priceMonthly,
                       bookingDeposit: pr?.booking_deposit != null ? String(pr.booking_deposit) : f.bookingDeposit,
                       saveDeposit:    pr?.save_deposit    != null ? String(pr.save_deposit)    : f.saveDeposit,
@@ -701,6 +603,50 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                 />
               </Field>
             </SectionCard>
+
+            {/* Ответственный за бронь — только для админа на доме с responsible_agent_id */}
+            {(() => {
+              if (isAgent) return null;
+              const sp = properties.find(p => p.id === form.propertyId);
+              const houseAgentId = sp?.responsible_agent_id || null;
+              if (!houseAgentId) return null;
+              const houseAgent = teamMembers.find(m => m.user_id === houseAgentId);
+              const houseAgentLabel = houseAgent
+                ? ([houseAgent.name, houseAgent.last_name].filter(Boolean).join(' ') || houseAgent.email || 'Agent')
+                : 'Agent';
+              const companyLabel = user?.companyInfo?.name || user?.teamMembership?.companyName || t('workAsCompany') || 'Company';
+              const selected = form.responsibleAgentId || null;
+              return (
+                <SectionCard title={t('bkResponsible') || 'Responsible'} icon="🧑‍💼">
+                  <Field label={t('bkResponsible') || 'Responsible'}>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity
+                        onPress={() => set('responsibleAgentId', null)}
+                        style={{
+                          flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: selected === null ? ACCENT : C.border,
+                          backgroundColor: selected === null ? C.accentBg : C.surface,
+                        }}
+                      >
+                        <Text style={{ color: C.text, fontSize: 14 }} numberOfLines={1}>{companyLabel}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => set('responsibleAgentId', houseAgentId)}
+                        style={{
+                          flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: selected === houseAgentId ? ACCENT : C.border,
+                          backgroundColor: selected === houseAgentId ? C.accentBg : C.surface,
+                        }}
+                      >
+                        <Text style={{ color: C.text, fontSize: 14 }} numberOfLines={1}>{houseAgentLabel}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </Field>
+                </SectionCard>
+              );
+            })()}
 
             {/* Клиент */}
             <SectionCard title={t('bkSectionClient')} icon="👤">
@@ -725,8 +671,14 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                     contacts={localContacts}
                     onChange={v => set('contactId', v)}
                     onRequestNewContact={handleRequestNewContact}
-                    t={t}
-                    canManageClients={canManageClients}
+                    canCreateContact={canCreateContact}
+                    texts={{
+                      placeholder:       t('bkPickClient'),
+                      searchPlaceholder: t('bkSearchClient'),
+                      addNewLabel:       t('bkAddNewContact'),
+                      removeLabel:       t('bkRemoveClient'),
+                      noResults:         t('noResults'),
+                    }}
                   />
                 </Field>
                   <Field label={t('bkPassport')}>
@@ -793,10 +745,67 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                     <Field label={L('propPriceMonthly')} half>
                       <FInput value={form.priceMonthly} onChangeText={v => set('priceMonthly', v)} placeholder="30 000" numeric />
                     </Field>
-                    <Field label={L('bkTotalPrice')} half>
+                    <Field label={`${t('bookingTotalPrice')} (${sym})`} half>
                       <FInput value={form.totalPrice} onChangeText={v => set('totalPrice', v)} placeholder={t('bkAuto')} numeric />
                     </Field>
                   </View>
+
+                  {/* TD-082: помесячная разбивка стоимости */}
+                  <View style={s.breakdownBlock}>
+                    <View style={s.breakdownHeader}>
+                      <Text style={s.breakdownTitle}>{t('breakdownTitle')}</Text>
+                      <Switch
+                        value={(form.monthlyBreakdown || []).length > 0}
+                        onValueChange={(on) => {
+                          if (on) {
+                            const auto = computeMonthlyBreakdown(form.checkIn, form.checkOut, numOrNull(form.priceMonthly));
+                            set('monthlyBreakdown', auto);
+                          } else {
+                            set('monthlyBreakdown', []);
+                          }
+                        }}
+                      />
+                    </View>
+                    {(form.monthlyBreakdown || []).length > 0 && (
+                      <>
+                        <View style={s.breakdownRows}>
+                          {form.monthlyBreakdown.map((row, idx) => (
+                            <View key={`${row.month}-${idx}`} style={s.breakdownRow}>
+                              <Text style={s.breakdownMonth}>{dayjs(row.month + '-01').format('MMMM YYYY')}</Text>
+                              <View style={[s.inputWrap, s.breakdownAmountWrap]}>
+                                <TextInput
+                                  style={s.input}
+                                  value={row.amount != null ? String(row.amount) : ''}
+                                  onChangeText={(v) => {
+                                    const cleaned = v.replace(/[^0-9]/g, '');
+                                    const next = form.monthlyBreakdown.map((r, i) =>
+                                      i === idx ? { ...r, amount: cleaned ? Number(cleaned) : 0 } : r
+                                    );
+                                    set('monthlyBreakdown', next);
+                                  }}
+                                  keyboardType="numeric"
+                                  placeholder="0"
+                                  placeholderTextColor={C.light}
+                                />
+                              </View>
+                              <Text style={s.breakdownCurrency}>{sym}</Text>
+                            </View>
+                          ))}
+                        </View>
+                        <TouchableOpacity
+                          style={s.breakdownRecalcBtn}
+                          onPress={() => {
+                            const auto = computeMonthlyBreakdown(form.checkIn, form.checkOut, numOrNull(form.priceMonthly));
+                            set('monthlyBreakdown', auto);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={s.breakdownRecalcText}>↻ {t('breakdownRecalc')}</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+
                   <View style={s.row2}>
                     <Field label={L('propBookingDeposit2')} half>
                       <FInput value={form.bookingDeposit} onChangeText={v => set('bookingDeposit', v)} placeholder="5 000" numeric />
@@ -805,13 +814,10 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                       <FInput value={form.saveDeposit} onChangeText={v => set('saveDeposit', v)} placeholder="10 000" numeric />
                     </Field>
                   </View>
-                  {canSeeFinancials && (
-                    <Field label={L('bkAgentCommission')}>
-                      <FInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="15 000" numeric />
-                    </Field>
-                  )}
+                  <Field label={L('bkAgentCommission')}>
+                    <FInput value={form.commission} onChangeText={v => set('commission', v)} placeholder="15 000" numeric />
+                  </Field>
                   {/* Owner commission one-time */}
-                  {canSeeFinancials && (
                   <Field label={t('bookingOwnerCommOnce')}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       {form.ownerCommissionOneTimeIsPercent ? (
@@ -847,9 +853,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                       </View>
                     </View>
                   </Field>
-                  )}
                   {/* Owner commission monthly */}
-                  {canSeeFinancials && (
                   <Field label={t('bookingOwnerCommMonthly')}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       {form.ownerCommissionMonthlyIsPercent ? (
@@ -885,7 +889,6 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                       </View>
                     </View>
                   </Field>
-                  )}
                 </SectionCard>
 
                 {/* Гости */}
@@ -924,6 +927,53 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                   />
                 </SectionCard>
               </>
+            )}
+
+            {/* Напоминания — скрыты для "Клиент собственника" */}
+            {!form.notMyCustomer && (
+              <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#212529', marginBottom: 8 }}>
+                  {t('bookingNotifications') || 'Reminders'}
+                </Text>
+                <TouchableOpacity
+                  style={{ borderWidth: 1, borderColor: '#E9ECEF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 }}
+                  onPress={() => setReminderPickerOpen(!reminderPickerOpen)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 14, color: (form.reminderDays || []).length > 0 ? '#212529' : '#ADB5BD' }}>
+                    {(form.reminderDays || []).length > 0
+                      ? (form.reminderDays || []).map(d => t(BOOKING_REMINDER_OPTIONS.find(o => o.days === d)?.key || 'bookingReminder1d')).join(', ')
+                      : t('bookingAddNotification') || 'Add reminder'}
+                  </Text>
+                </TouchableOpacity>
+                {reminderPickerOpen && (
+                  <View style={{ marginTop: 8, borderWidth: 1, borderColor: '#E9ECEF', borderRadius: 8, overflow: 'hidden' }}>
+                    {BOOKING_REMINDER_OPTIONS.map(opt => {
+                      const isSelected = (form.reminderDays || []).includes(opt.days);
+                      return (
+                        <TouchableOpacity
+                          key={opt.days}
+                          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, backgroundColor: isSelected ? '#EAF4F5' : '#fff', borderBottomWidth: 1, borderBottomColor: '#E9ECEF' }}
+                          onPress={() => {
+                            setForm(f => ({
+                              ...f,
+                              reminderDays: isSelected
+                                ? (f.reminderDays || []).filter(d => d !== opt.days)
+                                : [...(f.reminderDays || []), opt.days].sort((a, b) => a - b),
+                            }));
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: isSelected ? '#3D7D82' : '#ADB5BD', backgroundColor: isSelected ? '#3D7D82' : '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                            {isSelected && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>✓</Text>}
+                          </View>
+                          <Text style={{ fontSize: 14, color: isSelected ? '#3D7D82' : '#212529', fontWeight: isSelected ? '600' : '400' }}>{t(opt.key)}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
             )}
 
             {/* Примечания */}
@@ -976,6 +1026,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
         } : null}
         onClose={() => setNewContactVisible(false)}
         onSaved={handleNewContactSaved}
+        customCreate={findOrCreateBookingClient}
       />
     </Modal>
   );
@@ -1201,4 +1252,15 @@ const s = StyleSheet.create({
   },
   dateBtnText: { fontSize: 14, color: '#212529' },
   dateBtnPlaceholder: { fontSize: 14, color: '#ADB5BD' },
+  // TD-082: помесячная разбивка
+  breakdownBlock:        { marginTop: 8, marginBottom: 16, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#E9ECEF', backgroundColor: '#FAFBFC' },
+  breakdownHeader:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  breakdownTitle:        { fontSize: 14, fontWeight: '600', color: '#212529' },
+  breakdownRows:         { marginTop: 12, gap: 8 },
+  breakdownRow:          { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  breakdownMonth:        { flex: 1, fontSize: 13, color: '#495057', textTransform: 'capitalize' },
+  breakdownAmountWrap:   { flex: 1 },
+  breakdownCurrency:     { fontSize: 13, color: '#6C757D', minWidth: 28 },
+  breakdownRecalcBtn:    { marginTop: 12, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: ACCENT, alignSelf: 'flex-start' },
+  breakdownRecalcText:   { fontSize: 13, color: ACCENT, fontWeight: '600' },
 });

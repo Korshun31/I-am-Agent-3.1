@@ -1,7 +1,12 @@
 import { supabase } from './supabase';
 import { Platform } from 'react-native';
+import { isDisposableEmail } from '../utils/disposableEmails';
 
 export async function signUp({ email, password, name }) {
+  if (isDisposableEmail(email)) {
+    throw new Error('DISPOSABLE_EMAIL');
+  }
+
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email,
     password,
@@ -12,37 +17,25 @@ export async function signUp({ email, password, name }) {
   const user = authData.user;
   if (!user) throw new Error('Registration failed');
 
-  const role = (email || '').toLowerCase() === 'korshun31@list.ru' ? 'admin' : 'standard';
-  const isOwnerEmail = (email || '').toLowerCase() === 'korshun31@list.ru';
-
-  // Insert without `plan`: column is added by migration 20260330000002; if migration was not
-  // applied to remote DB, including `plan` breaks PostgREST ("schema cache" error).
-  // When `plan` exists, DEFAULT 'standard' applies; owner gets an optional update below.
-  const { error: profileError } = await supabase
-    .from('users_profile')
-    .upsert({
-      id: user.id,
-      email,
-      name: name || '',
-      role,
-    }, { onConflict: 'id' });
-
-  if (profileError) throw new Error(profileError.message);
-
-  if (isOwnerEmail) {
-    const { error: planErr } = await supabase
-      .from('users_profile')
-      .update({ plan: 'korshun' })
-      .eq('id', user.id);
-    if (planErr?.message && !planErr.message.includes("'plan'")) {
-      console.warn('[authService] agents.plan update failed:', planErr.message);
-    }
+  // TD-015: если в Supabase Dashboard включена email-confirmation, signUp
+  // не возвращает session — юзер должен подтвердить почту через письмо.
+  // Возвращаем спец-объект, чтобы UI показал экран «Проверьте почту»
+  // вместо main. Профиль не создаём здесь: триггер handle_new_user в БД
+  // делает это сам, а users_profile пуст до подтверждения — это норма.
+  if (!authData.session) {
+    return { pendingConfirmation: true, email };
   }
 
-  await supabase
+  // Триггер handle_new_user уже создал profile с дефолтными settings
+  // (language=en, selectedCurrency=USD). Перезаписываем только name —
+  // signUp не передаёт его в auth metadata, поэтому в триггере name
+  // получился равным email.
+  const { error: profileError } = await supabase
     .from('users_profile')
-    .update({ settings: { language: 'en', selectedCurrency: 'USD' } })
+    .update({ name: name || '' })
     .eq('id', user.id);
+
+  if (profileError) throw new Error(profileError.message);
 
   return getUserProfile(user.id);
 }
@@ -53,13 +46,37 @@ export async function signIn({ email, password }) {
     password,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // TD-015: Supabase возвращает «Email not confirmed» для непрошедших
+    // подтверждение. Прокидываем спец-код, чтобы UI показал понятный текст.
+    const msg = error.message || '';
+    if (msg.toLowerCase().includes('email not confirmed')
+        || msg.toLowerCase().includes('email not verified')) {
+      throw new Error('EMAIL_NOT_CONFIRMED');
+    }
+    throw new Error(msg);
+  }
 
-  return getUserProfile(data.user.id);
+  const profile = await getUserProfile(data.user.id);
+  if (!profile) {
+    // Auth user exists but no users_profile — orphan account.
+    // Sign out and refuse: account is incomplete and must not get into CRM.
+    try { await supabase.auth.signOut(); } catch {}
+    throw new Error('PROFILE_NOT_FOUND');
+  }
+  return profile;
 }
 
-export async function signOut() {
-  const { error } = await supabase.auth.signOut();
+// scope: 'local' (default) — только текущая сессия; 'global' — все устройства юзера.
+export async function signOut({ scope = 'local' } = {}) {
+  // Очищаем DataUpload-конфиг при выходе — иначе на устройстве может остаться
+  // настройка от предыдущего юзера, и следующий вход будет триггерить чужой sync.
+  try {
+    const { stopUpload } = require('./dataUploadService');
+    await stopUpload();
+  } catch {}
+
+  const { error } = await supabase.auth.signOut({ scope });
   if (error) throw new Error(error.message);
 }
 
@@ -70,73 +87,33 @@ export async function getCurrentUser() {
 }
 
 export async function getUserProfile(userId) {
-  const { data, error } = await supabase
-    .from('users_profile')
-    .select('*')
-    .eq('id', userId)
-    .single();
+  // TD-035: один RPC вместо 5 последовательных запросов.
+  const { data: full, error } = await supabase.rpc('get_full_user_profile', { p_user_id: userId });
 
-  if (error) return {
-    email: '', name: '', lastName: '', phone: '', telegram: '',
-    documentNumber: '', extraPhones: [], extraEmails: [], whatsapp: '',
-    photoUri: '', role: 'standard', plan: 'standard', language: 'en',
-    notificationSettings: {}, selectedCurrency: 'USD',
-    locations: [], workAs: 'private', companyId: null, companyInfo: {},
-    teamRole: null, isAgentRole: false, isAdminRole: false,
-  };
+  if (error) {
+    console.warn('[getUserProfile] RPC error:', error.message);
+    return null;
+  }
+  if (!full || !full.profile) {
+    // orphan auth user — auth.users row есть, users_profile ещё нет
+    return null;
+  }
 
-  // Загружаем активную компанию из таблицы companies (источник правды)
-  const { data: companyData } = await supabase
-    .from('companies')
-    .select('*')
-    .eq('owner_id', userId)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  // Query all company_members roles so we can derive canonical teamRole.
-  // Roles: 'agent' | 'admin' (worker removed). Backward compat: teamMembership
-  // still only populated for role='agent'.
-  const { data: membershipData } = await supabase
-    .from('company_members')
-    .select('company_id, role, permissions')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  // Derived role boolean — source of truth for LOCK-001 guards.
-  // Roles: 'admin' | 'agent' | null. 'worker' was removed (migration 20260330000003).
+  const data = full.profile;
+  const companyData = full.ownedCompany || null;
+  const membershipData = full.membership || null;
   const isAgentMember = membershipData?.role === 'agent';
-
-  // Location access is an agent-specific feature.
-  let assignedLocationIds = [];
-  if (isAgentMember && membershipData?.company_id) {
-    const { data: locationAccess } = await supabase
-      .from('agent_location_access')
-      .select('location_id')
-      .eq('user_id', userId)
-      .eq('company_id', membershipData.company_id);
-    assignedLocationIds = (locationAccess || []).map(r => r.location_id);
-  }
-
-  // Fetch company info for any team member (name + admin id).
-  let memberCompanyName = '';
-  let memberCompanyOwnerId = null;
-  if (membershipData?.company_id) {
-    const { data: companyRow } = await supabase
-      .from('companies')
-      .select('name, owner_id')
-      .eq('id', membershipData.company_id)
-      .maybeSingle();
-    memberCompanyName = companyRow?.name || '';
-    memberCompanyOwnerId = companyRow?.owner_id || null;
-  }
+  const assignedLocationIds = Array.isArray(full.assignedLocationIds) ? full.assignedLocationIds : [];
+  const memberCompanyName = full.memberCompany?.name || '';
+  const memberCompanyOwnerId = full.memberCompany?.owner_id || null;
 
   const settings = data.settings || {};
-  let role = ['standard', 'premium', 'admin'].includes(data.role) ? data.role : 'standard';
+  // TD-001: тариф читаем строго из data.plan. Колонка users_profile.role была
+  // удалена как мусорный дубль — миграция 20260503000002.
+  let plan = ['standard', 'premium', 'korshun'].includes(data.plan) ? data.plan : 'standard';
 
-  // Only agents receive the company-sponsored premium upgrade (Phase 1 compat).
-  // Worker/admin billing handled separately in Phase 2.
-  if (isAgentMember) role = 'premium';
+  // Агенту-члену команды компания спонсирует premium-апгрейд.
+  if (isAgentMember) plan = 'premium';
 
   // Данные компании: из таблицы companies (если есть) или из settings как запасной вариант
   const companyInfo = companyData ? {
@@ -162,11 +139,9 @@ export async function getUserProfile(userId) {
     photoUri: data.photo_url || '',
     extraPhones: [],
     extraEmails: [],
-    // Legacy billing field (kept for backward compat; prefer user.plan in new code).
-    role,
     // ── Canonical fields ─────────────────────────────────────────────────────
     // Billing plan: 'standard' | 'premium' | 'korshun'
-    plan: data.plan || 'standard',
+    plan,
     // Team role inside company_members: 'agent' | 'admin' | null
     teamRole: membershipData?.role ?? null,
     // Role predicates — use these in guards instead of !!teamMembership checks.
@@ -180,7 +155,7 @@ export async function getUserProfile(userId) {
     selectedCurrency: settings.selectedCurrency || 'USD',
     locations: Array.isArray(settings.locations) ? settings.locations : [],
     // workAs определяется наличием активной компании, не settings
-    workAs: companyData ? 'company' : 'private',
+    workAs: (companyData && companyData.name && companyData.name.trim()) ? 'company' : 'private',
     companyId: companyData?.id || null,
     companyInfo,
     // Backward compat: teamMembership populated ONLY for role='agent'.
@@ -245,6 +220,34 @@ export async function updateUserProfile(updates) {
   return getUserProfile(session.user.id);
 }
 
+/**
+ * TD-014: запрос ссылки для сброса пароля. Supabase отправляет письмо с magic link;
+ * после клика пользователь попадает на recovery-страницу где может задать новый пароль.
+ * На вебе redirectTo = текущий origin → onAuthStateChange('PASSWORD_RECOVERY') в App.js
+ * подхватит событие и покажет экран UpdatePassword.
+ */
+export async function requestPasswordReset(email) {
+  const trimmed = (email || '').trim();
+  if (!trimmed) throw new Error('Email is required');
+  const options = {};
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    options.redirectTo = window.location.origin;
+  }
+  const { error } = await supabase.auth.resetPasswordForEmail(trimmed, options);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
+
+/** TD-014: установка нового пароля после клика по recovery-ссылке. */
+export async function setNewPassword(newPassword) {
+  if (!newPassword || newPassword.length < 8) {
+    throw new Error('Password must be at least 8 characters');
+  }
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
+
 /** Returns true if user signed up with email/password (can change password). */
 export async function canChangePassword() {
   const { data: { user } } = await supabase.auth.getUser();
@@ -273,106 +276,8 @@ export async function updatePassword(currentPassword, newPassword) {
   if (updateError) throw new Error(updateError.message);
 }
 
-import { makeRedirectUri } from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
-
-WebBrowser.maybeCompleteAuthSession();
-
-export async function signInWithGoogle() {
-  if (Platform.OS === 'web') {
-    // Web: стандартный OAuth redirect через Supabase
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-        queryParams: {
-          prompt: 'select_account',
-        },
-      },
-    });
-    if (error) throw error;
-  } else {
-    // Mobile: через expo-auth-session
-    const redirectUrl = makeRedirectUri({
-      scheme: 'iamagent',
-      path: 'auth/callback',
-    });
-
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: redirectUrl,
-        skipBrowserRedirect: true,
-      },
-    });
-
-    if (error) throw error;
-
-    const result = await WebBrowser.openAuthSessionAsync(
-      data?.url,
-      redirectUrl
-    );
-
-    if (result.type === 'success') {
-      const url = result.url;
-      const params = new URLSearchParams(url.split('#')[1] || url.split('?')[1]);
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-
-      if (accessToken) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        if (sessionError) throw sessionError;
-      }
-    }
-  }
-}
-
-export async function signInWithFacebook() {
-  if (Platform.OS === 'web') {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'facebook',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    if (error) throw error;
-  } else {
-    const redirectUrl = makeRedirectUri({
-      scheme: 'iamagent',
-      path: 'auth/callback',
-    });
-
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'facebook',
-      options: {
-        redirectTo: redirectUrl,
-        skipBrowserRedirect: true,
-      },
-    });
-
-    if (error) throw error;
-
-    const result = await WebBrowser.openAuthSessionAsync(
-      data?.url,
-      redirectUrl
-    );
-
-    if (result.type === 'success') {
-      const url = result.url;
-      const params = new URLSearchParams(url.split('#')[1] || url.split('?')[1]);
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-
-      if (accessToken) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        if (sessionError) throw sessionError;
-      }
-    }
-  }
+export async function deleteOwnAccount() {
+  const { data, error } = await supabase.rpc('delete_own_account');
+  if (error) throw new Error(error.message);
+  return data;
 }

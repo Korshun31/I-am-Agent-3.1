@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  Switch,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { BlurView } from 'expo-blur';
@@ -24,9 +25,13 @@ import dayjs from 'dayjs';
 import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
-import { createContact, getContactById } from '../services/contactsService';
+import { findOrCreateBookingClient, getContactById } from '../services/contactsService';
+import { computeTotalPrice, computeMonthlyBreakdown } from '../utils/bookingPricing';
+import { buildOccupancyArrays, hasOccupiedInRange } from '../utils/bookingOccupancy';
 import { createBooking, updateBooking } from '../services/bookingsService';
+import { getActiveTeamMembers } from '../services/companyService';
 import { useAppData } from '../context/AppDataContext';
+import { useUser } from '../context/UserContext';
 import { scheduleBookingReminders, cancelBookingReminders } from '../services/bookingRemindersService';
 import { getCommissionDateAmounts, scheduleCommissionReminders, cancelCommissionReminders } from '../services/commissionRemindersService';
 import { requestReminderPermissions } from '../services/calendarRemindersService';
@@ -65,45 +70,9 @@ function formatMoneyDisplay(val) {
   const s = String(val ?? '').replace(/\D/g, '');
   return s.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
-/** Compute all occupied dates (YYYY-MM-DD) from existing bookings */
-function getOccupiedDates(bookings) {
-  const set = new Set();
-  (bookings || []).forEach((b) => {
-    if (!b.checkIn || !b.checkOut) return;
-    const start = dayjs(b.checkIn);
-    const end = dayjs(b.checkOut);
-    let d = start;
-    while (d.isBefore(end) || d.isSame(end, 'day')) {
-      set.add(d.format('YYYY-MM-DD'));
-      d = d.add(1, 'day');
-    }
-  });
-  return Array.from(set);
-}
-
-/** Dates that are check-in for some booking */
-function getOccupiedCheckInDates(bookings) {
-  return (bookings || []).filter((b) => b.checkIn).map((b) => dayjs(b.checkIn).format('YYYY-MM-DD'));
-}
-
-/** Dates that are check-out for some booking */
-function getOccupiedCheckOutDates(bookings) {
-  return (bookings || []).filter((b) => b.checkOut).map((b) => dayjs(b.checkOut).format('YYYY-MM-DD'));
-}
-
-/** Check if range [checkIn, checkOut] overlaps with occupied dates */
-function hasOverlapWithOccupied(checkIn, checkOut, occupiedDates) {
-  if (!checkIn || !checkOut || !occupiedDates?.length) return false;
-  const start = dayjs(checkIn);
-  const end = dayjs(checkOut);
-  const occSet = new Set(occupiedDates);
-  let d = start;
-  while (d.isBefore(end) || d.isSame(end, 'day')) {
-    if (occSet.has(d.format('YYYY-MM-DD'))) return true;
-    d = d.add(1, 'day');
-  }
-  return false;
-}
+// TD-119: расчёт занятости вынесен в общий util src/utils/bookingOccupancy.js,
+// единый для веба и мобайла. День выезда (checkOut) не считается занятым —
+// можно поставить заезд новому гостю в этот же день.
 
 /** Parse formatted money string to number */
 function parseMoneyValue(val) {
@@ -136,17 +105,7 @@ function formatDateDisplay(d) {
   return `${day}.${m}.${y}`;
 }
 
-function computeTotalPrice(checkIn, checkOut, priceMonthly) {
-  if (!checkIn || !checkOut || !priceMonthly || priceMonthly <= 0) return null;
-  const p = Number(priceMonthly);
-  const start = checkIn instanceof Date ? checkIn : new Date(checkIn);
-  const end = checkOut instanceof Date ? checkOut : new Date(checkOut);
-  if (start >= end) return null;
-  const msPerDay = 86400000;
-  const nights = Math.round((end - start) / msPerDay);
-  if (nights <= 0) return null;
-  return Math.round(p * nights / 30);
-}
+// computeTotalPrice вынесен в src/utils/bookingPricing.js — единый алгоритм для веб и мобильного.
 
 const COLORS = {
   boxBg: 'rgba(255,255,255,0.72)',
@@ -169,6 +128,53 @@ function CheckRow({ label, checked, onPress }) {
   );
 }
 
+function PercentMoneyField({ label, sym, priceMonthly, value, onChangeValue, isPercent, onChangePercent }) {
+  const numericValue = isPercent ? parseFloat((value || '').toString().replace(/[^0-9.]/g, '')) : null;
+  const pmValue = parseMoneyValue(priceMonthly);
+  const computed = isPercent && numericValue && pmValue ? Math.round((numericValue / 100) * pmValue) : null;
+  const handlePercentInput = (v) => {
+    const cleaned = v.replace(/[^0-9.]/g, '');
+    if (cleaned === '') return onChangeValue('');
+    const n = parseFloat(cleaned);
+    if (isNaN(n)) return onChangeValue('');
+    if (n > 100) return onChangeValue('100');
+    onChangeValue(cleaned);
+  };
+  const handleToggle = (next) => {
+    if (next === isPercent) return;
+    onChangeValue('');
+    onChangePercent(next);
+  };
+  return (
+    <>
+      <Text style={s.fieldLabel}>{label} {isPercent ? '%' : sym}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <TextInput
+          style={[s.input, { flex: 1, marginBottom: 0 }]}
+          value={value}
+          onChangeText={(v) => isPercent ? handlePercentInput(v) : onChangeValue(formatMoneyDisplay(v))}
+          placeholder={isPercent ? '10' : '0'}
+          placeholderTextColor="#999"
+          keyboardType="numeric"
+        />
+        <View style={{ flexDirection: 'row', borderRadius: 7, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' }}>
+          <TouchableOpacity onPress={() => handleToggle(false)} style={{ paddingHorizontal: 12, paddingVertical: 13, backgroundColor: !isPercent ? '#3D7D82' : COLORS.inputBg }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: !isPercent ? '#FFF' : '#666' }}>{sym}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => handleToggle(true)} style={{ paddingHorizontal: 12, paddingVertical: 13, backgroundColor: isPercent ? '#3D7D82' : COLORS.inputBg }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: isPercent ? '#FFF' : '#666' }}>%</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      {isPercent && (
+        <Text style={{ fontSize: 12, color: '#6B6B6B', fontStyle: 'italic', marginTop: 4, marginLeft: 2, marginBottom: 8 }}>
+          {computed != null ? `≈ ${formatMoneyDisplay(String(computed))} ${sym}` : `— ${sym}`}
+        </Text>
+      )}
+    </>
+  );
+}
+
 const CALENDAR_LOCALES = {
   en: { monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], dayNames: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], today: 'Today', year: '' },
   ru: { monthNames: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], dayNames: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], today: 'Сегодня', year: '' },
@@ -177,7 +183,9 @@ const CALENDAR_LOCALES = {
 
 export default function AddBookingModal({ visible, onClose, onSaved, property, editBooking, initialMonth }) {
   const { t, language, currency, currencySymbol: globalSym } = useLanguage();
-  const { contacts, bookings } = useAppData();
+  const { contacts, bookings, refreshContacts: refreshGlobalContacts } = useAppData();
+  const { user } = useUser();
+  const isAgent = !!user?.teamMembership;
   const activeCurrency = property?.currency || currency || 'THB';
   const sym = getCurrencySymbol(activeCurrency);
   const [step, setStep] = useState(1);
@@ -196,9 +204,10 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
   const [checkInTime, setCheckInTime] = useState('14:00');
   const [checkOutTime, setCheckOutTime] = useState('12:00');
   const [timePickerFor, setTimePickerFor] = useState(null); // 'checkIn' | 'checkOut'
-  const [occupiedDates, setOccupiedDates] = useState([]);
-  const [occupiedCheckInDates, setOccupiedCheckInDates] = useState([]);
-  const [occupiedCheckOutDates, setOccupiedCheckOutDates] = useState([]);
+  // TD-119: единый формат вместо трёх массивов. bookedRanges — [{checkIn, checkOut}, ...].
+  const [bookedRanges, setBookedRanges] = useState([]);
+  // Раскладка для CalendarRangePicker (требует три отдельных списка дат).
+  const calendarOccupancy = useMemo(() => buildOccupancyArrays(bookedRanges), [bookedRanges]);
   const [datePickerFor, setDatePickerFor] = useState(null); // 'checkIn' | 'checkOut' (legacy)
   const [priceMonthly, setPriceMonthly] = useState('');
   const [totalPrice, setTotalPrice] = useState('');
@@ -217,7 +226,21 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
   const [photoProcessing, setPhotoProcessing] = useState(false);
   const [reminderDays, setReminderDays] = useState([]);
   const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
+  const [monthlyBreakdown, setMonthlyBreakdown] = useState([]); // TD-082
   const [saving, setSaving] = useState(false);
+  // Responsible agent picker (admin only)
+  const [responsibleAgentId, setResponsibleAgentId] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
+
+  // Load active team members for the responsible-agent picker
+  useEffect(() => {
+    if (isAgent || !user?.companyId) return;
+    let cancelled = false;
+    getActiveTeamMembers(user.companyId)
+      .then(list => { if (!cancelled) setTeamMembers(Array.isArray(list) ? list : []); })
+      .catch(() => { if (!cancelled) setTeamMembers([]); });
+    return () => { cancelled = true; };
+  }, [isAgent, user?.companyId]);
 
   const BOOKING_REMINDER_OPTIONS = [
     { days: 1, key: 'bookingReminder1d' },
@@ -270,9 +293,12 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         setComments(editBooking.comments || '');
         setPhotos(Array.isArray(editBooking.photos) ? [...editBooking.photos] : []);
         setReminderDays(Array.isArray(editBooking.reminderDays) ? [...editBooking.reminderDays] : []);
+        setMonthlyBreakdown(Array.isArray(editBooking.monthlyBreakdown) ? [...editBooking.monthlyBreakdown] : []);
+        setResponsibleAgentId(editBooking.responsibleAgentId ?? null);
       } else {
         setNotMyCustomer(false);
         setSelectedClient(null);
+        setResponsibleAgentId(null);
         setPassportId('');
         if (initialMonth && initialMonth.year != null && initialMonth.month != null) {
           setCheckIn(new Date(initialMonth.year, initialMonth.month, 1));
@@ -285,6 +311,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         setCheckOutTime('12:00');
         setPhotos([]);
         setReminderDays([]);
+        setMonthlyBreakdown([]);
       }
     }
   }, [visible, editBooking?.id, initialMonth?.year, initialMonth?.month]);
@@ -304,10 +331,16 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
 
   const computedTotal = computeTotalPrice(checkIn, checkOut, parseMoneyValue(priceMonthly));
   useEffect(() => {
+    // Если включена помесячная разбивка — total = сумма amount по месяцам.
+    if (Array.isArray(monthlyBreakdown) && monthlyBreakdown.length > 0) {
+      const sum = monthlyBreakdown.reduce((acc, m) => acc + (Number(m.amount) || 0), 0);
+      setTotalPrice(formatMoneyDisplay(String(sum)));
+      return;
+    }
     if (!editBooking && computedTotal != null) {
       setTotalPrice(formatMoneyDisplay(String(Math.round(computedTotal))));
     }
-  }, [computedTotal, !!editBooking]);
+  }, [computedTotal, !!editBooking, monthlyBreakdown]);
 
   useEffect(() => {
     if (clientPickerVisible) {
@@ -336,13 +369,9 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
     if (step === 2 && property?.id) {
       const propertyBookings = bookings.filter(b => b.propertyId === property.id);
       const toUse = editBooking?.id ? propertyBookings.filter(b => b.id !== editBooking.id) : propertyBookings;
-      setOccupiedDates(getOccupiedDates(toUse));
-      setOccupiedCheckInDates(getOccupiedCheckInDates(toUse));
-      setOccupiedCheckOutDates(getOccupiedCheckOutDates(toUse));
+      setBookedRanges(toUse.map(b => ({ checkIn: b.checkIn, checkOut: b.checkOut })));
     } else {
-      setOccupiedDates([]);
-      setOccupiedCheckInDates([]);
-      setOccupiedCheckOutDates([]);
+      setBookedRanges([]);
     }
   }, [step, property?.id, editBooking?.id]);
 
@@ -356,10 +385,14 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
 
   const handleSaveContact = async (data) => {
     try {
-      const created = await createContact({ ...data, type: 'clients' });
-      setSelectedClient(created);
+      const { contact, existed } = await findOrCreateBookingClient({ ...data, type: 'clients' });
+      refreshGlobalContacts();
+      setSelectedClient(contact);
       setAddContactVisible(false);
       setClientPickerVisible(false);
+      if (existed) {
+        Alert.alert(t('info') || '', t('clientLinkedExisting'));
+      }
     } catch (e) {
       return Promise.reject(e);
     }
@@ -380,7 +413,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
       Alert.alert(t('error'), t('bookingCheckIn') + ' / ' + t('bookingCheckOut'));
       return;
     }
-    if (hasOverlapWithOccupied(checkIn, checkOut, occupiedDates)) {
+    if (hasOccupiedInRange(checkIn, checkOut, bookedRanges)) {
       Alert.alert(t('error'), t('bookingDatesOccupied'));
       return;
     }
@@ -445,8 +478,12 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
       Alert.alert(t('error'), t('bookingCheckIn') + ' / ' + t('bookingCheckOut'));
       return;
     }
-    if (hasOverlapWithOccupied(checkIn, checkOut, occupiedDates)) {
+    if (hasOccupiedInRange(checkIn, checkOut, bookedRanges)) {
       Alert.alert(t('error'), t('bookingDatesOccupied'));
+      return;
+    }
+    if (!notMyCustomer && !selectedClient?.id) {
+      Alert.alert(t('error'), t('bookingSelectClient') || 'Please select a client');
       return;
     }
     setSaving(true);
@@ -462,6 +499,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         contactId: notMyCustomer ? null : selectedClient?.id,
         passportId: notMyCustomer ? '' : passportId.trim(),
         notMyCustomer,
+        responsibleAgentId: isAgent ? null : (responsibleAgentId ?? null),
         checkIn: formatDateYMD(checkIn),
         checkOut: formatDateYMD(checkOut),
         checkInTime: checkInTime.trim() || null,
@@ -481,6 +519,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         comments: comments.trim() || null,
         photos: photoUrls.length > 0 ? photoUrls : null,
         reminderDays: reminderDays.length > 0 ? reminderDays : [],
+        monthlyBreakdown: Array.isArray(monthlyBreakdown) ? monthlyBreakdown : [],
         currency: activeCurrency,
       };
       if (editBooking?.id) {
@@ -495,7 +534,14 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
             await scheduleBookingReminders(editBooking.id, payload.checkIn, reminderDays, property?.name || houseCode, settings);
           }
         }
-        const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, parseMoneyValue(ownerCommissionOneTime), parseMoneyValue(ownerCommissionMonthly));
+        const pmNum = parseMoneyValue(priceMonthly) || 0;
+        const oneTimeEff = ownerCommissionOneTimeIsPercent && pmNum > 0
+          ? Math.round((parseMoneyValue(ownerCommissionOneTime) / 100) * pmNum)
+          : parseMoneyValue(ownerCommissionOneTime);
+        const monthlyEff = ownerCommissionMonthlyIsPercent && pmNum > 0
+          ? Math.round((parseMoneyValue(ownerCommissionMonthly) / 100) * pmNum)
+          : parseMoneyValue(ownerCommissionMonthly);
+        const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, oneTimeEff, monthlyEff);
         if (commDateAmounts.length > 0) {
           const granted = await requestReminderPermissions();
           if (granted) {
@@ -515,7 +561,14 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
             if (reminderDays.length > 0) {
               await scheduleBookingReminders(created.id, payload.checkIn, reminderDays, property?.name || houseCode, settings);
             }
-            const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, parseMoneyValue(ownerCommissionOneTime), parseMoneyValue(ownerCommissionMonthly));
+            const pmNum2 = parseMoneyValue(priceMonthly) || 0;
+            const oneTimeEff2 = ownerCommissionOneTimeIsPercent && pmNum2 > 0
+              ? Math.round((parseMoneyValue(ownerCommissionOneTime) / 100) * pmNum2)
+              : parseMoneyValue(ownerCommissionOneTime);
+            const monthlyEff2 = ownerCommissionMonthlyIsPercent && pmNum2 > 0
+              ? Math.round((parseMoneyValue(ownerCommissionMonthly) / 100) * pmNum2)
+              : parseMoneyValue(ownerCommissionMonthly);
+            const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, oneTimeEff2, monthlyEff2);
             if (commDateAmounts.length > 0) {
               await scheduleCommissionReminders(created.id, commDateAmounts, property?.name || houseCode, settings);
             }
@@ -581,9 +634,9 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
                       locale={CALENDAR_LOCALES[language] || CALENDAR_LOCALES.en}
                       startDate={checkIn ? formatDateYMD(checkIn) : null}
                       endDate={checkOut ? formatDateYMD(checkOut) : null}
-                      disabledDates={occupiedDates}
-                        occupiedCheckInDates={occupiedCheckInDates}
-                        occupiedCheckOutDates={occupiedCheckOutDates}
+                      disabledDates={calendarOccupancy.disabledDates}
+                        occupiedCheckInDates={calendarOccupancy.checkInDates}
+                        occupiedCheckOutDates={calendarOccupancy.checkOutDates}
                       onChange={({ startDate, endDate }) => {
                         if (startDate) setCheckIn(new Date(startDate));
                         if (endDate) setCheckOut(new Date(endDate));
@@ -815,6 +868,58 @@ isMonthFirst
                       keyboardType="numeric"
                     />
 
+                    {/* TD-082: помесячная разбивка стоимости */}
+                    <View style={s.breakdownBlock}>
+                      <View style={s.breakdownHeader}>
+                        <Text style={s.breakdownTitle}>{t('breakdownTitle')}</Text>
+                        <Switch
+                          value={monthlyBreakdown.length > 0}
+                          onValueChange={(on) => {
+                            if (on) {
+                              const auto = computeMonthlyBreakdown(checkIn, checkOut, parseMoneyValue(priceMonthly));
+                              setMonthlyBreakdown(auto);
+                            } else {
+                              setMonthlyBreakdown([]);
+                            }
+                          }}
+                        />
+                      </View>
+                      {monthlyBreakdown.length > 0 && (
+                        <>
+                          {monthlyBreakdown.map((row, idx) => (
+                            <View key={`${row.month}-${idx}`} style={s.breakdownRow}>
+                              <Text style={s.breakdownMonth}>{dayjs(row.month + '-01').format('MMMM YYYY')}</Text>
+                              <TextInput
+                                style={[s.input, s.breakdownAmountInput]}
+                                value={row.amount != null ? String(row.amount) : ''}
+                                onChangeText={(v) => {
+                                  const cleaned = v.replace(/[^0-9]/g, '');
+                                  const next = monthlyBreakdown.map((r, i) =>
+                                    i === idx ? { ...r, amount: cleaned ? Number(cleaned) : 0 } : r
+                                  );
+                                  setMonthlyBreakdown(next);
+                                }}
+                                keyboardType="numeric"
+                                placeholder="0"
+                                placeholderTextColor="#999"
+                              />
+                              <Text style={s.breakdownCurrency}>{sym}</Text>
+                            </View>
+                          ))}
+                          <TouchableOpacity
+                            style={s.breakdownRecalcBtn}
+                            onPress={() => {
+                              const auto = computeMonthlyBreakdown(checkIn, checkOut, parseMoneyValue(priceMonthly));
+                              setMonthlyBreakdown(auto);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={s.breakdownRecalcText}>↻ {t('breakdownRecalc')}</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
+                    </View>
+
                     <Text style={s.fieldLabel}>{t('pdBookingDeposit')} {sym}</Text>
                     <TextInput
                       style={s.input}
@@ -835,24 +940,24 @@ isMonthFirst
                       keyboardType="numeric"
                     />
 
-                    <Text style={s.fieldLabel}>{t('ownerCommissionOneTime')} {sym}</Text>
-                    <TextInput
-                      style={s.input}
+                    <PercentMoneyField
+                      label={t('bookingOwnerCommOnce')}
+                      sym={sym}
+                      priceMonthly={priceMonthly}
                       value={ownerCommissionOneTime}
-                      onChangeText={(v) => setOwnerCommissionOneTime(formatMoneyDisplay(v))}
-                      placeholder="0"
-                      placeholderTextColor="#999"
-                      keyboardType="numeric"
+                      onChangeValue={setOwnerCommissionOneTime}
+                      isPercent={ownerCommissionOneTimeIsPercent}
+                      onChangePercent={setOwnerCommissionOneTimeIsPercent}
                     />
 
-                    <Text style={s.fieldLabel}>{t('ownerCommissionMonthly')} {sym}</Text>
-                    <TextInput
-                      style={s.input}
+                    <PercentMoneyField
+                      label={t('ownerCommissionMonthly')}
+                      sym={sym}
+                      priceMonthly={priceMonthly}
                       value={ownerCommissionMonthly}
-                      onChangeText={(v) => setOwnerCommissionMonthly(formatMoneyDisplay(v))}
-                      placeholder="0"
-                      placeholderTextColor="#999"
-                      keyboardType="numeric"
+                      onChangeValue={setOwnerCommissionMonthly}
+                      isPercent={ownerCommissionMonthlyIsPercent}
+                      onChangePercent={setOwnerCommissionMonthlyIsPercent}
                     />
 
                     <Text style={s.fieldLabel}>{t('pdCommission')} {sym}</Text>
@@ -888,6 +993,46 @@ isMonthFirst
                     <View style={s.section}>
                       <CheckRow label={t('pdPets')} checked={pets} onPress={() => setPets(!pets)} />
                     </View>
+
+                    {/* Responsible agent picker — admin only, when the property has a responsible agent */}
+                    {!isAgent && property?.responsible_agent_id && (() => {
+                      const houseAgentId = property.responsible_agent_id;
+                      const houseAgent = teamMembers.find(m => m.user_id === houseAgentId);
+                      const houseAgentLabel = houseAgent
+                        ? ([houseAgent.name, houseAgent.last_name].filter(Boolean).join(' ') || houseAgent.email || 'Agent')
+                        : 'Agent';
+                      const companyLabel = user?.companyInfo?.name || user?.teamMembership?.companyName || t('workAsCompany') || 'Company';
+                      const selected = responsibleAgentId || null;
+                      return (
+                        <>
+                          <Text style={s.fieldLabel}>{t('bkResponsible') || 'Responsible'}</Text>
+                          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                            <TouchableOpacity
+                              onPress={() => setResponsibleAgentId(null)}
+                              style={{
+                                flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
+                                borderWidth: 1,
+                                borderColor: selected === null ? '#3D7D82' : '#E0E0E0',
+                                backgroundColor: selected === null ? '#EAF4F5' : '#FFF',
+                              }}
+                            >
+                              <Text style={{ color: '#212529', fontSize: 14 }} numberOfLines={1}>{companyLabel}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => setResponsibleAgentId(houseAgentId)}
+                              style={{
+                                flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
+                                borderWidth: 1,
+                                borderColor: selected === houseAgentId ? '#3D7D82' : '#E0E0E0',
+                                backgroundColor: selected === houseAgentId ? '#EAF4F5' : '#FFF',
+                              }}
+                            >
+                              <Text style={{ color: '#212529', fontSize: 14 }} numberOfLines={1}>{houseAgentLabel}</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      );
+                    })()}
 
                     <Text style={s.fieldLabel}>{t('pdComments')}</Text>
                     <TextInput
@@ -1592,4 +1737,14 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(46, 125, 50, 0.06)',
   },
   selectBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.saveGreen },
+  // TD-082: помесячная разбивка
+  breakdownBlock:        { marginTop: 12, marginBottom: 12, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: 'rgba(255,255,255,0.5)' },
+  breakdownHeader:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  breakdownTitle:        { fontSize: 14, fontWeight: '600', color: COLORS.title },
+  breakdownRow:          { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  breakdownMonth:        { flex: 1, fontSize: 13, color: COLORS.title, textTransform: 'capitalize' },
+  breakdownAmountInput:  { flex: 1, marginTop: 0 },
+  breakdownCurrency:     { fontSize: 13, color: '#888', minWidth: 28 },
+  breakdownRecalcBtn:    { marginTop: 12, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.saveGreen, alignSelf: 'flex-start' },
+  breakdownRecalcText:   { fontSize: 13, color: COLORS.saveGreen, fontWeight: '600' },
 });

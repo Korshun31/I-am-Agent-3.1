@@ -59,7 +59,14 @@ export async function createLocation({ country, region, city }) {
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === '23505') {
+      const e = new Error('Location with same country/region/city already exists');
+      e.code = 'DUPLICATE_LOCATION';
+      throw e;
+    }
+    throw new Error(error.message);
+  }
   syncIfEnabled();
   return mapLocation(data);
 }
@@ -83,7 +90,14 @@ export async function updateLocation(id, { country, region, city }) {
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === '23505') {
+      const e = new Error('Location with same country/region/city already exists');
+      e.code = 'DUPLICATE_LOCATION';
+      throw e;
+    }
+    throw new Error(error.message);
+  }
   syncIfEnabled();
   return mapLocation(data);
 }
@@ -115,6 +129,48 @@ export async function getLocationDistricts(locationId) {
 
   if (error) return [];
   return (data || []).map((r) => r.district);
+}
+
+/**
+ * Атомарно добавить один район в локацию. Безопасно при одновременных вызовах
+ * нескольких пользователей: INSERT ... ON CONFLICT DO NOTHING полагается на
+ * UNIQUE(location_id, district) constraint в БД (миграция 20250101000001).
+ * В отличие от setLocationDistricts (delete-then-insert), здесь нет race
+ * condition — два параллельных вызова с разными district просто оба пройдут.
+ */
+export async function addLocationDistrict(locationId, district) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('Not authenticated');
+  const trimmed = (district || '').trim();
+  if (!locationId || !trimmed) throw new Error('locationId and district are required');
+
+  // Case-insensitive проверка дубля до INSERT — не молчим, показываем юзеру.
+  // Экранируем %, _ и \ — они для ilike значат маски, без экранирования матчит ложные совпадения.
+  const escaped = trimmed.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+  const { data: existing } = await supabase
+    .from('location_districts')
+    .select('district')
+    .eq('location_id', locationId)
+    .ilike('district', escaped);
+  if (existing && existing.length > 0) {
+    const e = new Error('District already exists in this location');
+    e.code = 'DUPLICATE_DISTRICT';
+    throw e;
+  }
+
+  const { error } = await supabase
+    .from('location_districts')
+    .insert({ location_id: locationId, district: trimmed });
+
+  if (error) {
+    if (error.code === '23505') {
+      const e = new Error('District already exists in this location');
+      e.code = 'DUPLICATE_DISTRICT';
+      throw e;
+    }
+    throw new Error(error.message);
+  }
+  syncIfEnabled();
 }
 
 export async function setLocationDistricts(locationId, districts) {

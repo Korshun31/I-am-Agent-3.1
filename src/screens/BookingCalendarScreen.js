@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   TextInput,
   unstable_batchedUpdates,
   Keyboard,
+  Animated,
 } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -141,7 +142,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const isFocused = useIsFocused();
   const effectiveVisible = embeddedInModal ? isVisible : isFocused;
   const { t, language } = useLanguage();
-  const { properties, bookings, contacts, propertiesLoading, refreshProperties, refreshBookings } = useAppData();
+  const { properties, bookings, contacts, propertiesLoading, bookingsLoading, refreshProperties, refreshBookings } = useAppData();
 
   useEffect(() => {
     onReady?.();
@@ -166,19 +167,34 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const [unreadCount, setUnreadCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [notifRefreshKey, setNotifRefreshKey] = useState(0);
-  const leftScrollRef = useRef(null);
   const rightScrollRef = useRef(null);
-  const rightVerticalRef = useRef(null);
   const timelineScrollXRef = useRef(0);
-  const scrollSyncRef = useRef(false);
   const prevVisibleRef = useRef(false);
   const hasScrolledOnceRef = useRef(false);
   const notifModalVisibleRef = useRef(false);
 
-  const approvedProperties = properties.filter(p => !p.property_status || p.property_status === 'approved');
-  const topLevel = approvedProperties.filter(p => !p.resort_id);
-  const children = approvedProperties.filter(p => p.resort_id);
-  const getParent = (id) => properties.find(pr => pr.id === id);
+  // TD: вертикальная синхронизация левой колонки с правым таймлайном через
+  // нативную анимацию (без bridge), чтобы левая ехала плавно на больших списках.
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const onVerticalScroll = useRef(
+    Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })
+  ).current;
+
+  // После упрощения модели прав модерация снята — все объекты считаются одобренными.
+  // Один проход по properties: получаем topLevel, children и Map для O(1) поиска родителя.
+  // Раньше эти три значения пересоздавались каждый рендер, ломая мемоизацию listToShow.
+  const { topLevel, children, parentMap } = useMemo(() => {
+    const top = [];
+    const kids = [];
+    const map = new Map();
+    (properties || []).forEach((p) => {
+      map.set(p.id, p);
+      if (p.parent_id) kids.push(p);
+      else top.push(p);
+    });
+    return { topLevel: top, children: kids, parentMap: map };
+  }, [properties]);
+  const getParent = useCallback((id) => parentMap.get(id), [parentMap]);
 
   const filterFn = useCallback((p, parent) => {
     if (!filterValues) return false;
@@ -190,7 +206,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     const unitParentType = parent?.type;
     if (f.types?.length > 0) {
       const matches = f.types.some(typ => {
-        if (typ === 'house') return !p.resort_id && HOUSE_LIKE_TYPES.has(p.type);
+        if (typ === 'house') return !p.parent_id && HOUSE_LIKE_TYPES.has(p.type);
         if (typ === 'resort') return unitParentType === 'resort';
         if (typ === 'condo') return unitParentType === 'condo';
         return false;
@@ -215,28 +231,62 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return true;
   }, [filterValues]);
 
+  // Префильтр по умолчанию: дома где есть актуальная бронь (идущая сейчас или
+  // будущая). Применяется только пока юзер не открыл модалку и не применил
+  // свой фильтр (filterValues=null). Возвращает null пока брони ещё грузятся,
+  // чтобы не мигать «нет броней» (в этом случае показываем всё).
+  const propertyIdsWithActiveBooking = React.useMemo(() => {
+    if (bookingsLoading) return null;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const set = new Set();
+    (bookings || []).forEach((b) => {
+      if (!b.checkOut) return;
+      if (b.checkOut < todayStr) return;
+      if (b.notMyCustomer) return; // брони от собственника не считаются «моими»
+      set.add(b.propertyId);
+    });
+    return set;
+  }, [bookings, bookingsLoading]);
+
   const { listToShow, uniqueCities, uniqueDistricts, hasActiveFilter } = React.useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
 
+    // Префильтр «Мои бронирования / Бронирования компании» по умолчанию ВКЛ.
+    // Юзер может выключить через чекбокс в модалке фильтров — тогда myBookings === false.
+    const myBookingsOn = !filterValues || filterValues.myBookings !== false;
+    const prefilterActive = myBookingsOn && propertyIdsWithActiveBooking !== null;
+
     let units = [];
-    if (!filterValues && q) {
-      // Только поиск, без фильтра — берём все объекты
-      topLevel.filter(p => HOUSE_LIKE_TYPES.has(p.type)).forEach(p => {
-        units.push({ ...p, _parentName: null, _parentCode: p.code });
-      });
-      children.forEach(p => {
-        const parent = getParent(p.resort_id);
-        units.push({ ...p, _parentName: parent?.name || '', _parentCode: parent?.code || '' });
-      });
-    } else {
-      // Фильтр активен — применяем filterFn
+    if (filterValues) {
+      // Юзер открыл модалку и применил фильтр — работает старая filterFn,
+      // префильтр по бронированиям выключается (юзер увидит ровно то, что
+      // выбрал).
       topLevel.filter(p => HOUSE_LIKE_TYPES.has(p.type)).forEach(p => {
         if (filterFn(p, null)) units.push({ ...p, _parentName: null, _parentCode: p.code });
       });
       children.forEach(p => {
-        const parent = getParent(p.resort_id);
+        const parent = getParent(p.parent_id);
         if (filterFn(p, parent)) units.push({ ...p, _parentName: parent?.name || '', _parentCode: parent?.code || '' });
       });
+    } else {
+      // Без ручного фильтра — берём все юниты. Дальше префильтр по
+      // бронированиям сузит, либо (если брони ещё грузятся) покажем всё.
+      topLevel.filter(p => HOUSE_LIKE_TYPES.has(p.type)).forEach(p => {
+        units.push({ ...p, _parentName: null, _parentCode: p.code });
+      });
+      children.forEach(p => {
+        const parent = getParent(p.parent_id);
+        units.push({ ...p, _parentName: parent?.name || '', _parentCode: parent?.code || '' });
+      });
+    }
+
+    if (prefilterActive) {
+      units = units.filter((u) => propertyIdsWithActiveBooking.has(u.id));
+      // Агент видит только дома где он указан как ответственный за объект.
+      // Админ — все актуальные дома компании.
+      if (user?.isAgentRole && !user?.isAdminRole && user?.id) {
+        units = units.filter((u) => u.responsible_agent_id === user.id);
+      }
     }
 
     let list = [...units].sort((a, b) => {
@@ -273,13 +323,13 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     }
     const allCities = [
       ...topLevel.map(p => p.city),
-      ...children.map(p => (getParent(p.resort_id)?.city ?? p.city)),
+      ...children.map(p => (getParent(p.parent_id)?.city ?? p.city)),
     ].filter(Boolean);
     const allDistricts = [
       ...topLevel.map(p => p.district),
-      ...children.map(p => (getParent(p.resort_id)?.district ?? p.district)),
+      ...children.map(p => (getParent(p.parent_id)?.district ?? p.district)),
     ].filter(Boolean);
-    const hasActive = Boolean(filterValues && (
+    const hasActive = Boolean(myBookingsOn || (filterValues && (
       filterValues.city ||
       (filterValues.districts?.length ?? 0) > 0 ||
       (filterValues.types?.length ?? 0) > 0 ||
@@ -289,14 +339,14 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       filterValues.pets === true ||
       filterValues.longTerm === true ||
       (filterValues.amenities?.length ?? 0) > 0
-    ));
+    )));
     return {
       listToShow: list,
       uniqueCities: [...new Set(allCities)].sort(),
       uniqueDistricts: [...new Set(allDistricts)].sort(),
       hasActiveFilter: hasActive,
     };
-  }, [topLevel, children, getParent, filterFn, filterValues, propertyIdsFilter, searchQuery]);
+  }, [topLevel, children, getParent, filterFn, filterValues, propertyIdsFilter, searchQuery, propertyIdsWithActiveBooking, user?.id, user?.isAgentRole, user?.isAdminRole]);
 
   const refreshBadge = useCallback(() => {
     getUnreadCount().then(setUnreadCount).catch(() => {});
@@ -311,15 +361,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     if (!effectiveVisible || !user?.id) return;
     refreshBadge();
   }, [effectiveVisible, user?.id, refreshBadge]);
-
-  const hasOpenedFilterOnce = useRef(false);
-
-  useEffect(() => {
-    if (effectiveVisible && !hasOpenedFilterOnce.current) {
-      hasOpenedFilterOnce.current = true;
-      setFilterVisible(true);
-    }
-  }, [effectiveVisible]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -389,7 +430,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     if (listToShow.length === 0) return MIN_COL_WIDTH;
     let maxLen = 0;
     listToShow.forEach((unit) => {
-      const parent = unit.resort_id ? getParent(unit.resort_id) : null;
+      const parent = unit.parent_id ? getParent(unit.parent_id) : null;
       const codeDisplay = parent
         ? (parent.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '')
         : (unit.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '');
@@ -441,44 +482,39 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return (dayIndex / totalDays) * rowWidth;
   }, [months]);
 
-  const getContactName = useCallback((contactId) => {
-    if (!contactId) return '';
-    const c = contacts.find(ct => ct.id === contactId);
-    return c ? (`${(c.name || '').trim()} ${(c.lastName || '').trim()}`.trim() || c.phone || '') : '';
-  }, [contacts]);
+  // contactNamesByBookingId: считаем имена клиентов один раз для всех броней
+  // вместо setState на каждом ряду (раньше CalendarRow делал useState+useEffect
+  // и пересчитывал при каждом mount — на 50 рядах было 50 лишних апдейтов).
+  const contactNamesByBookingId = useMemo(() => {
+    const contactsMap = new Map();
+    (contacts || []).forEach((c) => { contactsMap.set(c.id, c); });
+    const out = {};
+    (bookings || []).forEach((b) => {
+      if (b.notMyCustomer || !b.contactId) return;
+      const c = contactsMap.get(b.contactId);
+      if (!c) return;
+      const fullName = `${(c.name || '').trim()} ${(c.lastName || '').trim()}`.trim();
+      out[b.id] = fullName || c.phone || '';
+    });
+    return out;
+  }, [bookings, contacts]);
 
-  const handleLeftScroll = (e) => {
-    const y = e.nativeEvent.contentOffset.y;
-    if (!scrollSyncRef.current && rightVerticalRef.current) {
-      scrollSyncRef.current = true;
-      rightVerticalRef.current.scrollTo({ y, animated: false });
-      requestAnimationFrame(() => { scrollSyncRef.current = false; });
-    }
-  };
-
-  const handleRightVerticalScroll = (e) => {
-    const y = e.nativeEvent.contentOffset.y;
-    if (!scrollSyncRef.current && leftScrollRef.current) {
-      scrollSyncRef.current = true;
-      leftScrollRef.current.scrollTo({ y, animated: false });
-      requestAnimationFrame(() => { scrollSyncRef.current = false; });
-    }
-  };
 
   const rightScrollRefReady = useRef(false);
   const hasOpenedDetailRef = useRef(false);
   useEffect(() => {
     if (!rightScrollRefReady.current && rightScrollRef.current && initialScrollX > 0) {
       rightScrollRefReady.current = true;
-      setTimeout(() => {
+      const id = requestAnimationFrame(() => {
         rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
-      }, 50);
+      });
+      return () => cancelAnimationFrame(id);
     }
   }, [initialScrollX, listToShow.length]);
 
   useEffect(() => {
     if (effectiveVisible && rightScrollRef.current) {
-      setTimeout(() => {
+      const id = requestAnimationFrame(() => {
         if (!hasScrolledOnceRef.current) {
           hasScrolledOnceRef.current = true;
           rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
@@ -488,7 +524,8 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
             : initialScrollX;
           rightScrollRef.current?.scrollTo({ x: targetX, animated: false });
         }
-      }, 50);
+      });
+      return () => cancelAnimationFrame(id);
     }
   }, [effectiveVisible, initialScrollX]);
 
@@ -496,32 +533,35 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   useEffect(() => {
     if (hasOpenedDetailRef.current && selectedBooking === null) {
       hasOpenedDetailRef.current = false;
-      setTimeout(() => {
+      const id = requestAnimationFrame(() => {
         rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
-      }, 80);
+      });
+      return () => cancelAnimationFrame(id);
     }
     if (selectedBooking) hasOpenedDetailRef.current = true;
   }, [selectedBooking, initialScrollX]);
 
   useEffect(() => {
     if (!selectedPropertyForDetail && rightScrollRef.current) {
-      setTimeout(() => {
+      const id = requestAnimationFrame(() => {
         const targetX = timelineScrollXRef.current > 0
           ? timelineScrollXRef.current
           : initialScrollX;
         rightScrollRef.current?.scrollTo({ x: targetX, animated: false });
-      }, 50);
+      });
+      return () => cancelAnimationFrame(id);
     }
   }, [selectedPropertyForDetail]);
 
   useEffect(() => {
     if (listToShow.length > 0 && rightScrollRef.current) {
-      setTimeout(() => {
+      const id = requestAnimationFrame(() => {
         const targetX = timelineScrollXRef.current > 0
           ? timelineScrollXRef.current
           : initialScrollX;
         rightScrollRef.current?.scrollTo({ x: targetX, animated: false });
-      }, 100);
+      });
+      return () => cancelAnimationFrame(id);
     }
   }, [listToShow.length]);
 
@@ -544,12 +584,19 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   }, []);
 
   const handleBookingPress = useCallback((booking, property) => {
+    // TD-085: агент видит только свои брони. Чужие (другого агента или брони компании)
+    // открывать нельзя — детали с именем клиента, телефоном, ценой и комиссиями скрыты.
+    const isAgent = !!user?.teamMembership;
+    if (isAgent && booking?.responsibleAgentId !== user?.id) {
+      return;
+    }
+
     setInitialMonth(null);
     setEditModalVisible(false);
 
     const prop = booking?.propertyId ? properties.find(p => p.id === booking.propertyId) : null;
     const propResult = prop ? (() => {
-      const resort = prop.resort_id ? (properties.find(p => p.id === prop.resort_id) || null) : null;
+      const resort = prop.parent_id ? (properties.find(p => p.id === prop.parent_id) || null) : null;
       const owners = contacts.filter(c => c.type === 'owners');
       const owner = prop.owner_id ? owners.find(o => o.id === prop.owner_id) : null;
       const owner2 = prop.owner_id_2 ? owners.find(o => o.id === prop.owner_id_2) : null;
@@ -578,7 +625,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     setSelectedBooking(booking);
     setSelectedProperty(property);
     setDetailVisible(true);
-  }, [properties, contacts]);
+  }, [properties, contacts, user]);
 
   const handleSaved = () => {
     loadData(false);
@@ -715,32 +762,31 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               >
                 <Text style={styles.yearText}>{year}</Text>
               </TouchableOpacity>
-            <ScrollView
-              ref={leftScrollRef}
-              style={styles.leftCol}
-              contentContainerStyle={styles.leftColContent}
-              showsVerticalScrollIndicator={false}
-              onScroll={handleLeftScroll}
-              scrollEventThrottle={16}
-              bounces={false}
-            >
-              {listToShow.map((unit) => {
-                const parent = unit.resort_id ? getParent(unit.resort_id) : null;
-                const codeDisplay = parent
-                  ? (parent.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '')
-                  : (unit.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '');
-                return (
-                  <TouchableOpacity
-                    key={unit.id}
-                    style={[styles.row, styles.propertyRow]}
-                    onPress={() => setSelectedPropertyForDetail(unit)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.propertyLabel, styles.propertyLabelLink]} numberOfLines={1}>{codeDisplay}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <View style={[styles.leftCol, { overflow: 'hidden' }]}>
+              <Animated.View
+                style={[
+                  styles.leftColContent,
+                  { transform: [{ translateY: Animated.multiply(scrollY, -1) }] },
+                ]}
+              >
+                {listToShow.map((unit) => {
+                  const parent = unit.parent_id ? getParent(unit.parent_id) : null;
+                  const codeDisplay = parent
+                    ? (parent.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '')
+                    : (unit.code || '') + (unit.code_suffix ? ` (${unit.code_suffix})` : '');
+                  return (
+                    <TouchableOpacity
+                      key={unit.id}
+                      style={[styles.row, styles.propertyRow]}
+                      onPress={() => setSelectedPropertyForDetail(unit)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.propertyLabel, styles.propertyLabelLink]} numberOfLines={1}>{codeDisplay}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </Animated.View>
+            </View>
             </View>
 
             <ScrollView
@@ -784,15 +830,60 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                   })}
                 </View>
 
-                <ScrollView
-                  ref={rightVerticalRef}
+                <Animated.ScrollView
                   style={styles.gridScroll}
                   contentContainerStyle={{ paddingBottom: BOTTOM_NAV_PADDING, position: 'relative' }}
                   showsVerticalScrollIndicator={true}
-                  onScroll={handleRightVerticalScroll}
+                  onScroll={onVerticalScroll}
                   scrollEventThrottle={16}
                   bounces={false}
                 >
+                  {/* Общий фоновый слой сетки за всеми строками сразу:
+                      подсветка прошлых/текущего месяцев + вертикальные разделители месяцев.
+                      Раньше каждая строка рисовала 24 ячейки фона (~1200 элементов на 50 объектов).
+                      Теперь — 24 разделителя + 1-2 подсветки общим слоем независимо от числа строк. */}
+                  <View
+                    pointerEvents="none"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: NUM_MONTHS * MONTH_WIDTH,
+                      height: listToShow.length * ROW_HEIGHT,
+                    }}
+                  >
+                    {months.map((m, mi) => {
+                      const isPast = m.year < currentYear || (m.year === currentYear && m.month < currentMonth);
+                      const isCurrent = m.year === currentYear && m.month === currentMonth;
+                      if (!isPast && !isCurrent) return null;
+                      return (
+                        <View
+                          key={m.key}
+                          style={{
+                            position: 'absolute',
+                            left: mi * MONTH_WIDTH,
+                            top: 0,
+                            bottom: 0,
+                            width: MONTH_WIDTH,
+                            backgroundColor: isPast ? COLORS.monthPast : COLORS.monthCurrent,
+                          }}
+                        />
+                      );
+                    })}
+                    {months.map((m, mi) => (
+                      <View
+                        key={`div-${m.key}`}
+                        style={{
+                          position: 'absolute',
+                          left: (mi + 1) * MONTH_WIDTH - 1,
+                          top: 0,
+                          bottom: 0,
+                          width: 1,
+                          backgroundColor: 'rgba(0,0,0,0.18)',
+                        }}
+                      />
+                    ))}
+                  </View>
                   {todayLineX >= 0 && (
                     <View
                       pointerEvents="none"
@@ -807,7 +898,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                     />
                   )}
                   {(() => {
-                    const canBook = user?.teamPermissions?.can_book;
+                    const canBook = user?.teamPermissions?.can_manage_bookings;
                     const isAgent = !!(user?.teamMembership);
                     return listToShow.map((unit) => {
                       const canAddBooking = !readOnly && (!isAgent || canBook);
@@ -821,7 +912,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                           currentYear={currentYear}
                           currentMonth={currentMonth}
                           bookings={bookingsByProperty[unit.id] || []}
-                          getContactName={getContactName}
+                          contactNamesByBookingId={contactNamesByBookingId}
                           getOwnerLabel={getOwnerLabel}
                           globalColorMap={globalColorMap}
                           truncateLabel={truncateLabel}
@@ -829,11 +920,14 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                           onCellPress={canAddBooking ? handleAddPress : undefined}
                           onBookingPress={handleBookingPress}
                           ownerLabels={{ full: t('ownerCustomer'), mid: t('ownerCustomerShort'), min: t('ownerCustomerMin') }}
+                          isAgentMode={isAgent}
+                          currentUserId={user?.id}
+                          companyName={user?.companyInfo?.name || user?.teamMembership?.companyName || ''}
                         />
                       );
                     });
                   })()}
-                </ScrollView>
+                </Animated.ScrollView>
               </View>
             </ScrollView>
           </View>
@@ -847,6 +941,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         onApply={setFilterValues}
         cities={uniqueCities}
         districts={uniqueDistricts}
+        user={user}
       />
 
       {yearPickerVisible && (
@@ -893,7 +988,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
           <BookingDetailScreen
             booking={selectedBooking}
             propertyCode={(() => {
-              const parent = selectedProperty.resort_id ? getParent(selectedProperty.resort_id) : null;
+              const parent = selectedProperty.parent_id ? getParent(selectedProperty.parent_id) : null;
               const codeDisplay = parent
                 ? (parent.code || '') + (selectedProperty.code_suffix ? ` (${selectedProperty.code_suffix})` : '')
                 : (selectedProperty.code || '') + (selectedProperty.code_suffix ? ` (${selectedProperty.code_suffix})` : '');
@@ -1031,7 +1126,7 @@ const CalendarRow = React.memo(function CalendarRow({
   monthWidth,
   rowHeight,
   bookings,
-  getContactName,
+  contactNamesByBookingId,
   getOwnerLabel,
   globalColorMap,
   truncateLabel,
@@ -1041,18 +1136,10 @@ const CalendarRow = React.memo(function CalendarRow({
   ownerLabels,
   currentYear,
   currentMonth,
+  isAgentMode,
+  currentUserId,
+  companyName,
 }) {
-  const [contactNames, setContactNames] = useState({});
-
-  useEffect(() => {
-    const names = {};
-    bookings.forEach(b => {
-      if (b.notMyCustomer || !b.contactId) return;
-      names[b.id] = getContactName(b.contactId);
-    });
-    setContactNames(names);
-  }, [bookings, getContactName]);
-
   const rowWidth = months.length * monthWidth;
 
   const resolveAbsolutePressX = (e) => {
@@ -1080,7 +1167,7 @@ const CalendarRow = React.memo(function CalendarRow({
   return (
     <View style={[rowStyles.row, { height: rowHeight, width: rowWidth }]}>
       <Pressable
-        style={{ flexDirection: 'row', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         onPress={onCellPress ? (e) => {
           const x = resolveAbsolutePressX(e);
           if (!Number.isFinite(x) || !Number.isFinite(monthWidth) || monthWidth <= 0 || months.length === 0) {
@@ -1094,19 +1181,7 @@ const CalendarRow = React.memo(function CalendarRow({
           }
           onCellPress(unit, months[monthIdx].key);
         } : undefined}
-      >
-        {months.map((m) => {
-          const isPast = m.year < currentYear || (m.year === currentYear && m.month < currentMonth);
-          const isCurrent = m.year === currentYear && m.month === currentMonth;
-          const cellBg = isPast ? COLORS.monthPast : isCurrent ? COLORS.monthCurrent : COLORS.monthFuture;
-          return (
-            <View
-              key={m.key}
-              style={[rowStyles.cell, { width: monthWidth, backgroundColor: cellBg }]}
-            />
-          );
-        })}
-      </Pressable>
+      />
       {bookings.map((b) => {
         const checkInStr = typeof b.checkIn === 'string' && b.checkIn.length >= 10 ? b.checkIn.substring(0, 10) : b.checkIn;
         const checkOutStr = typeof b.checkOut === 'string' && b.checkOut.length >= 10 ? b.checkOut.substring(0, 10) : b.checkOut;
@@ -1117,9 +1192,13 @@ const CalendarRow = React.memo(function CalendarRow({
         const widthPx = Math.max(2, rightPx - leftPx);
         const rawColor = b.notMyCustomer ? COLORS.ownerBar : (globalColorMap[b.id] || PASTEL_COLORS[0]);
         const barColor = b.notMyCustomer ? rawColor : rawColor.replace(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i, (_, r, g, b) => `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, 0.6)`);
+        // TD-085: на чужой брони агент видит название компании вместо имени клиента.
+        const isForeignToAgent = isAgentMode && b.responsibleAgentId !== currentUserId;
         const label = b.notMyCustomer
           ? getOwnerLabel(widthPx - 8, ownerLabels)
-          : (contactNames[b.id] || '');
+          : isForeignToAgent
+            ? companyName
+            : (contactNamesByBookingId?.[b.id] || '');
         const dayIn = `${String(cin.date()).padStart(2, '0')}.${String(cin.month() + 1).padStart(2, '0')}`;
         const dayOut = `${String(cout.date()).padStart(2, '0')}.${String(cout.month() + 1).padStart(2, '0')}`;
         const spaceForDates = 50;
@@ -1143,11 +1222,11 @@ const CalendarRow = React.memo(function CalendarRow({
                 zIndex: 10,
               },
             ]}
-            onPress={onBookingPress ? (e) => {
+            onPress={(onBookingPress && !isForeignToAgent) ? (e) => {
               e.stopPropagation();
               onBookingPress(b, unit);
             } : undefined}
-            activeOpacity={onBookingPress ? 0.8 : 1}
+            activeOpacity={(onBookingPress && !isForeignToAgent) ? 0.8 : 1}
           >
             <View style={rowStyles.barInner}>
               {canShowDates && <Text style={[rowStyles.barDateText, rowStyles.barDateIn]}>{dayIn}</Text>}

@@ -1,23 +1,19 @@
 # 🚀 Бэклог идей и TODO
 
+> **Актуальный прогресс по каждому P1/P2/P3 — в `docs/PROGRESS_PLAN.md`** (там единый список со статусами ✅/⏳/⬜). Этот файл — детальные описания идей; статусы здесь могут быть устаревшими.
+
 ---
 
 ## Приоритет: Высокий
 
-### P1-001: Роль "помощник админа" / `can_moderate_properties`
-**Описание:** Возможность назначить старшего агента, который может approve/reject объекты.  
-**Блокер:** Требует расширения RLS (см. `05_RLS_и_права_доступа.md` → Proposal).  
-**Файлы:** `supabase/migrations/new`, `src/services/propertiesService.js`, `src/web/components/WebNotificationBell.js`
+### P1-001: Роль "помощник админа" — ❌ ЗАКРЫТО 2026-04-30 (этап 2, ADR-015)
+Модерация выпилена. Идея старшего агента с правом approve/reject больше не имеет смысла.
 
-### P1-002: Обязательность причины отклонения на уровне БД
-**Описание:** Сейчас `reason` required только в UI. Добавить `CHECK (reason <> '')` в таблицу `property_rejection_history` и рассмотреть `NOT NULL` + default '' на `properties.rejection_reason`.  
-**Файлы:** `supabase/migrations/new`  
-**Примечание:** Аккуратно — не сломать существующие данные с пустыми причинами.
+### P1-002: Обязательность причины отклонения — ❌ ЗАКРЫТО 2026-04-30 (этап 2)
+Отклонений больше нет, причина не нужна.
 
-### P1-003: Backfill истории отклонений для legacy-объектов
-**Описание:** Объекты с `rejection_reason` но без записей в `property_rejection_history`.  
-**Plan:** описан в `04_SQL_миграции_реестр.md`.  
-**Статус:** Pending, требует тестирования на staging.
+### P1-003: Backfill истории отклонений — ❌ ЗАКРЫТО 2026-04-30 (этап 2)
+Таблица `property_rejection_history` будет удалена в этапе 3 (cleanup-миграция). Бэкфилл не нужен.
 
 ### P1-004: Ограничение доступа к функциям компании при downgrade тарифа
 
@@ -47,9 +43,8 @@
 
 ## Приоритет: Средний
 
-### P2-001: Усиление audit trail
-**Описание:** Добавить `rejection_type` в текущие инсерты (сейчас всегда `property_submitted`). Корректно определять `edit_submitted` / `price_submitted` / `manual`.  
-**Файлы:** `src/services/propertiesService.js`
+### P2-001: Усиление audit trail — ❌ ЗАКРЫТО 2026-04-30 (этап 2)
+Таблица `property_rejection_history` снята вместе с модерацией.
 
 ### P2-002: Улучшение UX уведомлений
 **Описание:**
@@ -58,9 +53,8 @@
 - Возможность "прочитать все"
 **Файлы:** `src/web/components/WebNotificationBell.js`
 
-### P2-003: Permissions в UI (TODO items из APP_MAP_WEB.md)
-**Описание:** Скрыть / показать элементы UI по `can_edit_info`, `can_edit_prices`, `can_see_financials`, `can_add_property`, `can_delete_booking`.  
-**Файлы:** `src/web/screens/WebPropertiesScreen.js`, `src/web/components/WebPropertyEditPanel.js`
+### P2-003: Permissions в UI — ❌ ЗАКРЫТО 2026-04-30 (этап 2)
+Старые ключи (`can_add_property`, `can_edit_info`, `can_edit_prices`, `can_see_financials`, `can_delete_booking`) сняты. Гарды реализованы через единые `can_manage_property` / `can_manage_bookings`.
 
 ### P2-004: История правок объекта (не только отклонений)
 **Описание:** Версионирование изменений объекта (кто, что, когда изменил). Возможно через отдельную таблицу `property_change_history`.  
@@ -70,23 +64,76 @@
 
 ## Приоритет: Низкий / Backlog
 
-### P3-001: Mobile parity для review flow
-**Описание:** В Flutter-приложении реализовать аналогичный review-flow (approve/reject из уведомлений).  
-**Блокер:** Сначала нужна стабильность Web-flow.
+### P3-001: Mobile parity для review flow — ❌ ЗАКРЫТО 2026-04-30 (этап 2)
+Review-flow выпилен.
 
-### P3-002: Экспорт истории отклонений
-**Описание:** Возможность экспортировать CSV с историей отклонений для отчётности.  
-**Файлы:** `src/services/propertiesService.js`, `src/web/screens/WebPropertiesScreen.js`
+### P3-002: Экспорт истории отклонений — ❌ ЗАКРЫТО 2026-04-30 (этап 2)
+Таблица `property_rejection_history` снята.
 
 ### P3-003: Push-уведомления (браузер)
-**Описание:** Сейчас уведомления только в колокольчике. Добавить браузерные push-уведомления для ключевых событий (new property, approved, rejected).  
+**Описание:** Сейчас уведомления только в колокольчике. Добавить браузерные push-уведомления для ключевых событий (новый объект, новое бронирование).  
 **Блокер:** Требует Service Worker.
 
-### P3-004: Фильтр объектов по статусу в левом списке
-**Описание:** Возможность показывать только `pending` / `rejected` / `approved` объекты в левом списке.  
-**Файлы:** `src/web/screens/WebPropertiesScreen.js`
+### P3-004: Фильтр объектов по статусу в левом списке — ❌ ЗАКРЫТО 2026-04-30 (этап 2)
+Статусов больше нет, все объекты сразу `approved`.
 
 ### P3-005: Добавить `updated_at` в таблицу `properties`
 **Описание:** Колонка нужна для audit trail и потенциальной инвалидации кэша.  
 **Примечание:** Требует миграции + обновления всех `INSERT/UPDATE` в `propertiesService`.  
 **ADR:** ADR-002 описывает, почему это было отложено.
+
+---
+
+## V2 — после публичного запуска
+
+### V2-001: Журнал действий с командой (бывший TD-030)
+
+**Описание:** Каждое действие админа над командой (приглашение, отзыв приглашения, деактивация агента, изменение прав, передача владения) пишется в отдельную таблицу `team_audit_log` с полями `actor_id`, `target_id`, `action`, `payload`, `created_at`. Админу видна история — отдельная страница или вкладка в разделе «Команда».
+
+**Зачем во второй версии, не сейчас:** На текущей стадии (один админ — сам владелец) журнал бесполезен — действия видны и так. Польза появляется когда: (а) у компании несколько админов и нужно понять кто из них что сделал; (б) уволенный сотрудник судится за неправомерное увольнение и нужны доказательства; (в) подключатся клиенты с большими командами где compliance — реальное требование. Решено отложить 2026-05-05.
+
+**Что нужно будет сделать:**
+- Миграция: таблица `team_audit_log` + RLS (только админы своей компании читают).
+- Триггеры в `company_invitations`/`company_members` или явная запись из `companyService` (определимся при реализации).
+- Веб: новая вкладка «История» в `WebTeamSection` рядом с «Активные/Архив/Приглашения», список с фильтром по дате и типу действия.
+- Мобайл: экран `TeamHistoryScreen` подключённый через `AccountStack` → `Команда → История`.
+- i18n: ~10 ключей × 3 языка для названий действий и UI.
+
+**Файлы при реализации:** `supabase/migrations/<timestamp>_team_audit_log.sql`, `src/services/companyService.js`, `src/web/components/WebTeamSection.js`, `src/screens/TeamScreen.js`, новые `WebTeamHistorySection.js` и `TeamHistoryScreen.js`, `src/i18n/translations.js`.
+
+### V2-002: Web Push уведомления (бывшие TD-090 + TD-108 + P3-003)
+
+**Описание:** Браузерные всплывающие уведомления на рабочем столе пользователя даже если вкладка CRM закрыта. Триггеры: новая бронь, новый объект (TD-090); напоминания по календарным событиям за N часов до начала (TD-108).
+
+**Зачем во второй версии, не сейчас:** Большая инфраструктура (Service Worker — фоновая программа в браузере; пара VAPID-ключей; таблица `web_push_subscriptions` с уникальным `endpoint` на устройство; Edge Function в Supabase которая шлёт уведомления через `web-push` библиотеку; UI-кнопка «Включить уведомления» в настройках; триггеры от событий БД). 2-3 дня работы. Apple Safari требует PWA-установки (Add to Home Screen) — отдельный нюанс. Не блокер первого релиза, делаем когда будет реальная нагрузка пользователей. Решено отложить 2026-05-05.
+
+**Что нужно будет сделать:**
+- VAPID-пара ключей (генерация, хранение приватного в Supabase Vault).
+- Миграция: таблица `web_push_subscriptions` (`user_id`, `endpoint`, `keys_p256dh`, `keys_auth`, `device_label`) + RLS (только владелец читает/удаляет).
+- Service Worker (`public/sw.js` для веба) — обработчик `push` события, показ уведомления, клик → открыть нужный экран в CRM.
+- Edge Function `send-web-push` — принимает payload, идёт по подпискам компании, шлёт через `web-push` SDK.
+- Триггеры от событий: при INSERT в `bookings` (новая бронь), при INSERT в `notifications` — Edge Function вызывается.
+- Календарные напоминания (TD-108): при создании/правке `calendar_events` рассчитать время отправки, поставить в очередь (отдельная таблица `pending_web_push` с `scheduled_at` + cron).
+- UI: переключатель «Уведомления в браузере» в `WebSettingsModal`, запрос разрешения при включении, регистрация SW + подписка.
+- i18n: ~5 ключей × 3 языка.
+
+**Apple-нюанс:** Safari Web Push работает только если сайт установлен как PWA (Add to Home Screen на iOS). Для desktop Safari — обычная подписка. Учесть в UI: подсказка для iOS-пользователей.
+
+**Файлы при реализации:** `public/sw.js` (новый), `supabase/migrations/<timestamp>_web_push_subscriptions.sql`, `supabase/functions/send-web-push/index.ts`, `src/web/services/webPushService.js`, `src/web/components/WebSettingsModal.js`, `src/i18n/translations.js`.
+
+### V2-003: Native deep links — ссылки из писем открываются в приложении (бывший TD-118)
+
+**Описание:** Когда пользователь на iPhone/Android получает email с ссылкой (приглашение в команду, восстановление пароля, подтверждение почты), система предлагает «Открыть в I am Agent?» вместо принудительного открытия в Safari/Chrome. Если приложение установлено — открывается прямо нужный экран. Если нет — браузер как fallback.
+
+**Зачем во второй версии, не сейчас:** Польза только для уже установивших приложение (восстановление пароля для возвращающихся пользователей). Для новых приглашённых агентов приложение в момент клика ещё не установлено — flow не меняется (всё равно через браузер). Не блокер релиза. Решено отложить 2026-05-05.
+
+**Что нужно будет сделать:**
+- Apple Developer Console: настроить Associated Domain (`applinks:crm.iamagent.app`).
+- Файл `apple-app-site-association` (без расширения, JSON) на сайте по пути `/.well-known/apple-app-site-association` с правильным Team ID и Bundle ID.
+- Android: Google Play Console → App Links + файл `assetlinks.json` на том же `/.well-known/`.
+- `app.json` (Expo): `expo.ios.associatedDomains` и `expo.android.intentFilters` для `crm.iamagent.app`.
+- В Supabase Auth: redirect URL остаётся `https://crm.iamagent.app/...` — система автоматически перехватывает при наличии associated domain.
+- В приложении: `Linking.addEventListener('url', handler)` — парсит URL (`?invite_token=...`, `?type=recovery`), навигирует на нужный экран (`InviteAcceptScreen`, `UpdatePasswordScreen`).
+- Новый билд приложения через EAS, тест на реальных устройствах iOS/Android.
+
+**Файлы при реализации:** `app.json`, `App.js` (linking handler), новые мобильные экраны `MobileInviteAcceptScreen.js` и `MobileUpdatePasswordScreen.js` если нужно отдельно от веба, файлы на сайте `crm.iamagent.app`.

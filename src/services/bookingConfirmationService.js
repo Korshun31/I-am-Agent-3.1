@@ -216,7 +216,44 @@ function buildPaymentPlanRows(b, lang = 'ru') {
   const checkIn = new Date(b.checkIn);
   const checkOut = new Date(b.checkOut);
 
-  if (!b.checkIn || !b.checkOut || pm <= 0) return rows;
+  if (!b.checkIn || !b.checkOut) return rows;
+
+  const breakdown = Array.isArray(b.monthlyBreakdown) ? b.monthlyBreakdown : [];
+
+  if (breakdown.length > 0) {
+    rows.push({ date: dateOfIssue, description: `«${s.bookingDeposit}»`, amount: formatPrice(bd) });
+
+    breakdown.forEach((item, idx) => {
+      const [yy, mm] = String(item.month || '').split('-').map(Number);
+      if (!yy || !mm) return;
+      const monthStart = new Date(yy, mm - 1, 1);
+      const monthEnd = new Date(yy, mm, 1);
+      const periodStart = monthStart < checkIn ? checkIn : monthStart;
+      const periodEnd = monthEnd > checkOut ? checkOut : monthEnd;
+      const startStr = formatDate(periodStart);
+      const endStr = formatDate(periodEnd);
+      const paymentDate = formatDate(periodStart);
+      const amount = Number(item.amount) || 0;
+
+      if (idx === 0) {
+        const doplata = Math.max(0, amount - bd);
+        if (doplata > 0) {
+          rows.push({ date: paymentDate, description: `${s.topUpFirstMonth} (${startStr} - ${endStr})`, amount: formatPrice(doplata) });
+        }
+        rows.push({ date: paymentDate, description: `«${s.saveDeposit}»`, amount: formatPrice(sd) });
+      } else {
+        const monthNum = idx + 1;
+        const ordStr = ord(monthNum);
+        const desc = lang === 'en' ? `${s.paymentMonth} ${ordStr} month (${startStr} - ${endStr})` : lang === 'th' ? `${s.paymentMonth} ${ordStr} (${startStr} - ${endStr})` : `Оплата ${ordStr} месяца (${startStr} - ${endStr})`;
+        rows.push({ date: paymentDate, description: desc, amount: formatPrice(amount) });
+      }
+    });
+
+    rows.push({ date: formatDate(checkOut), description: s.depositReturn, amount: formatPrice(sd) });
+    return rows;
+  }
+
+  if (pm <= 0) return rows;
 
   rows.push({ date: dateOfIssue, description: `«${s.bookingDeposit}»`, amount: formatPrice(bd) });
 
@@ -357,6 +394,7 @@ export function buildConfirmationHTML({ booking, property, contact, profile, con
     bookingDeposit,
     saveDeposit,
     dateOfIssue,
+    monthlyBreakdown: b.monthlyBreakdown,
   }, lang);
 
   const paymentPlanTableBody = paymentPlanRows

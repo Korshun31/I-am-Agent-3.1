@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Image, Linking, Platform,
@@ -6,9 +6,9 @@ import {
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 
-import { getContacts, getContactsByIds, getMyContacts, deleteContact } from '../../services/contactsService';
+import { deleteContact } from '../../services/contactsService';
 import { getBookings } from '../../services/bookingsService';
-import { getProperties } from '../../services/propertiesService';
+import { useAppData } from '../../context/AppDataContext';
 import WebContactEditPanel from '../components/WebContactEditPanel';
 import { PropertyDetail } from './WebPropertiesScreen';
 import WebPropertyEditPanel from '../components/WebPropertyEditPanel';
@@ -312,7 +312,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
   const ownedIds = new Set(allOwned.map(p => p.id));
   // Hide child units whose parent resort/condo also belongs to this contact
   const ownedProperties = allOwned.filter(p =>
-    !p.resort_id || !ownedIds.has(p.resort_id)
+    !p.parent_id || !ownedIds.has(p.parent_id)
   );
 
   useEffect(() => {
@@ -327,6 +327,14 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
   const allEmails    = [contact.email, ...(contact.extraEmails || [])].filter(Boolean);
   const allTelegrams = contact.extraTelegrams?.length ? contact.extraTelegrams : (contact.telegram ? [contact.telegram] : []);
   const allWhatsapps = contact.extraWhatsapps?.length ? contact.extraWhatsapps : (contact.whatsapp ? [contact.whatsapp] : []);
+
+  // TD-105 / TD-106: количество привязанных объектов (для собственника) или броней (для клиента)
+  // — для расширенного предупреждения перед удалением.
+  const linkedCount = isOwner ? allOwned.length : bookings.length;
+  const confirmMessage = linkedCount > 0
+    ? (isOwner ? t('deleteOwnerWithPropertiesMessage') : t('deleteClientWithBookingsMessage'))
+        .replace('{count}', String(linkedCount))
+    : t('pdDeleteConfirm');
 
   return (
     <ScrollView style={s.detail} showsVerticalScrollIndicator={true} contentContainerStyle={s.detailContent}>
@@ -364,7 +372,7 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
       {/* ── Delete confirmation ── */}
       {confirmDelete && (
         <View style={s.confirmDeleteBar}>
-          <Text style={s.confirmDeleteText}>{t('pdDeleteConfirm')}</Text>
+          <Text style={s.confirmDeleteText}>{confirmMessage}</Text>
           <TouchableOpacity
             style={s.confirmDeleteYes}
             onPress={handleDelete}
@@ -505,12 +513,16 @@ function ContactDetail({ contact, allProperties, onEdit, onDelete, onOpenInline,
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export default function WebContactsScreen({ onNavigateToProperty, user, refreshKey }) {
+export default function WebContactsScreen({ onNavigateToProperty, user }) {
   const { t } = useLanguage();
-  const [allContacts, setAllContacts] = useState([]);
-  const [allProperties, setAllProperties] = useState([]);
-  const [bookingCounts, setBookingCounts] = useState({});
-  const [loading, setLoading] = useState(true);
+  const {
+    contacts: ctxContacts,
+    properties: allProperties,
+    bookings: ctxBookings,
+    contactsLoading, propertiesLoading, bookingsLoading,
+    refreshContacts, refreshProperties,
+  } = useAppData();
+
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [selected, setSelected] = useState(null);
@@ -524,81 +536,22 @@ export default function WebContactsScreen({ onNavigateToProperty, user, refreshK
   const [inlineBookings, setInlineBookings] = useState([]);
   const [inlineEditPanel, setInlineEditPanel] = useState({ visible: false, mode: 'edit', property: null, parentProperty: null });
 
-  const isTeamMember = user?.teamMembership != null && !user?.teamMembership?.is_admin;
+  const loading = contactsLoading || propertiesLoading || bookingsLoading;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      let allOwners = [];
-      let allClients = [];
-      let props = [];
+  const allContacts = useMemo(() => {
+    const seen = new Set();
+    return [...(ctxContacts || [])]
+      .filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; })
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'));
+  }, [ctxContacts]);
 
-      if (isTeamMember) {
-        // Агент: получаем его объекты, затем собственников по owner_id
-        props = await getProperties();
-        const ownerIds = [...new Set([
-          ...props.map(p => p.owner_id).filter(Boolean),
-          ...props.map(p => p.owner_id_2).filter(Boolean),
-        ])];
-        allOwners = ownerIds.length > 0 ? await getContactsByIds(ownerIds) : [];
-        // Клиенты — из бронирований его объектов
-        const propIds = new Set(props.map(p => p.id));
-        try {
-          const allBookings = await getBookings();
-          const clientIds = [...new Set(
-            allBookings.filter(bk => propIds.has(bk.propertyId) && bk.contactId).map(bk => bk.contactId)
-          )];
-          allClients = clientIds.length > 0 ? await getContactsByIds(clientIds) : [];
-        } catch {}
-        // Свои контакты — созданные агентом напрямую (owners и clients)
-        const myContacts = await getMyContacts();
-
-        // Убираем дубликаты (если один контакт — и собственник и клиент)
-        const seen = new Set();
-        const all = [...allOwners, ...allClients, ...myContacts].filter(c => {
-          if (seen.has(c.id)) return false;
-          seen.add(c.id);
-          return true;
-        }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'));
-
-        setAllContacts(all);
-        setAllProperties(props);
-        return;
-      } else {
-        // Админ: загружаем всё
-        [allClients, allOwners, props] = await Promise.all([
-          getContacts('clients'),
-          getContacts('owners'),
-          getProperties(),
-        ]);
-        // Count bookings per client
-        const counts = {};
-        try {
-          const allBookings = await getBookings();
-          allBookings.forEach(bk => {
-            if (bk.contactId) counts[bk.contactId] = (counts[bk.contactId] || 0) + 1;
-          });
-        } catch {}
-        setBookingCounts(counts);
-      }
-
-      // Убираем дубликаты (если один контакт — и собственник и клиент)
-      const seen = new Set();
-      const all = [...allOwners, ...allClients].filter(c => {
-        if (seen.has(c.id)) return false;
-        seen.add(c.id);
-        return true;
-      }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'));
-
-      setAllContacts(all);
-      setAllProperties(props);
-    } finally {
-      setLoading(false);
-    }
-  }, [isTeamMember]);
-
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (refreshKey) load(); }, [refreshKey]);
+  const bookingCounts = useMemo(() => {
+    const counts = {};
+    (ctxBookings || []).forEach(bk => {
+      if (bk.contactId) counts[bk.contactId] = (counts[bk.contactId] || 0) + 1;
+    });
+    return counts;
+  }, [ctxBookings]);
 
   // Load bookings for inline property view
   useEffect(() => {
@@ -651,21 +604,13 @@ export default function WebContactsScreen({ onNavigateToProperty, user, refreshK
   const handleContactDeleted = useCallback(() => {
     setSelected(null);
     closeInlineProperty();
-    load();
-  }, [closeInlineProperty, load]);
+    refreshContacts();
+  }, [closeInlineProperty, refreshContacts]);
 
   const handleSaved = (saved) => {
     setEditPanelVisible(false);
-    load().then(() => {
-      if (saved?.id) {
-        setAllContacts(prev => {
-          const updated = prev.some(c => c.id === saved.id)
-            ? prev.map(c => c.id === saved.id ? saved : c)
-            : [...prev, saved];
-          return updated.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'));
-        });
-        setSelected(saved);
-      }
+    refreshContacts().then(() => {
+      if (saved?.id) setSelected(saved);
     });
   };
 
@@ -803,7 +748,7 @@ export default function WebContactsScreen({ onNavigateToProperty, user, refreshK
               onSaved={(saved) => {
                 setInlineEditPanel(p => ({ ...p, visible: false }));
                 if (saved?.id === inlineProperty?.id) setInlineProperty(saved);
-                load();
+                refreshProperties();
               }}
               user={user}
             />

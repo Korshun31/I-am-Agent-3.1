@@ -1,9 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { initCompanyChannel, destroyCompanyChannel } from '../services/companyChannel';
+import { Alert } from 'react-native';
+import { initCompanyChannel, destroyCompanyChannel, broadcastChange } from '../services/companyChannel';
+import { signOut, getCurrentUser } from '../services/authService';
 import { getProperties } from '../services/propertiesService';
 import { getBookings } from '../services/bookingsService';
 import { getContacts } from '../services/contactsService';
 import { getCalendarEvents } from '../services/calendarEventsService';
+import { getActiveTeamMembers } from '../services/companyService';
 
 const AppDataContext = createContext(null);
 
@@ -16,9 +19,13 @@ export function AppDataProvider({ children, user }) {
   const [calendarEvents, setCalendarEvents]   = useState([]);
   const [contactsLoading, setContactsLoading] = useState(true);
   const [eventsLoading, setEventsLoading]     = useState(true);
+  const [teamMembers, setTeamMembers]         = useState([]);
+  const [teamMembersLoading, setTeamMembersLoading] = useState(true);
 
   // For team members (agents) filter data to their own properties/bookings only
   const agentId = user?.teamMembership ? user.id : null;
+  const isAdminUser = !user?.teamMembership;
+  const companyId = user?.teamMembership?.companyId || user?.companyId || null;
 
   const refreshProperties = useCallback(async () => {
     try {
@@ -64,32 +71,43 @@ export function AppDataProvider({ children, user }) {
     }
   }, []);
 
+  const refreshTeamMembers = useCallback(async () => {
+    if (!isAdminUser || !companyId) {
+      setTeamMembers([]);
+      setTeamMembersLoading(false);
+      return;
+    }
+    try {
+      const data = await getActiveTeamMembers(companyId);
+      setTeamMembers(data || []);
+    } catch (e) {
+      console.error('AppDataContext: refreshTeamMembers', e);
+    } finally {
+      setTeamMembersLoading(false);
+    }
+  }, [isAdminUser, companyId]);
+
   const refreshAll = useCallback(() => {
     return Promise.all([
       refreshProperties(),
       refreshBookings(),
       refreshContacts(),
       refreshCalendarEvents(),
+      refreshTeamMembers(),
     ]);
-  }, [refreshProperties, refreshBookings, refreshContacts, refreshCalendarEvents]);
+  }, [refreshProperties, refreshBookings, refreshContacts, refreshCalendarEvents, refreshTeamMembers]);
 
-  // Бронирования только для утверждённых объектов (pending/rejected исключены)
-  const filteredBookings = useMemo(() => {
-    const approvedIds = new Set(
-      properties
-        .filter(p => !p.property_status || p.property_status === 'approved')
-        .map(p => p.id)
-    );
-    return bookings.filter(b => approvedIds.has(b.propertyId));
-  }, [properties, bookings]);
+  // Все объекты после упрощения модели прав сразу одобрены — фильтр снят.
+  const filteredBookings = bookings;
 
-  const isLoaded = !propertiesLoading && !bookingsLoading && !contactsLoading && !eventsLoading;
+  const isLoaded = !propertiesLoading && !bookingsLoading && !contactsLoading && !eventsLoading && !teamMembersLoading;
 
   const loadingProgress = (
-    (!propertiesLoading ? 25 : 0) +
-    (!bookingsLoading   ? 25 : 0) +
-    (!contactsLoading   ? 25 : 0) +
-    (!eventsLoading     ? 25 : 0)
+    (!propertiesLoading   ? 20 : 0) +
+    (!bookingsLoading     ? 20 : 0) +
+    (!contactsLoading     ? 20 : 0) +
+    (!eventsLoading       ? 20 : 0) +
+    (!teamMembersLoading  ? 20 : 0)
   );
 
   // Reload when user/agentId changes (login, profile update)
@@ -107,33 +125,57 @@ export function AppDataProvider({ children, user }) {
       bookings: refreshBookings,
       contacts: refreshContacts,
       calendar_events: refreshCalendarEvents,
+      team: refreshTeamMembers,
       permissions: async () => {
-        const { getCurrentUser } = await import('../services/authService');
         const freshUser = await getCurrentUser();
         if (freshUser) refreshAll();
       },
+      member_deactivated: (payload) => {
+        if (payload?.target_user_id === user?.id) {
+          Alert.alert(
+            'Account deactivated',
+            'Your account has been deactivated by the company administrator.',
+            [{ text: 'OK', onPress: () => signOut() }]
+          );
+        }
+      },
     });
+    // Сообщить компании что этот пользователь онлайн (для обновления списка команды у admin)
+    if (user?.isAgentRole) {
+      setTimeout(() => broadcastChange('team'), 1000);
+    }
     return () => destroyCompanyChannel();
   }, [user?.id, user?.companyId, user?.teamMembership?.companyId]);
 
+  const value = useMemo(() => ({
+    properties,
+    bookings: filteredBookings,
+    propertiesLoading,
+    bookingsLoading,
+    refreshProperties,
+    refreshBookings,
+    contacts,
+    calendarEvents,
+    contactsLoading,
+    eventsLoading,
+    refreshContacts,
+    refreshCalendarEvents,
+    teamMembers,
+    teamMembersLoading,
+    refreshTeamMembers,
+    refreshAll,
+    isLoaded,
+    loadingProgress,
+  }), [
+    properties, filteredBookings, propertiesLoading, bookingsLoading,
+    contacts, calendarEvents, contactsLoading, eventsLoading,
+    teamMembers, teamMembersLoading,
+    refreshProperties, refreshBookings, refreshContacts, refreshCalendarEvents, refreshTeamMembers, refreshAll,
+    isLoaded, loadingProgress,
+  ]);
+
   return (
-    <AppDataContext.Provider value={{
-      properties,
-      bookings: filteredBookings,
-      propertiesLoading,
-      bookingsLoading,
-      refreshProperties,
-      refreshBookings,
-      contacts,
-      calendarEvents,
-      contactsLoading,
-      eventsLoading,
-      refreshContacts,
-      refreshCalendarEvents,
-      refreshAll,
-      isLoaded,
-      loadingProgress,
-    }}>
+    <AppDataContext.Provider value={value}>
       {children}
     </AppDataContext.Provider>
   );

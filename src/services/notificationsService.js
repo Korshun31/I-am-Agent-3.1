@@ -45,21 +45,6 @@ export async function getTotalCount() {
   return count || 0;
 }
 
-export async function getPendingActionsCount() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return 0;
-
-  const { count, error } = await supabase
-    .from('notifications')
-    .select('id', { count: 'exact', head: true })
-    .eq('recipient_id', session.user.id)
-    .eq('action_taken', false)
-    .in('type', ['property_submitted', 'edit_submitted', 'price_submitted']);
-
-  if (error) return 0;
-  return count || 0;
-}
-
 export async function markAllRead() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return;
@@ -96,7 +81,7 @@ export async function deleteNotification(notificationId) {
   }
 }
 
-export async function sendNotification({ recipientId, senderId, type, title, body, propertyId = null }) {
+export async function sendNotification({ recipientId, senderId, type, title, body, propertyId = null, bookingId = null }) {
   const { data, error } = await supabase.rpc('create_notification', {
     p_recipient_id: recipientId,
     p_sender_id: senderId,
@@ -104,6 +89,7 @@ export async function sendNotification({ recipientId, senderId, type, title, bod
     p_title: title,
     p_body: body || null,
     p_property_id: propertyId || null,
+    p_booking_id: bookingId || null,
   });
   if (error) {
     console.warn('[notifications] send error:', error.message);

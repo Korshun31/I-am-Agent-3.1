@@ -1,98 +1,145 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image } from 'react-native';
+import React, { useState, useMemo, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import Constants from 'expo-constants';
 import dayjs from 'dayjs';
-import 'dayjs/locale/ru';
-import 'dayjs/locale/th';
 import { useLanguage } from '../context/LanguageContext';
-import { getProperties } from '../services/propertiesService';
-import { getBookings } from '../services/bookingsService';
+import { useUser } from '../context/UserContext';
+import { useAppData } from '../context/AppDataContext';
+import { useCurrencyRates } from '../context/CurrencyRatesContext';
+import { getCurrencySymbol } from '../utils/currency';
+import {
+  getPeriodPresets,
+  computeRevenue,
+  computeAgencyIncome,
+  computeActiveBookingsCount,
+  computeOccupancyPercent,
+  computeMonthlyRevenue,
+  computeMonthlyForecast,
+  computeMonthlyBookingsCount,
+  computeTopProperties,
+  computeAgentLeaderboard,
+  breakdownByPropertyForMonth,
+  filterBookingsForUser,
+  filterPropertiesForUser,
+} from '../utils/statisticsCalc';
+import StatisticsPeriodPicker from '../web/components/statistics/StatisticsPeriodPicker';
+import StatisticsKpiCards from '../web/components/statistics/StatisticsKpiCards';
+import StatisticsRevenueChart from '../web/components/statistics/StatisticsRevenueChart';
+import StatisticsBookingsCountChart from '../web/components/statistics/StatisticsBookingsCountChart';
+import StatisticsTopProperties from '../web/components/statistics/StatisticsTopProperties';
+import StatisticsAgentLeaderboard from '../web/components/statistics/StatisticsAgentLeaderboard';
+import StatisticsMonthBreakdownModal from '../web/components/statistics/StatisticsMonthBreakdownModal';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
-function capitalize(s) {
-  if (!s || s.length === 0) return s;
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
 const COLORS = {
   background: '#F5F2EB',
-  title: '#2C2C2C',
-  subtitle: '#5A5A5A',
-  backArrow: '#5DB8D4',
+  title:      '#2C2C2C',
+  backArrow:  '#5DB8D4',
+  accent:     '#3D7D82',
 };
 
-const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
-
 export default function StatisticsScreen({ onBack }) {
-  const { t, language } = useLanguage();
-  const [propertyStats, setPropertyStats] = useState({
-    standaloneHouses: 0,
-    resortCount: 0,
-    resortHouses: 0,
-    condoCount: 0,
-    condoApartments: 0,
-    total: 0,
-  });
-  const [bookingStats, setBookingStats] = useState({ prevMonth: 0, currMonth: 0 });
-  const [checkInStats, setCheckInStats] = useState({ prevMonth: 0, currMonth: 0 });
+  const { t, currency } = useLanguage();
+  const { user } = useUser();
+  const {
+    bookings,
+    properties,
+    teamMembers,
+    bookingsLoading,
+    propertiesLoading,
+    teamMembersLoading,
+    refreshBookings,
+    refreshProperties,
+  } = useAppData();
+  const { rates } = useCurrencyRates();
 
-  const loadPropertyStats = async () => {
-    try {
-      const all = await getProperties();
-      const getParent = (id) => all.find((p) => p.id === id);
-      const standaloneHouses = all.filter((p) => HOUSE_LIKE_TYPES.has(p.type) && !p.resort_id).length;
-      const resortCount = all.filter((p) => p.type === 'resort' && !p.resort_id).length;
-      const resortHouses = all.filter((p) => HOUSE_LIKE_TYPES.has(p.type) && p.resort_id && getParent(p.resort_id)?.type === 'resort').length;
-      const condoCount = all.filter((p) => p.type === 'condo' && !p.resort_id).length;
-      const condoApartments = all.filter((p) => HOUSE_LIKE_TYPES.has(p.type) && p.resort_id && getParent(p.resort_id)?.type === 'condo').length;
-      setPropertyStats({
-        standaloneHouses,
-        resortCount,
-        resortHouses,
-        condoCount,
-        condoApartments,
-        total: standaloneHouses + resortHouses + condoApartments,
-      });
-    } catch {}
+  const [periodId, setPeriodId] = useState('thisMonth');
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(null);
+
+  const period = useMemo(() => {
+    const presets = getPeriodPresets(dayjs());
+    return presets[periodId];
+  }, [periodId]);
+
+  const userBookings   = useMemo(() => filterBookingsForUser(bookings, user),     [bookings, user]);
+  const userProperties = useMemo(() => filterPropertiesForUser(properties, user), [properties, user]);
+
+  // TD-120 фаза D: контекст конвертации валют для statisticsCalc.
+  // Если курсы ещё не подгрузились — `convertAmount` молча вернёт исходные
+  // числа (graceful degrade), статистика покажет неконвертированные суммы.
+  const propertyCurrencyById = useMemo(() => {
+    const map = new Map();
+    (properties || []).forEach((p) => { if (p?.id) map.set(p.id, p.currency || null); });
+    return map;
+  }, [properties]);
+
+  const fxCtx = useMemo(() => ({
+    rates,
+    targetCurrency: currency,
+    propertyCurrencyById,
+    today: dayjs().format('YYYY-MM-DD'),
+  }), [rates, currency, propertyCurrencyById]);
+
+  const stats = useMemo(() => ({
+    revenue:          computeRevenue(userBookings, period.from, period.to, fxCtx),
+    agencyIncome:     computeAgencyIncome(userBookings, period.from, period.to, fxCtx),
+    activeBookings:   computeActiveBookingsCount(userBookings, dayjs()),
+    occupancyPercent: computeOccupancyPercent(userBookings, userProperties, period.from, period.to),
+  }), [userBookings, userProperties, period, fxCtx]);
+
+  const monthlyData = useMemo(
+    () => [
+      ...computeMonthlyRevenue(userBookings, 12, dayjs(), fxCtx),
+      ...computeMonthlyForecast(userBookings, 12, dayjs(), fxCtx),
+    ],
+    [userBookings, fxCtx]
+  );
+
+  const bookingsCountData = useMemo(
+    () => computeMonthlyBookingsCount(userBookings, 12, 12, dayjs()),
+    [userBookings]
+  );
+
+  const topProps = useMemo(
+    () => computeTopProperties(userBookings, userProperties, period.from, period.to, 5, fxCtx),
+    [userBookings, userProperties, period, fxCtx]
+  );
+
+  const isAdmin = !user?.teamMembership;
+
+  const agentLeaderboard = useMemo(
+    () => (isAdmin ? computeAgentLeaderboard(bookings, teamMembers, period.from, period.to, 5, fxCtx) : []),
+    [isAdmin, bookings, teamMembers, period, fxCtx]
+  );
+
+  const selectedMonth = selectedMonthIdx != null ? monthlyData[selectedMonthIdx] : null;
+  const breakdownRows = useMemo(
+    () => (selectedMonth ? breakdownByPropertyForMonth(userBookings, userProperties, selectedMonth.key, fxCtx) : []),
+    [userBookings, userProperties, selectedMonth, fxCtx]
+  );
+
+  const sym = getCurrencySymbol(currency || 'THB');
+  const loading = bookingsLoading || propertiesLoading || (isAdmin && teamMembersLoading);
+
+  const labels = {
+    revenue:           t('statisticsKpiRevenue'),
+    agencyIncome:      t('statisticsKpiAgencyIncome'),
+    activeBookings:    t('statisticsKpiActiveBookings'),
+    activeBookingsSub: t('statisticsKpiActiveBookingsSub'),
+    occupancy:         t('statisticsKpiOccupancy'),
+    occupancySub:      t('statisticsKpiOccupancySub'),
   };
 
-  const loadBookingStats = async () => {
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
     try {
-      const all = await getBookings();
-      const now = dayjs();
-      const prevMonthStart = now.subtract(1, 'month').startOf('month');
-      const prevMonthEnd = now.subtract(1, 'month').endOf('month');
-      const currMonthStart = now.startOf('month');
-      const currMonthEnd = now.endOf('month');
-      let prevCount = 0;
-      let currCount = 0;
-      let checkInPrev = 0;
-      let checkInCurr = 0;
-      all.forEach((b) => {
-        if (b.notMyCustomer) return;
-        const createdStr = typeof b.createdAt === 'string' && b.createdAt.length >= 10 ? b.createdAt.substring(0, 10) : b.createdAt;
-        const checkInStr = typeof b.checkIn === 'string' && b.checkIn.length >= 10 ? b.checkIn.substring(0, 10) : b.checkIn;
-        const createdDate = (createdStr ? dayjs(createdStr) : null) || (checkInStr ? dayjs(checkInStr) : null);
-        if (createdDate && createdDate.isValid()) {
-          if (!createdDate.isBefore(prevMonthStart) && !createdDate.isAfter(prevMonthEnd)) prevCount++;
-          if (!createdDate.isBefore(currMonthStart) && !createdDate.isAfter(currMonthEnd)) currCount++;
-        }
-        const checkInDate = checkInStr ? dayjs(checkInStr) : null;
-        if (checkInDate && checkInDate.isValid()) {
-          if (!checkInDate.isBefore(prevMonthStart) && !checkInDate.isAfter(prevMonthEnd)) checkInPrev++;
-          if (!checkInDate.isBefore(currMonthStart) && !checkInDate.isAfter(currMonthEnd)) checkInCurr++;
-        }
-      });
-      setBookingStats({ prevMonth: prevCount, currMonth: currCount });
-      setCheckInStats({ prevMonth: checkInPrev, currMonth: checkInCurr });
-    } catch {}
-  };
-
-  useEffect(() => {
-    loadPropertyStats();
-    loadBookingStats();
-  }, []);
+      await Promise.all([refreshBookings(), refreshProperties()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshBookings, refreshProperties]);
 
   return (
     <View style={styles.container}>
@@ -110,81 +157,126 @@ export default function StatisticsScreen({ onBack }) {
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} />
+        }
       >
-        <Text style={styles.sectionTitle}>{t('statsMyProperties')}</Text>
-        <View style={styles.statsBlock}>
-          <View style={styles.statsRow}>
-            <View style={styles.statsItem}>
-              <Image source={require('../../assets/icon-property-house-stats.png')} style={styles.statsIconLarge} resizeMode="contain" />
-              <Text style={styles.statsLabel}>{t('statsStandaloneHouses')}</Text>
-              <View style={styles.statsValueFrame}>
-                <Text style={[styles.statsValueGreen, styles.statsValueCentered]}>{propertyStats.standaloneHouses}</Text>
-              </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pickerScroll}
+        >
+          <StatisticsPeriodPicker value={periodId} onChange={setPeriodId} />
+        </ScrollView>
+
+        <View style={styles.kpiWrap}>
+          {loading ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator color={COLORS.accent} />
             </View>
-            <View style={styles.statsItem}>
-              <Image source={require('../../assets/icon-property-resort-stats.png')} style={styles.statsIconLarge} resizeMode="contain" />
-              <Text style={styles.statsLabel}>{t('statsResortsHouses')}</Text>
-              <View style={styles.statsValueFrame}>
-                <Text style={[styles.statsValueWrap, styles.statsValueCentered]}><Text style={styles.statsValueGreen}>{propertyStats.resortCount}</Text><Text style={styles.statsValueSlash}> / </Text><Text style={styles.statsValueGreen}>{propertyStats.resortHouses}</Text></Text>
-              </View>
-            </View>
-            <View style={styles.statsItem}>
-              <Image source={require('../../assets/icon-property-condo-stats.png')} style={styles.statsIcon} resizeMode="contain" />
-              <Text style={styles.statsLabel}>{t('statsCondosApts')}</Text>
-              <View style={styles.statsValueFrame}>
-                <Text style={[styles.statsValueWrap, styles.statsValueCentered]}><Text style={styles.statsValueGreen}>{propertyStats.condoCount}</Text><Text style={styles.statsValueSlash}> / </Text><Text style={styles.statsValueGreen}>{propertyStats.condoApartments}</Text></Text>
-              </View>
-            </View>
-            <View style={styles.statsItem}>
-              <Image source={require('../../assets/icon-sum.png')} style={styles.statsIconSum} resizeMode="contain" />
-              <Text style={styles.statsLabel}>{t('statsTotalObjects')}</Text>
-              <View style={styles.statsValueFrame}>
-                <Text style={[styles.statsValueGreen, styles.statsValueCentered]}>{propertyStats.total}</Text>
-              </View>
-            </View>
-          </View>
+          ) : (
+            <StatisticsKpiCards
+              revenue={stats.revenue}
+              agencyIncome={stats.agencyIncome}
+              activeBookings={stats.activeBookings}
+              occupancyPercent={stats.occupancyPercent}
+              currencySymbol={sym}
+              labels={labels}
+              cardFlexBasis="47%"
+            />
+          )}
         </View>
 
-        <View style={styles.sectionWrap}>
-          <Text style={styles.sectionTitle}>{t('statsMyBookings')}</Text>
-          <View style={styles.statsBlock}>
-            <View style={styles.statsRow}>
-            <View style={styles.statsItem}>
-              <Image source={require('../../assets/icon-booking.png')} style={styles.statsIconLarge} resizeMode="contain" />
-              <Text style={styles.statsLabel}>
-                {t('statsBookings')}{' '}
-                <Text style={styles.statsMonthsLabel}>
-                  {capitalize(dayjs().subtract(1, 'month').locale(language).format('MMMM'))} / {capitalize(dayjs().locale(language).format('MMMM'))}
-                </Text>
-              </Text>
-              <View style={styles.statsValueFrame}>
-                <Text style={[styles.statsValueWrap, styles.statsValueCentered]}>
-                  <Text style={styles.statsValueGreen}>{bookingStats.prevMonth}</Text>
-                  <Text style={styles.statsValueSlash}> / </Text>
-                  <Text style={styles.statsValueGreen}>{bookingStats.currMonth}</Text>
-                </Text>
-              </View>
-            </View>
-            <View style={styles.statsItem}>
-              <Image source={require('../../assets/icon-checkin.png')} style={styles.statsIconLarge} resizeMode="contain" />
-              <Text style={styles.statsLabel}>
-                {t('statsCheckIns')}{' '}
-                <Text style={styles.statsMonthsLabel}>
-                  {capitalize(dayjs().subtract(1, 'month').locale(language).format('MMMM'))} / {capitalize(dayjs().locale(language).format('MMMM'))}
-                </Text>
-              </Text>
-              <View style={styles.statsValueFrame}>
-                <Text style={[styles.statsValueWrap, styles.statsValueCentered]}>
-                  <Text style={styles.statsValueGreen}>{checkInStats.prevMonth}</Text>
-                  <Text style={styles.statsValueSlash}> / </Text>
-                  <Text style={styles.statsValueGreen}>{checkInStats.currMonth}</Text>
-                </Text>
-              </View>
-            </View>
-            </View>
+        {!loading && (
+          <View style={styles.chartWrap}>
+            <StatisticsRevenueChart
+              data={monthlyData}
+              title={t('statisticsChartRevenue12m')}
+              currencySymbol={sym}
+              labels={{ revenue: t('statisticsKpiRevenue'), income: t('statisticsKpiAgencyIncome') }}
+              scrollable
+              alwaysShowValues
+              colWidth={80}
+              barMaxWidth={32}
+              fullNumbers
+              showYear
+              onSelectMonth={(_, idx) => setSelectedMonthIdx(idx)}
+            />
           </View>
-        </View>
+        )}
+
+        {!loading && (
+          <View style={styles.chartWrap}>
+            <StatisticsBookingsCountChart
+              data={bookingsCountData}
+              title={t('statisticsChartBookingsCount')}
+              labels={{
+                created:   t('statisticsChartBookingsCreated'),
+                checkedIn: t('statisticsChartBookingsCheckedIn'),
+              }}
+              scrollable
+              alwaysShowValues
+              colWidth={80}
+              barMaxWidth={32}
+              showYear
+            />
+          </View>
+        )}
+
+        {!loading && (
+          <View style={styles.chartWrap}>
+            <StatisticsTopProperties
+              data={topProps}
+              title={t('statisticsTopPropertiesTitle')}
+              currencySymbol={sym}
+              emptyText={t('statisticsTopPropertiesEmpty')}
+              columns={{
+                property:  t('statisticsTopColProperty'),
+                revenue:   t('statisticsTopColRevenue'),
+                occupancy: t('statisticsTopColOccupancy'),
+              }}
+            />
+          </View>
+        )}
+
+        {!loading && isAdmin && (
+          <View style={styles.chartWrap}>
+            <StatisticsAgentLeaderboard
+              data={agentLeaderboard}
+              title={t('statisticsAgentLeaderboardTitle')}
+              currencySymbol={sym}
+              emptyText={t('statisticsAgentLeaderboardEmpty')}
+              companyLabel={user?.companyInfo?.name || t('workAsCompany') || 'Company'}
+              columns={{
+                agent:    t('statisticsAgentColName'),
+                bookings: t('statisticsAgentColBookings'),
+                income:   t('statisticsAgentColIncome'),
+              }}
+            />
+          </View>
+        )}
       </ScrollView>
+
+      <StatisticsMonthBreakdownModal
+        mobileMode
+        visible={selectedMonth != null}
+        monthLabel={selectedMonth ? `${selectedMonth.label} ${selectedMonth.year}` : ''}
+        rows={breakdownRows}
+        currencySymbol={sym}
+        columns={{
+          code:    t('statisticsBreakdownColCode'),
+          revenue: t('statisticsKpiRevenue'),
+          source:  t('statisticsBreakdownColSource'),
+          income:  t('statisticsKpiAgencyIncome'),
+        }}
+        totalLabel={t('statisticsBreakdownTotal')}
+        emptyText={t('statisticsBreakdownEmpty')}
+        canGoPrev={selectedMonthIdx != null && selectedMonthIdx > 0}
+        canGoNext={selectedMonthIdx != null && selectedMonthIdx < monthlyData.length - 1}
+        onPrev={() => setSelectedMonthIdx((i) => (i > 0 ? i - 1 : i))}
+        onNext={() => setSelectedMonthIdx((i) => (i != null && i < monthlyData.length - 1 ? i + 1 : i))}
+        onClose={() => setSelectedMonthIdx(null)}
+      />
     </View>
   );
 }
@@ -229,88 +321,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: 88,
   },
-  sectionWrap: {
-    marginTop: 18,
+  pickerScroll: {
+    paddingVertical: 4,
+    paddingRight: 16,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#000000',
-    textAlign: 'left',
-    marginBottom: 8,
+  kpiWrap: {
+    marginTop: 20,
   },
-  statsBlock: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    marginBottom: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
+  chartWrap: {
+    marginTop: 12,
   },
-  statsRow: {
-    flexDirection: 'column',
-    gap: 12,
-  },
-  statsItem: {
-    flexDirection: 'row',
+  loadingBox: {
+    paddingVertical: 40,
     alignItems: 'center',
-    gap: 8,
-  },
-  statsLabel: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.title,
-  },
-  statsMonthsLabel: {
-    fontWeight: '700',
-    color: '#DC3670',
-  },
-  statsValueFrame: {
-    width: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statsValueCentered: {
-    textAlign: 'center',
-  },
-  statsIcon: {
-    width: 28,
-    height: 28,
-  },
-  statsIconLarge: {
-    width: 31,
-    height: 31,
-  },
-  statsIconSum: {
-    width: 24,
-    height: 24,
-  },
-  statsValueSmall: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.title,
-  },
-  statsValueGreen: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2E7D32',
-  },
-  statsValueWrap: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.title,
-  },
-  statsValueSlash: {
-    fontSize: 16,
-    fontWeight: '400',
-    color: COLORS.title,
   },
 });
