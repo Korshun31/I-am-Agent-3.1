@@ -717,14 +717,7 @@ export default function WebPropertyEditPanel({
           responsible_agent_id: parentProperty.responsible_agent_id ?? null,
         });
       } else {
-        saved = await createProperty({
-          name: updates.name,
-          code: updates.code,
-          type: updates.type,
-        });
-        if (saved?.id) {
-          saved = await updateProperty(saved.id, updates);
-        }
+        saved = await createPropertyFull(updates);
       }
       onSaved(saved);
     } catch (e) {

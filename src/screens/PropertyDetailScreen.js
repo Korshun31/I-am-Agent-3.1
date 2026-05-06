@@ -23,7 +23,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
 import { getVideoThumbnailUrl } from '../utils/videoThumbnail';
 import { useAppData } from '../context/AppDataContext';
-import { getProperties, updateProperty, createProperty, deleteProperty, updateResortChildrenDistrict, updatePropertyResponsible } from '../services/propertiesService';
+import { getProperties, updateProperty, createPropertyFull, deleteProperty, updateResortChildrenDistrict, updatePropertyResponsible } from '../services/propertiesService';
 import { getActiveTeamMembers } from '../services/companyService';
 import { deletePhotoFromStorage } from '../services/storageService';
 import { getContacts } from '../services/contactsService';
@@ -1398,29 +1398,14 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         ...detailsToUpdate
       } = fullData;
 
-      const created = await createProperty({
-        name: name || '',
-        code: code || '',
+      const created = await createPropertyFull({
+        ...fullData,
         type: 'resort_house',
-        location_id: location_id || null,
-        owner_id: owner_id || null,
-        responsible_agent_id: responsible_agent_id ?? null,
+        responsible_agent_id: p.responsible_agent_id ?? null,
       });
 
-      if (created?.id) {
-        await updateProperty(created.id, {
-          responsible_agent_id: p.responsible_agent_id ?? null,
-        });
-      }
-
-      const { user_id, company_id, ...safeDetailsToUpdate } = detailsToUpdate;
-
-      if (created?.id && Object.keys(safeDetailsToUpdate).length > 0) {
-        await updateProperty(created.id, safeDetailsToUpdate);
-      }
-
       setAddHouseWizardVisible(false);
-      setNewHouseIdToExpand(created.id);
+      setNewHouseIdToExpand(created?.id);
       setRefreshResortHousesTrigger(prev => prev + 1);
       onPropertyUpdated?.();
     } catch (e) {
@@ -1448,26 +1433,11 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         ...detailsToUpdate
       } = fullData;
 
-      const created = await createProperty({
-        name: name || '',
-        code: code || '',
+      await createPropertyFull({
+        ...fullData,
         type: 'condo_apartment',
-        location_id: location_id || null,
-        owner_id: owner_id || null,
-        responsible_agent_id: responsible_agent_id ?? null,
+        responsible_agent_id: p.responsible_agent_id ?? null,
       });
-
-      if (created?.id) {
-        await updateProperty(created.id, {
-          responsible_agent_id: p.responsible_agent_id ?? null,
-        });
-      }
-
-      const { user_id, company_id, ...safeDetailsToUpdate } = detailsToUpdate;
-
-      if (created?.id && Object.keys(safeDetailsToUpdate).length > 0) {
-        await updateProperty(created.id, safeDetailsToUpdate);
-      }
 
       setAddApartmentWizardVisible(false);
       setRefreshApartmentsTrigger(prev => prev + 1);

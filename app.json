@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.iamagent.app31",
-      "buildNumber": "27",
+      "buildNumber": "28",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
