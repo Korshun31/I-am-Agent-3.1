@@ -59,8 +59,10 @@ export default function WebMainScreen({ onLogout }) {
     };
 
     const filter = `company_id=eq.${companyId}`;
+    // private:true к postgres_changes не применяется — RLS таблиц (bookings,
+    // calendar_events, properties) сами фильтруют события. См. companyChannel.js.
     const channel = supabase
-      .channel(`web-notifications-${companyId}`, { config: { private: true } })
+      .channel(`web-notifications-${companyId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings', filter }, payload => {
         if (user.web_notifications?.new_booking && payload.new.user_id !== user.id) {
           showToast(t('notifNewBooking'), t('bkNewTitle'));

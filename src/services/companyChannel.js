@@ -27,7 +27,11 @@ export function initCompanyChannel(companyId, callbacks = {}) {
   }
   if (!companyId) return;
 
-  let channel = supabase.channel(`company-${companyId}`, { config: { private: true } });
+  // private:true для postgres_changes не применяется (см. документацию Supabase
+  // Realtime Authorization — это флаг для broadcast/presence). Включение его
+  // требовало RLS на realtime.messages, без которых канал не подключался и события
+  // не доходили до клиента. Авторизация для postgres_changes идёт через RLS таблиц.
+  let channel = supabase.channel(`company-${companyId}`);
 
   for (const table of COMPANY_FILTER_TABLES) {
     channel = channel.on(
