@@ -541,6 +541,7 @@ export default function RealEstateScreen({ onReady }) {
         onApply={setFilterValues}
         cities={uniqueCities}
         districts={uniqueDistricts}
+        showBookingsFilter={false}
       />
 
       <PropertyNotificationsModal

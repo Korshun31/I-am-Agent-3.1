@@ -68,6 +68,7 @@ export default function FilterBottomSheet({
   cities = [],
   districts = [],
   user,
+  showBookingsFilter = true,
 }) {
   const { t } = useLanguage();
   const [city, setCity] = useState(filter?.city ?? null);
@@ -192,7 +193,7 @@ export default function FilterBottomSheet({
       pets: pets,
       longTerm: longTerm,
       amenities: [...selectedAmenities],
-      myBookings: myBookings,
+      myBookings: showBookingsFilter ? myBookings : false,
     });
     onClose?.();
   };
@@ -227,13 +228,15 @@ export default function FilterBottomSheet({
             onScrollBeginDrag={Keyboard.dismiss}
             indicatorStyle="black"
           >
-            <View style={s.section}>
-              <CheckRow
-                label={user?.isAgentRole ? t('filterMyBookings') : t('filterCompanyBookings')}
-                checked={myBookings}
-                onPress={() => setMyBookings(v => !v)}
-              />
-            </View>
+            {showBookingsFilter && (
+              <View style={s.section}>
+                <CheckRow
+                  label={user?.isAgentRole ? t('filterMyBookings') : t('filterCompanyBookings')}
+                  checked={myBookings}
+                  onPress={() => setMyBookings(v => !v)}
+                />
+              </View>
+            )}
 
             {cities.length > 0 && (
               <View style={s.section}>
