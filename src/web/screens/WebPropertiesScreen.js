@@ -89,6 +89,18 @@ const C = {
   accentBg: TEAL_BG,
 };
 
+// Цветовая пара для статуса занятости объектов и юнитов
+const STATUS = {
+  occupiedBg:     '#FFEBEE',
+  occupiedBorder: '#FFCDD2',
+  occupiedText:   '#C62828',
+  occupiedDot:    '#E53935',
+  freeBg:     '#E8F5E9',
+  freeBorder: '#C8E6C9',
+  freeText:   '#2E7D32',
+  freeDot:    '#43A047',
+};
+
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
 
 // TYPE_META and AMENITY_LABELS are built via getTypeMeta(t) / getAmenityLabels(t) functions
@@ -143,7 +155,6 @@ function isOccupiedNow(bookings, propertyId) {
   const today = dayjs().format('YYYY-MM-DD');
   return bookings.some(b =>
     b.propertyId === propertyId &&
-    !b.notMyCustomer &&
     b.checkIn <= today && b.checkOut > today
   );
 }
@@ -152,7 +163,6 @@ function getActiveBooking(bookings, propertyId) {
   const today = dayjs().format('YYYY-MM-DD');
   return bookings.find(b =>
     b.propertyId === propertyId &&
-    !b.notMyCustomer &&
     b.checkIn <= today && b.checkOut > today
   ) || null;
 }
@@ -216,6 +226,7 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
   const meta = TYPE_META[getTypeMetaKey(item.type)] || TYPE_META.house;
   const hasPhoto = item.photos?.length > 0;
   const code = item.code + (item.code_suffix ? `-${item.code_suffix}` : '');
+  const isContainer = (item.type === 'resort' || item.type === 'condo') && !item.parent_id;
 
   return (
     <TouchableOpacity
@@ -237,7 +248,9 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
               : <Text style={s.cardThumbIcon}>{meta.icon}</Text>}
           </View>
         )}
-        {occupied && <View style={s.occupiedDot} />}
+        {!isContainer && (
+          <View style={[s.occupiedDot, { backgroundColor: occupied ? STATUS.occupiedDot : STATUS.freeDot }]} />
+        )}
       </View>
 
       {/* Body */}
@@ -439,9 +452,16 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
           <View style={{ flex: 1 }}>
             <View style={s.detailTitleRow}>
               <Text style={s.detailTitle}>{property.name}</Text>
-              {occupied && (
-                <View style={s.occupiedBadge}>
-                  <Text style={s.occupiedBadgeText}>● {t('propOccupied')}</Text>
+              {!isParentContainer && (
+                <View style={[s.occupiedBadge, {
+                  backgroundColor: occupied ? STATUS.occupiedBg : STATUS.freeBg,
+                  borderColor:     occupied ? STATUS.occupiedBorder : STATUS.freeBorder,
+                }]}>
+                  <Text style={[s.occupiedBadgeText, {
+                    color: occupied ? STATUS.occupiedText : STATUS.freeText,
+                  }]}>
+                    ● {occupied ? t('propOccupied') : t('propFree')}
+                  </Text>
                 </View>
               )}
             </View>
@@ -771,9 +791,9 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                         <View style={s.childCodeChip}>
                           <Text style={s.childCodeChipText}>{childCode}</Text>
                         </View>
-                        <View style={[s.childStatusPill, { backgroundColor: childOccupied ? C.accentBg : C.houseBg }]}>
-                          <View style={[s.childStatusDot, { backgroundColor: childOccupied ? ACCENT : C.house }]} />
-                          <Text style={[s.childStatusLabel, { color: childOccupied ? ACCENT : C.house }]}>
+                        <View style={[s.childStatusPill, { backgroundColor: childOccupied ? STATUS.occupiedBg : STATUS.freeBg }]}>
+                          <View style={[s.childStatusDot, { backgroundColor: childOccupied ? STATUS.occupiedDot : STATUS.freeDot }]} />
+                          <Text style={[s.childStatusLabel, { color: childOccupied ? STATUS.occupiedText : STATUS.freeText }]}>
                             {childOccupied ? `${t('propOccupied')} ${checkOutLabel}` : t('propFree')}
                           </Text>
                         </View>
@@ -1511,7 +1531,6 @@ const s = StyleSheet.create({
   occupiedDot: {
     position: 'absolute', top: -3, right: -3,
     width: 12, height: 12, borderRadius: 6,
-    backgroundColor: ACCENT,
     borderWidth: 2, borderColor: C.surface,
   },
   // Pending indicator — нижний левый угол thumbnail карточки
@@ -1618,11 +1637,11 @@ const s = StyleSheet.create({
   detailCityIcon: { width: 16, height: 16 },
   detailCity: { fontSize: 13, color: C.muted },
   occupiedBadge: {
-    backgroundColor: TEAL_BG, borderRadius: 6,
+    borderRadius: 6,
     paddingHorizontal: 10, paddingVertical: 4,
-    borderWidth: 1, borderColor: TEAL_LIGHT,
+    borderWidth: 1,
   },
-  occupiedBadgeText: { fontSize: 12, fontWeight: '700', color: ACCENT },
+  occupiedBadgeText: { fontSize: 12, fontWeight: '700' },
 
   // ── Stats row ──
   statsRow: {
