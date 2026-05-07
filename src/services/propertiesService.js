@@ -1,6 +1,5 @@
 import { supabase } from './supabase';
 import { syncIfEnabled } from './dataUploadService';
-import { broadcastChange } from './companyChannel';
 import { deletePhotoFromStorage } from './storageService';
 import { sendNotification } from './notificationsService';
 
@@ -191,7 +190,6 @@ export async function createProperty({ name, code, type, location_id, owner_id, 
   }
 
   syncIfEnabled();
-  broadcastChange('properties');
   return data;
 }
 
@@ -236,7 +234,6 @@ export async function createPropertyFull(updates) {
   }
 
   syncIfEnabled();
-  broadcastChange('properties');
   return data;
 }
 
@@ -294,7 +291,6 @@ export async function updateProperty(id, updates) {
   }
 
   syncIfEnabled();
-  broadcastChange('properties');
   return saved;
 }
 
@@ -338,7 +334,6 @@ export async function deleteProperty(id) {
 
   if (error) throw new Error(error.message);
   syncIfEnabled();
-  broadcastChange('properties');
 }
 
 /**

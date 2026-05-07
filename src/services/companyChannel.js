@@ -1,74 +1,69 @@
 import { supabase } from './supabase';
 
-const sessionId = Math.random().toString(36).slice(2);
+// Один приватный канал на компанию. Внутри — отдельные подписки postgres_changes
+// по таблицам с фильтром по company_id (для companies — по id). Колбэки приходят
+// с raw payload от Supabase: { eventType, new, old, schema, table, commit_timestamp }.
+//
+// Замена прежнему manual-broadcast паттерну (broadcastChange/broadcastMemberDeactivated/
+// broadcastOneShot). Серверные мутации (RPC, edge function) теперь тоже синхронизируются
+// автоматически — Postgres сам пишет WAL при любом INSERT/UPDATE/DELETE.
+
 let _channel = null;
-let _companyId = null;
-let _callbacks = {};
 
-// Подписка на изменения в компании. Колбэки вызываются:
-// — когда сообщение пришло от ДРУГОЙ сессии (другая вкладка/устройство),
-// — когда broadcastChange вызван в ЭТОЙ же сессии (локально, чтобы соседние
-//   экраны в той же вкладке тоже обновились — Supabase broadcast свой
-//   sender_id игнорирует, поэтому без локального эха они застревают на старых данных).
+const COMPANY_FILTER_TABLES = [
+  'properties',
+  'bookings',
+  'contacts',
+  'calendar_events',
+  'company_members',
+  'company_invitations',
+  'agent_location_access',
+];
+
 export function initCompanyChannel(companyId, callbacks = {}) {
-  if (_channel) supabase.removeChannel(_channel);
-  _callbacks = callbacks || {};
-  _companyId = companyId;
-  if (!companyId) return;
-  _channel = supabase
-    .channel(`company-${companyId}`)
-    .on('broadcast', { event: 'data_changed' }, ({ payload }) => {
-      if (payload?.sender_id === sessionId) return; // свои локально дёргаем сами, см. broadcastChange
-      const cb = _callbacks[payload?.table];
-      if (typeof cb === 'function') cb(payload);
-    })
-    .subscribe();
-}
-
-function emitLocal(payload) {
-  const cb = _callbacks?.[payload?.table];
-  if (typeof cb === 'function') {
-    try { cb(payload); } catch (e) { console.warn('companyChannel local callback failed:', e); }
+  if (_channel) {
+    supabase.removeChannel(_channel);
+    _channel = null;
   }
-}
+  if (!companyId) return;
 
-export async function broadcastChange(table) {
-  const payload = { table, sender_id: sessionId };
-  emitLocal(payload);
-  if (!_channel || !_companyId) return;
-  await _channel.send({ type: 'broadcast', event: 'data_changed', payload });
-}
+  let channel = supabase.channel(`company-${companyId}`, { config: { private: true } });
 
-export async function broadcastMemberDeactivated(userId) {
-  const payload = { table: 'member_deactivated', target_user_id: userId, sender_id: sessionId };
-  emitLocal(payload);
-  if (!_channel || !_companyId) return;
-  await _channel.send({ type: 'broadcast', event: 'data_changed', payload });
-}
-
-export function broadcastOneShot(companyId, table) {
-  return new Promise((resolve) => {
-    const ch = supabase.channel(`company-${companyId}`, { config: { broadcast: { self: false } } });
-    ch.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        ch.send({
-          type: 'broadcast',
-          event: 'data_changed',
-          payload: { table, sender_id: sessionId },
-        }).then(() => {
-          setTimeout(() => {
-            supabase.removeChannel(ch);
-            resolve();
-          }, 500);
-        });
+  for (const table of COMPANY_FILTER_TABLES) {
+    channel = channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table, filter: `company_id=eq.${companyId}` },
+      (payload) => {
+        const cb = callbacks[table];
+        if (typeof cb === 'function') {
+          try { cb(payload); } catch (e) { console.warn(`companyChannel ${table} callback failed:`, e); }
+        }
       }
-    });
+    );
+  }
+
+  // Таблица companies фильтруется по id (своего company_id у неё нет).
+  channel = channel.on(
+    'postgres_changes',
+    { event: '*', schema: 'public', table: 'companies', filter: `id=eq.${companyId}` },
+    (payload) => {
+      const cb = callbacks.companies;
+      if (typeof cb === 'function') {
+        try { cb(payload); } catch (e) { console.warn('companyChannel companies callback failed:', e); }
+      }
+    }
+  );
+
+  _channel = channel.subscribe((status, err) => {
+    if (__DEV__ && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED')) {
+      console.warn(`[companyChannel] subscribe status: ${status}`, err || '');
+    }
   });
 }
 
 export function destroyCompanyChannel() {
-  if (_channel) supabase.removeChannel(_channel);
-  _channel = null;
-  _companyId = null;
-  _callbacks = {};
+  if (_channel) {
+    supabase.removeChannel(_channel);
+    _channel = null;
+  }
 }

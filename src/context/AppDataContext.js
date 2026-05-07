@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { Alert } from 'react-native';
-import { initCompanyChannel, destroyCompanyChannel, broadcastChange } from '../services/companyChannel';
+import { initCompanyChannel, destroyCompanyChannel } from '../services/companyChannel';
 import { signOut, getCurrentUser } from '../services/authService';
 import { getProperties } from '../services/propertiesService';
 import { getBookings } from '../services/bookingsService';
@@ -115,37 +115,46 @@ export function AppDataProvider({ children, user }) {
     refreshAll();
   }, [refreshAll]);
 
-  // Broadcast: получаем push-уведомления об изменениях данных от других участников
+  // Realtime: подписка на изменения таблиц компании через postgres_changes.
+  // События приходят от любых мутаций (клиент, RPC, edge function) — БД сама пишет WAL.
   useEffect(() => {
     if (!user?.id) return;
     const companyId = user?.teamMembership?.companyId || user?.companyId;
     if (!companyId) return;
     initCompanyChannel(companyId, {
-      properties: refreshProperties,
-      bookings: refreshBookings,
-      contacts: refreshContacts,
-      calendar_events: refreshCalendarEvents,
-      team: refreshTeamMembers,
-      permissions: async () => {
-        const freshUser = await getCurrentUser();
-        if (freshUser) refreshAll();
-      },
-      member_deactivated: (payload) => {
-        if (payload?.target_user_id === user?.id) {
+      properties: () => refreshProperties(),
+      bookings: () => refreshBookings(),
+      contacts: () => refreshContacts(),
+      calendar_events: () => refreshCalendarEvents(),
+      company_members: (payload) => {
+        // Деактивация себя — выкидываем сразу, минуя обычный refresh.
+        if (
+          payload?.eventType === 'UPDATE' &&
+          payload?.new?.user_id === user.id &&
+          payload?.new?.status === 'inactive' &&
+          payload?.old?.status !== 'inactive'
+        ) {
           Alert.alert(
             'Account deactivated',
             'Your account has been deactivated by the company administrator.',
             [{ text: 'OK', onPress: () => signOut() }]
           );
+          return;
         }
+        refreshTeamMembers();
+      },
+      // Новый член/инвайт/доступ — список команды и список объектов могут поменяться.
+      company_invitations: () => refreshTeamMembers(),
+      agent_location_access: () => refreshAll(),
+      // Перечитываем профиль текущего юзера — у компании могли поменяться поля,
+      // на которые завязаны UserContext-производные (план, имя компании и т.п.).
+      companies: async () => {
+        const freshUser = await getCurrentUser();
+        if (freshUser) refreshAll();
       },
     });
-    // Сообщить компании что этот пользователь онлайн (для обновления списка команды у admin)
-    if (user?.isAgentRole) {
-      setTimeout(() => broadcastChange('team'), 1000);
-    }
     return () => destroyCompanyChannel();
-  }, [user?.id, user?.companyId, user?.teamMembership?.companyId]);
+  }, [user?.id, user?.companyId, user?.teamMembership?.companyId, refreshProperties, refreshBookings, refreshContacts, refreshCalendarEvents, refreshTeamMembers, refreshAll]);
 
   const value = useMemo(() => ({
     properties,

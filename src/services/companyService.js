@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { broadcastOneShot } from './companyChannel';
 
 const COMPANY_NAME_MIN_LENGTH = 2;
 const COMPANY_NAME_MAX_LENGTH = 80;
@@ -389,11 +388,7 @@ export async function joinCompanyViaInvitation(token) {
   const cid = row?.joined_company_id ?? row?.company_id;
   const cname = row?.joined_company_name ?? row?.company_name;
 
-  // Notify the company's existing online sessions (admin already in the
-  // Team tab) so they refresh the team list without a manual reload.
-  if (cid) {
-    try { await broadcastOneShot(cid, 'team'); } catch {}
-  }
+  // Админ узнает о новом члене через postgres_changes на company_members (INSERT).
 
   return row && (cid != null || cname != null) ? { companyId: cid, companyName: cname } : null;
 }

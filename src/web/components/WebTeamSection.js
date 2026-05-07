@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator,
 import { useLanguage } from '../../context/LanguageContext';
 import { getTeamData, createInvitation, resendInvitation, revokeInvitation, updateMemberPermissions, getAgentLocationAccess, setAgentLocationAccess, deactivateMember } from '../../services/companyService';
 import { getCompanyLocations } from '../../services/locationsService';
-import { broadcastChange, broadcastMemberDeactivated } from '../../services/companyChannel';
 import dayjs from 'dayjs';
 
 const ACCENT = '#3D7D82';
@@ -69,7 +68,6 @@ function MemberPermissionsModal({ member, companyId, visible, onClose, onSave })
     try {
       await onSave(member.member_id, permissions);
       await setAgentLocationAccess(member.user_id, companyId, assignedLocationIds);
-      await broadcastChange('permissions');
       onClose();
     } catch (e) {
       console.error('Save permissions error:', e);
@@ -429,7 +427,6 @@ export default function WebTeamSection({ companyId, currentUserId, teamRefreshKe
     setDeactivateError('');
     try {
       await deactivateMember(companyId, deactivateTarget);
-      await broadcastMemberDeactivated(deactivateTarget);
       setDeactivateTarget(null);
       await loadTeam();
     } catch (e) {

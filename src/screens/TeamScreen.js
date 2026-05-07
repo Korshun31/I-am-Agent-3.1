@@ -15,7 +15,6 @@ import {
   deactivateMember,
 } from '../services/companyService';
 import { getCompanyLocations } from '../services/locationsService';
-import { broadcastChange, broadcastMemberDeactivated } from '../services/companyChannel';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 const ACCENT = '#3D7D82';
@@ -88,7 +87,6 @@ function MemberPermissionsModal({ member, companyId, visible, onClose, onSave })
     try {
       await onSave(member.member_id, permissions);
       await setAgentLocationAccess(member.user_id, companyId, assignedLocationIds);
-      await broadcastChange('permissions');
       onClose();
     } catch (e) {
       setSaveError(t('errorSaveSettings'));
@@ -446,7 +444,6 @@ export default function TeamScreen({ onBack }) {
     setDeactivateError('');
     try {
       await deactivateMember(companyId, deactivateTarget);
-      await broadcastMemberDeactivated(deactivateTarget);
       setDeactivateTarget(null);
       await loadTeam();
     } catch (e) {

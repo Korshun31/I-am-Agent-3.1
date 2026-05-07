@@ -1,7 +1,6 @@
 import { supabase } from './supabase';
 import { cancelCommissionReminders } from './commissionRemindersService';
 import { syncIfEnabled } from './dataUploadService';
-import { broadcastChange } from './companyChannel';
 import { sendNotification } from './notificationsService';
 
 // Returns true if the current user is the owner (admin) of the given company.
@@ -242,7 +241,6 @@ export async function createBooking(booking) {
   }
 
   syncIfEnabled();
-  broadcastChange('bookings');
   return mapBooking(data);
 }
 
@@ -399,7 +397,6 @@ export async function updateBooking(id, booking) {
   }
 
   syncIfEnabled();
-  broadcastChange('bookings');
   return mapBooking(data);
 }
 
@@ -430,7 +427,6 @@ export async function deleteBooking(id) {
   if (error) throw new Error(error.message);
   if (!deleted || deleted.length === 0) throw new Error('BOOKING_DELETE_FORBIDDEN');
   syncIfEnabled();
-  broadcastChange('bookings');
 }
 
 function mapBooking(row) {
