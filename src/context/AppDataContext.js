@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { Alert } from 'react-native';
 import { initCompanyChannel, destroyCompanyChannel } from '../services/companyChannel';
 import { signOut, getCurrentUser } from '../services/authService';
+import { setKickedFlag } from '../utils/kickedFlag';
 import { getProperties } from '../services/propertiesService';
 import { getBookings } from '../services/bookingsService';
 import { getContacts } from '../services/contactsService';
@@ -126,19 +126,18 @@ export function AppDataProvider({ children, user }) {
       bookings: () => refreshBookings(),
       contacts: () => refreshContacts(),
       calendar_events: () => refreshCalendarEvents(),
-      company_members: (payload) => {
-        // Деактивация себя — выкидываем сразу, минуя обычный refresh.
+      company_members: async (payload) => {
+        // TD-128: деактивация себя — ставим флаг с именем компании и выкидываем.
+        // Модалка покажется на login через AppContent useEffect (SIGNED_OUT listener).
         if (
           payload?.eventType === 'UPDATE' &&
           payload?.new?.user_id === user.id &&
           payload?.new?.status === 'inactive' &&
           payload?.old?.status !== 'inactive'
         ) {
-          Alert.alert(
-            'Account deactivated',
-            'Your account has been deactivated by the company administrator.',
-            [{ text: 'OK', onPress: () => signOut() }]
-          );
+          const companyName = user?.teamMembership?.companyName || user?.companyInfo?.name || '';
+          await setKickedFlag({ companyName });
+          try { await signOut(); } catch {}
           return;
         }
         refreshTeamMembers();

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import KickedModal from './src/components/KickedModal';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -31,8 +32,15 @@ import EmailConfirmationPending from './src/screens/EmailConfirmationPending';
 import EmailConfirmedSuccess from './src/screens/EmailConfirmedSuccess';
 import MainNavigator from './src/navigation/MainNavigator';
 import WebMainScreen from './src/web/WebMainScreen';
-import { getCurrentUser, signOut } from './src/services/authService';
+import { getCurrentUser, signOut, checkMembershipActive } from './src/services/authService';
 import { supabase } from './src/services/supabase';
+import {
+  getKickedFlag,
+  clearKickedFlag,
+  setKickedFlag,
+  setLastCompanyName,
+  getLastCompanyName,
+} from './src/utils/kickedFlag';
 import WebInviteAcceptScreen from './src/web/screens/WebInviteAcceptScreen';
 function AppMainLoader({ onLogout, onUserUpdate }) {
   const { isLoaded, loadingProgress } = useAppData();
@@ -60,6 +68,14 @@ function AppContent() {
     }
     return null;
   });
+  // TD-128: модалка «вы исключены из компании X» поверх login.
+  const [kickedInfo, setKickedInfo] = useState(null);
+
+  // При запуске приложения — поднять флаг «меня исключили» если он висит в storage
+  // от прошлой сессии. Модалка покажется поверх любого начального экрана.
+  useEffect(() => {
+    getKickedFlag().then((flag) => { if (flag) setKickedInfo(flag); });
+  }, []);
 
   useEffect(() => {
     async function checkSession() {
@@ -80,6 +96,18 @@ function AppContent() {
       try {
         const userData = await getCurrentUser();
         if (userData) {
+          // TD-128: запоминаем имя компании для будущего выкида (после signOut state очищен).
+          const cname = userData?.teamMembership?.companyName || userData?.companyInfo?.name || '';
+          if (cname) await setLastCompanyName(cname);
+          // TD-128: cold start проверка членства. Если БД сказала «не активен» —
+          // ставим флаг и выходим. SIGNED_OUT listener поднимет модалку.
+          const active = await checkMembershipActive();
+          if (!active) {
+            const lastName = await getLastCompanyName();
+            await setKickedFlag({ companyName: lastName || cname });
+            try { await signOut(); } catch {}
+            return;
+          }
           updateUser(userData);
           if (userData.language) setLanguage(userData.language);
           if (userData.selectedCurrency) setCurrency(userData.selectedCurrency);
@@ -105,12 +133,30 @@ function AppContent() {
       if (event === 'SIGNED_OUT') {
         resetUser();
         setScreen('login');
+        // TD-128: если signOut был вызван по причине деактивации — флаг уже стоит,
+        // показываем модалку.
+        getKickedFlag().then((flag) => { if (flag) setKickedInfo(flag); });
       } else if (event === 'PASSWORD_RECOVERY') {
         setScreen('updatePassword');
       }
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // TD-128: при возврате приложения из фона дёрнуть проверку членства.
+  // Покрывает кейс «увольнение случилось пока приложение свёрнуто».
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (state) => {
+      if (state !== 'active') return;
+      if (!user?.id) return;
+      const active = await checkMembershipActive();
+      if (active) return;
+      const lastName = await getLastCompanyName();
+      await setKickedFlag({ companyName: lastName || user?.teamMembership?.companyName || user?.companyInfo?.name || '' });
+      try { await signOut(); } catch {}
+    });
+    return () => sub.remove();
+  }, [user?.id, user?.teamMembership?.companyName, user?.companyInfo?.name]);
 
   const handleLogout = useCallback(async (opts) => {
     try { await signOut(opts); } catch {}
@@ -139,6 +185,11 @@ function AppContent() {
   return (
     <>
       <StatusBar style="dark" />
+      <KickedModal
+        visible={!!kickedInfo}
+        companyName={kickedInfo?.companyName}
+        onClose={async () => { await clearKickedFlag(); setKickedInfo(null); }}
+      />
       {Platform.OS === 'web' && inviteToken ? (
         <WebInviteAcceptScreen
           token={inviteToken}

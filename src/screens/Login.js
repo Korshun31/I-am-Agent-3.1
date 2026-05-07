@@ -14,6 +14,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Logo, { COLORS } from '../components/Logo';
 import { signIn } from '../services/authService';
+import { clearKickedFlag } from '../utils/kickedFlag';
 
 // TD-032: brute-force protection. After MAX_ATTEMPTS wrong passwords for the
 // same email, block the login button for LOCK_DURATION_MS. Counter is keyed
@@ -131,6 +132,8 @@ export default function Login({ onSignUp, onLogin, onForgotPassword }) {
     try {
       const userData = await signIn({ email: em, password: pw });
       await resetLoginAttempts(em.toLowerCase());
+      // TD-128: успешный вход стирает флаг «меня выкинули» из прошлой сессии.
+      await clearKickedFlag();
       onLogin?.(userData);
     } catch (err) {
       const msg = err?.message || '';

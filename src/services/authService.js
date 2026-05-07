@@ -86,6 +86,20 @@ export async function getCurrentUser() {
   return getUserProfile(session.user.id);
 }
 
+// TD-128: проверка что юзер не уволен. Возвращает true если есть active членство
+// в company_members для текущего auth.uid() (стандартная регистрация и invite-flow
+// всегда создают такую запись — solo-юзеров без company_members в системе нет).
+// На любую ошибку (сеть, БД) возвращает true — fail-safe, не выкидывать активных.
+export async function checkMembershipActive() {
+  try {
+    const { data, error } = await supabase.rpc('am_i_still_active');
+    if (error) return true;
+    return data === true;
+  } catch {
+    return true;
+  }
+}
+
 export async function getUserProfile(userId) {
   // TD-035: один RPC вместо 5 последовательных запросов.
   const { data: full, error } = await supabase.rpc('get_full_user_profile', { p_user_id: userId });
