@@ -5,44 +5,46 @@ import { getCommissionEvents } from './ownerCommission';
 
 dayjs.extend(isBetween);
 
-const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
-
 export function buildPropertiesMap(properties) {
   const m = {};
   (properties || []).forEach((p) => { m[p.id] = p; });
   return m;
 }
 
-function isRentableUnit(p) {
-  return !!(p && HOUSE_LIKE_TYPES.has(p.type));
-}
+// Подсчёт «контейнер (юниты в скобках)»:
+//   total:   первая = отдельные дома + контейнеры (резорт/кондо), в скобках = сдаваемые юниты;
+//   houses:  только отдельные дома (без скобок);
+//   resorts: контейнеры-резорты (первая) и дома в резорте (в скобках);
+//   condos:  контейнеры-кондо (первая) и апартаменты (в скобках).
+export function breakdownWithContainers(properties, propsMap, filterFn) {
+  let resortContainers = 0;
+  let condoContainers  = 0;
+  let houses           = 0;
+  let resortHouses     = 0;
+  let apartments       = 0;
 
-function categoryKeyRentable(p, propsMap) {
-  if (!isRentableUnit(p)) return null;
-  if (!p.parent_id) return 'houses';
-  const parent = propsMap[p.parent_id];
-  if (parent?.type === 'resort') return 'resortHouses';
-  if (parent?.type === 'condo') return 'apartments';
-  return null;
-}
-
-export function breakdownByCategory(properties, propsMap, filterFn) {
-  let houses = 0;
-  let resortHouses = 0;
-  let apartments = 0;
   (properties || []).forEach((p) => {
     if (filterFn && !filterFn(p)) return;
-    const key = categoryKeyRentable(p, propsMap);
-    if (!key) return;
-    if (key === 'houses') houses += 1;
-    else if (key === 'resortHouses') resortHouses += 1;
-    else apartments += 1;
+    if (!p.parent_id) {
+      if (p.type === 'house')  houses           += 1;
+      else if (p.type === 'resort') resortContainers += 1;
+      else if (p.type === 'condo')  condoContainers  += 1;
+      return;
+    }
+    const parent = propsMap[p.parent_id];
+    if (!parent) return;
+    if (parent.type === 'resort' && p.type === 'resort_house')    resortHouses += 1;
+    else if (parent.type === 'condo' && p.type === 'condo_apartment') apartments   += 1;
   });
+
   return {
-    houses,
-    resortHouses,
-    apartments,
-    total: houses + resortHouses + apartments,
+    total: {
+      primary:   houses + resortContainers + condoContainers,
+      secondary: houses + resortHouses + apartments,
+    },
+    houses:  { primary: houses },
+    resorts: { primary: resortContainers, secondary: resortHouses },
+    condos:  { primary: condoContainers,  secondary: apartments  },
   };
 }
 
@@ -50,7 +52,7 @@ export function computeBaseStats({ properties, bookings, user, now = dayjs() }) 
   const isTeamMemberStats = !!(user?.teamMembership);
   const propsMap = buildPropertiesMap(properties);
   const filter = isTeamMemberStats ? (p) => p.responsible_agent_id === user.id : null;
-  const cat = breakdownByCategory(properties, propsMap, filter);
+  const bd = breakdownWithContainers(properties, propsMap, filter);
 
   const endOfMonth = now.endOf('month');
   let myClients = 0;
@@ -72,10 +74,12 @@ export function computeBaseStats({ properties, bookings, user, now = dayjs() }) 
   const thisMonth = upcomingBookings.filter((b) => dayjs(b.checkIn).isBefore(endOfMonth)).length;
 
   return {
-    total: cat.total,
-    houses: cat.houses,
-    resortHouses: cat.resortHouses,
-    apartments: cat.apartments,
+    // Каждое поле — { primary, secondary? }; primary = контейнеры+отдельные дома,
+    // secondary = сдаваемые юниты внутри. У houses secondary нет (только отдельные дома).
+    total:   bd.total,
+    houses:  bd.houses,
+    resorts: bd.resorts,
+    condos:  bd.condos,
     occupied,
     myClients,
     otherClients,
@@ -90,8 +94,8 @@ export function computeAgentStats({ properties, bookings, user, now = dayjs() })
   const propsMap = buildPropertiesMap(properties);
   const endOfMonth = now.endOf('month');
 
-  const companyBd = breakdownByCategory(properties, propsMap, null);
-  const myBd = breakdownByCategory(properties, propsMap, (p) => p.responsible_agent_id === user?.id);
+  const companyBd = breakdownWithContainers(properties, propsMap, null);
+  const myBd = breakdownWithContainers(properties, propsMap, (p) => p.responsible_agent_id === user?.id);
 
   let companyAgencyActive = 0;
   let companyOwnerActive = 0;
@@ -116,14 +120,15 @@ export function computeAgentStats({ properties, bookings, user, now = dayjs() })
   const myLater = myUpcoming - myThisMonth;
 
   return {
-    companyTotal: companyBd.total,
-    companyHouses: companyBd.houses,
-    companyResorts: companyBd.resortHouses,
-    companyCondos: companyBd.apartments,
-    myTotal: myBd.total,
-    myHouses: myBd.houses,
-    myResorts: myBd.resortHouses,
-    myCondos: myBd.apartments,
+    // Каждое поле — { primary, secondary? } (см. комментарий в computeBaseStats).
+    companyTotal:   companyBd.total,
+    companyHouses:  companyBd.houses,
+    companyResorts: companyBd.resorts,
+    companyCondos:  companyBd.condos,
+    myTotal:   myBd.total,
+    myHouses:  myBd.houses,
+    myResorts: myBd.resorts,
+    myCondos:  myBd.condos,
     companyAgencyActive,
     companyOwnerActive,
     myAgencyActive,

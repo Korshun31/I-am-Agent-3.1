@@ -72,6 +72,12 @@ export default function WebDashboardScreen({ user }) {
     [properties, bookings, user]
   );
 
+  // Поля разбивки приходят как { primary, secondary? }: primary — контейнеры+отдельные дома,
+  // secondary — сдаваемые юниты внутри. Houses без скобок (только отдельные дома).
+  const fmtCount = (item) => item?.secondary == null
+    ? `${item?.primary ?? 0}`
+    : `${item.primary} (${item.secondary})`;
+
   const allCommissionEvents = useMemo(
     () => buildCommissionEvents({ bookings, properties }),
     [bookings, properties]
@@ -211,9 +217,9 @@ export default function WebDashboardScreen({ user }) {
             {agentStats ? (
               <>
                 <View style={styles.agentStatRow}>
-                  <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{agentStats.companyTotal}</Text>
+                  <Text style={[styles.statValue, { color: '#ADB5BD' }]}>{fmtCount(agentStats.companyTotal)}</Text>
                   <Text style={styles.agentStatSep}> / </Text>
-                  <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{agentStats.myTotal}</Text>
+                  <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{fmtCount(agentStats.myTotal)}</Text>
                 </View>
                 <View style={styles.agentStatLabels}>
                   <Text style={styles.agentStatLabelGray}>{t('dashboardStatCompany')}</Text>
@@ -222,36 +228,36 @@ export default function WebDashboardScreen({ user }) {
                 </View>
               </>
             ) : (
-              <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{stats.total}</Text>
+              <Text style={[styles.statValue, { color: CLR.stat1Text }]}>{fmtCount(stats.total)}</Text>
             )}
           </View>
 
           {agentStats ? (
             <View style={[styles.subStats, { flexWrap: 'wrap', marginTop: 10 }]}>
               {[
-                { label: t('dashboardBreakdownHouses'), co: agentStats.companyHouses, my: agentStats.myHouses },
-                { label: t('dashboardBreakdownResortHouses'), co: agentStats.companyResorts, my: agentStats.myResorts },
-                { label: t('dashboardBreakdownApartments'), co: agentStats.companyCondos, my: agentStats.myCondos },
+                { label: t('dashboardBreakdownHouses'),  co: agentStats.companyHouses,  my: agentStats.myHouses  },
+                { label: t('dashboardBreakdownResorts'), co: agentStats.companyResorts, my: agentStats.myResorts },
+                { label: t('dashboardBreakdownCondos'),  co: agentStats.companyCondos,  my: agentStats.myCondos  },
               ].map(({ label, co, my }) => (
                 <Text key={label} style={styles.subStatText}>
                   {label}
                   {': '}
-                  <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{co}</Text>
+                  <Text style={{ color: '#ADB5BD', fontWeight: '700' }}>{fmtCount(co)}</Text>
                   <Text style={{ color: '#CED4DA' }}>{' / '}</Text>
-                  <Text style={[styles.subStatValue, { color: CLR.stat1Text }]}>{my}</Text>
+                  <Text style={[styles.subStatValue, { color: CLR.stat1Text }]}>{fmtCount(my)}</Text>
                 </Text>
               ))}
             </View>
           ) : (
             <View style={styles.subStats}>
               <Text style={styles.subStatText}>
-                {t('dashboardBreakdownHouses')}: <Text style={styles.subStatValue}>{stats.houses}</Text>
+                {t('dashboardBreakdownHouses')}: <Text style={styles.subStatValue}>{fmtCount(stats.houses)}</Text>
               </Text>
               <Text style={styles.subStatText}>
-                {t('dashboardBreakdownResortHouses')}: <Text style={styles.subStatValue}>{stats.resortHouses}</Text>
+                {t('dashboardBreakdownResorts')}: <Text style={styles.subStatValue}>{fmtCount(stats.resorts)}</Text>
               </Text>
               <Text style={styles.subStatText}>
-                {t('dashboardBreakdownApartments')}: <Text style={styles.subStatValue}>{stats.apartments}</Text>
+                {t('dashboardBreakdownCondos')}: <Text style={styles.subStatValue}>{fmtCount(stats.condos)}</Text>
               </Text>
             </View>
           )}

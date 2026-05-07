@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
 import { getVideoThumbnailUrl } from '../../utils/videoThumbnail';
+import { breakdownWithContainers, buildPropertiesMap } from '../../utils/dashboardStats';
 
 const ICON_BEDROOM  = require('../../../assets/icon-stat-bedroom.png');
 const ICON_BATHROOM = require('../../../assets/icon-stat-bathroom.png');
@@ -549,6 +550,130 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         })()}
 
 
+        {/* ── Children (for resorts/condos) — выше Локации, чтобы сразу видеть юниты ── */}
+        {(children.length > 0 || ['resort', 'condo'].includes(property.type)) && (() => {
+          const unitsTitleKey =
+            property.type === 'condo'  ? 'propUnitsCondoSection'  :
+            property.type === 'resort' ? 'propUnitsResortSection' :
+            'propUnitsSection';
+          const addUnitKey =
+            property.type === 'condo'  ? 'addUnitCondo'  :
+            property.type === 'resort' ? 'addUnitResort' :
+            'addUnit';
+          return (
+          <SectionBlock title={`🏠 ${t(unitsTitleKey)} (${children.length})`}>
+            <View style={s.childGrid}>
+              {children.map(child => {
+                const childMeta = TYPE_META[getTypeMetaKey(child.type)] || TYPE_META.house;
+                const childCode = child.code + (child.code_suffix ? `-${child.code_suffix}` : '');
+                const activeBooking = getActiveBooking(bookings, child.id);
+                const childOccupied = !!activeBooking;
+                const checkOutLabel = activeBooking
+                  ? `до ${dayjs(activeBooking.checkOut).format('D MMM')}`
+                  : null;
+                const hasPhoto = child.photos?.length > 0;
+                return (
+                  <TouchableOpacity
+                    key={child.id}
+                    style={s.childCard}
+                    onPress={() => onChildPress && onChildPress(child)}
+                    activeOpacity={0.8}
+                  >
+                    {/* Полоска по типу */}
+                    <View style={[s.childCardStripe, { backgroundColor: childMeta.stripe }]} />
+
+                    {/* Photo */}
+                    <View style={s.childCardPhoto}>
+                      {hasPhoto ? (
+                        <Image
+                          source={{ uri: child.photos_thumb?.[0] || child.photos[0] }}
+                          style={s.childCardImg}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={[s.childCardImgPlaceholder, { backgroundColor: childMeta.bg }]}>
+                          {childMeta.img
+                            ? (
+                              <Image
+                                source={childMeta.img}
+                                style={s.childCardImgIcon2}
+                                resizeMode="contain"
+                              />
+                            )
+                            : <Text style={s.childCardImgIcon}>{childMeta.icon}</Text>}
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Info */}
+                    <View style={s.childCardInfo}>
+                      {/* Top row: name + code + status */}
+                      <View style={s.childCardTopRow}>
+                        <Text style={s.childCardTitle} numberOfLines={1}>{child.name}</Text>
+                        <View style={s.childCodeChip}>
+                          <Text style={s.childCodeChipText}>{childCode}</Text>
+                        </View>
+                        <View style={[s.childStatusPill, { backgroundColor: childOccupied ? STATUS.occupiedBg : STATUS.freeBg }]}>
+                          <View style={[s.childStatusDot, { backgroundColor: childOccupied ? STATUS.occupiedDot : STATUS.freeDot }]} />
+                          <Text style={[s.childStatusLabel, { color: childOccupied ? STATUS.occupiedText : STATUS.freeText }]}>
+                            {childOccupied ? `${t('propOccupied')} ${checkOutLabel}` : t('propFree')}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Stats row */}
+                      <View style={s.childStatsRow}>
+                        {child.bedrooms != null && (
+                          <View style={s.childStat}>
+                            <Image source={ICON_BEDROOM} style={s.childStatImg} />
+                            <Text style={s.childStatNum}>{child.bedrooms}</Text>
+                            <Text style={s.childStatLabel}>{t('propBedrooms2')}</Text>
+                          </View>
+                        )}
+                        {child.bathrooms != null && (
+                          <View style={s.childStat}>
+                            <Image source={ICON_BATHROOM} style={s.childStatImg} />
+                            <Text style={s.childStatNum}>{child.bathrooms}</Text>
+                            <Text style={s.childStatLabel}>{t('propBathrooms')}</Text>
+                          </View>
+                        )}
+                        {child.area != null && (
+                          <View style={s.childStat}>
+                            <Image source={ICON_AREA} style={s.childStatImg} />
+                            <Text style={s.childStatNum}>{child.area}</Text>
+                            <Text style={s.childStatLabel}>{t('propSqm')}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Price + arrow */}
+                    <View style={s.childCardRight}>
+                      {child.price_monthly != null ? (
+                        <>
+                          <Text style={s.childPriceValue}>{child.price_monthly_is_from ? `${t('propFrom')} ` : ''}{fmt(child.price_monthly, '')} {getCurrencySymbol(child.currency || 'THB')}</Text>
+                          <Text style={s.childPricePer}>{t('perMonth')}</Text>
+                        </>
+                      ) : (
+                        <Text style={s.childNoPrice}>—</Text>
+                      )}
+                      <Text style={s.childCardArrow}>›</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {onAddUnit && canAddUnit && (
+              <View style={s.addUnitBottomRow}>
+                <TouchableOpacity style={s.addUnitBtn} onPress={onAddUnit}>
+                  <Text style={s.addUnitBtnText}>{t(addUnitKey)}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </SectionBlock>
+          );
+        })()}
+
         {/* ── Location ── */}
         {(property.city || property.address || property.beach_distance || property.market_distance || property.google_maps_link || property.website_url) && (
           <SectionBlock title={t('pdLocation').toUpperCase()} icon={ICON_SEC_LOCATION}>
@@ -726,120 +851,6 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
                 <Text style={s.ownerName}>{parent.name}</Text>
                 <Text style={s.ownerPhone}>{parent.code}{parent.code_suffix ? `-${parent.code_suffix}` : ''}</Text>
               </View>
-            </View>
-          </SectionBlock>
-        )}
-
-        {/* ── Children (for resorts/condos) ── */}
-        {(children.length > 0 || ['resort', 'condo'].includes(property.type)) && (
-          <SectionBlock
-            title={`🏠 ${t('propUnitsSection')} (${children.length})`}
-            action={onAddUnit && canAddUnit ? (
-              <TouchableOpacity style={s.addUnitBtn} onPress={onAddUnit}>
-                <Text style={s.addUnitBtnText}>{t('addUnit')}</Text>
-              </TouchableOpacity>
-            ) : null}
-          >
-            <View style={s.childGrid}>
-              {children.map(child => {
-                const childMeta = TYPE_META[getTypeMetaKey(child.type)] || TYPE_META.house;
-                const childCode = child.code + (child.code_suffix ? `-${child.code_suffix}` : '');
-                const activeBooking = getActiveBooking(bookings, child.id);
-                const childOccupied = !!activeBooking;
-                const checkOutLabel = activeBooking
-                  ? `до ${dayjs(activeBooking.checkOut).format('D MMM')}`
-                  : null;
-                const hasPhoto = child.photos?.length > 0;
-                return (
-                  <TouchableOpacity
-                    key={child.id}
-                    style={s.childCard}
-                    onPress={() => onChildPress && onChildPress(child)}
-                    activeOpacity={0.8}
-                  >
-                    {/* Полоска по типу */}
-                    <View style={[s.childCardStripe, { backgroundColor: childMeta.stripe }]} />
-
-                    {/* Photo */}
-                    <View style={s.childCardPhoto}>
-                      {hasPhoto ? (
-                        <Image
-                          source={{ uri: child.photos_thumb?.[0] || child.photos[0] }}
-                          style={s.childCardImg}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View style={[s.childCardImgPlaceholder, { backgroundColor: childMeta.bg }]}>
-                          {childMeta.img
-                            ? (
-                              <Image
-                                source={childMeta.img}
-                                style={s.childCardImgIcon2}
-                                resizeMode="contain"
-                              />
-                            )
-                            : <Text style={s.childCardImgIcon}>{childMeta.icon}</Text>}
-                        </View>
-                      )}
-                    </View>
-
-                    {/* Info */}
-                    <View style={s.childCardInfo}>
-                      {/* Top row: name + code + status */}
-                      <View style={s.childCardTopRow}>
-                        <Text style={s.childCardTitle} numberOfLines={1}>{child.name}</Text>
-                        <View style={s.childCodeChip}>
-                          <Text style={s.childCodeChipText}>{childCode}</Text>
-                        </View>
-                        <View style={[s.childStatusPill, { backgroundColor: childOccupied ? STATUS.occupiedBg : STATUS.freeBg }]}>
-                          <View style={[s.childStatusDot, { backgroundColor: childOccupied ? STATUS.occupiedDot : STATUS.freeDot }]} />
-                          <Text style={[s.childStatusLabel, { color: childOccupied ? STATUS.occupiedText : STATUS.freeText }]}>
-                            {childOccupied ? `${t('propOccupied')} ${checkOutLabel}` : t('propFree')}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Stats row */}
-                      <View style={s.childStatsRow}>
-                        {child.bedrooms != null && (
-                          <View style={s.childStat}>
-                            <Image source={ICON_BEDROOM} style={s.childStatImg} />
-                            <Text style={s.childStatNum}>{child.bedrooms}</Text>
-                            <Text style={s.childStatLabel}>{t('propBedrooms2')}</Text>
-                          </View>
-                        )}
-                        {child.bathrooms != null && (
-                          <View style={s.childStat}>
-                            <Image source={ICON_BATHROOM} style={s.childStatImg} />
-                            <Text style={s.childStatNum}>{child.bathrooms}</Text>
-                            <Text style={s.childStatLabel}>{t('propBathrooms')}</Text>
-                          </View>
-                        )}
-                        {child.area != null && (
-                          <View style={s.childStat}>
-                            <Image source={ICON_AREA} style={s.childStatImg} />
-                            <Text style={s.childStatNum}>{child.area}</Text>
-                            <Text style={s.childStatLabel}>{t('propSqm')}</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-
-                    {/* Price + arrow */}
-                    <View style={s.childCardRight}>
-                      {child.price_monthly != null ? (
-                        <>
-                          <Text style={s.childPriceValue}>{child.price_monthly_is_from ? `${t('propFrom')} ` : ''}{fmt(child.price_monthly, '')} {getCurrencySymbol(child.currency || 'THB')}</Text>
-                          <Text style={s.childPricePer}>{t('perMonth')}</Text>
-                        </>
-                      ) : (
-                        <Text style={s.childNoPrice}>—</Text>
-                      )}
-                      <Text style={s.childCardArrow}>›</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
             </View>
           </SectionBlock>
         )}
@@ -1140,7 +1151,8 @@ function WebPropertiesScreenInner({ initialPropertyId, user }) {
   const filtered = properties.filter(p => {
     if (typeFilter !== 'all') {
       if (typeFilter === 'house') {
-        if (!HOUSE_LIKE_TYPES.has(p.type)) return false;
+        // только отдельностоящие дома, без юнитов в кондо/резорте
+        if (p.type !== 'house' || p.parent_id) return false;
       } else if (p.type !== typeFilter) {
         return false;
       }
@@ -1159,11 +1171,16 @@ function WebPropertiesScreenInner({ initialPropertyId, user }) {
     ? [...filtered.filter(p => !p.parent_id), ...filtered.filter(p => !!p.parent_id)]
     : filtered.filter(p => !p.parent_id);
 
+  // counts: «контейнер (юниты внутри)». Дом — только отдельные, без скобок.
+  const breakdown = breakdownWithContainers(properties, buildPropertiesMap(properties), null);
+  const fmtCount = (item) => item.secondary == null
+    ? `${item.primary}`
+    : `${item.primary} (${item.secondary})`;
   const counts = {
-    all: properties.length,
-    house:  properties.filter(p => HOUSE_LIKE_TYPES.has(p.type)).length,
-    resort: properties.filter(p => p.type === 'resort').length,
-    condo:  properties.filter(p => p.type === 'condo').length,
+    all:    fmtCount(breakdown.total),
+    house:  fmtCount(breakdown.houses),
+    resort: fmtCount(breakdown.resorts),
+    condo:  fmtCount(breakdown.condos),
   };
 
   const handleSaved = () => {
@@ -1235,10 +1252,10 @@ function WebPropertiesScreenInner({ initialPropertyId, user }) {
         {/* Type filter tabs */}
         <View style={s.filterTabs}>
           {[
-            { key: 'all',      label: `${t('all')} (${counts.all})`,                    img: null },
-            { key: 'house',    label: `${t('house')} (${counts.house || 0})`,           img: ICON_TYPE_HOUSE  },
-            { key: 'resort',   label: `${t('resort')} (${counts.resort || 0})`,         img: ICON_TYPE_RESORT },
-            { key: 'condo',    label: `${t('condo')} (${counts.condo || 0})`,           img: ICON_TYPE_CONDO  },
+            { key: 'all',      label: `${t('all')} ${counts.all}`,       img: null },
+            { key: 'house',    label: `${t('house')} ${counts.house}`,   img: ICON_TYPE_HOUSE  },
+            { key: 'resort',   label: `${t('resort')} ${counts.resort}`, img: ICON_TYPE_RESORT },
+            { key: 'condo',    label: `${t('condo')} ${counts.condo}`,   img: ICON_TYPE_CONDO  },
           ].map(tab => (
             <TouchableOpacity
               key={tab.key}
@@ -1795,6 +1812,7 @@ const s = StyleSheet.create({
     borderColor: '#B2D8DB',
   },
   addUnitBtnText: { fontSize: 13, fontWeight: '700', color: '#3D7D82' },
+  addUnitBottomRow: { alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
   sectionContent: { padding: 16 },
 
 
