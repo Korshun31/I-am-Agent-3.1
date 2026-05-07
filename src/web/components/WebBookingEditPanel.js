@@ -1044,7 +1044,7 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
               </TouchableOpacity>
               <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
                 {saving
-                  ? <ActivityIndicator size="small" color="#FFF" />
+                  ? <ActivityIndicator size="small" color="#3D7D82" />
                   : <Text style={s.saveBtnText}>{t('save')}</Text>
                 }
               </TouchableOpacity>

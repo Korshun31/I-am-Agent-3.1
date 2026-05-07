@@ -1385,9 +1385,13 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
                   activeOpacity={0.7}
                   disabled={saving}
                 >
-                  <Text style={[s.navBtnText, s.navBtnNextText, isLast && s.navBtnSaveText]}>
-                    {saving ? (uploadProgress ? `📤 ${uploadProgress}` : '...') : isLast ? t('save') : t('wizNext') + '  ›'}
-                  </Text>
+                  {saving && !uploadProgress ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={[s.navBtnText, s.navBtnNextText, isLast && s.navBtnSaveText]}>
+                      {saving ? `📤 ${uploadProgress}` : isLast ? t('save') : t('wizNext') + '  ›'}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>

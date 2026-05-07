@@ -1424,7 +1424,7 @@ export default function WebPropertyEditPanel({
               {!readOnly && (
                 <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
                   {saving
-                    ? <ActivityIndicator size="small" color="#FFF" />
+                    ? <ActivityIndicator size="small" color="#3D7D82" />
                     : <Text style={s.saveBtnText}>
                         {mode === 'edit' ? t('save') : `＋ ${t('add')}`}
                       </Text>

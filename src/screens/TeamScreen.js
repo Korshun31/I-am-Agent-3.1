@@ -184,7 +184,7 @@ function MemberPermissionsModal({ member, companyId, visible, onClose, onSave })
                   <Text style={s.modalCancelText}>{t('cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[s.modalSaveBtn, saving && s.btnDisabled]} onPress={handleSave} disabled={saving}>
-                  <Text style={s.modalSaveText}>{saving ? `${t('save')}...` : t('save')}</Text>
+                  {saving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={s.modalSaveText}>{t('save')}</Text>}
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -331,7 +331,7 @@ function ConfirmModal({ visible, title, message, confirmLabel, onConfirm, onCanc
                 onPress={onConfirm}
                 disabled={loading}
               >
-                <Text style={s.confirmDangerBtnText}>{loading ? '...' : confirmLabel}</Text>
+                {loading ? <ActivityIndicator size="small" color="#E53935" /> : <Text style={s.confirmDangerBtnText}>{confirmLabel}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -511,7 +511,7 @@ export default function TeamScreen({ onBack }) {
                   <Text style={s.cancelBtnText}>{t('cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[s.sendBtn, (!inviteEmail.trim() || inviting) && s.sendBtnDisabled]} onPress={handleInvite} disabled={!inviteEmail.trim() || inviting}>
-                  <Text style={s.sendBtnText}>{inviting ? '...' : t('inviteAgent')}</Text>
+                  {inviting ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={s.sendBtnText}>{t('inviteAgent')}</Text>}
                 </TouchableOpacity>
               </View>
             </View>
