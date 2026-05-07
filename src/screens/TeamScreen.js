@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 import dayjs from 'dayjs';
 import { useUser } from '../context/UserContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useAppData } from '../context/AppDataContext';
 import {
   getTeamData,
   createInvitation,
@@ -343,6 +344,7 @@ function ConfirmModal({ visible, title, message, confirmLabel, onConfirm, onCanc
 export default function TeamScreen({ onBack }) {
   const { user = {} } = useUser();
   const { t } = useLanguage();
+  const { teamSnapshotVersion } = useAppData();
   const companyId = user?.companyId;
   const currentUserId = user?.id;
 
@@ -379,7 +381,7 @@ export default function TeamScreen({ onBack }) {
 
   useEffect(() => {
     loadTeam();
-  }, [loadTeam]);
+  }, [loadTeam, teamSnapshotVersion]);
 
   const handleInvite = async () => {
     const email = inviteEmail.trim();

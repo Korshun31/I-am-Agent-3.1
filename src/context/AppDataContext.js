@@ -21,6 +21,12 @@ export function AppDataProvider({ children, user }) {
   const [eventsLoading, setEventsLoading]     = useState(true);
   const [teamMembers, setTeamMembers]         = useState([]);
   const [teamMembersLoading, setTeamMembersLoading] = useState(true);
+  // Счётчик «снимка команды» — экраны TeamScreen / WebTeamSection держат
+  // свой локальный список members + invitations через getTeamData. AppDataContext
+  // не управляет этими данными напрямую (приглашения здесь не лежат), но при
+  // realtime-событии в company_members / company_invitations инкрементирует
+  // счётчик — экраны слушают его в deps useEffect и перезагружают свой снимок.
+  const [teamSnapshotVersion, setTeamSnapshotVersion] = useState(0);
 
   // For team members (agents) filter data to their own properties/bookings only
   const agentId = user?.teamMembership ? user.id : null;
@@ -141,9 +147,12 @@ export function AppDataProvider({ children, user }) {
           return;
         }
         refreshTeamMembers();
+        setTeamSnapshotVersion((v) => v + 1);
       },
-      // Новый член/инвайт/доступ — список команды и список объектов могут поменяться.
-      company_invitations: () => refreshTeamMembers(),
+      // Новый/изменённый/отозванный инвайт — пересобираем снимок команды на экранах.
+      // refreshTeamMembers() здесь не нужен — getActiveTeamMembers фильтрует по active,
+      // приглашений там нет.
+      company_invitations: () => setTeamSnapshotVersion((v) => v + 1),
       agent_location_access: () => refreshAll(),
       // Перечитываем профиль текущего юзера — у компании могли поменяться поля,
       // на которые завязаны UserContext-производные (план, имя компании и т.п.).
@@ -171,13 +180,14 @@ export function AppDataProvider({ children, user }) {
     teamMembers,
     teamMembersLoading,
     refreshTeamMembers,
+    teamSnapshotVersion,
     refreshAll,
     isLoaded,
     loadingProgress,
   }), [
     properties, filteredBookings, propertiesLoading, bookingsLoading,
     contacts, calendarEvents, contactsLoading, eventsLoading,
-    teamMembers, teamMembersLoading,
+    teamMembers, teamMembersLoading, teamSnapshotVersion,
     refreshProperties, refreshBookings, refreshContacts, refreshCalendarEvents, refreshTeamMembers, refreshAll,
     isLoaded, loadingProgress,
   ]);

@@ -24,7 +24,7 @@ const FULL_HEIGHT_TABS = new Set(['properties', 'contacts', 'bookings', 'profile
 export default function WebMainScreen({ onLogout }) {
   const { t } = useLanguage();
   const { user, updateUser, handleUserUpdate } = useUser();
-  const { refreshProperties, refreshBookings } = useAppData();
+  const { refreshProperties, refreshBookings, teamSnapshotVersion } = useAppData();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [propertiesInitialId, setPropertiesInitialId] = useState(null);
   const [visited, setVisited] = useState(() => new Set(['dashboard']));
@@ -188,7 +188,7 @@ export default function WebMainScreen({ onLogout }) {
       {/* Account — монтируется при первом посещении */}
       {visited.has('profile') && (
         <View style={[styles.tabWrap, tabStyle('profile')]}>
-          <WebAccountScreen user={user} onLogout={onLogout} onUserUpdate={handleUserUpdate} />
+          <WebAccountScreen user={user} onLogout={onLogout} onUserUpdate={handleUserUpdate} teamRefreshKey={teamSnapshotVersion} />
         </View>
       )}
 
