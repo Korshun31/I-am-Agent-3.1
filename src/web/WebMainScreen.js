@@ -44,6 +44,8 @@ export default function WebMainScreen({ onLogout }) {
   // Realtime notifications logic
   useEffect(() => {
     if (!user || Platform.OS !== 'web') return;
+    const companyId = user?.teamMembership?.companyId || user?.companyId;
+    if (!companyId) return;
 
     // Request browser notification permission
     if ('Notification' in window && Notification.permission === 'default') {
@@ -56,24 +58,25 @@ export default function WebMainScreen({ onLogout }) {
       }
     };
 
+    const filter = `company_id=eq.${companyId}`;
     const channel = supabase
-      .channel('web-notifications')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, payload => {
+      .channel(`web-notifications-${companyId}`, { config: { private: true } })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings', filter }, payload => {
         if (user.web_notifications?.new_booking && payload.new.user_id !== user.id) {
           showToast(t('notifNewBooking'), t('bkNewTitle'));
         }
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings' }, payload => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings', filter }, payload => {
         if (user.web_notifications?.booking_changed && payload.new.user_id !== user.id) {
           showToast(t('notifBookingChanged'), `${t('edit')}: ${payload.new.check_in} - ${payload.new.check_out}`);
         }
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calendar_events' }, payload => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calendar_events', filter }, payload => {
         if (user.web_notifications?.new_event && payload.new.user_id !== user.id) {
           showToast(t('notifNewEvent'), payload.new.title);
         }
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'properties' }, payload => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'properties', filter }, payload => {
         if (user.web_notifications?.new_property && payload.new.user_id !== user.id) {
           showToast(t('notifNewProperty'), payload.new.name);
         }
