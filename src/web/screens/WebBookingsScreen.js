@@ -956,6 +956,12 @@ function WebBookingsScreenInner({ user }) {
         owners={owners}
         teamMembers={teamMembers}
         onClose={() => setPropDetailProperty(null)}
+        onCreateBooking={canCreate ? (prop) => {
+          setPropDetailProperty(null);
+          setCreateTemplate({ propertyId: prop.id });
+          setSelectedBooking(null);
+          setEditPanelMode('create');
+        } : undefined}
         user={user}
       />
 

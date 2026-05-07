@@ -33,7 +33,8 @@ import { getActiveTeamMembers } from '../services/companyService';
 import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
 import { scheduleBookingReminders, cancelBookingReminders } from '../services/bookingRemindersService';
-import { getCommissionDateAmounts, scheduleCommissionReminders, cancelCommissionReminders } from '../services/commissionRemindersService';
+import { scheduleCommissionReminders, cancelCommissionReminders } from '../services/commissionRemindersService';
+import { getCommissionEvents, ownerOneTimeAmount, ownerMonthlyTotalAmount, ownerMonthlyByMonth } from '../utils/ownerCommission';
 import { requestReminderPermissions } from '../services/calendarRemindersService';
 import { getCurrentUser } from '../services/authService';
 import { uploadPhoto, isLocalUri } from '../services/storageService';
@@ -128,10 +129,31 @@ function CheckRow({ label, checked, onPress }) {
   );
 }
 
-function PercentMoneyField({ label, sym, priceMonthly, value, onChangeValue, isPercent, onChangePercent }) {
+function PercentMoneyField({ label, sym, priceMonthly, checkIn, checkOut, monthlyBreakdown, kind, value, onChangeValue, isPercent, onChangePercent }) {
   const numericValue = isPercent ? parseFloat((value || '').toString().replace(/[^0-9.]/g, '')) : null;
-  const pmValue = parseMoneyValue(priceMonthly);
-  const computed = isPercent && numericValue && pmValue ? Math.round((numericValue / 100) * pmValue) : null;
+  let computed = null;
+  let breakdownStr = null;
+  if (isPercent && numericValue) {
+    const fakeBooking = {
+      priceMonthly: parseMoneyValue(priceMonthly),
+      checkIn,
+      checkOut,
+      monthlyBreakdown,
+    };
+    if (kind === 'oneTime') {
+      fakeBooking.ownerCommissionOneTime = numericValue;
+      fakeBooking.ownerCommissionOneTimeIsPercent = true;
+      computed = ownerOneTimeAmount(fakeBooking) || null;
+    } else {
+      fakeBooking.ownerCommissionMonthly = numericValue;
+      fakeBooking.ownerCommissionMonthlyIsPercent = true;
+      const months = ownerMonthlyByMonth(fakeBooking);
+      computed = months.reduce((s, r) => s + r.amount, 0) || null;
+      if (months.length > 1) {
+        breakdownStr = `${months.map(r => formatMoneyDisplay(String(r.amount))).join(' + ')} = ${formatMoneyDisplay(String(computed))} ${sym}`;
+      }
+    }
+  }
   const handlePercentInput = (v) => {
     const cleaned = v.replace(/[^0-9.]/g, '');
     if (cleaned === '') return onChangeValue('');
@@ -168,7 +190,9 @@ function PercentMoneyField({ label, sym, priceMonthly, value, onChangeValue, isP
       </View>
       {isPercent && (
         <Text style={{ fontSize: 12, color: '#6B6B6B', fontStyle: 'italic', marginTop: 4, marginLeft: 2, marginBottom: 8 }}>
-          {computed != null ? `≈ ${formatMoneyDisplay(String(computed))} ${sym}` : `— ${sym}`}
+          {breakdownStr
+            ? breakdownStr
+            : computed != null ? `≈ ${formatMoneyDisplay(String(computed))} ${sym}` : `— ${sym}`}
         </Text>
       )}
     </>
@@ -534,14 +558,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
             await scheduleBookingReminders(editBooking.id, payload.checkIn, reminderDays, property?.name || houseCode, settings);
           }
         }
-        const pmNum = parseMoneyValue(priceMonthly) || 0;
-        const oneTimeEff = ownerCommissionOneTimeIsPercent && pmNum > 0
-          ? Math.round((parseMoneyValue(ownerCommissionOneTime) / 100) * pmNum)
-          : parseMoneyValue(ownerCommissionOneTime);
-        const monthlyEff = ownerCommissionMonthlyIsPercent && pmNum > 0
-          ? Math.round((parseMoneyValue(ownerCommissionMonthly) / 100) * pmNum)
-          : parseMoneyValue(ownerCommissionMonthly);
-        const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, oneTimeEff, monthlyEff);
+        const commDateAmounts = getCommissionEvents(payload);
         if (commDateAmounts.length > 0) {
           const granted = await requestReminderPermissions();
           if (granted) {
@@ -561,14 +578,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
             if (reminderDays.length > 0) {
               await scheduleBookingReminders(created.id, payload.checkIn, reminderDays, property?.name || houseCode, settings);
             }
-            const pmNum2 = parseMoneyValue(priceMonthly) || 0;
-            const oneTimeEff2 = ownerCommissionOneTimeIsPercent && pmNum2 > 0
-              ? Math.round((parseMoneyValue(ownerCommissionOneTime) / 100) * pmNum2)
-              : parseMoneyValue(ownerCommissionOneTime);
-            const monthlyEff2 = ownerCommissionMonthlyIsPercent && pmNum2 > 0
-              ? Math.round((parseMoneyValue(ownerCommissionMonthly) / 100) * pmNum2)
-              : parseMoneyValue(ownerCommissionMonthly);
-            const commDateAmounts = getCommissionDateAmounts(checkIn, checkOut, oneTimeEff2, monthlyEff2);
+            const commDateAmounts = getCommissionEvents(payload);
             if (commDateAmounts.length > 0) {
               await scheduleCommissionReminders(created.id, commDateAmounts, property?.name || houseCode, settings);
             }
@@ -850,12 +860,13 @@ isMonthFirst
                   <>
                     <Text style={s.fieldLabel}>{t('pdPriceMonthly')} {sym}</Text>
                     <TextInput
-                      style={s.input}
+                      style={[s.input, monthlyBreakdown.length > 0 && s.inputDisabled]}
                       value={priceMonthly}
                       onChangeText={(v) => setPriceMonthly(formatMoneyDisplay(v))}
                       placeholder="0"
                       placeholderTextColor="#999"
                       keyboardType="numeric"
+                      editable={monthlyBreakdown.length === 0}
                     />
 
                     <Text style={s.fieldLabel}>{t('bookingTotalPrice')} {sym}</Text>
@@ -944,6 +955,10 @@ isMonthFirst
                       label={t('bookingOwnerCommOnce')}
                       sym={sym}
                       priceMonthly={priceMonthly}
+                      checkIn={checkIn}
+                      checkOut={checkOut}
+                      monthlyBreakdown={monthlyBreakdown}
+                      kind="oneTime"
                       value={ownerCommissionOneTime}
                       onChangeValue={setOwnerCommissionOneTime}
                       isPercent={ownerCommissionOneTimeIsPercent}
@@ -954,6 +969,10 @@ isMonthFirst
                       label={t('ownerCommissionMonthly')}
                       sym={sym}
                       priceMonthly={priceMonthly}
+                      checkIn={checkIn}
+                      checkOut={checkOut}
+                      monthlyBreakdown={monthlyBreakdown}
+                      kind="monthly"
                       value={ownerCommissionMonthly}
                       onChangeValue={setOwnerCommissionMonthly}
                       isPercent={ownerCommissionMonthlyIsPercent}

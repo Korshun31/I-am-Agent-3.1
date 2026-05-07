@@ -22,7 +22,7 @@ import Constants from 'expo-constants';
 import dayjs from 'dayjs';
 import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
-import { getCommissionDateAmounts } from '../services/commissionRemindersService';
+import { getCommissionEvents } from '../utils/ownerCommission';
 import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
@@ -461,43 +461,42 @@ export default function AgentCalendarScreen({ onReady }) {
       const codeAndNum = `${label} ${getBookingNumber(b, bookings)}`.trim();
 
       // Комиссии: все объекты в контексте уже свои
-      const showCommission = true;
-      if (showCommission && b.ownerCommissionOneTime != null && b.ownerCommissionOneTime > 0 && dayjs(b.checkIn).format('YYYY-MM-DD') === selectedDate) {
-        list.push({
-          key: `comm-1-${b.id}`,
-          type: 'booking',
-          eventType: 'commissionOneTime',
-          booking: b,
-          property: propsMap[b.propertyId],
-          propertyLabel: label,
-          objectDisplayName: truncateLabel(getObjectDisplayName(b)),
-          fullBookingCode: codeAndNum,
-          commissionTitle: `${t('commissionOneTimeEvent')} ${codeAndNum} (${b.ownerCommissionOneTime})`,
-          commissionAmount: b.ownerCommissionOneTime,
-          notMyCustomer: false,
-        });
-      }
-      if (showCommission && b.ownerCommissionMonthly != null && b.ownerCommissionMonthly > 0 && b.checkIn && b.checkOut) {
-        const dateAmounts = getCommissionDateAmounts(b.checkIn, b.checkOut, null, b.ownerCommissionMonthly);
-        dateAmounts.forEach(({ date: dateStr, amount }, idx) => {
-          if (dateStr === selectedDate) {
-            const suffix = dateAmounts.length > 1 ? ` — ${t('commissionMonth')} ${idx + 1}/${dateAmounts.length}` : '';
-            list.push({
-              key: `comm-m-${b.id}-${dateStr}`,
-              type: 'booking',
-              eventType: 'commissionMonthly',
-              booking: b,
-              property: propsMap[b.propertyId],
-              propertyLabel: label,
-              objectDisplayName: truncateLabel(getObjectDisplayName(b)),
-              fullBookingCode: codeAndNum,
-              commissionTitle: `${t('commissionMonthlyEvent')} ${codeAndNum} (${amount})${suffix}`,
-              commissionAmount: amount,
-              notMyCustomer: false,
-            });
-          }
-        });
-      }
+      const events = getCommissionEvents(b);
+      const monthly = events.filter(e => e.type === 'monthly');
+      events.forEach((evt) => {
+        if (evt.date !== selectedDate) return;
+        if (evt.type === 'oneTime') {
+          list.push({
+            key: `comm-1-${b.id}`,
+            type: 'booking',
+            eventType: 'commissionOneTime',
+            booking: b,
+            property: propsMap[b.propertyId],
+            propertyLabel: label,
+            objectDisplayName: truncateLabel(getObjectDisplayName(b)),
+            fullBookingCode: codeAndNum,
+            commissionTitle: `${t('commissionOneTimeEvent')} ${codeAndNum} (${evt.amount})`,
+            commissionAmount: evt.amount,
+            notMyCustomer: false,
+          });
+        } else {
+          const idx = monthly.findIndex(e => e.month === evt.month);
+          const suffix = monthly.length > 1 ? ` — ${t('commissionMonth')} ${idx + 1}/${monthly.length}` : '';
+          list.push({
+            key: `comm-m-${b.id}-${evt.date}`,
+            type: 'booking',
+            eventType: 'commissionMonthly',
+            booking: b,
+            property: propsMap[b.propertyId],
+            propertyLabel: label,
+            objectDisplayName: truncateLabel(getObjectDisplayName(b)),
+            fullBookingCode: codeAndNum,
+            commissionTitle: `${t('commissionMonthlyEvent')} ${codeAndNum} (${evt.amount})${suffix}`,
+            commissionAmount: evt.amount,
+            notMyCustomer: false,
+          });
+        }
+      });
     });
 
     (calendarEvents || []).forEach(e => {
@@ -538,16 +537,9 @@ export default function AgentCalendarScreen({ onReady }) {
       }
 
       // Комиссии: все объекты уже свои
-      if (b.ownerCommissionOneTime != null && b.ownerCommissionOneTime > 0 && b.checkIn) {
-        const d = dayjs(b.checkIn).format('YYYY-MM-DD');
-        counts[d] = (counts[d] || 0) + 1;
-      }
-      if (b.ownerCommissionMonthly != null && b.ownerCommissionMonthly > 0 && b.checkIn && b.checkOut) {
-        const dateAmounts = getCommissionDateAmounts(b.checkIn, b.checkOut, null, b.ownerCommissionMonthly);
-        dateAmounts.forEach(({ date: ds }) => {
-          counts[ds] = (counts[ds] || 0) + 1;
-        });
-      }
+      getCommissionEvents(b).forEach((evt) => {
+        counts[evt.date] = (counts[evt.date] || 0) + 1;
+      });
     });
 
     (calendarEvents || []).forEach((e) => {

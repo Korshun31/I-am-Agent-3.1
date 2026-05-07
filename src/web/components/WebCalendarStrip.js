@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAppData } from '../../context/AppDataContext';
 import { eventOccursOnDate } from '../../services/calendarEventsService';
-import { getCommissionDateAmounts } from '../../services/commissionRemindersService';
+import { getCommissionEvents } from '../../utils/ownerCommission';
 
 const CARD_WIDTH = 70; // 60 (width) + 10 (margins 5+5)
 
@@ -32,10 +32,9 @@ export default function WebCalendarStrip({ selectedDate, onDateSelect, user }) {
   const commissionEvents = useMemo(() => {
     const out = [];
     (bookings || []).forEach(b => {
-      if (b.ownerCommissionOneTime || b.ownerCommissionMonthly) {
-        const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, b.ownerCommissionOneTime, b.ownerCommissionMonthly);
-        dates.forEach(d => { out.push({ date: d.date, propertyId: b.propertyId }); });
-      }
+      getCommissionEvents(b).forEach(d => {
+        out.push({ date: d.date, propertyId: b.propertyId });
+      });
     });
     return out;
   }, [bookings]);

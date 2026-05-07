@@ -6,6 +6,7 @@ import {
 import dayjs from 'dayjs';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
+import { ownerOneTimeAmount, ownerMonthlyByMonth } from '../../utils/ownerCommission';
 import { getPropertyTypeColors } from '../constants/propertyTypeColors';
 import { deleteBooking } from '../../services/bookingsService';
 
@@ -226,18 +227,24 @@ function BookingDetail({ booking, property, contact, onEdit, onDelete, onClose, 
           <InfoRow
             label={t('bookingOwnerCommOnce')}
             value={booking.ownerCommissionOneTime != null
-              ? (booking.ownerCommissionOneTimeIsPercent && booking.priceMonthly
-                  ? `${fmt(Math.round((Number(booking.ownerCommissionOneTime) / 100) * Number(booking.priceMonthly)), psym)} (${Number(booking.ownerCommissionOneTime).toLocaleString()}%)`
+              ? (booking.ownerCommissionOneTimeIsPercent
+                  ? `${fmt(ownerOneTimeAmount(booking), psym)} (${Number(booking.ownerCommissionOneTime).toLocaleString()}%)`
                   : fmt(booking.ownerCommissionOneTime, psym))
               : null}
           />
           <InfoRow
             label={t('bookingOwnerCommMonthly')}
-            value={booking.ownerCommissionMonthly != null
-              ? (booking.ownerCommissionMonthlyIsPercent && booking.priceMonthly
-                  ? `${fmt(Math.round((Number(booking.ownerCommissionMonthly) / 100) * Number(booking.priceMonthly)), psym)} (${Number(booking.ownerCommissionMonthly).toLocaleString()}%)`
-                  : fmt(booking.ownerCommissionMonthly, psym))
-              : null}
+            value={(() => {
+              if (booking.ownerCommissionMonthly == null) return null;
+              if (!booking.ownerCommissionMonthlyIsPercent) return fmt(booking.ownerCommissionMonthly, psym);
+              const months = ownerMonthlyByMonth(booking);
+              const total = months.reduce((s, r) => s + r.amount, 0);
+              const pct = `(${Number(booking.ownerCommissionMonthly).toLocaleString()}%)`;
+              if (months.length > 1) {
+                return `${months.map(r => Number(r.amount).toLocaleString()).join(' + ')} = ${fmt(total, psym)} ${pct}`;
+              }
+              return `${fmt(total, psym)} ${pct}`;
+            })()}
           />
         </Section>
 

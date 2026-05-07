@@ -15,6 +15,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
 import { resizeImageFile } from '../utils/resizeImageFile';
 import { computeTotalPrice, computeMonthlyBreakdown } from '../../utils/bookingPricing';
+import { ownerOneTimeAmount, ownerMonthlyTotalAmount, ownerMonthlyByMonth } from '../../utils/ownerCommission';
 import { getPropertyTypeColors } from '../constants/propertyTypeColors';
 
 const ACCENT = '#3D7D82';
@@ -57,15 +58,15 @@ function buildForm(booking, property) {
       checkOut:               sanitizeISODate(booking.checkOut) || '',
       checkInTime:            booking.checkInTime || '14:00',
       checkOutTime:           booking.checkOutTime || '12:00',
-      priceMonthly:           toStr(booking.priceMonthly),
+      priceMonthly:           toStr(booking.priceMonthly           ?? property?.price_monthly),
       totalPrice:             toStr(booking.totalPrice),
-      bookingDeposit:         toStr(booking.bookingDeposit),
-      saveDeposit:            toStr(booking.saveDeposit),
-      commission:             toStr(booking.commission),
-      ownerCommissionOneTime:          toStr(booking.ownerCommissionOneTime),
-      ownerCommissionOneTimeIsPercent: booking.ownerCommissionOneTimeIsPercent ?? false,
-      ownerCommissionMonthly:          toStr(booking.ownerCommissionMonthly),
-      ownerCommissionMonthlyIsPercent: booking.ownerCommissionMonthlyIsPercent ?? false,
+      bookingDeposit:         toStr(booking.bookingDeposit         ?? property?.booking_deposit),
+      saveDeposit:            toStr(booking.saveDeposit            ?? property?.save_deposit),
+      commission:             toStr(booking.commission             ?? property?.commission),
+      ownerCommissionOneTime:          toStr(booking.ownerCommissionOneTime          ?? property?.owner_commission_one_time),
+      ownerCommissionOneTimeIsPercent: booking.ownerCommissionOneTimeIsPercent       ?? property?.owner_commission_one_time_is_percent ?? false,
+      ownerCommissionMonthly:          toStr(booking.ownerCommissionMonthly          ?? property?.owner_commission_monthly),
+      ownerCommissionMonthlyIsPercent: booking.ownerCommissionMonthlyIsPercent       ?? property?.owner_commission_monthly_is_percent ?? false,
       adults:                 toStr(booking.adults),
       children:               toStr(booking.children),
       pets:                   !!booking.pets,
@@ -90,10 +91,10 @@ function buildForm(booking, property) {
     bookingDeposit:         toStr(property?.booking_deposit),
     saveDeposit:            toStr(property?.save_deposit),
     commission:             toStr(property?.commission),
-    ownerCommissionOneTime:          '',
-    ownerCommissionOneTimeIsPercent: false,
-    ownerCommissionMonthly:          '',
-    ownerCommissionMonthlyIsPercent: false,
+    ownerCommissionOneTime:          toStr(property?.owner_commission_one_time),
+    ownerCommissionOneTimeIsPercent: !!property?.owner_commission_one_time_is_percent,
+    ownerCommissionMonthly:          toStr(property?.owner_commission_monthly),
+    ownerCommissionMonthlyIsPercent: !!property?.owner_commission_monthly_is_percent,
     adults:                 '',
     children:               '',
     pets:                   false,
@@ -147,13 +148,18 @@ function Field({ label, required, half, children }) {
 
 // ─── Text Input ───────────────────────────────────────────────────────────────
 
-function FInput({ value, onChangeText, placeholder, numeric, multiline, prefix }) {
+function FInput({ value, onChangeText, placeholder, numeric, multiline, prefix, editable = true }) {
   const [focused, setFocused] = useState(false);
   return (
-    <View style={[s.inputWrap, focused && s.inputWrapFocused, multiline && s.inputWrapMulti]}>
+    <View style={[
+      s.inputWrap,
+      focused && s.inputWrapFocused,
+      multiline && s.inputWrapMulti,
+      !editable && s.inputWrapDisabled,
+    ]}>
       {prefix ? <Text style={s.inputPrefix}>{prefix}</Text> : null}
       <TextInput
-        style={[s.input, multiline && s.inputMulti]}
+        style={[s.input, multiline && s.inputMulti, !editable && s.inputDisabled]}
         value={String(value ?? '')}
         onChangeText={onChangeText}
         placeholder={placeholder || ''}
@@ -161,6 +167,7 @@ function FInput({ value, onChangeText, placeholder, numeric, multiline, prefix }
         keyboardType={numeric ? 'numeric' : 'default'}
         multiline={multiline}
         numberOfLines={multiline ? 3 : 1}
+        editable={editable}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
       />
@@ -743,7 +750,13 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                 <SectionCard title={t('bkSectionCost')} icon="💰">
                   <View style={s.row2}>
                     <Field label={L('propPriceMonthly')} half>
-                      <FInput value={form.priceMonthly} onChangeText={v => set('priceMonthly', v)} placeholder="30 000" numeric />
+                      <FInput
+                        value={form.priceMonthly}
+                        onChangeText={v => set('priceMonthly', v)}
+                        placeholder="30 000"
+                        numeric
+                        editable={(form.monthlyBreakdown || []).length === 0}
+                      />
                     </Field>
                     <Field label={`${t('bookingTotalPrice')} (${sym})`} half>
                       <FInput value={form.totalPrice} onChangeText={v => set('totalPrice', v)} placeholder={t('bkAuto')} numeric />
@@ -833,11 +846,21 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                             />
                           </View>
                           <View style={[s.inputWrap, { flex: 2, backgroundColor: '#F8F9FA' }]}>
-                            <Text style={{ fontSize: 13, color: form.ownerCommissionOneTime && form.priceMonthly ? C.text : C.light }}>
-                              {form.ownerCommissionOneTime && form.priceMonthly
-                                ? `= ${Math.round(parseFloat(form.ownerCommissionOneTime) / 100 * parseFloat(form.priceMonthly)).toLocaleString()} ${sym}`
-                                : `— ${sym}`}
-                            </Text>
+                            {(() => {
+                              const computed = ownerOneTimeAmount({
+                                priceMonthly: numOrNull(form.priceMonthly),
+                                checkIn: form.checkIn,
+                                checkOut: form.checkOut,
+                                monthlyBreakdown: form.monthlyBreakdown,
+                                ownerCommissionOneTime: numOrNull(form.ownerCommissionOneTime),
+                                ownerCommissionOneTimeIsPercent: true,
+                              });
+                              return (
+                                <Text style={{ fontSize: 13, color: computed > 0 ? C.text : C.light }}>
+                                  {computed > 0 ? `= ${computed.toLocaleString()} ${sym}` : `— ${sym}`}
+                                </Text>
+                              );
+                            })()}
                           </View>
                         </>
                       ) : (
@@ -869,11 +892,27 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                             />
                           </View>
                           <View style={[s.inputWrap, { flex: 2, backgroundColor: '#F8F9FA' }]}>
-                            <Text style={{ fontSize: 13, color: form.ownerCommissionMonthly && form.priceMonthly ? C.text : C.light }}>
-                              {form.ownerCommissionMonthly && form.priceMonthly
-                                ? `= ${Math.round(parseFloat(form.ownerCommissionMonthly) / 100 * parseFloat(form.priceMonthly)).toLocaleString()} ${sym}`
-                                : `— ${sym}`}
-                            </Text>
+                            {(() => {
+                              const months = ownerMonthlyByMonth({
+                                priceMonthly: numOrNull(form.priceMonthly),
+                                checkIn: form.checkIn,
+                                checkOut: form.checkOut,
+                                monthlyBreakdown: form.monthlyBreakdown,
+                                ownerCommissionMonthly: numOrNull(form.ownerCommissionMonthly),
+                                ownerCommissionMonthlyIsPercent: true,
+                              });
+                              const total = months.reduce((s, r) => s + r.amount, 0);
+                              const text = total > 0
+                                ? (months.length > 1
+                                    ? `${months.map(r => r.amount.toLocaleString()).join(' + ')} = ${total.toLocaleString()} ${sym}`
+                                    : `= ${total.toLocaleString()} ${sym}`)
+                                : `— ${sym}`;
+                              return (
+                                <Text style={{ fontSize: 13, color: total > 0 ? C.text : C.light }}>
+                                  {text}
+                                </Text>
+                              );
+                            })()}
                           </View>
                         </>
                       ) : (
@@ -1092,11 +1131,13 @@ const s = StyleSheet.create({
   },
   inputWrapFocused: { borderColor: ACCENT },
   inputWrapMulti:   { alignItems: 'flex-start', paddingVertical: 10 },
+  inputWrapDisabled:{ backgroundColor: '#F8F9FA', borderColor: '#E9ECEF' },
   inputPrefix:      { fontSize: 13, color: C.muted, marginRight: 6 },
   input: {
     flex: 1, fontSize: 14, color: C.text,
     outlineStyle: 'none', padding: 0,
   },
+  inputDisabled: { color: C.muted },
   inputMulti: { minHeight: 64, textAlignVertical: 'top' },
 
   // Rows

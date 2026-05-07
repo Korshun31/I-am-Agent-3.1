@@ -5,48 +5,8 @@
  * Supports prorated commission for partial months.
  */
 import { Platform } from 'react-native';
-import dayjs from 'dayjs';
 
 const NOTIFICATION_CHANNEL_ID = 'commission_reminders';
-
-/**
- * Compute commission dates and amounts (prorated for partial last month).
- * @returns {Array<{date: string, amount: number}>} YYYY-MM-DD and amount
- */
-export function getCommissionDateAmounts(checkIn, checkOut, ownerCommissionOneTime, ownerCommissionMonthly) {
-  const results = [];
-  if (!checkIn || !checkOut) return results;
-
-  const oneTime = ownerCommissionOneTime != null ? Number(ownerCommissionOneTime) : null;
-  const monthly = ownerCommissionMonthly != null ? Number(ownerCommissionMonthly) : null;
-
-  if (oneTime != null && oneTime > 0) {
-    results.push({ date: dayjs(checkIn).format('YYYY-MM-DD'), amount: oneTime });
-  }
-
-  if (monthly != null && monthly > 0) {
-    const start = dayjs(checkIn);
-    const end = dayjs(checkOut);
-    let d = start;
-
-    while (d.isBefore(end)) {
-      const dateStr = d.format('YYYY-MM-DD');
-      const nextMonth = d.add(1, 'month');
-
-      if (nextMonth.isAfter(end)) {
-        const daysInMonth = d.daysInMonth();
-        const daysStayed = end.diff(d, 'day');
-        const amount = daysStayed > 0 ? Math.round((monthly * daysStayed) / daysInMonth * 100) / 100 : 0;
-        if (amount > 0) results.push({ date: dateStr, amount });
-      } else {
-        results.push({ date: dateStr, amount: monthly });
-      }
-      d = nextMonth;
-    }
-  }
-
-  return results;
-}
 
 function getNotificationsModule() {
   if (Platform.OS === 'web') return null;

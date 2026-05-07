@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 import { eventOccursOnDate } from '../services/calendarEventsService';
-import { getCommissionDateAmounts } from '../services/commissionRemindersService';
+import { getCommissionEvents } from './ownerCommission';
 
 dayjs.extend(isBetween);
 
@@ -138,17 +138,10 @@ export function computeAgentStats({ properties, bookings, user, now = dayjs() })
 export function buildCommissionEvents({ bookings, properties }) {
   const out = [];
   (bookings || []).forEach((b) => {
-    if (!b.ownerCommissionOneTime && !b.ownerCommissionMonthly) return;
-    const pm = Number(b.priceMonthly) || 0;
-    const oneTimeEff = b.ownerCommissionOneTimeIsPercent && pm > 0
-      ? Math.round((Number(b.ownerCommissionOneTime) / 100) * pm)
-      : b.ownerCommissionOneTime;
-    const monthlyEff = b.ownerCommissionMonthlyIsPercent && pm > 0
-      ? Math.round((Number(b.ownerCommissionMonthly) / 100) * pm)
-      : b.ownerCommissionMonthly;
-    const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTimeEff, monthlyEff);
+    const events = getCommissionEvents(b);
+    if (events.length === 0) return;
     const prop = (properties || []).find((p) => p.id === b.propertyId);
-    dates.forEach((d) => {
+    events.forEach((d) => {
       out.push({
         ...d,
         id: `comm-${b.id}-${d.date}`,

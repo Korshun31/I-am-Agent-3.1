@@ -274,7 +274,7 @@ function PropertyCard({ item, isSelected, onPress, occupied, parentName }) {
 
 // ─── Property Detail ──────────────────────────────────────────────────────────
 
-export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit, onBookingPress, user, onDelete }) {
+export function PropertyDetail({ property, contacts, allProperties, bookings, previousProperty, onChildPress, onBack, onScrollY, initialScrollY, onEdit, onAddUnit, onCreateBooking, onBookingPress, user, onDelete }) {
   const { t, language } = useLanguage();
   const TYPE_META = getTypeMeta(t);
   const AMENITY_LABELS = getAmenityLabels(t);
@@ -290,6 +290,7 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
   const canEditInfo = !isAgent || user?.teamPermissions?.can_manage_property;
   const canEditPrices = !isAgent || user?.teamPermissions?.can_manage_property;
   const canAddUnit = !isAgent || user?.teamPermissions?.can_manage_property;
+  const canManageBookings = !isAgent || !!user?.teamPermissions?.can_manage_bookings;
   // Agent may delete only their own non-approved property (LOCK-001)
   const isCreator = property.user_id === user?.id;
 
@@ -601,7 +602,14 @@ export function PropertyDetail({ property, contacts, allProperties, bookings, pr
         )}
 
         {/* ── Bookings (паритет с мобайлом) ── */}
-        <SectionBlock title={t('bookingsTitle')}>
+        <SectionBlock
+          title={t('bookingsTitle')}
+          action={onCreateBooking && canManageBookings && HOUSE_LIKE_TYPES.has(property.type) ? (
+            <TouchableOpacity style={s.addUnitBtn} onPress={() => onCreateBooking(property)}>
+              <Text style={s.addUnitBtnText}>{t('createBookingBtn')}</Text>
+            </TouchableOpacity>
+          ) : null}
+        >
           <PropertyBookingsList
             bookings={bookings}
             property={property}
@@ -1036,6 +1044,7 @@ function WebPropertiesScreenInner({ initialPropertyId, user }) {
   const loading = propertiesLoading || contactsLoading || bookingsLoading;
   const [viewingBooking, setViewingBooking] = useState(null);
   const [editingBooking, setEditingBooking] = useState(null);
+  const [createBookingTemplate, setCreateBookingTemplate] = useState(null);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [selected, setSelected] = useState(null);
@@ -1280,6 +1289,7 @@ function WebPropertiesScreenInner({ initialPropertyId, user }) {
             initialScrollY={restoreScrollY}
             onEdit={() => openEdit(selected)}
             onAddUnit={() => openCreateUnit(selected)}
+            onCreateBooking={(prop) => setCreateBookingTemplate({ propertyId: prop.id })}
             onBookingPress={(b) => setViewingBooking(b)}
             user={user}
             onDelete={async () => {
@@ -1325,7 +1335,7 @@ function WebPropertiesScreenInner({ initialPropertyId, user }) {
         property={viewingBooking ? properties.find(p => p.id === viewingBooking.propertyId) : null}
         contact={viewingBooking ? contacts.find(c => c.id === viewingBooking.contactId) : null}
         user={user}
-        onEdit={() => setEditingBooking(viewingBooking)}
+        onEdit={() => { setCreateBookingTemplate(null); setEditingBooking(viewingBooking); }}
         onDelete={() => { setViewingBooking(null); refreshBookings(); }}
         onClose={() => setViewingBooking(null)}
         onPrint={() => {}}
@@ -1333,18 +1343,19 @@ function WebPropertiesScreenInner({ initialPropertyId, user }) {
 
       {/* ── Booking Edit Panel ── */}
       <WebBookingEditPanel
-        visible={!!editingBooking}
-        mode="edit"
-        booking={editingBooking}
+        visible={!!editingBooking || !!createBookingTemplate}
+        mode={createBookingTemplate ? 'create' : 'edit'}
+        booking={createBookingTemplate || editingBooking}
         properties={
           user?.teamMembership
             ? properties.filter(p => p.responsible_agent_id === user.id)
             : properties
         }
         contacts={contacts}
-        onClose={() => setEditingBooking(null)}
+        onClose={() => { setEditingBooking(null); setCreateBookingTemplate(null); }}
         onSaved={(saved) => {
           setEditingBooking(null);
+          setCreateBookingTemplate(null);
           refreshBookings();
           if (saved) setViewingBooking(saved);
         }}

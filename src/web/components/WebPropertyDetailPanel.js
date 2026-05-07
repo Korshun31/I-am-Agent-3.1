@@ -46,7 +46,7 @@ function fmt(n) {
 
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
-export default function WebPropertyDetailPanel({ visible, property, bookings = [], onClose, user, teamMembers = [] }) {
+export default function WebPropertyDetailPanel({ visible, property, bookings = [], onClose, onCreateBooking, user, teamMembers = [] }) {
   const { t, language } = useLanguage();
   const slideAnim    = useRef(new Animated.Value(500)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
@@ -355,6 +355,15 @@ export default function WebPropertyDetailPanel({ visible, property, bookings = [
           {/* Upcoming bookings */}
           <View style={st.card}>
             <Text style={st.cardTitle}>Бронирования</Text>
+            {onCreateBooking && property && HOUSE_LIKE_TYPES.has(getEffectiveType(property)) && (
+              <TouchableOpacity
+                style={st.addBookingBtn}
+                onPress={() => onCreateBooking(property)}
+                activeOpacity={0.85}
+              >
+                <Text style={st.addBookingBtnText}>{t('createBookingBtn')}</Text>
+              </TouchableOpacity>
+            )}
             {propBookings.length === 0 ? (
               <View style={st.cardBody}>
                 <Text style={st.emptyText}>Нет активных и предстоящих бронирований</Text>
@@ -487,6 +496,8 @@ const st = StyleSheet.create({
   card:      { backgroundColor: C.surface, borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
   cardTitle: { fontSize: 12, fontWeight: '700', color: C.muted, letterSpacing: 0.4, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.bg },
   cardBody:  { padding: 14, gap: 8 },
+  addBookingBtn: { marginHorizontal: 14, marginTop: 12, marginBottom: 4, paddingVertical: 10, borderRadius: 8, backgroundColor: ACCENT, alignItems: 'center' },
+  addBookingBtnText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
 
   // Info rows
   infoRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import { computeMonthlyBreakdown } from './bookingPricing';
-import { getCommissionDateAmounts } from '../services/commissionRemindersService';
+import { getCommissionEvents } from './ownerCommission';
 import { convertAmount } from './currencyConvert';
 
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
@@ -25,22 +25,6 @@ function clientCommissionDate(b) {
   const checkIn = b.checkIn ? String(b.checkIn).slice(0, 10) : null;
   if (created && checkIn) return created < checkIn ? created : checkIn;
   return created || checkIn || null;
-}
-
-function ownerOneTimeAmount(b) {
-  if (b.ownerCommissionOneTime == null) return 0;
-  const pm = Number(b.priceMonthly) || 0;
-  return b.ownerCommissionOneTimeIsPercent
-    ? Math.round((Number(b.ownerCommissionOneTime) / 100) * pm)
-    : Number(b.ownerCommissionOneTime);
-}
-
-function ownerMonthlyAmount(b) {
-  if (b.ownerCommissionMonthly == null) return 0;
-  const pm = Number(b.priceMonthly) || 0;
-  return b.ownerCommissionMonthlyIsPercent
-    ? Math.round((Number(b.ownerCommissionMonthly) / 100) * pm)
-    : Number(b.ownerCommissionMonthly);
 }
 
 // TD-120 фаза C: единая точка конвертации валют для всего файла. Если ctx не
@@ -92,14 +76,10 @@ export function computeAgencyIncome(bookings, fromStr, toStr, ctx) {
       if (dateInRange(ccDate, fromStr, toStr)) acc += fx(fromClient, b, ctx);
     }
 
-    const oneTime = ownerOneTimeAmount(b);
-    const monthly = ownerMonthlyAmount(b);
-    if (oneTime > 0 || monthly > 0) {
-      const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTime, monthly);
-      dates.forEach((d) => {
-        if (dateInRange(d.date, fromStr, toStr)) acc += fx(Number(d.amount) || 0, b, ctx);
-      });
-    }
+    const events = getCommissionEvents(b);
+    events.forEach((d) => {
+      if (dateInRange(d.date, fromStr, toStr)) acc += fx(Number(d.amount) || 0, b, ctx);
+    });
 
     return sum + acc;
   }, 0);
@@ -131,27 +111,12 @@ export function breakdownByPropertyForMonth(bookings, properties, monthKey, ctx)
       }
     }
 
-    const oneTime = ownerOneTimeAmount(b);
-    if (oneTime > 0) {
-      const oneTimeDates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTime, 0);
-      oneTimeDates.forEach((d) => {
-        if (String(d.date).slice(0, 7) === monthKey) {
-          income += fx(Number(d.amount) || 0, b, ctx);
-          sources.add('KoS');
-        }
-      });
-    }
-
-    const monthly = ownerMonthlyAmount(b);
-    if (monthly > 0) {
-      const monthlyDates = getCommissionDateAmounts(b.checkIn, b.checkOut, 0, monthly);
-      monthlyDates.forEach((d) => {
-        if (String(d.date).slice(0, 7) === monthKey) {
-          income += fx(Number(d.amount) || 0, b, ctx);
-          sources.add('EKoS');
-        }
-      });
-    }
+    getCommissionEvents(b).forEach((d) => {
+      if (String(d.date).slice(0, 7) === monthKey) {
+        income += fx(Number(d.amount) || 0, b, ctx);
+        sources.add(d.type === 'oneTime' ? 'KoS' : 'EKoS');
+      }
+    });
 
     if (revenue === 0 && income === 0) return;
 
@@ -227,7 +192,7 @@ export function computeOccupancyPercent(bookings, properties, fromStr, toStr) {
 // период вместо разбивки по месяцам через monthlyBreakdown; (2) брони с
 // checkIn вне периода но имеющие rent в периоде вообще не попадали.
 // Теперь revenue идёт через `getRentByMonth` + `monthInRange`, agencyIncome
-// через `getCommissionDateAmounts` + `dateInRange` — точно как в
+// через `getCommissionEvents` + `dateInRange` — точно как в
 // `computeRevenue`/`computeAgencyIncome`/`computeAgentLeaderboard`. Числа в
 // топе теперь сходятся с общим оборотом и доходом за тот же период.
 export function computeTopProperties(bookings, properties, fromStr, toStr, limit = 5, ctx) {
@@ -251,14 +216,9 @@ export function computeTopProperties(bookings, properties, fromStr, toStr, limit
     const ccDate = clientCommissionDate(b);
     if (fromClient > 0 && ccDate && dateInRange(ccDate, fromStr, toStr)) income += fx(fromClient, b, ctx);
 
-    const oneTime = ownerOneTimeAmount(b);
-    const monthly = ownerMonthlyAmount(b);
-    if (oneTime > 0 || monthly > 0) {
-      const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTime, monthly);
-      dates.forEach((d) => {
-        if (dateInRange(d.date, fromStr, toStr)) income += fx(Number(d.amount) || 0, b, ctx);
-      });
-    }
+    getCommissionEvents(b).forEach((d) => {
+      if (dateInRange(d.date, fromStr, toStr)) income += fx(Number(d.amount) || 0, b, ctx);
+    });
 
     if (revenue === 0 && income === 0) return;
 
@@ -379,14 +339,9 @@ export function computeAgentLeaderboard(bookings, teamMembers, fromStr, toStr, l
     const ccDate = clientCommissionDate(b);
     if (fromClient > 0 && ccDate && dateInRange(ccDate, fromStr, toStr)) income += fx(fromClient, b, ctx);
 
-    const oneTime = ownerOneTimeAmount(b);
-    const monthly = ownerMonthlyAmount(b);
-    if (oneTime > 0 || monthly > 0) {
-      const dates = getCommissionDateAmounts(b.checkIn, b.checkOut, oneTime, monthly);
-      dates.forEach((d) => {
-        if (dateInRange(d.date, fromStr, toStr)) income += fx(Number(d.amount) || 0, b, ctx);
-      });
-    }
+    getCommissionEvents(b).forEach((d) => {
+      if (dateInRange(d.date, fromStr, toStr)) income += fx(Number(d.amount) || 0, b, ctx);
+    });
 
     if (revenue === 0 && income === 0) return;
 
