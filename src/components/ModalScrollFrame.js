@@ -14,9 +14,13 @@ import { BlurView } from 'expo-blur';
 // Общий каркас для мобильных модалок (header + scroll body + footer).
 // Зачем: на маленьких iPhone footer-кнопки уезжают за нижний край когда
 // каждая модалка задаёт высоту своим ScrollView через `Dimensions.height * X`.
-// Здесь всё сделано один раз правильно: карточка фиксирует 90% высоты,
-// ScrollView растягивается на остаток между header и footer (flex:1 + minHeight:0),
-// footer всегда виден.
+// Поведение: карточка центрирована по вертикали в backdrop, высота
+// подстраивается под контент (короткий шаг = короткая карточка), но не
+// больше 90% экрана. При превышении 90% — внутренний ScrollView активирует
+// скролл (flexShrink:1 + minHeight:0). Footer всегда виден.
+// Центрирование: между KeyboardAvoidingView и Pressable стоит centerWrap
+// с flex:1 + justifyContent:'center' — он "съедает" свободное место KAV
+// и центрирует boxWrap, чей размер диктуется содержимым (flexShrink, без flex:1).
 const ModalScrollFrame = forwardRef(function ModalScrollFrame({
   visible,
   onRequestClose,
@@ -57,28 +61,30 @@ const ModalScrollFrame = forwardRef(function ModalScrollFrame({
           behavior={keyboardBehavior}
           keyboardVerticalOffset={keyboardOffset}
         >
-          <Pressable
-            style={[styles.boxWrap, boxWrapStyle]}
-            onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}
-          >
-            <View style={[styles.box, boxStyle]}>
-              {header}
-              {aboveScrollSlot}
-              {disableScroll ? (
-                <View style={[styles.body, bodyStyle]}>{children}</View>
-              ) : (
-                <ScrollView
-                  ref={scrollRef}
-                  style={[styles.scroll, scrollStyle]}
-                  contentContainerStyle={scrollContentContainerStyle}
-                  {...(scrollProps || {})}
-                >
-                  {children}
-                </ScrollView>
-              )}
-              {footer}
-            </View>
-          </Pressable>
+          <View style={styles.centerWrap} pointerEvents="box-none">
+            <Pressable
+              style={[styles.boxWrap, boxWrapStyle]}
+              onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}
+            >
+              <View style={[styles.box, boxStyle]}>
+                {header}
+                {aboveScrollSlot}
+                {disableScroll ? (
+                  <View style={[styles.body, bodyStyle]}>{children}</View>
+                ) : (
+                  <ScrollView
+                    ref={scrollRef}
+                    style={[styles.scroll, scrollStyle]}
+                    contentContainerStyle={scrollContentContainerStyle}
+                    {...(scrollProps || {})}
+                  >
+                    {children}
+                  </ScrollView>
+                )}
+                {footer}
+              </View>
+            </Pressable>
+          </View>
         </KeyboardAvoidingView>
       </Pressable>
       {extraOverlay}
@@ -101,16 +107,21 @@ const styles = StyleSheet.create({
   keyboardWrap: {
     flex: 1,
     width: '100%',
-    maxHeight: '90%',
     maxWidth: 400,
   },
-  boxWrap: {
+  centerWrap: {
     flex: 1,
     width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  boxWrap: {
+    width: '100%',
     maxHeight: '90%',
+    flexShrink: 1,
   },
   box: {
-    flex: 1,
+    flexShrink: 1,
     minHeight: 0,
     borderRadius: 20,
     overflow: 'hidden',
@@ -124,11 +135,11 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   scroll: {
-    flex: 1,
+    flexShrink: 1,
     minHeight: 0,
   },
   body: {
-    flex: 1,
+    flexShrink: 1,
     minHeight: 0,
   },
 });

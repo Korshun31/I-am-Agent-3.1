@@ -8,11 +8,9 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
-  KeyboardAvoidingView,
   Keyboard,
   Animated,
   Alert,
-  Dimensions,
   ActivityIndicator,
   InteractionManager,
   Pressable,
@@ -31,6 +29,7 @@ import { getContacts, createContact } from '../services/contactsService';
 import { getActiveTeamMembers } from '../services/companyService';
 import { uploadPhotoWithThumb, isLocalUri } from '../services/storageService';
 import AddContactModal from './AddContactModal';
+import ModalScrollFrame from './ModalScrollFrame';
 import { useAppData } from '../context/AppDataContext';
 
 const COLORS = {
@@ -1301,117 +1300,100 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
     }
   };
 
-  return (
-    <Modal transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <View style={s.backdrop}>
-        {Platform.OS === 'web' ? (
-          <View style={[StyleSheet.absoluteFill, s.backdropWeb]} />
-        ) : (
-          <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
-        )}
-        <KeyboardAvoidingView
-          style={s.keyboardWrap}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={40}
-        >
-          <View style={s.boxWrap}>
-            <View style={s.box}>
-              {/* Header */}
-              <View style={s.headerRow}>
-                <View style={s.headerSpacer} />
-                <View style={s.headerCenter}>
-                  <Text style={s.title}>{t(currentStep.titleKey)}</Text>
-                  <Text style={s.stepCounter}>{safeStep + 1} / {steps.length}</Text>
-                </View>
-                <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.8}>
-                  <Text style={s.closeIcon}>✕</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Progress dots */}
-              <View style={s.dotsRow}>
-                {steps.map((_, i) => (
-                  <View key={i} style={[s.dot, i <= step && s.dotActive]} />
-                ))}
-              </View>
-
-              {/* Content */}
-              <ScrollView
-                ref={scrollRef}
-                style={s.scroll}
-                contentContainerStyle={s.scrollContent}
-                showsVerticalScrollIndicator={true}
-                keyboardShouldPersistTaps="handled"
-                onScrollBeginDrag={Keyboard.dismiss}
-                indicatorStyle="black"
-                nestedScrollEnabled
-                scrollEventThrottle={16}
-                bounces
-              >
-                <Animated.View style={{ opacity: fadeAnim }}>
-                  {renderStep()}
-                </Animated.View>
-              </ScrollView>
-
-              {/* Navigation */}
-              <View style={s.navRow}>
-                <TouchableOpacity
-                  style={[s.navBtn, isFirst && s.navBtnDisabled]}
-                  onPress={goBack}
-                  disabled={isFirst}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[s.navBtnText, isFirst && s.navBtnTextDisabled]}>‹  {t('wizBack')}</Text>
-                </TouchableOpacity>
-
-                {!isLast && (
-                  <TouchableOpacity
-                    style={s.navSaveIconBtn}
-                    onPress={() => runAfterKeyboardDismiss(handleSave)}
-                    activeOpacity={0.7}
-                    disabled={saving}
-                  >
-                    <Image
-                      source={require('../../assets/save-icon.png')}
-                      style={[s.navSaveIconImg, saving && { opacity: 0.4 }]}
-                      resizeMode="contain"
-                    />
-                  </TouchableOpacity>
-                )}
-
-                <TouchableOpacity
-                  style={[s.navBtn, s.navBtnNext, isLast && s.navBtnSave]}
-                  onPress={goNext}
-                  activeOpacity={0.7}
-                  disabled={saving}
-                >
-                  {saving && !uploadProgress ? (
-                    <ActivityIndicator size="small" color="#FFF" />
-                  ) : (
-                    <Text style={[s.navBtnText, s.navBtnNextText, isLast && s.navBtnSaveText]}>
-                      {saving ? `📤 ${uploadProgress}` : isLast ? t('save') : t('wizNext') + '  ›'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
+  const header = (
+    <View style={s.headerRow}>
+      <View style={s.headerSpacer} />
+      <View style={s.headerCenter}>
+        <Text style={s.title}>{t(currentStep.titleKey)}</Text>
+        <Text style={s.stepCounter}>{safeStep + 1} / {steps.length}</Text>
       </View>
-    </Modal>
+      <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.8}>
+        <Text style={s.closeIcon}>✕</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const dotsRow = (
+    <View style={s.dotsRow}>
+      {steps.map((_, i) => (
+        <View key={i} style={[s.dot, i <= step && s.dotActive]} />
+      ))}
+    </View>
+  );
+
+  const footer = (
+    <View style={s.navRow}>
+      <TouchableOpacity
+        style={[s.navBtn, isFirst && s.navBtnDisabled]}
+        onPress={goBack}
+        disabled={isFirst}
+        activeOpacity={0.7}
+      >
+        <Text style={[s.navBtnText, isFirst && s.navBtnTextDisabled]}>‹  {t('wizBack')}</Text>
+      </TouchableOpacity>
+
+      {!isLast && (
+        <TouchableOpacity
+          style={s.navSaveIconBtn}
+          onPress={() => runAfterKeyboardDismiss(handleSave)}
+          activeOpacity={0.7}
+          disabled={saving}
+        >
+          <Image
+            source={require('../../assets/save-icon.png')}
+            style={[s.navSaveIconImg, saving && { opacity: 0.4 }]}
+            resizeMode="contain"
+          />
+        </TouchableOpacity>
+      )}
+
+      <TouchableOpacity
+        style={[s.navBtn, s.navBtnNext, isLast && s.navBtnSave]}
+        onPress={goNext}
+        activeOpacity={0.7}
+        disabled={saving}
+      >
+        {saving && !uploadProgress ? (
+          <ActivityIndicator size="small" color="#FFF" />
+        ) : (
+          <Text style={[s.navBtnText, s.navBtnNextText, isLast && s.navBtnSaveText]}>
+            {saving ? `📤 ${uploadProgress}` : isLast ? t('save') : t('wizNext') + '  ›'}
+          </Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+
+  return (
+    <ModalScrollFrame
+      visible={visible}
+      onRequestClose={onClose}
+      ref={scrollRef}
+      header={header}
+      aboveScrollSlot={dotsRow}
+      footer={footer}
+      boxWrapStyle={{ maxWidth: 380 }}
+      boxStyle={{ backgroundColor: COLORS.bg }}
+      scrollContentContainerStyle={s.scrollContent}
+      scrollProps={{
+        showsVerticalScrollIndicator: true,
+        keyboardShouldPersistTaps: 'handled',
+        onScrollBeginDrag: Keyboard.dismiss,
+        indicatorStyle: 'black',
+        nestedScrollEnabled: true,
+        scrollEventThrottle: 16,
+        bounces: true,
+      }}
+    >
+      <Animated.View style={{ opacity: fadeAnim }}>
+        {renderStep()}
+      </Animated.View>
+    </ModalScrollFrame>
   );
 }
 
 const s = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   backdropWeb: { backgroundColor: 'rgba(0,0,0,0.5)' },
-  keyboardWrap: { width: '100%', alignItems: 'center' },
-  boxWrap: { width: '100%', maxWidth: 380, maxHeight: '90%' },
-  box: {
-    borderRadius: 20, overflow: 'hidden', backgroundColor: COLORS.bg,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8,
-  },
   headerRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingTop: 18, paddingHorizontal: 18, paddingBottom: 10,
@@ -1430,7 +1412,6 @@ const s = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.dot },
   dotActive: { backgroundColor: COLORS.dotActive },
 
-  scroll: { maxHeight: Dimensions.get('window').height * 0.9 - 180 },
   scrollContent: { padding: 20 },
 
   fieldWrap: { marginBottom: 14 },

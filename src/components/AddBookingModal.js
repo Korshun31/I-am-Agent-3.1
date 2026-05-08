@@ -830,12 +830,21 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         onRequestClose={onClose}
         header={header}
         footer={footer}
-        disableScroll
-        boxWrapStyle={{ flex: 1 }}
         extraOverlay={extraOverlay}
+        scrollContentContainerStyle={step === 2 ? s.step2Content : s.scrollContent}
+        scrollProps={{
+          showsVerticalScrollIndicator: true,
+          keyboardShouldPersistTaps: 'handled',
+          keyboardDismissMode: 'on-drag',
+          onScrollBeginDrag: Keyboard.dismiss,
+          indicatorStyle: 'black',
+          nestedScrollEnabled: true,
+          scrollEventThrottle: 16,
+          bounces: true,
+        }}
       >
               {step === 2 ? (
-                <ScrollView style={s.step2Scroll} contentContainerStyle={s.step2Content} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled">
+                <>
                   <Text style={[s.fieldLabel, s.fieldLabelStep2]}>{t('bookingDates')}</Text>
                   <View style={s.dateRowReadonlyStep2}>
                     <View style={s.dateField}>
@@ -935,9 +944,9 @@ isMonthFirst
                       </View>
                     </View>
                   </View>
-                </ScrollView>
+                </>
               ) : step === 4 ? (
-                <ScrollView style={[s.scroll, s.scrollStep3]} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator>
+                <>
                   <View style={s.mediaSectionTitleRow}>
                     <Text style={s.mediaSectionTitle}>{t('bookingNotifications')}</Text>
                   </View>
@@ -1006,19 +1015,9 @@ isMonthFirst
                   {photos.length >= MAX_BOOKING_PHOTOS && (
                     <Text style={s.mediaLimitNote}>{t('wizPhotoLimit')}</Text>
                   )}
-                </ScrollView>
+                </>
               ) : (
-              <ScrollView
-                style={[s.scroll, step === 3 && s.scrollStep3]}
-                contentContainerStyle={s.scrollContent}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-                onScrollBeginDrag={Keyboard.dismiss}
-                scrollEventThrottle={16}
-                nestedScrollEnabled
-                indicatorStyle="black"
-              >
-                {step === 1 ? (
+                step === 1 ? (
                   <>
                     <Text style={s.fieldLabel}>{t('bookingHouseCode')}</Text>
                     <View style={s.readOnlyField}>
@@ -1270,8 +1269,7 @@ isMonthFirst
                       multiline
                     />
                   </>
-                )}
-              </ScrollView>
+                )
               )}
 
       </ModalScrollFrame>
