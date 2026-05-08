@@ -9,7 +9,6 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  KeyboardAvoidingView,
   Keyboard,
   ActivityIndicator,
   Alert,
@@ -19,6 +18,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { BlurView } from 'expo-blur';
+import ModalScrollFrame from './ModalScrollFrame';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import dayjs from 'dayjs';
@@ -599,34 +599,241 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
 
   if (!visible) return null;
 
-  return (
-    <Modal transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable style={s.backdrop} onPress={Keyboard.dismiss}>
-        {Platform.OS === 'web' ? (
-          <View style={[StyleSheet.absoluteFill, s.backdropWeb]} />
-        ) : (
-          <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
-        )}
-        <KeyboardAvoidingView
-          style={s.keyboardWrap}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={40}
-        >
-          <View style={[s.boxWrap, (step === 3 || step === 4) && s.boxWrapStep3]} pointerEvents="box-none">
-            <View style={[s.box, (step === 3 || step === 4) && s.boxStep3]}>
-              <View style={s.headerRow}>
-                <View style={s.headerSpacer} />
-                <Text style={s.title}>{editBooking ? t('editBookingTitle') : t('addBookingTitle')}</Text>
-                <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.8}>
-                  <Text style={s.closeIcon}>✕</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={s.dotsRow}>
-                {(notMyCustomer ? [1, 2] : [1, 2, 3, 4]).map((i) => (
-                  <View key={i} style={[s.dot, i <= step && s.dotActive]} />
-                ))}
-              </View>
+  const header = (
+    <>
+      <View style={s.headerRow}>
+        <View style={s.headerSpacer} />
+        <Text style={s.title}>{editBooking ? t('editBookingTitle') : t('addBookingTitle')}</Text>
+        <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.8}>
+          <Text style={s.closeIcon}>✕</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={s.dotsRow}>
+        {(notMyCustomer ? [1, 2] : [1, 2, 3, 4]).map((i) => (
+          <View key={i} style={[s.dot, i <= step && s.dotActive]} />
+        ))}
+      </View>
+    </>
+  );
 
+  const footer = (
+    <View style={s.footerNav}>
+      {step === 1 ? (
+        <View style={s.stepNavRow}>
+          <TouchableOpacity style={s.nextBtn} onPress={handleNext} activeOpacity={0.7}>
+            <Text style={s.nextBtnText}>{t('next')}</Text>
+            <Text style={s.nextBtnArrow}>→</Text>
+          </TouchableOpacity>
+        </View>
+      ) : step === 2 ? (
+        <View style={s.stepNavRow}>
+          <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
+            <Text style={s.backBtnArrow}>←</Text>
+            <Text style={s.backBtnText}>{t('wizBack')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.nextBtn} onPress={handleNextFromDates} activeOpacity={0.7}>
+            <Text style={s.nextBtnText}>{notMyCustomer ? t('save') : t('next')}</Text>
+            {!notMyCustomer && <Text style={s.nextBtnArrow}>→</Text>}
+          </TouchableOpacity>
+        </View>
+      ) : step === 4 ? (
+        <View style={s.stepNavRow}>
+          <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
+            <Text style={s.backBtnArrow}>←</Text>
+            <Text style={s.backBtnText}>{t('wizBack')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.saveBtn, saving && s.saveBtnDisabled]}
+            onPress={handleSave}
+            activeOpacity={0.7}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color={COLORS.saveGreen} />
+            ) : (
+              <Text style={s.saveBtnText}>{t('save')}</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={s.stepNavRow}>
+          <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
+            <Text style={s.backBtnArrow}>←</Text>
+            <Text style={s.backBtnText}>{t('wizBack')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.nextBtn} onPress={handleNextFromStep3} activeOpacity={0.7}>
+            <Text style={s.nextBtnText}>{t('next')}</Text>
+            <Text style={s.nextBtnArrow}>→</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+
+  const extraOverlay = (
+    <>
+      {clientPickerVisible && (
+        <Pressable style={s.pickerBackdrop} onPress={() => setClientPickerVisible(false)}>
+          {Platform.OS === 'web' ? (
+            <View style={[StyleSheet.absoluteFill, s.backdropWeb]} />
+          ) : (
+            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+          )}
+          <Pressable style={s.pickerBox} onPress={(e) => e.stopPropagation()}>
+            <View style={s.pickerHeader}>
+              <Text style={s.pickerTitle}>{t('bookingChooseClient')}</Text>
+              <TouchableOpacity
+                onPress={() => setClientPickerVisible(false)}
+                style={s.closeBtn}
+                activeOpacity={0.8}
+              >
+                <Text style={s.closeIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={s.addNewRow}
+              onPress={() => { setClientPickerVisible(false); setAddContactVisible(true); }}
+              activeOpacity={0.7}
+            >
+              <Text style={s.addNewText}>+ {t('addNewContact')}</Text>
+            </TouchableOpacity>
+            <TextInput
+              style={s.searchInput}
+              placeholder={t('search')}
+              placeholderTextColor="#999"
+              value={clientSearch}
+              onChangeText={setClientSearch}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {loadingClients ? (
+              <View style={s.loadingWrap}>
+                <ActivityIndicator size="small" color={COLORS.saveGreen} />
+              </View>
+            ) : (
+              <ScrollView
+                style={s.pickerScroll}
+                contentContainerStyle={s.pickerScrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={true}
+              >
+                {filteredClients.map((c) => {
+                  const display = `${c.name} ${c.lastName}`.trim() || c.phone || '—';
+                  const isSelected = pickerSelectedClient?.id === c.id;
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={s.pickerItem}
+                      onPress={() => setPickerSelectedClient(c)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[s.pickerItemText, isSelected && s.pickerItemSelected]}
+                        numberOfLines={1}
+                      >
+                        {display}
+                      </Text>
+                      {isSelected && <Text style={s.pickerCheck}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+            <TouchableOpacity
+              style={s.selectBtn}
+              onPress={() => {
+                setSelectedClient(pickerSelectedClient);
+                setClientPickerVisible(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={s.selectBtnText}>{t('filterSelect')}</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      )}
+
+      {timePickerFor && (
+        <Pressable style={s.datePickerOverlay} onPress={() => setTimePickerFor(null)}>
+          <Pressable style={s.datePickerContainer} onPress={(e) => e.stopPropagation()}>
+            <View style={s.datePickerHeader}>
+              <Text style={s.datePickerTitle}>
+                {timePickerFor === 'checkIn' ? t('bookingCheckInTime') : t('bookingCheckOutTime')}
+              </Text>
+              <TouchableOpacity onPress={() => setTimePickerFor(null)} activeOpacity={0.7}>
+                <Text style={s.timeSelectBtnText}>{t('agentCalendarTimeSelectBtn')}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={s.timePickerSpinnerWrap}>
+              <DateTimePicker
+                value={timePickerFor === 'checkIn' ? parseTimeToDate(checkInTime) : parseTimeToDate(checkOutTime)}
+                mode="time"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                style={Platform.OS === 'ios' ? s.datePickerSpinner : null}
+                onChange={(event, selectedDate) => {
+                  if (selectedDate && event.type !== 'dismissed') {
+                    const str = formatDateToTime(selectedDate);
+                    if (timePickerFor === 'checkIn') setCheckInTime(str);
+                    else setCheckOutTime(str);
+                    if (Platform.OS === 'android') setTimePickerFor(null);
+                  }
+                }}
+              />
+            </View>
+          </Pressable>
+        </Pressable>
+      )}
+
+      {datePickerFor && (
+        <Pressable style={s.datePickerOverlay} onPress={() => setDatePickerFor(null)}>
+          <Pressable style={s.datePickerContainer} onPress={(e) => e.stopPropagation()}>
+            <View style={s.datePickerHeader}>
+              <Text style={s.datePickerTitle}>
+                {datePickerFor === 'checkIn' ? t('bookingCheckIn') : t('bookingCheckOut')}
+              </Text>
+              <TouchableOpacity onPress={() => setDatePickerFor(null)} activeOpacity={0.7}>
+                <Text style={s.datePickerDoneText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+            <DateTimePicker
+              value={
+                datePickerFor === 'checkIn'
+                  ? (checkIn || new Date())
+                  : (checkOut || checkIn || new Date())
+              }
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              minimumDate={datePickerFor === 'checkOut' && checkIn ? checkIn : new Date()}
+              style={Platform.OS === 'ios' ? s.datePickerSpinner : null}
+              onChange={(event, selectedDate) => {
+                if (selectedDate) {
+                  if (datePickerFor === 'checkIn') {
+                    setCheckIn(selectedDate);
+                    if (checkOut && selectedDate >= checkOut) setCheckOut(null);
+                  } else {
+                    setCheckOut(selectedDate);
+                  }
+                  if (Platform.OS === 'android') setDatePickerFor(null);
+                }
+              }}
+            />
+          </Pressable>
+        </Pressable>
+      )}
+    </>
+  );
+
+  return (
+    <>
+      <ModalScrollFrame
+        visible={visible}
+        onRequestClose={onClose}
+        header={header}
+        footer={footer}
+        disableScroll
+        boxWrapStyle={{ flex: 1 }}
+        extraOverlay={extraOverlay}
+      >
               {step === 2 ? (
                 <ScrollView style={s.step2Scroll} contentContainerStyle={s.step2Content} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled">
                   <Text style={[s.fieldLabel, s.fieldLabelStep2]}>{t('bookingDates')}</Text>
@@ -1067,150 +1274,7 @@ isMonthFirst
               </ScrollView>
               )}
 
-              <View style={s.footerNav}>
-                {step === 1 ? (
-                  <View style={s.stepNavRow}>
-                    <TouchableOpacity style={s.nextBtn} onPress={handleNext} activeOpacity={0.7}>
-                      <Text style={s.nextBtnText}>{t('next')}</Text>
-                      <Text style={s.nextBtnArrow}>→</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : step === 2 ? (
-                  <View style={s.stepNavRow}>
-                    <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
-                      <Text style={s.backBtnArrow}>←</Text>
-                      <Text style={s.backBtnText}>{t('wizBack')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.nextBtn} onPress={handleNextFromDates} activeOpacity={0.7}>
-                      <Text style={s.nextBtnText}>{notMyCustomer ? t('save') : t('next')}</Text>
-                      {!notMyCustomer && <Text style={s.nextBtnArrow}>→</Text>}
-                    </TouchableOpacity>
-                  </View>
-                ) : step === 4 ? (
-                  <View style={s.stepNavRow}>
-                    <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
-                      <Text style={s.backBtnArrow}>←</Text>
-                      <Text style={s.backBtnText}>{t('wizBack')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[s.saveBtn, saving && s.saveBtnDisabled]}
-                      onPress={handleSave}
-                      activeOpacity={0.7}
-                      disabled={saving}
-                    >
-                      {saving ? (
-                        <ActivityIndicator size="small" color={COLORS.saveGreen} />
-                      ) : (
-                        <Text style={s.saveBtnText}>{t('save')}</Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={s.stepNavRow}>
-                    <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
-                      <Text style={s.backBtnArrow}>←</Text>
-                      <Text style={s.backBtnText}>{t('wizBack')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.nextBtn} onPress={handleNextFromStep3} activeOpacity={0.7}>
-                      <Text style={s.nextBtnText}>{t('next')}</Text>
-                      <Text style={s.nextBtnArrow}>→</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Pressable>
-
-      {clientPickerVisible && (
-        <Modal
-          transparent
-          animationType="fade"
-          onRequestClose={() => setClientPickerVisible(false)}
-          statusBarTranslucent
-        >
-          <Pressable style={s.pickerBackdrop} onPress={() => setClientPickerVisible(false)}>
-            {Platform.OS === 'web' ? (
-              <View style={[StyleSheet.absoluteFill, s.backdropWeb]} />
-            ) : (
-              <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
-            )}
-            <Pressable style={s.pickerBox} onPress={(e) => e.stopPropagation()}>
-              <View style={s.pickerHeader}>
-                <Text style={s.pickerTitle}>{t('bookingChooseClient')}</Text>
-                <TouchableOpacity
-                  onPress={() => setClientPickerVisible(false)}
-                  style={s.closeBtn}
-                  activeOpacity={0.8}
-                >
-                  <Text style={s.closeIcon}>✕</Text>
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity
-                style={s.addNewRow}
-                onPress={() => { setClientPickerVisible(false); setAddContactVisible(true); }}
-                activeOpacity={0.7}
-              >
-                <Text style={s.addNewText}>+ {t('addNewContact')}</Text>
-              </TouchableOpacity>
-              <TextInput
-                style={s.searchInput}
-                placeholder={t('search')}
-                placeholderTextColor="#999"
-                value={clientSearch}
-                onChangeText={setClientSearch}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {loadingClients ? (
-                <View style={s.loadingWrap}>
-                  <ActivityIndicator size="small" color={COLORS.saveGreen} />
-                </View>
-              ) : (
-                <ScrollView
-                  style={s.pickerScroll}
-                  contentContainerStyle={s.pickerScrollContent}
-                  keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator={true}
-                >
-                  {filteredClients.map((c) => {
-                    const display = `${c.name} ${c.lastName}`.trim() || c.phone || '—';
-                    const isSelected = pickerSelectedClient?.id === c.id;
-                    return (
-                      <TouchableOpacity
-                        key={c.id}
-                        style={s.pickerItem}
-                        onPress={() => setPickerSelectedClient(c)}
-                        activeOpacity={0.7}
-                      >
-                        <Text
-                          style={[s.pickerItemText, isSelected && s.pickerItemSelected]}
-                          numberOfLines={1}
-                        >
-                          {display}
-                        </Text>
-                        {isSelected && <Text style={s.pickerCheck}>✓</Text>}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              )}
-              <TouchableOpacity
-                style={s.selectBtn}
-                onPress={() => {
-                  setSelectedClient(pickerSelectedClient);
-                  setClientPickerVisible(false);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={s.selectBtnText}>{t('filterSelect')}</Text>
-              </TouchableOpacity>
-            </Pressable>
-          </Pressable>
-        </Modal>
-      )}
-
+      </ModalScrollFrame>
       <AddContactModal
         visible={addContactVisible}
         onClose={() => setAddContactVisible(false)}
@@ -1218,120 +1282,14 @@ isMonthFirst
         contactType="clients"
         editContact={null}
       />
-
-      {timePickerFor && (
-        <Modal transparent animationType="fade" statusBarTranslucent>
-          <Pressable style={s.datePickerOverlay} onPress={() => setTimePickerFor(null)}>
-            <Pressable style={s.datePickerContainer} onPress={(e) => e.stopPropagation()}>
-              <View style={s.datePickerHeader}>
-                <Text style={s.datePickerTitle}>
-                  {timePickerFor === 'checkIn' ? t('bookingCheckInTime') : t('bookingCheckOutTime')}
-                </Text>
-                <TouchableOpacity onPress={() => setTimePickerFor(null)} activeOpacity={0.7}>
-                  <Text style={s.timeSelectBtnText}>{t('agentCalendarTimeSelectBtn')}</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={s.timePickerSpinnerWrap}>
-                <DateTimePicker
-                  value={timePickerFor === 'checkIn' ? parseTimeToDate(checkInTime) : parseTimeToDate(checkOutTime)}
-                  mode="time"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  style={Platform.OS === 'ios' ? s.datePickerSpinner : null}
-                onChange={(event, selectedDate) => {
-                  if (selectedDate && event.type !== 'dismissed') {
-                    const str = formatDateToTime(selectedDate);
-                    if (timePickerFor === 'checkIn') setCheckInTime(str);
-                    else setCheckOutTime(str);
-                    if (Platform.OS === 'android') setTimePickerFor(null);
-                  }
-                }}
-                />
-              </View>
-            </Pressable>
-          </Pressable>
-        </Modal>
-      )}
-
-      {datePickerFor && (
-        <Modal transparent animationType="slide" statusBarTranslucent>
-          <Pressable style={s.datePickerOverlay} onPress={() => setDatePickerFor(null)}>
-            <Pressable style={s.datePickerContainer} onPress={(e) => e.stopPropagation()}>
-              <View style={s.datePickerHeader}>
-                <Text style={s.datePickerTitle}>
-                  {datePickerFor === 'checkIn' ? t('bookingCheckIn') : t('bookingCheckOut')}
-                </Text>
-                <TouchableOpacity onPress={() => setDatePickerFor(null)} activeOpacity={0.7}>
-                  <Text style={s.datePickerDoneText}>OK</Text>
-                </TouchableOpacity>
-              </View>
-              <DateTimePicker
-                value={
-                  datePickerFor === 'checkIn'
-                    ? (checkIn || new Date())
-                    : (checkOut || checkIn || new Date())
-                }
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                minimumDate={datePickerFor === 'checkOut' && checkIn ? checkIn : new Date()}
-                style={Platform.OS === 'ios' ? s.datePickerSpinner : null}
-                onChange={(event, selectedDate) => {
-                  if (selectedDate) {
-                    if (datePickerFor === 'checkIn') {
-                      setCheckIn(selectedDate);
-                      if (checkOut && selectedDate >= checkOut) setCheckOut(null);
-                    } else {
-                      setCheckOut(selectedDate);
-                    }
-                    if (Platform.OS === 'android') setDatePickerFor(null);
-                  }
-                }}
-              />
-            </Pressable>
-          </Pressable>
-        </Modal>
-      )}
-    </Modal>
+    </>
   );
 }
 
 const s = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
   backdropWeb: {
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  keyboardWrap: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  boxWrap: {
-    width: '100%',
-    maxWidth: 400,
-    maxHeight: '90%',
-    alignSelf: 'center',
-  },
-  boxWrapStep3: { height: '90%' },
-  box: {
-    flexShrink: 0,
-    minHeight: 0,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: COLORS.boxBg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  boxStep3: { flex: 1 },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1444,7 +1402,7 @@ const s = StyleSheet.create({
     paddingBottom: 14,
     flexGrow: 0,
   },
-  step2Scroll: { flexGrow: 0, maxHeight: Dimensions.get('window').height * 0.75 },
+  step2Scroll: { flex: 1, minHeight: 0 },
   step2Content: {
     padding: 16,
     paddingBottom: 16,
