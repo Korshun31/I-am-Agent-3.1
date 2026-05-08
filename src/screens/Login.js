@@ -197,6 +197,10 @@ export default function Login({ onSignUp, onLogin, onForgotPassword }) {
               value={password}
               onChangeText={setPassword}
               secureTextEntry
+              textContentType="password"
+              autoComplete="password"
+              autoCapitalize="none"
+              autoCorrect={false}
               returnKeyType="done"
               onSubmitEditing={handleLogin}
             />
