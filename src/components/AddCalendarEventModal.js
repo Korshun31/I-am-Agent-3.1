@@ -254,11 +254,12 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
       backdropPress={onClose}
       header={header}
       footer={footer}
-      disableScroll
       keyboardOffset={0}
-      boxWrapStyle={{ flex: 0 }}
-      boxStyle={{ flex: 0 }}
-      bodyStyle={{ flex: 0 }}
+      scrollProps={{
+        showsVerticalScrollIndicator: false,
+        keyboardShouldPersistTaps: 'handled',
+        keyboardDismissMode: 'interactive',
+      }}
       extraOverlay={
         <>
           {showReminderModal && (
