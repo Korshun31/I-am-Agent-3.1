@@ -2,22 +2,19 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
-  Modal,
   TouchableOpacity,
   StyleSheet,
   Platform,
-  Pressable,
   Image,
   ScrollView,
   TextInput,
-  KeyboardAvoidingView,
   Alert,
 } from 'react-native';
 import { getLocationDistricts, setLocationDistricts, updateDistrictName, removeDistrict } from '../services/locationsService';
 import { getPropertiesCountByLocation } from '../services/propertiesService';
-import { BlurView } from 'expo-blur';
 import { useLanguage } from '../context/LanguageContext';
 import { useAppData } from '../context/AppDataContext';
+import ModalScrollFrame from './ModalScrollFrame';
 
 function getCountryStateCity() {
   try {
@@ -79,7 +76,7 @@ function LocationField({ label, value, placeholder, options, onSelect, searchPla
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <ScrollView style={styles.dropdownScroll} keyboardShouldPersistTaps="handled">
+          <ScrollView style={styles.dropdownScroll} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
             {filteredOptions.map((item, idx) => {
               const name = typeof item === 'object' ? item.name : item;
               const code = (typeof item === 'object' && item.isoCode) ? item.isoCode : `${item?.name || idx}-${idx}`;
@@ -347,35 +344,42 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
 
   if (!visible) return null;
 
+  const header = (
+    <View style={styles.headerRow}>
+      {editIndex !== undefined && editIndex !== null ? (
+        <TouchableOpacity onPress={handleDelete} style={styles.headerLeftBtn} activeOpacity={0.8}>
+          <Image source={require('../../assets/trash-icon.png')} style={styles.trashIconImage} resizeMode="contain" />
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.headerLeftBtn} />
+      )}
+      <Text style={styles.title}>{editIndex !== undefined && editIndex !== null ? t('editLocation') : t('addLocationsTitle')}</Text>
+      <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
+        <Text style={styles.closeIcon}>✕</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const footer = (
+    <TouchableOpacity style={styles.saveLocationBtn} onPress={handleSave} activeOpacity={0.7}>
+      <Text style={styles.saveLocationBtnText}>{t('saveLocation')}</Text>
+    </TouchableOpacity>
+  );
+
   return (
-    <Modal transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <KeyboardAvoidingView
-        style={styles.keyboardWrap}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
-      <Pressable style={styles.backdrop}>
-        {Platform.OS === 'web' ? (
-          <View style={[StyleSheet.absoluteFill, styles.backdropWeb]} />
-        ) : (
-          <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
-        )}
-        <Pressable style={styles.boxWrap} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.box}>
-            <View style={styles.headerRow}>
-              {editIndex !== undefined && editIndex !== null ? (
-                <TouchableOpacity onPress={handleDelete} style={styles.headerLeftBtn} activeOpacity={0.8}>
-                  <Image source={require('../../assets/trash-icon.png')} style={styles.trashIconImage} resizeMode="contain" />
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.headerLeftBtn} />
-              )}
-              <Text style={styles.title}>{editIndex !== undefined && editIndex !== null ? t('editLocation') : t('addLocationsTitle')}</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-                <Text style={styles.closeIcon}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <ModalScrollFrame
+      visible={visible}
+      onRequestClose={onClose}
+      header={header}
+      footer={footer}
+      scrollContentContainerStyle={styles.content}
+      scrollProps={{
+        showsVerticalScrollIndicator: false,
+        keyboardShouldPersistTaps: 'handled',
+        keyboardDismissMode: 'interactive',
+        nestedScrollEnabled: true,
+      }}
+    >
               <LocationField
                 label={t('addLocationsCountry')}
                 value={country?.name}
@@ -460,48 +464,11 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
                   </TouchableOpacity>
                 )}
               </View>
-              <TouchableOpacity style={styles.saveLocationBtn} onPress={handleSave} activeOpacity={0.7}>
-                <Text style={styles.saveLocationBtnText}>{t('saveLocation')}</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </Pressable>
-      </Pressable>
-      </KeyboardAvoidingView>
-    </Modal>
+    </ModalScrollFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardWrap: {
-    flex: 1,
-  },
-  backdrop: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  backdropWeb: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  boxWrap: {
-    width: '100%',
-    maxWidth: 360,
-    maxHeight: '90%',
-  },
-  box: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: COLORS.boxBg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -542,7 +509,9 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   saveLocationBtn: {
-    marginTop: 24,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    marginTop: 4,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
