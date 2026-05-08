@@ -3,27 +3,22 @@ import {
   View,
   Text,
   TextInput,
-  Modal,
   Platform,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
   Pressable,
-  KeyboardAvoidingView,
   ActivityIndicator,
   Alert,
   Image,
   Keyboard,
-  Dimensions,
 } from 'react-native';
-
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-import { BlurView } from 'expo-blur';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLanguage } from '../context/LanguageContext';
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../services/calendarEventsService';
 import { requestReminderPermissions, scheduleReminder, cancelReminders } from '../services/calendarRemindersService';
 import { getCurrentUser } from '../services/authService';
+import ModalScrollFrame from './ModalScrollFrame';
 
 const REPEAT_OPTIONS = [
   { value: null, key: 'agentCalendarRepeatNone' },
@@ -222,28 +217,133 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
     if (selectedDate) setEventDate(selectedDate);
   };
 
-  return (
-    <Modal visible={visible} transparent animationType="fade">
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.keyboardWrap}
-        >
-          <Pressable style={styles.box} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.headerRow}>
-              {isEdit ? (
-                <TouchableOpacity onPress={handleDelete} style={styles.trashBtn} activeOpacity={0.7}>
-                  <Image source={require('../../assets/trash-icon.png')} style={styles.trashIcon} resizeMode="contain" />
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.trashBtn} />
-              )}
-              <Text style={styles.title}>{isEdit ? t('agentCalendarEditEvent') : t('agentCalendarAddEvent')}</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-                <Text style={styles.closeIcon}>✕</Text>
-              </TouchableOpacity>
-            </View>
+  const header = (
+    <View style={styles.headerRow}>
+      {isEdit ? (
+        <TouchableOpacity onPress={handleDelete} style={styles.trashBtn} activeOpacity={0.7}>
+          <Image source={require('../../assets/trash-icon.png')} style={styles.trashIcon} resizeMode="contain" />
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.trashBtn} />
+      )}
+      <Text style={styles.title}>{isEdit ? t('agentCalendarEditEvent') : t('agentCalendarAddEvent')}</Text>
+      <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
+        <Text style={styles.closeIcon}>✕</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
+  const footer = (!showTimePicker && !showDatePicker && !showReminderModal && !showRepeatModal) ? (
+    <TouchableOpacity
+      style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+      onPress={handleSave}
+      disabled={saving}
+    >
+      {saving ? (
+        <ActivityIndicator size="small" color="#fff" />
+      ) : (
+        <Text style={styles.saveBtnText}>{t('save')}</Text>
+      )}
+    </TouchableOpacity>
+  ) : null;
+
+  return (
+    <ModalScrollFrame
+      visible={visible}
+      onRequestClose={onClose}
+      backdropPress={onClose}
+      header={header}
+      footer={footer}
+      disableScroll
+      keyboardOffset={0}
+      boxWrapStyle={{ flex: 0 }}
+      boxStyle={{ flex: 0 }}
+      bodyStyle={{ flex: 0 }}
+      extraOverlay={
+        <>
+          {showReminderModal && (
+            <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => setShowReminderModal(false)}>
+              <Pressable style={styles.reminderModalBoxWrap} onPress={(e) => e.stopPropagation()}>
+                <View style={styles.reminderModalBox}>
+                  <View style={styles.reminderModalHeader}>
+                    <Text style={styles.reminderModalTitle}>{t('agentCalendarReminderWhen')}</Text>
+                    <TouchableOpacity onPress={() => setShowReminderModal(false)} style={styles.reminderModalClose}>
+                      <Text style={styles.reminderModalCloseText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView style={styles.reminderModalScroll} showsVerticalScrollIndicator>
+                    {REMINDER_OPTIONS.map((opt) => {
+                      const isSelected = reminderMinutes.includes(opt.value);
+                      return (
+                        <TouchableOpacity
+                          key={opt.value}
+                          style={[styles.reminderModalOption, isSelected && styles.reminderModalOptionSelected]}
+                          onPress={() => {
+                            setReminderMinutes((prev) =>
+                              isSelected ? prev.filter((v) => v !== opt.value) : [...prev, opt.value].sort((a, b) => a - b)
+                            );
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.reminderCheckbox, isSelected && styles.reminderCheckboxChecked]}>
+                            {isSelected ? <Text style={styles.reminderCheckmark}>✓</Text> : null}
+                          </View>
+                          <Text style={[styles.reminderModalOptionText, isSelected && styles.reminderModalOptionTextSelected]}>
+                            {t(opt.key)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                  <TouchableOpacity onPress={() => setShowReminderModal(false)} style={styles.reminderModalDone}>
+                    <Text style={styles.reminderModalDoneText}>{t('agentCalendarTimeSelectBtn')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </Pressable>
+            </Pressable>
+          )}
+          {showRepeatModal && (
+            <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => setShowRepeatModal(false)}>
+              <Pressable style={styles.reminderModalBoxWrap} onPress={(e) => e.stopPropagation()}>
+                <View style={styles.reminderModalBox}>
+                  <View style={styles.reminderModalHeader}>
+                    <Text style={styles.reminderModalTitle}>{t('agentCalendarRepeatSelect')}</Text>
+                    <TouchableOpacity onPress={() => setShowRepeatModal(false)} style={styles.reminderModalClose}>
+                      <Text style={styles.reminderModalCloseText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView style={styles.reminderModalScroll} showsVerticalScrollIndicator>
+                    {REPEAT_OPTIONS.map((opt) => {
+                      const isSelected = repeatType === opt.value;
+                      return (
+                        <TouchableOpacity
+                          key={opt.value ?? 'none'}
+                          style={[styles.reminderModalOption, isSelected && styles.reminderModalOptionSelected]}
+                          onPress={() => {
+                            setRepeatType(opt.value);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.reminderCheckbox, isSelected && styles.reminderCheckboxChecked]}>
+                            {isSelected ? <Text style={styles.reminderCheckmark}>✓</Text> : null}
+                          </View>
+                          <Text style={[styles.reminderModalOptionText, isSelected && styles.reminderModalOptionTextSelected]}>
+                            {t(opt.key)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                  <TouchableOpacity onPress={() => setShowRepeatModal(false)} style={styles.reminderModalDone}>
+                    <Text style={styles.reminderModalDoneText}>{t('agentCalendarTimeSelectBtn')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </Pressable>
+            </Pressable>
+          )}
+        </>
+      }
+    >
             <View style={styles.scroll}>
               <Text style={styles.fieldLabel}>{t('agentCalendarEventName')}</Text>
               <TextInput
@@ -335,108 +435,12 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
                 </Text>
               </TouchableOpacity>
 
-              {showReminderModal && (
-                <Modal transparent animationType="fade" visible statusBarTranslucent>
-                  <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowReminderModal(false)}>
-                    {Platform.OS === 'web' ? (
-                      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} />
-                    ) : (
-                      <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
-                    )}
-                    <Pressable style={styles.reminderModalBoxWrap} onPress={(e) => e.stopPropagation()}>
-                      <View style={styles.reminderModalBox}>
-                        <View style={styles.reminderModalHeader}>
-                          <Text style={styles.reminderModalTitle}>{t('agentCalendarReminderWhen')}</Text>
-                          <TouchableOpacity onPress={() => setShowReminderModal(false)} style={styles.reminderModalClose}>
-                            <Text style={styles.reminderModalCloseText}>✕</Text>
-                          </TouchableOpacity>
-                        </View>
-                        <ScrollView style={styles.reminderModalScroll} showsVerticalScrollIndicator>
-                          {REMINDER_OPTIONS.map((opt) => {
-                            const isSelected = reminderMinutes.includes(opt.value);
-                            return (
-                              <TouchableOpacity
-                                key={opt.value}
-                                style={[styles.reminderModalOption, isSelected && styles.reminderModalOptionSelected]}
-                                onPress={() => {
-                                  setReminderMinutes((prev) =>
-                                    isSelected ? prev.filter((v) => v !== opt.value) : [...prev, opt.value].sort((a, b) => a - b)
-                                  );
-                                }}
-                                activeOpacity={0.7}
-                              >
-                                <View style={[styles.reminderCheckbox, isSelected && styles.reminderCheckboxChecked]}>
-                                  {isSelected ? <Text style={styles.reminderCheckmark}>✓</Text> : null}
-                                </View>
-                                <Text style={[styles.reminderModalOptionText, isSelected && styles.reminderModalOptionTextSelected]}>
-                                  {t(opt.key)}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </ScrollView>
-                        <TouchableOpacity onPress={() => setShowReminderModal(false)} style={styles.reminderModalDone}>
-                          <Text style={styles.reminderModalDoneText}>{t('agentCalendarTimeSelectBtn')}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </Pressable>
-                  </Pressable>
-                </Modal>
-              )}
-
               <Text style={styles.fieldLabel}>{t('agentCalendarRepeat')}</Text>
               <TouchableOpacity style={styles.timeSelectRow} onPress={() => { Keyboard.dismiss(); setShowRepeatModal(true); }} activeOpacity={0.7}>
                 <Text style={styles.timeSelectText}>
                   {repeatType ? t(REPEAT_OPTIONS.find(o => o.value === repeatType)?.key || 'agentCalendarRepeatSelect') : t('agentCalendarRepeatSelect')}
                 </Text>
               </TouchableOpacity>
-
-              {showRepeatModal && (
-                <Modal transparent animationType="fade" visible statusBarTranslucent>
-                  <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowRepeatModal(false)}>
-                    {Platform.OS === 'web' ? (
-                      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} />
-                    ) : (
-                      <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
-                    )}
-                    <Pressable style={styles.reminderModalBoxWrap} onPress={(e) => e.stopPropagation()}>
-                      <View style={styles.reminderModalBox}>
-                        <View style={styles.reminderModalHeader}>
-                          <Text style={styles.reminderModalTitle}>{t('agentCalendarRepeatSelect')}</Text>
-                          <TouchableOpacity onPress={() => setShowRepeatModal(false)} style={styles.reminderModalClose}>
-                            <Text style={styles.reminderModalCloseText}>✕</Text>
-                          </TouchableOpacity>
-                        </View>
-                        <ScrollView style={styles.reminderModalScroll} showsVerticalScrollIndicator>
-                          {REPEAT_OPTIONS.map((opt) => {
-                            const isSelected = repeatType === opt.value;
-                            return (
-                              <TouchableOpacity
-                                key={opt.value ?? 'none'}
-                                style={[styles.reminderModalOption, isSelected && styles.reminderModalOptionSelected]}
-                                onPress={() => {
-                                  setRepeatType(opt.value);
-                                }}
-                                activeOpacity={0.7}
-                              >
-                                <View style={[styles.reminderCheckbox, isSelected && styles.reminderCheckboxChecked]}>
-                                  {isSelected ? <Text style={styles.reminderCheckmark}>✓</Text> : null}
-                                </View>
-                                <Text style={[styles.reminderModalOptionText, isSelected && styles.reminderModalOptionTextSelected]}>
-                                  {t(opt.key)}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </ScrollView>
-                        <TouchableOpacity onPress={() => setShowRepeatModal(false)} style={styles.reminderModalDone}>
-                          <Text style={styles.reminderModalDoneText}>{t('agentCalendarTimeSelectBtn')}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </Pressable>
-                  </Pressable>
-                </Modal>
-              )}
 
               <Text style={styles.fieldLabel}>{t('agentCalendarEventColor')}</Text>
               <View style={styles.colorRow}>
@@ -462,45 +466,11 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
                 showSoftInputOnFocus={!showTimePicker && !showReminderModal && !showRepeatModal}
               />
             </View>
-
-            {!showTimePicker && !showReminderModal && !showRepeatModal && (
-              <TouchableOpacity
-                style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-                onPress={handleSave}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.saveBtnText}>{t('save')}</Text>
-                )}
-              </TouchableOpacity>
-            )}
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Pressable>
-    </Modal>
+    </ModalScrollFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    padding: 20,
-  },
-  keyboardWrap: {
-    width: '100%',
-    maxHeight: '95%',
-  },
-  box: {
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    borderRadius: 20,
-    overflow: 'hidden',
-    maxHeight: SCREEN_HEIGHT * 0.9,
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
