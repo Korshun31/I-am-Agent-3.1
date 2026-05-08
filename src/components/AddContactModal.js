@@ -4,23 +4,19 @@ import {
   View,
   Text,
   TextInput,
-  Modal,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
-  Platform,
   Pressable,
-  KeyboardAvoidingView,
   Keyboard,
   Image,
   Alert,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { uploadContactPhoto } from '../services/contactsService';
+import ModalScrollFrame from './ModalScrollFrame';
 
 // TD-100: сжатие фото-аватара контакта до 1200px по большей стороне, JPEG 0.85 —
 // снижает размер файла в 10-20 раз без видимой потери качества для мобильного экрана.
@@ -281,48 +277,80 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
 
   if (!visible) return null;
 
-  const hasExtraFields = showAddContactChoices || extraPhones.length > 0 || extraEmails.length > 0 || extraTelegrams.length > 0 || extraWhatsapps.length > 0;
+  const header = (
+    <View style={styles.headerRow}>
+      <View style={styles.headerSpacer} />
+      <Text style={styles.title}>
+        {editContact
+          ? (contactType === 'owners' ? t('editOwnerTitle') : t('editClientTitle'))
+          : (contactType === 'owners' ? t('addOwnerTitle') : t('addClientTitle'))
+        }
+      </Text>
+      <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
+        <Text style={styles.closeIcon}>✕</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const footer = (
+    <TouchableOpacity
+      style={[styles.saveBtn, (uploadingPhoto || uploadingDocument) && { opacity: 0.7 }]}
+      onPress={() => { Keyboard.dismiss(); handleSave(); }}
+      activeOpacity={0.7}
+      disabled={uploadingPhoto || uploadingDocument}
+    >
+      <Text style={styles.saveBtnText}>
+        {(uploadingPhoto || uploadingDocument) ? t('saving') : t('save')}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  const datePickerOverlay = showDatePicker ? (
+    <Pressable style={styles.datePickerOverlay} onPress={() => setShowDatePicker(false)}>
+      <Pressable style={styles.datePickerContainer} onPress={(e) => e.stopPropagation()}>
+        <View style={styles.datePickerHeader}>
+          <Text style={styles.datePickerTitle}>{t('birthdayDate')}</Text>
+          <TouchableOpacity onPress={() => setShowDatePicker(false)} activeOpacity={0.7}>
+            <Text style={styles.datePickerDoneText}>OK</Text>
+          </TouchableOpacity>
+        </View>
+        <DateTimePicker
+          value={birthday ? new Date(birthday.split('.').reverse().join('-')) : new Date(1990, 0, 1)}
+          mode="date"
+          display="spinner"
+          maximumDate={new Date()}
+          minimumDate={new Date(1920, 0, 1)}
+          style={styles.datePickerSpinner}
+          onChange={(event, selectedDate) => {
+            if (selectedDate) {
+              const d = selectedDate;
+              const dd = String(d.getDate()).padStart(2, '0');
+              const mm = String(d.getMonth() + 1).padStart(2, '0');
+              const yyyy = d.getFullYear();
+              setBirthday(`${dd}.${mm}.${yyyy}`);
+            }
+          }}
+        />
+      </Pressable>
+    </Pressable>
+  ) : null;
 
   return (
-    <Modal transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable style={styles.backdrop} onPress={Keyboard.dismiss}>
-        {Platform.OS === 'web' ? (
-          <View style={[StyleSheet.absoluteFill, styles.backdropWeb]} />
-        ) : (
-          <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
-        )}
-        <KeyboardAvoidingView
-          style={styles.keyboardWrap}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={40}
-        >
-          <Pressable
-            style={[styles.boxWrap, hasExtraFields && styles.boxWrapExpanded]}
-            onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}
-          >
-            <View style={styles.box}>
-              <View style={styles.headerRow}>
-                <View style={styles.headerSpacer} />
-                <Text style={styles.title}>
-                  {editContact
-                    ? (contactType === 'owners' ? t('editOwnerTitle') : t('editClientTitle'))
-                    : (contactType === 'owners' ? t('addOwnerTitle') : t('addClientTitle'))
-                  }
-                </Text>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-                  <Text style={styles.closeIcon}>✕</Text>
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView
-                ref={scrollRef}
-                style={styles.scroll}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={true}
-                keyboardShouldPersistTaps="handled"
-                onScrollBeginDrag={Keyboard.dismiss}
-                indicatorStyle="black"
-              >
+    <ModalScrollFrame
+      visible={visible}
+      onRequestClose={onClose}
+      ref={scrollRef}
+      header={header}
+      footer={footer}
+      scrollContentContainerStyle={styles.scrollContent}
+      extraOverlay={datePickerOverlay}
+      scrollProps={{
+        showsVerticalScrollIndicator: true,
+        keyboardShouldPersistTaps: 'handled',
+        keyboardDismissMode: 'interactive',
+        indicatorStyle: 'black',
+      }}
+    >
                 <TouchableOpacity style={styles.photoWrap} onPress={pickImage} activeOpacity={0.8}>
                   <View style={styles.photoCircle}>
                     {photoUri ? (
@@ -520,90 +548,11 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
                     </TouchableOpacity>
                   </View>
                 </View>
-              </ScrollView>
-
-              <TouchableOpacity
-                style={[styles.saveBtn, (uploadingPhoto || uploadingDocument) && { opacity: 0.7 }]}
-                onPress={() => { Keyboard.dismiss(); handleSave(); }}
-                activeOpacity={0.7}
-                disabled={uploadingPhoto || uploadingDocument}
-              >
-                <Text style={styles.saveBtnText}>
-                  {(uploadingPhoto || uploadingDocument) ? t('saving') : t('save')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Pressable>
-
-      {showDatePicker && (
-        <Modal transparent animationType="slide" statusBarTranslucent>
-          <Pressable style={styles.datePickerOverlay} onPress={() => setShowDatePicker(false)}>
-            <Pressable style={styles.datePickerContainer} onPress={(e) => e.stopPropagation()}>
-              <View style={styles.datePickerHeader}>
-                <Text style={styles.datePickerTitle}>{t('birthdayDate')}</Text>
-                <TouchableOpacity onPress={() => setShowDatePicker(false)} activeOpacity={0.7}>
-                  <Text style={styles.datePickerDoneText}>OK</Text>
-                </TouchableOpacity>
-              </View>
-              <DateTimePicker
-                value={birthday ? new Date(birthday.split('.').reverse().join('-')) : new Date(1990, 0, 1)}
-                mode="date"
-                display="spinner"
-                maximumDate={new Date()}
-                minimumDate={new Date(1920, 0, 1)}
-                style={styles.datePickerSpinner}
-                onChange={(event, selectedDate) => {
-                  if (selectedDate) {
-                    const d = selectedDate;
-                    const dd = String(d.getDate()).padStart(2, '0');
-                    const mm = String(d.getMonth() + 1).padStart(2, '0');
-                    const yyyy = d.getFullYear();
-                    setBirthday(`${dd}.${mm}.${yyyy}`);
-                  }
-                }}
-              />
-            </Pressable>
-          </Pressable>
-        </Modal>
-      )}
-    </Modal>
+    </ModalScrollFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  backdropWeb: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  keyboardWrap: {
-    width: '100%',
-    maxHeight: '90%',
-    maxWidth: 360,
-  },
-  boxWrap: {
-    width: '100%',
-    maxHeight: '90%',
-  },
-  boxWrapExpanded: {},
-  box: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: COLORS.boxBg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -633,9 +582,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#E85D4C',
     fontWeight: '600',
-  },
-  scroll: {
-    maxHeight: 480,
   },
   scrollContent: {
     paddingHorizontal: 20,

@@ -34,6 +34,7 @@ const ModalScrollFrame = forwardRef(function ModalScrollFrame({
   scrollContentContainerStyle = null,
   scrollProps = null,
   backdropPress = null,
+  extraOverlay = null,
 }, scrollRef) {
   const handleBackdropPress = backdropPress || Keyboard.dismiss;
 
@@ -80,6 +81,7 @@ const ModalScrollFrame = forwardRef(function ModalScrollFrame({
           </Pressable>
         </KeyboardAvoidingView>
       </Pressable>
+      {extraOverlay}
     </Modal>
   );
 });
