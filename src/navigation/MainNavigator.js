@@ -10,7 +10,6 @@ import AccountScreen from '../screens/AccountScreen';
 import ContactsScreen from '../screens/ContactsScreen';
 import StatisticsScreen from '../screens/StatisticsScreen';
 import CompanyScreen from '../screens/CompanyScreen';
-import TeamScreen from '../screens/TeamScreen';
 
 const Tab = createBottomTabNavigator();
 const AccountStack = createNativeStackNavigator();
@@ -63,14 +62,7 @@ function AccountNavigator({ onLogout, onUserUpdate }) {
           <CompanyScreen
             onBack={() => props.navigation.goBack()}
             onUserUpdate={onUserUpdate}
-            onOpenTeam={() => props.navigation.navigate('Team')}
           />
-        )}
-      />
-      <AccountStack.Screen
-        name="Team"
-        children={(props) => (
-          <TeamScreen onBack={() => props.navigation.goBack()} />
         )}
       />
     </AccountStack.Navigator>
@@ -100,8 +92,7 @@ function ScreenWarmers() {
       />
       <ContactsScreen onBack={NOOP} />
       <StatisticsScreen onBack={NOOP} />
-      <CompanyScreen onBack={NOOP} onUserUpdate={NOOP} onOpenTeam={NOOP} />
-      <TeamScreen onBack={NOOP} />
+      <CompanyScreen onBack={NOOP} onUserUpdate={NOOP} />
     </View>
   );
 }
@@ -110,7 +101,7 @@ function MainNavigator({ onLogout, onUserUpdate }) {
   // Стабильная ссылка на render-функцию вкладки Account: без useCallback
   // на каждом ре-рендере MainNavigator React Navigation видела бы новую
   // функцию children и пересоздавала AccountNavigator (с потерей места
-  // во внутреннем стеке — например, открытый TeamScreen откатывался бы).
+  // во внутреннем стеке — например, открытый CompanyScreen откатывался бы).
   const renderAccountTab = useCallback(
     () => <AccountNavigator onLogout={onLogout} onUserUpdate={onUserUpdate} />,
     [onLogout, onUserUpdate]

@@ -21,7 +21,7 @@ export function AppDataProvider({ children, user }) {
   const [eventsLoading, setEventsLoading]     = useState(true);
   const [teamMembers, setTeamMembers]         = useState([]);
   const [teamMembersLoading, setTeamMembersLoading] = useState(true);
-  // Счётчик «снимка команды» — экраны TeamScreen / WebTeamSection держат
+  // Счётчик «снимка команды» — экраны CompanyScreen / WebTeamSection держат
   // свой локальный список members + invitations через getTeamData. AppDataContext
   // не управляет этими данными напрямую (приглашения здесь не лежат), но при
   // realtime-событии в company_members / company_invitations инкрементирует
