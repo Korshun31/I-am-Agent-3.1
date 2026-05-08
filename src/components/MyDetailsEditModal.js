@@ -4,20 +4,16 @@ import {
   View,
   Text,
   TextInput,
-  Modal,
   TouchableOpacity,
   StyleSheet,
-  Platform,
-  ScrollView,
   Pressable,
-  KeyboardAvoidingView,
   Keyboard,
   Image,
   Alert,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadAvatar } from '../services/storageService';
+import ModalScrollFrame from './ModalScrollFrame';
 
 const COLORS = {
   boxBg: 'rgba(255,255,255,0.72)',
@@ -166,61 +162,58 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
 
   if (!visible) return null;
 
-  return (
-    <Modal transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable style={styles.backdrop} onPress={Keyboard.dismiss}>
-        {Platform.OS === 'web' ? (
-          <View style={[StyleSheet.absoluteFill, styles.backdropWeb]} />
-        ) : (
-          <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+  const header = (
+    <View style={styles.headerRow}>
+      <View style={styles.headerSpacer} />
+      <Text style={styles.title}>{t('myDetails')}</Text>
+      <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
+        <Text style={styles.closeIcon}>✕</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const photoSlot = (
+    <View style={styles.photoSection}>
+      <TouchableOpacity style={styles.photoWrap} onPress={pickImage} activeOpacity={0.8} disabled={uploadingAvatar}>
+        <View style={styles.photoCircle}>
+          {uploadingAvatar ? (
+            <Text style={styles.photoIcon}>⏳</Text>
+          ) : photoUri ? (
+            <Image source={{ uri: photoUri }} style={styles.photoImage} />
+          ) : (
+            <Text style={styles.photoIcon}>👤</Text>
+          )}
+        </View>
+        {!uploadingAvatar && (
+          <View style={styles.photoPlus}>
+            <Text style={styles.plusText}>+</Text>
+          </View>
         )}
-          <KeyboardAvoidingView
-          style={styles.keyboardWrap}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={40}
-        >
-          <Pressable style={[styles.boxWrap, (showAddContactChoices || extraPhones.length > 0 || extraEmails.length > 0 || showTelegramField || showWhatsappField) && styles.boxWrapExpanded]} onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}>
-            <View style={styles.box}>
-              <View style={styles.headerRow}>
-                <View style={styles.headerSpacer} />
-                <Text style={styles.title}>{t('myDetails')}</Text>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-                  <Text style={styles.closeIcon}>✕</Text>
-                </TouchableOpacity>
-              </View>
+      </TouchableOpacity>
+    </View>
+  );
 
-              <View style={styles.photoSection}>
-              <TouchableOpacity style={styles.photoWrap} onPress={pickImage} activeOpacity={0.8} disabled={uploadingAvatar}>
-                <View style={styles.photoCircle}>
-                  {uploadingAvatar ? (
-                    <Text style={styles.photoIcon}>⏳</Text>
-                  ) : photoUri ? (
-                    <Image source={{ uri: photoUri }} style={styles.photoImage} />
-                  ) : (
-                    <Text style={styles.photoIcon}>👤</Text>
-                  )}
-                </View>
-                {!uploadingAvatar && (
-                  <View style={styles.photoPlus}>
-                    <Text style={styles.plusText}>+</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-              </View>
+  const footer = (
+    <TouchableOpacity style={styles.saveBtn} onPress={async () => { Keyboard.dismiss(); await handleSave(); }} activeOpacity={0.7}>
+      <Text style={styles.saveBtnText}>{t('save')}</Text>
+    </TouchableOpacity>
+  );
 
-              <ScrollView
-                ref={scrollRef}
-                style={styles.scroll}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                onScrollBeginDrag={Keyboard.dismiss}
-              >
-                <TouchableOpacity
-                  style={styles.scrollContentTouch}
-                  activeOpacity={1}
-                  onPress={() => {}}
-                >
+  return (
+    <ModalScrollFrame
+      visible={visible}
+      onRequestClose={onClose}
+      ref={scrollRef}
+      header={header}
+      aboveScrollSlot={photoSlot}
+      footer={footer}
+      scrollContentContainerStyle={styles.scrollContent}
+      scrollProps={{
+        showsVerticalScrollIndicator: false,
+        keyboardShouldPersistTaps: 'handled',
+        keyboardDismissMode: 'interactive',
+      }}
+    >
                 <TextInput
                   style={styles.input}
                   placeholder={t('name')}
@@ -345,52 +338,11 @@ export default function MyDetailsEditModal({ visible, onClose, user = {}, onSave
                 </View>
 
 
-                </TouchableOpacity>
-              </ScrollView>
-              <TouchableOpacity style={styles.saveBtn} onPress={async () => { Keyboard.dismiss(); await handleSave(); }} activeOpacity={0.7}>
-                <Text style={styles.saveBtnText}>{t('save')}</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Pressable>
-
-    </Modal>
+    </ModalScrollFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  backdropWeb: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  keyboardWrap: {
-    width: '100%',
-    maxHeight: '90%',
-    maxWidth: 360,
-  },
-  boxWrap: {
-    width: '100%',
-    maxHeight: '90%',
-  },
-  boxWrapExpanded: {},
-  box: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: COLORS.boxBg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -425,19 +377,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     alignItems: 'center',
   },
-  scroll: {
-    maxHeight: 480,
-  },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingBottom: 0,
     alignItems: 'center',
     backgroundColor: 'transparent',
-  },
-  scrollContentTouch: {
-    flex: 1,
-    width: '100%',
   },
   saveBtn: {
     marginHorizontal: 20,

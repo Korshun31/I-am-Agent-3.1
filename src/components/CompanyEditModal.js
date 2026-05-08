@@ -166,6 +166,7 @@ export default function CompanyEditModal({ visible, onClose, companyInfo = {}, o
       scrollProps={{
         showsVerticalScrollIndicator: false,
         keyboardShouldPersistTaps: 'handled',
+        keyboardDismissMode: 'interactive',
       }}
     >
                 <TextInput
