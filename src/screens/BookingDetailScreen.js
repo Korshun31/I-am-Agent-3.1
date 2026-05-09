@@ -10,8 +10,13 @@ import {
   Linking,
   ActivityIndicator,
   Share,
+  useWindowDimensions,
 } from 'react-native';
 import Constants from 'expo-constants';
+import { Ionicons } from '@expo/vector-icons';
+import { IconCalendar } from '../components/TabIcons';
+import { IconCall, IconWhatsapp, IconTelegram } from '../components/ContactIcons';
+import { IconPrices } from '../components/PropertyIcons';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
 import { ownerOneTimeAmount, ownerMonthlyByMonth } from '../utils/ownerCommission';
@@ -25,14 +30,13 @@ import PdfPreviewModal from '../components/PdfPreviewModal';
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
 const COLORS = {
-  background: '#F5F2EB',
-  title: '#2C2C2C',
-  subtitle: '#5A5A5A',
-  backArrow: '#5DB8D4',
-  cardBg: '#FFFFFF',
-  border: '#E0DAD2',
-  labelColor: '#8A8A8A',
-  linkColor: '#D81B60',
+  background: '#F5F5F7',
+  title:      '#2C2C2C',
+  subtitle:   '#6B6B6B',
+  cardBg:     '#FFFFFF',
+  border:     '#E5E5EA',
+  label:      '#6B6B6B',
+  accent:     '#3D7D82',
 };
 
 function formatBookingDate(dateStr) {
@@ -61,22 +65,111 @@ function DetailRow({ label, value }) {
 
 function PropertyInfoRow({ label, value, isLink, onPress }) {
   return (
-    <View style={styles.propertyInfoRow}>
-      <Text style={styles.propertyInfoLabel} numberOfLines={1}>{label}</Text>
-      <Text style={styles.propertyInfoColon}>:</Text>
+    <View style={styles.propInfoRow}>
+      <Text style={styles.propInfoLabel} numberOfLines={1}>{label}</Text>
       {isLink ? (
-        <TouchableOpacity onPress={onPress} style={styles.propertyInfoValueWrap}>
-          <Text style={[styles.propertyInfoValue, styles.propertyInfoLink]} numberOfLines={1}>{value}</Text>
+        <TouchableOpacity onPress={onPress} style={styles.propInfoValueWrap}>
+          <Text style={[styles.propInfoValue, styles.propInfoLink]} numberOfLines={1}>{value}</Text>
         </TouchableOpacity>
       ) : (
-        <Text style={styles.propertyInfoValue} numberOfLines={1}>{value || '—'}</Text>
+        <Text style={styles.propInfoValue} numberOfLines={1}>{value || '—'}</Text>
       )}
     </View>
   );
 }
 
-export default function BookingDetailScreen({ booking, propertyCode, onBack, onContactPress, onDelete, onEdit, initialProperty, initialContact, user }) {
+function digitsOnly(s) {
+  return String(s || '').replace(/[^\d]/g, '');
+}
+
+function openTelegram(handle) {
+  const raw = String(handle || '').trim();
+  if (!raw) return;
+  if (raw.startsWith('@')) {
+    Linking.openURL(`https://t.me/${raw.slice(1)}`);
+  } else if (/^\+?\d+$/.test(raw)) {
+    Linking.openURL(`https://t.me/+${digitsOnly(raw)}`);
+  } else {
+    Linking.openURL(`https://t.me/${raw}`);
+  }
+}
+
+function openWhatsapp(phone) {
+  const d = digitsOnly(phone);
+  if (!d) return;
+  Linking.openURL(`https://wa.me/${d}`);
+}
+
+function openPhone(phone, t) {
+  const raw = String(phone || '').trim();
+  const clean = raw.replace(/\s/g, '');
+  if (!clean) return;
+  Alert.alert(
+    raw,
+    t('callOrMessage'),
+    [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('call'), onPress: () => Linking.openURL('tel:' + clean) },
+      { text: t('sendMessage'), onPress: () => Linking.openURL('sms:' + clean) },
+    ],
+    { cancelable: true },
+  );
+}
+
+function ContactActionBtn({ children, onPress }) {
+  return (
+    <TouchableOpacity style={styles.contactActionBtn} onPress={onPress} activeOpacity={0.7}>
+      {children}
+    </TouchableOpacity>
+  );
+}
+
+function OwnerInfoRow({ label, name, phone, whatsapp, telegram, isLink, onPressName, t }) {
+  const hasContacts = !!(phone || whatsapp || telegram);
+  return (
+    <>
+      <View style={styles.propInfoRow}>
+        <Text style={styles.propInfoLabel} numberOfLines={1}>{label}</Text>
+        <View style={styles.propInfoValueWrap}>
+          {isLink ? (
+            <TouchableOpacity onPress={onPressName}>
+              <Text style={[styles.propInfoValue, styles.propInfoLink]} numberOfLines={1}>{name || '—'}</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.propInfoValue} numberOfLines={1}>{name || '—'}</Text>
+          )}
+        </View>
+      </View>
+      {hasContacts ? (
+        <View style={styles.propInfoRow}>
+          <Text style={styles.propInfoLabel} numberOfLines={1}>{t('pdContacts')}</Text>
+          <View style={styles.contactActions}>
+            {phone ? (
+              <ContactActionBtn onPress={() => openPhone(phone, t)}>
+                <IconCall size={20} color="#888" />
+              </ContactActionBtn>
+            ) : null}
+            {whatsapp ? (
+              <ContactActionBtn onPress={() => openWhatsapp(whatsapp)}>
+                <IconWhatsapp size={20} color="#888" />
+              </ContactActionBtn>
+            ) : null}
+            {telegram ? (
+              <ContactActionBtn onPress={() => openTelegram(telegram)}>
+                <IconTelegram size={20} color="#888" />
+              </ContactActionBtn>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+export default function BookingDetailScreen({ booking, propertyCode, onBack, onContactPress, onPropertyPress, onDelete, onEdit, initialProperty, initialContact, user }) {
   const { t, language } = useLanguage();
+  const { width } = useWindowDimensions();
+  const hPad = width < 390 ? 16 : 20;
   const [contact, setContact] = useState(initialContact ?? null);
   const [loadingContact, setLoadingContact] = useState(!initialContact && !!booking.contactId);
   const [property, setProperty] = useState(initialProperty ?? null);
@@ -151,26 +244,6 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
   useEffect(() => {
     if (!initialContact) loadContact();
   }, [loadContact, initialContact]);
-
-  const openPhone = (number) => {
-    const clean = (number || '').replace(/\s/g, '');
-    if (!clean) return;
-    Alert.alert(number, t('callOrMessage'), [
-      { text: t('back'), style: 'cancel' },
-      { text: t('call'), onPress: () => Linking.openURL('tel:' + clean) },
-      { text: t('sendMessage'), onPress: () => Linking.openURL('sms:' + clean) },
-    ]);
-  };
-
-  const openTelegram = (value) => {
-    const v = (value || '').trim();
-    if (!v) return;
-    const isPhone = /^\+?[\d\s-]+$/.test(v);
-    const url = isPhone
-      ? 'https://t.me/+' + v.replace(/\D/g, '')
-      : 'https://t.me/' + (v.startsWith('@') ? v.slice(1) : v);
-    Linking.openURL(url);
-  };
 
   const handleDelete = () => {
     Alert.alert(t('bdDeleteTitle'), t('bdDeleteConfirm'), [
@@ -247,9 +320,9 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingHorizontal: hPad }]}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.8}>
-          <Text style={styles.backArrowText}>←</Text>
+          <Ionicons name="chevron-back" size={22} color="#888" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{propertyCode || t('pdBookingList')}</Text>
         <View style={styles.headerRight} />
@@ -261,20 +334,20 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
         const isOwnBooking = !isTeamMember || booking?.responsibleAgentId === user?.id;
         if (!isOwnBooking) return null;
         return (
-          <View style={styles.actionsRow}>
+          <View style={[styles.actionsRow, { paddingHorizontal: hPad }]}>
             <TouchableOpacity style={styles.actionBtn} onPress={handleDelete} activeOpacity={0.7}>
-              <Image source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
+              <Ionicons name="trash-outline" size={22} color="#888" />
             </TouchableOpacity>
             <View style={styles.actionsRight}>
               <TouchableOpacity style={styles.actionBtn} onPress={handleGenerateConfirmation} activeOpacity={0.7} disabled={generatingPdf}>
                 {generatingPdf ? (
-                  <ActivityIndicator size="small" color="#5DB8D4" />
+                  <ActivityIndicator size="small" color={COLORS.accent} />
                 ) : (
-                  <Image source={require('../../assets/icon-booking-confirmation.png')} style={styles.actionIcon} resizeMode="contain" />
+                  <Ionicons name="document-text-outline" size={22} color="#888" />
                 )}
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionBtn} onPress={() => onEdit?.(b)} activeOpacity={0.7}>
-                <Image source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
+                <Ionicons name="create-outline" size={22} color="#888" />
               </TouchableOpacity>
             </View>
           </View>
@@ -283,20 +356,29 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
 
       <ScrollView
         style={styles.scrollArea}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: hPad }]}
         showsVerticalScrollIndicator={false}
       >
         {loadingProperty ? (
-          <View style={[styles.propertyBlock, styles.propertyBlockLoading, { backgroundColor: 'rgba(255,204,0,0.2)', borderColor: '#FFCC00' }]}>
+          <View style={[styles.card, styles.cardLoading]}>
             <ActivityIndicator size="small" color="#999" style={styles.loader} />
           </View>
         ) : property ? (
-          <View style={[styles.propertyBlock, { backgroundColor: 'rgba(255,204,0,0.2)', borderColor: '#FFCC00' }]}>
-            <PropertyInfoRow label={t('propertyCode')} value={
-              property._resort
-                ? (property._resort.code || '') + (property.code_suffix ? ` (${property.code_suffix})` : '')
-                : property.code
-            } />
+          <View style={styles.card}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="home-outline" size={18} color="#888" />
+              <Text style={styles.sectionTitleText}>{t('bdGeneralInfo')}</Text>
+            </View>
+            <PropertyInfoRow
+              label={t('propertyCode')}
+              value={
+                property._resort
+                  ? (property._resort.code || '') + (property.code_suffix ? ` (${property.code_suffix})` : '')
+                  : property.code
+              }
+              isLink={!!onPropertyPress}
+              onPress={onPropertyPress ? () => onPropertyPress(property) : undefined}
+            />
             <PropertyInfoRow label={t('pdCity')} value={property.city ?? property._resort?.city} />
             <PropertyInfoRow label={t('propDistrict')} value={property.district ?? property._resort?.district} />
             {(property.google_maps_link ?? property._resort?.google_maps_link) ? (
@@ -309,35 +391,40 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
             ) : (
               <PropertyInfoRow label={t('pdLocation')} value="—" />
             )}
-            <View style={styles.propertyDivider} />
-            <PropertyInfoRow
+            <View style={styles.propDivider} />
+            <OwnerInfoRow
               label={property.type === 'resort' ? t('pdOwnerManager') : (property._resort?.type === 'condo' ? t('pdReception') : t('pdOwner'))}
-              value={property.ownerName || '—'}
+              name={property.ownerName}
+              phone={property.ownerPhone1}
+              whatsapp={property.ownerWhatsapp}
+              telegram={property.ownerTelegram}
               isLink={!!(property._owner && onContactPress)}
-              onPress={property._owner && onContactPress ? () => onContactPress(property._owner) : undefined}
+              onPressName={property._owner && onContactPress ? () => onContactPress(property._owner) : undefined}
+              t={t}
             />
-            {property.ownerPhone1 ? <PropertyInfoRow label={t('pdPhone') + ' 1'} value={property.ownerPhone1} /> : null}
-            {property.ownerPhone2 ? <PropertyInfoRow label={t('pdPhone') + ' 2'} value={property.ownerPhone2} /> : null}
-            {property.ownerTelegram ? <PropertyInfoRow label={t('telegram')} value={property.ownerTelegram} /> : null}
-            {property._resort?.type === 'condo' && (property.owner2Name || property.owner2Phone1 || property.owner2Phone2 || property.owner2Telegram) ? (
+            {property._resort?.type === 'condo' && (property.owner2Name || property.owner2Phone1 || property.owner2Whatsapp || property.owner2Telegram) ? (
               <>
-                <View style={styles.propertyDivider} />
-                <PropertyInfoRow
+                <View style={styles.propDivider} />
+                <OwnerInfoRow
                   label={t('pdOwnerContact')}
-                  value={property.owner2Name || '—'}
+                  name={property.owner2Name}
+                  phone={property.owner2Phone1}
+                  whatsapp={property.owner2Whatsapp}
+                  telegram={property.owner2Telegram}
                   isLink={!!(property._owner2 && onContactPress)}
-                  onPress={property._owner2 && onContactPress ? () => onContactPress(property._owner2) : undefined}
+                  onPressName={property._owner2 && onContactPress ? () => onContactPress(property._owner2) : undefined}
+                  t={t}
                 />
-                {property.owner2Phone1 ? <PropertyInfoRow label={t('pdPhone') + ' 1'} value={property.owner2Phone1} /> : null}
-                {property.owner2Phone2 ? <PropertyInfoRow label={t('pdPhone') + ' 2'} value={property.owner2Phone2} /> : null}
-                {property.owner2Telegram ? <PropertyInfoRow label={t('telegram')} value={property.owner2Telegram} /> : null}
               </>
             ) : null}
           </View>
         ) : null}
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>{t('bdBookingDates')}</Text>
+          <View style={styles.sectionTitleRow}>
+            <IconCalendar size={18} color="#888" />
+            <Text style={styles.sectionTitleText}>{t('bdBookingDates')}</Text>
+          </View>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>{t('bookingCheckIn')}</Text>
             <View style={styles.detailValueRow}>
@@ -356,37 +443,28 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
 
         {(contact || loadingContact || b.contactId || b.notMyCustomer) ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>{t('bookingChooseClient')}</Text>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="person-outline" size={18} color="#888" />
+              <Text style={styles.sectionTitleText}>{t('bdClientInfo')}</Text>
+            </View>
             {b.notMyCustomer ? (
               <Text style={styles.contactValue}>{t('bookingNotMyCustomer')}</Text>
             ) : loadingContact ? (
               <ActivityIndicator size="small" color="#999" style={styles.loader} />
             ) : contact ? (
               <>
-                <TouchableOpacity
-                  onPress={() => onContactPress?.(contact)}
-                  style={styles.contactLink}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.contactLinkText}>{contactName || t('bookingChooseClientPlaceholder')}</Text>
-                </TouchableOpacity>
+                <OwnerInfoRow
+                  label={t('bdClient')}
+                  name={contactName}
+                  phone={contact.phone}
+                  whatsapp={contact.whatsapp}
+                  telegram={contact.telegram}
+                  isLink={!!onContactPress}
+                  onPressName={onContactPress ? () => onContactPress(contact) : undefined}
+                  t={t}
+                />
                 {b.passportId ? (
-                  <View style={styles.contactRow}>
-                    <Image source={require('../../assets/icon-passport-id.png')} style={styles.contactIcon} resizeMode="contain" />
-                    <Text style={styles.contactValue}>{b.passportId}</Text>
-                  </View>
-                ) : null}
-                {contact.phone ? (
-                  <TouchableOpacity onPress={() => openPhone(contact.phone)} style={styles.contactRow} activeOpacity={0.7}>
-                    <Image source={require('../../assets/icon-contact-phone.png')} style={styles.contactIcon} resizeMode="contain" />
-                    <Text style={styles.contactValue}>{contact.phone}</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {contact.telegram ? (
-                  <TouchableOpacity onPress={() => openTelegram(contact.telegram)} style={styles.contactRow} activeOpacity={0.7}>
-                    <Image source={require('../../assets/icon-contact-telegram.png')} style={styles.contactIcon} resizeMode="contain" />
-                    <Text style={styles.contactValue}>{contact.telegram}</Text>
-                  </TouchableOpacity>
+                  <PropertyInfoRow label={t('bookingPassportId')} value={b.passportId} />
                 ) : null}
               </>
             ) : (
@@ -397,7 +475,10 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
 
         {[b.priceMonthly, b.totalPrice, b.bookingDeposit, b.saveDeposit, b.commission, b.ownerCommissionOneTime, b.ownerCommissionMonthly].some(v => v != null) ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>{t('bdPrices')}</Text>
+            <View style={styles.sectionTitleRow}>
+              <IconPrices size={18} color="#888" />
+              <Text style={styles.sectionTitleText}>{t('bdPrices')}</Text>
+            </View>
             <DetailRow label={t('pdPriceMonthly')} value={b.priceMonthly != null ? formatPrice(b.priceMonthly, bookingSym) : null} />
             <DetailRow label={t('bookingTotalPrice')} value={b.totalPrice != null ? formatPrice(b.totalPrice, bookingSym) : null} />
             <DetailRow label={t('pdBookingDeposit')} value={b.bookingDeposit != null ? formatPrice(b.bookingDeposit, bookingSym) : null} />
@@ -471,36 +552,33 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: TOP_INSET,
-    paddingHorizontal: 20,
     paddingBottom: 14,
   },
   backBtn: {
-    width: 52,
-    padding: 8,
-    alignItems: 'flex-start',
+    width: 36,
+    height: 36,
+    alignItems: 'center',
     justifyContent: 'center',
-  },
-  backArrowText: {
-    fontSize: 24,
-    color: COLORS.backArrow,
   },
   headerTitle: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
+    letterSpacing: -0.3,
     color: COLORS.title,
     textAlign: 'center',
   },
   headerRight: {
-    width: 52,
+    width: 36,
   },
+
   actionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 14,
-    paddingHorizontal: 20,
   },
   actionsRight: {
     flexDirection: 'row',
@@ -510,65 +588,124 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(245,242,235,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderWidth: 1,
-    borderColor: '#E0D8CC',
+    borderColor: '#E5E5EA',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionIcon: {
-    width: 20,
-    height: 20,
-  },
-  actionIconLg: {
-    width: 24,
-    height: 24,
-  },
+
   scrollArea: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 88,
   },
+
   card: {
     backgroundColor: COLORS.cardBg,
-    borderRadius: 16,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 2,
   },
+  cardLoading: {
+    minHeight: 120,
+    justifyContent: 'center',
+  },
+
   cardTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.title,
     marginBottom: 12,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sectionTitleText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.title,
+  },
+
   detailRow: {
     marginBottom: 10,
   },
   detailLabel: {
     fontSize: 13,
-    color: COLORS.labelColor,
+    color: COLORS.label,
     marginBottom: 2,
   },
   detailValue: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: '600',
     color: COLORS.title,
   },
   detailValueRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
+    gap: 20,
   },
   detailValueTime: {
-    marginLeft: 20,
+    // gap в detailValueRow задаёт расстояние; стиль оставлен как no-op для обратной совместимости JSX
   },
+
+  propInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 12,
+  },
+  propInfoLabel: {
+    fontSize: 13,
+    color: COLORS.label,
+    width: 130,
+    flexShrink: 0,
+  },
+  propInfoValueWrap: {
+    flex: 1,
+  },
+  propInfoValue: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: COLORS.title,
+    flex: 1,
+  },
+  propInfoLink: {
+    color: COLORS.accent,
+    fontWeight: '600',
+  },
+  propDivider: {
+    height: 1,
+    backgroundColor: 'rgba(0,0,0,0.07)',
+    marginVertical: 8,
+  },
+
+  contactActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  contactActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   loader: {
     marginVertical: 8,
   },
@@ -577,9 +714,8 @@ const styles = StyleSheet.create({
   },
   contactLinkText: {
     fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.linkColor,
-    textDecorationLine: 'underline',
+    fontWeight: '600',
+    color: COLORS.accent,
   },
   contactRow: {
     flexDirection: 'row',
@@ -597,14 +733,16 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     fontSize: 15,
-    color: COLORS.labelColor,
+    color: COLORS.label,
     fontStyle: 'italic',
   },
+
   commentsText: {
     fontSize: 15,
     color: COLORS.title,
     lineHeight: 22,
   },
+
   photosRow: {
     flexDirection: 'row',
     gap: 10,
@@ -614,51 +752,8 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 12,
   },
+
   bottomSpacer: {
     height: 20,
-  },
-  propertyBlock: {
-    borderRadius: 14,
-    borderWidth: 1.5,
-    padding: 14,
-    marginBottom: 14,
-  },
-  propertyBlockLoading: {
-    minHeight: 220,
-    justifyContent: 'center',
-  },
-  propertyInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: 10,
-  },
-  propertyInfoLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#2C2C2C',
-    width: 120,
-  },
-  propertyInfoColon: {
-    fontSize: 13,
-    color: '#6B6B6B',
-    marginRight: 8,
-  },
-  propertyInfoValueWrap: {
-    flex: 1,
-  },
-  propertyInfoValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#2C2C2C',
-    flex: 1,
-  },
-  propertyInfoLink: {
-    color: COLORS.linkColor,
-    textDecorationLine: 'underline',
-  },
-  propertyDivider: {
-    height: 1,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-    marginVertical: 10,
   },
 });

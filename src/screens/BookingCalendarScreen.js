@@ -416,6 +416,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         setPreloadedContact(null);
         setAddModalVisible(false);
         setEditModalVisible(false);
+        setDetailVisible(false);
       });
     }
     prevVisibleRef.current = effectiveVisible;
@@ -618,10 +619,12 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         ownerPhone1: owner?.phone || '',
         ownerPhone2: owner?.extraPhones?.[0] || '',
         ownerTelegram: owner?.telegram || '',
+        ownerWhatsapp: owner?.whatsapp || '',
         owner2Name: owner2 ? `${owner2.name} ${owner2.lastName}`.trim() : '',
         owner2Phone1: owner2?.phone || '',
         owner2Phone2: owner2?.extraPhones?.[0] || '',
         owner2Telegram: owner2?.telegram || '',
+        owner2Whatsapp: owner2?.whatsapp || '',
       };
     })() : null;
 
@@ -1007,6 +1010,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
             initialProperty={preloadedProperty}
             initialContact={preloadedContact}
             onContactPress={(contact) => setSelectedOwnerContact(contact)}
+            onPropertyPress={(prop) => setSelectedPropertyForDetail(prop)}
             user={user}
             onBack={() => {
               setDetailVisible(false);
