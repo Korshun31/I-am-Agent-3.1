@@ -86,7 +86,7 @@ export default function AddPropertyModal({ visible, onClose, onTypeSelected }) {
               <View style={styles.headerSpacer} />
               <Text style={styles.title}>{t('addProperty')}</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-                <Ionicons name="close" size={20} color="#8E8E93" />
+                <Ionicons name="close" size={20} color="#6B6B6B" />
               </TouchableOpacity>
             </View>
 
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#8E8E93',
+    color: '#6B6B6B',
     letterSpacing: 0.7,
     textTransform: 'uppercase',
     marginBottom: 16,

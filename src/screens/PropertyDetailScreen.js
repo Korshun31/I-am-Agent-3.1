@@ -1902,7 +1902,7 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 13,
-    color: '#8E8E93',
+    color: '#6B6B6B',
   },
   infoValueWrap: {
     flex: 1,

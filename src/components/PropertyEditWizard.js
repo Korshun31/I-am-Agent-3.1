@@ -18,6 +18,8 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
+import { IconPhoto, IconVideo } from './PropertyIcons';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useLanguage } from '../context/LanguageContext';
@@ -33,15 +35,18 @@ import ModalScrollFrame from './ModalScrollFrame';
 import { useAppData } from '../context/AppDataContext';
 
 const COLORS = {
-  bg: 'rgba(255,255,255,0.92)',
+  bg: '#FFFFFF',
   title: '#2C2C2C',
-  inputBg: '#F5F2EB',
-  border: '#E0D8CC',
-  green: '#2E7D32',
-  greenBg: 'rgba(46,125,50,0.06)',
-  greenBorder: 'rgba(46,125,50,0.5)',
-  dot: '#D5D5D0',
-  dotActive: '#2E7D32',
+  inputBg: '#F7F7F9',
+  border: '#D1D1D6',
+  green: '#3D7D82',                          // teal — единый акцент системы
+  greenBg: 'rgba(61,125,130,0.06)',
+  greenBorder: 'rgba(61,125,130,0.5)',
+  dot: '#E5E5EA',
+  dotPassed: '#B0B0B5',
+  dotActive: '#3D7D82',
+  label: '#6B6B6B',
+  placeholder: '#C7C7CC',
 };
 
 const AMENITY_KEYS = [
@@ -86,7 +91,6 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
   const [addOwnerFor, setAddOwnerFor] = useState('owner');
   const [newDistrict, setNewDistrict] = useState('');
   const [responsiblePickerVisible, setResponsiblePickerVisible] = useState(false);
-  const [tempResponsible, setTempResponsible] = useState(null);
 
   const closeAllPickers = (except) => {
     if (except !== 'city') setCityOpen(false);
@@ -224,7 +228,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
               <Text style={[s.pickerBtnText, !data.city && s.pickerBtnPlaceholder]}>
                 {data.city || t('wizSelectCity')}
               </Text>
-              <Text style={s.pickerArrow}>{cityOpen ? '▲' : '▼'}</Text>
+              <Ionicons name={cityOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#6B6B6B" />
             </TouchableOpacity>
             {cityOpen && (
               <View style={s.pickerDropdown}>
@@ -266,7 +270,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
               <Text style={[s.pickerBtnText, !data.district && s.pickerBtnPlaceholder]}>
                 {data.district || t('wizSelectDistrict')}
               </Text>
-              <Text style={s.pickerArrow}>{districtOpen ? '▲' : '▼'}</Text>
+              <Ionicons name={districtOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#6B6B6B" />
             </TouchableOpacity>
             {districtOpen && (
               <View style={s.pickerDropdown}>
@@ -342,7 +346,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
             <Text style={[s.pickerBtnText, !ownerDisplay && s.pickerBtnPlaceholder]}>
               {ownerDisplay || t('wizSelectOwner')}
             </Text>
-            <Text style={s.pickerArrow}>▽</Text>
+            <Ionicons name="chevron-down" size={14} color="#6B6B6B" />
           </TouchableOpacity>
         )}
       </View>
@@ -358,7 +362,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
             <Text style={[s.pickerBtnText, !data.owner_id_2 && s.pickerBtnPlaceholder]}>
               {owner2Display || t('wizSelectOwner')}
             </Text>
-            <Text style={s.pickerArrow}>▽</Text>
+            <Ionicons name="chevron-down" size={14} color="#6B6B6B" />
           </TouchableOpacity>
         </View>
       )}
@@ -377,11 +381,11 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
           <Text style={s.fieldLabel}>{t('propResponsiblePicker')}</Text>
           <TouchableOpacity
             style={s.pickerBtn}
-            onPress={() => { setTempResponsible(data.responsible_agent_id ?? null); setResponsiblePickerVisible(true); }}
+            onPress={() => setResponsiblePickerVisible(true)}
             activeOpacity={0.7}
           >
             <Text style={s.pickerBtnText}>{responsibleDisplay}</Text>
-            <Text style={s.pickerArrow}>▽</Text>
+            <Ionicons name="chevron-down" size={14} color="#6B6B6B" />
           </TouchableOpacity>
         </View>
       )}
@@ -404,22 +408,26 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
             <Pressable style={s.ownerPickerBox} onPress={(e) => e.stopPropagation()}>
               <View style={s.ownerPickerHeader}>
                 <Text style={s.ownerPickerTitle}>{t('wizOwner')}</Text>
-                <TouchableOpacity onPress={() => setOwnerPickerVisible(false)} style={s.ownerPickerClose} activeOpacity={0.8}>
-                  <Text style={s.ownerPickerCloseIcon}>✕</Text>
+                <TouchableOpacity onPress={() => setOwnerPickerVisible(false)} style={s.ownerPickerClose} activeOpacity={0.7}>
+                  <Ionicons name="close" size={20} color="#6B6B6B" />
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity style={s.ownerPickerAddRow} onPress={() => { setOwnerPickerVisible(false); setAddOwnerFor('owner'); setAddOwnerModal(true); }} activeOpacity={0.7}>
-                <Text style={s.ownerPickerAddText}>+ {t('wizNewOwner')}</Text>
+              <TouchableOpacity style={s.ownerPickerAddRow} onPress={() => { setOwnerPickerVisible(false); setAddOwnerFor('owner'); setAddOwnerModal(true); }} activeOpacity={0.6}>
+                <Ionicons name="add" size={16} color="#3D7D82" />
+                <Text style={s.ownerPickerAddText}>{t('wizNewOwner')}</Text>
               </TouchableOpacity>
-              <TextInput
-                style={s.ownerPickerSearch}
-                placeholder={t('search')}
-                placeholderTextColor="#999"
-                value={ownerSearch}
-                onChangeText={setOwnerSearch}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+              <View style={s.ownerPickerSearchWrap}>
+                <Ionicons name="search-outline" size={16} color="#C7C7CC" />
+                <TextInput
+                  style={s.ownerPickerSearchInput}
+                  placeholder={t('search')}
+                  placeholderTextColor="#C7C7CC"
+                  value={ownerSearch}
+                  onChangeText={setOwnerSearch}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
               <ScrollView style={s.ownerPickerScroll} contentContainerStyle={s.ownerPickerScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
                 {data.owner_id && (
                   <TouchableOpacity style={s.pickerItemClear} onPress={handleClearOwner} activeOpacity={0.7}>
@@ -457,22 +465,26 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
             <Pressable style={s.ownerPickerBox} onPress={(e) => e.stopPropagation()}>
               <View style={s.ownerPickerHeader}>
                 <Text style={s.ownerPickerTitle}>{t('wizAdditionalOwner')}</Text>
-                <TouchableOpacity onPress={() => setOwner2PickerVisible(false)} style={s.ownerPickerClose} activeOpacity={0.8}>
-                  <Text style={s.ownerPickerCloseIcon}>✕</Text>
+                <TouchableOpacity onPress={() => setOwner2PickerVisible(false)} style={s.ownerPickerClose} activeOpacity={0.7}>
+                  <Ionicons name="close" size={20} color="#6B6B6B" />
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity style={s.ownerPickerAddRow} onPress={() => { setOwner2PickerVisible(false); setAddOwnerFor('owner2'); setAddOwnerModal(true); }} activeOpacity={0.7}>
-                <Text style={s.ownerPickerAddText}>+ {t('wizNewOwner')}</Text>
+              <TouchableOpacity style={s.ownerPickerAddRow} onPress={() => { setOwner2PickerVisible(false); setAddOwnerFor('owner2'); setAddOwnerModal(true); }} activeOpacity={0.6}>
+                <Ionicons name="add" size={16} color="#3D7D82" />
+                <Text style={s.ownerPickerAddText}>{t('wizNewOwner')}</Text>
               </TouchableOpacity>
-              <TextInput
-                style={s.ownerPickerSearch}
-                placeholder={t('search')}
-                placeholderTextColor="#999"
-                value={owner2Search}
-                onChangeText={setOwner2Search}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+              <View style={s.ownerPickerSearchWrap}>
+                <Ionicons name="search-outline" size={16} color="#C7C7CC" />
+                <TextInput
+                  style={s.ownerPickerSearchInput}
+                  placeholder={t('search')}
+                  placeholderTextColor="#C7C7CC"
+                  value={owner2Search}
+                  onChangeText={setOwner2Search}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
               <ScrollView style={s.ownerPickerScroll} contentContainerStyle={s.ownerPickerScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
                 {data.owner_id_2 && (
                   <TouchableOpacity style={s.pickerItemClear} onPress={handleClearOwner2} activeOpacity={0.7}>
@@ -511,8 +523,8 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
             <Pressable style={s.ownerPickerBox} onPress={(e) => e.stopPropagation()}>
               <View style={s.ownerPickerHeader}>
                 <Text style={s.ownerPickerTitle}>{t('propResponsiblePicker')}</Text>
-                <TouchableOpacity onPress={() => setResponsiblePickerVisible(false)} style={s.ownerPickerClose} activeOpacity={0.8}>
-                  <Text style={s.ownerPickerCloseIcon}>✕</Text>
+                <TouchableOpacity onPress={() => setResponsiblePickerVisible(false)} style={s.ownerPickerClose} activeOpacity={0.7}>
+                  <Ionicons name="close" size={20} color="#6B6B6B" />
                 </TouchableOpacity>
               </View>
               <ScrollView style={s.ownerPickerScroll} contentContainerStyle={s.ownerPickerScrollContent} showsVerticalScrollIndicator>
@@ -520,9 +532,10 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
                 {[{ user_id: null, name: companyDisplayName, is_company: true },
                   ...(teamMembers || []).filter(m => m.role === 'agent')
                 ].map((item) => {
+                  const currentResponsible = data.responsible_agent_id ?? null;
                   const isSelected = item.is_company
-                    ? (!tempResponsible || tempResponsible === currentUser?.id)
-                    : tempResponsible === item.user_id;
+                    ? (!currentResponsible || currentResponsible === currentUser?.id)
+                    : currentResponsible === item.user_id;
                   const displayName = item.is_company
                     ? companyDisplayName
                     : ([item.name, item.last_name].filter(Boolean).join(' ') || item.email || '—');
@@ -530,8 +543,11 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
                     <TouchableOpacity
                       key={item.user_id ?? 'company'}
                       style={[s.ownerPickerItem, isSelected && s.responsibleItemActive]}
-                      onPress={() => setTempResponsible(item.is_company ? null : item.user_id)}
-                      activeOpacity={0.7}
+                      onPress={() => {
+                        setData(d => ({ ...d, responsible_agent_id: item.is_company ? null : item.user_id }));
+                        setResponsiblePickerVisible(false);
+                      }}
+                      activeOpacity={0.6}
                     >
                       <View style={s.responsibleCheckbox}>
                         {isSelected && <View style={s.responsibleCheckboxInner} />}
@@ -543,16 +559,6 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
                   );
                 })}
               </ScrollView>
-              <TouchableOpacity
-                style={s.responsibleSaveBtn}
-                onPress={() => {
-                  setData(d => ({ ...d, responsible_agent_id: tempResponsible }));
-                  setResponsiblePickerVisible(false);
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={s.responsibleSaveBtnText}>{t('save')}</Text>
-              </TouchableOpacity>
             </Pressable>
           </Pressable>
         </Modal>
@@ -693,7 +699,7 @@ function StepMedia({ data, setData, t, maxPhotos }) {
   return (
     <>
       <View style={s.mediaSectionTitleRow}>
-        <RNImage source={require('../../assets/icon-photo.png')} style={s.mediaSectionTitleIcon} resizeMode="contain" />
+        <IconPhoto size={22} color="#888" />
         <Text style={s.mediaSectionTitle}>{t('pdPhoto')}</Text>
       </View>
       <View style={s.mediaGrid}>
@@ -711,7 +717,7 @@ function StepMedia({ data, setData, t, maxPhotos }) {
             <ActivityIndicator size="small" color={COLORS.green} />
           ) : (
             <>
-              <Text style={s.mediaAddIcon}>+</Text>
+              <Ionicons name="add-outline" size={28} color="#888" />
               <Text style={s.mediaAddLabel}>{t('wizAddPhoto')}</Text>
             </>
           )}
@@ -723,7 +729,7 @@ function StepMedia({ data, setData, t, maxPhotos }) {
       )}
 
       <View style={[s.mediaSectionTitleRow, { marginTop: 20 }]}>
-        <RNImage source={require('../../assets/icon-video.png')} style={s.mediaSectionTitleIcon} resizeMode="contain" />
+        <IconVideo size={22} color="#888" />
         <Text style={s.mediaSectionTitle}>{t('pdVideo')}</Text>
       </View>
       {videos.map((url, i) => (
@@ -746,7 +752,7 @@ function StepMedia({ data, setData, t, maxPhotos }) {
           autoCapitalize="none"
         />
         <TouchableOpacity style={s.newDistrictBtn} onPress={addVideo} activeOpacity={0.7}>
-          <Text style={s.newDistrictBtnText}>+</Text>
+          <Ionicons name="add-outline" size={22} color="#888" />
         </TouchableOpacity>
       </View>
     </>
@@ -1304,20 +1310,22 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
     <View style={s.headerRow}>
       <View style={s.headerSpacer} />
       <View style={s.headerCenter}>
-        <Text style={s.title}>{t(currentStep.titleKey)}</Text>
-        <Text style={s.stepCounter}>{safeStep + 1} / {steps.length}</Text>
+        <Text style={s.title} numberOfLines={1}>{t(currentStep.titleKey)}</Text>
       </View>
-      <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.8}>
-        <Text style={s.closeIcon}>✕</Text>
+      <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.7}>
+        <Ionicons name="close" size={20} color="#6B6B6B" />
       </TouchableOpacity>
     </View>
   );
 
   const dotsRow = (
     <View style={s.dotsRow}>
-      {steps.map((_, i) => (
-        <View key={i} style={[s.dot, i <= step && s.dotActive]} />
-      ))}
+      {steps.map((_, i) => {
+        const dotStyle = i === step ? s.dotActive
+                       : i < step ? s.dotPassed
+                       : s.dot;
+        return <View key={i} style={dotStyle} />;
+      })}
     </View>
   );
 
@@ -1339,9 +1347,9 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
           activeOpacity={0.7}
           disabled={saving}
         >
-          <Image
-            source={require('../../assets/save-icon.png')}
-            style={[s.navSaveIconImg, saving && { opacity: 0.4 }]}
+          <RNImage
+            source={require('../../assets/icon-save-new.png')}
+            style={{ width: 22, height: 22, tintColor: saving ? '#C7C7CC' : '#888' }}
             resizeMode="contain"
           />
         </TouchableOpacity>
@@ -1396,31 +1404,36 @@ const s = StyleSheet.create({
   backdropWeb: { backgroundColor: 'rgba(0,0,0,0.5)' },
   headerRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 18, paddingHorizontal: 18, paddingBottom: 10,
+    paddingTop: 16, paddingHorizontal: 16, paddingBottom: 16,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.07)',
   },
   headerSpacer: { width: 36 },
   headerCenter: { flex: 1, alignItems: 'center' },
-  title: { fontSize: 17, fontWeight: '700', color: COLORS.title },
-  stepCounter: { fontSize: 12, color: '#999', marginTop: 2 },
+  title: { fontSize: 17, fontWeight: '600', color: COLORS.title },
   closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  closeIcon: { fontSize: 20, color: '#E85D4C', fontWeight: '600' },
 
   dotsRow: {
-    flexDirection: 'row', justifyContent: 'center', gap: 8,
-    paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)',
+    flexDirection: 'row', justifyContent: 'center', gap: 6,
+    paddingTop: 14, paddingBottom: 16,
   },
-  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.dot },
-  dotActive: { backgroundColor: COLORS.dotActive },
+  dot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.dot },
+  dotPassed: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.dotPassed },
+  dotActive: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.dotActive },
 
   scrollContent: { padding: 20 },
 
-  fieldWrap: { marginBottom: 14 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: '#6B6B6B', marginBottom: 6 },
+  fieldWrap: { marginBottom: 12 },
+  fieldLabel: {
+    fontSize: 11, fontWeight: '600', color: COLORS.label,
+    letterSpacing: 0.7, textTransform: 'uppercase',
+    marginBottom: 8,
+  },
   input: {
-    backgroundColor: COLORS.inputBg, borderRadius: 12,
+    backgroundColor: COLORS.inputBg, borderRadius: 10,
     paddingVertical: 12, paddingHorizontal: 14,
     fontSize: 15, color: COLORS.title,
     borderWidth: 1, borderColor: COLORS.border,
+    minHeight: 46,
   },
   inputMultiline: { minHeight: 80, textAlignVertical: 'top' },
 
@@ -1433,12 +1446,12 @@ const s = StyleSheet.create({
     width: 48, height: 28, borderRadius: 14,
     backgroundColor: '#D5D5D0', justifyContent: 'center', paddingHorizontal: 3,
   },
-  toggleTrackOn: { backgroundColor: '#81C784' },
+  toggleTrackOn: { backgroundColor: 'rgba(61,125,130,0.6)' },
   toggleThumb: {
     width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFF',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2, elevation: 2,
   },
-  toggleThumbOn: { alignSelf: 'flex-end', backgroundColor: '#4CAF50' },
+  toggleThumbOn: { alignSelf: 'flex-end', backgroundColor: COLORS.green },
 
   priceFromLabelRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6,
@@ -1462,9 +1475,9 @@ const s = StyleSheet.create({
     backgroundColor: '#EDEDEB', alignItems: 'center',
     borderWidth: 1, borderColor: '#D5D5D0',
   },
-  waterTypeBtnActive: { backgroundColor: '#E3F2FD', borderColor: '#64B5F6' },
+  waterTypeBtnActive: { backgroundColor: 'rgba(61,125,130,0.6)', borderColor: COLORS.green },
   waterTypeBtnText: { fontSize: 11, color: '#999', fontWeight: '600' },
-  waterTypeBtnTextActive: { color: '#1976D2' },
+  waterTypeBtnTextActive: { color: '#FFFFFF' },
   ownerCommInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   ownerCommInput: { flex: 1 },
   ownerCommModeRow: {
@@ -1482,45 +1495,47 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ownerCommModeBtnActive: { backgroundColor: '#E3F2FD', borderColor: '#64B5F6' },
+  ownerCommModeBtnActive: { backgroundColor: 'rgba(61,125,130,0.6)', borderColor: COLORS.green },
   ownerCommModeBtnText: { fontSize: 12, color: '#999', fontWeight: '700' },
-  ownerCommModeBtnTextActive: { color: '#1976D2' },
+  ownerCommModeBtnTextActive: { color: '#FFFFFF' },
   ownerCommCalcText: { marginTop: 8, fontSize: 12, color: '#6B6B6B' },
 
   navRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 18, paddingVertical: 14,
-    borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)',
+    borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.07)',
   },
+  // Контейнер как у toolbarBtn на главной — белый с тонкой серой рамкой.
   navSaveIconBtn: {
-    width: 46, height: 46, borderRadius: 12,
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderWidth: 1, borderColor: '#E5E5EA',
     alignItems: 'center', justifyContent: 'center',
   },
-  navSaveIconImg: { width: 25, height: 25 },
   navBtn: {
     paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12,
   },
   navBtnDisabled: { opacity: 0.3 },
-  navBtnText: { fontSize: 15, fontWeight: '600', color: '#6B6B6B' },
-  navBtnTextDisabled: { color: '#BBB' },
+  navBtnText: { fontSize: 15, fontWeight: '600', color: COLORS.label },
+  navBtnTextDisabled: { color: '#C7C7CC' },
   navBtnNext: {
-    backgroundColor: 'rgba(46,125,50,0.08)', borderWidth: 1.5, borderColor: COLORS.greenBorder,
+    backgroundColor: 'transparent', borderWidth: 1.5, borderColor: COLORS.green,
   },
   navBtnNextText: { color: COLORS.green },
   navBtnSave: {
-    backgroundColor: COLORS.green, borderColor: COLORS.green,
+    backgroundColor: 'transparent', borderColor: COLORS.green,
   },
-  navBtnSaveText: { color: '#FFF' },
+  navBtnSaveText: { color: COLORS.green },
 
   pickerBtn: {
-    backgroundColor: COLORS.inputBg, borderRadius: 12,
+    backgroundColor: COLORS.inputBg, borderRadius: 10,
     paddingVertical: 12, paddingHorizontal: 14,
     borderWidth: 1, borderColor: COLORS.border,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    minHeight: 46,
   },
   pickerBtnText: { fontSize: 15, color: COLORS.title, flex: 1 },
-  pickerBtnPlaceholder: { color: '#999' },
-  pickerArrow: { fontSize: 12, color: '#999', marginLeft: 8 },
+  pickerBtnPlaceholder: { color: COLORS.placeholder },
   pickerDropdown: {
     marginTop: 6, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border,
     backgroundColor: '#FFF', overflow: 'hidden',
@@ -1557,10 +1572,12 @@ const s = StyleSheet.create({
     color: COLORS.title, borderWidth: 1, borderColor: COLORS.border,
   },
   newDistrictBtn: {
-    width: 36, height: 36, borderRadius: 10, marginLeft: 8,
-    backgroundColor: COLORS.green, alignItems: 'center', justifyContent: 'center',
+    width: 40, height: 40, borderRadius: 12, marginLeft: 8,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderWidth: 1, borderColor: '#E5E5EA',
+    alignItems: 'center', justifyContent: 'center',
   },
-  newDistrictBtnText: { fontSize: 20, color: '#FFF', fontWeight: '600', marginTop: -1 },
+  newDistrictBtnText: { fontSize: 20, color: '#888', fontWeight: '600', marginTop: -1 },
 
   ownerPickerBackdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -1586,44 +1603,53 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.05)',
   },
-  ownerPickerTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: COLORS.title },
+  ownerPickerTitle: { flex: 1, fontSize: 17, fontWeight: '600', color: COLORS.title },
   ownerPickerClose: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  ownerPickerCloseIcon: { fontSize: 20, color: '#E85D4C', fontWeight: '600' },
   ownerPickerAddRow: {
-    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 13,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: 'rgba(0,0,0,0.07)',
   },
-  ownerPickerAddText: { fontSize: 16, color: COLORS.green, fontWeight: '600' },
-  ownerPickerSearch: {
+  ownerPickerAddText: { fontSize: 15, color: COLORS.green, fontWeight: '500' },
+  ownerPickerSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginHorizontal: 16,
     marginVertical: 8,
     backgroundColor: COLORS.inputBg,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    fontSize: 16,
-    color: COLORS.title,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 46,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  ownerPickerScroll: { maxHeight: 280 },
+  ownerPickerSearchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.title,
+    paddingVertical: 0,
+  },
+  ownerPickerScroll: { maxHeight: 320 },
   ownerPickerScrollContent: { paddingBottom: 8 },
   ownerPickerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 13,
     paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.04)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
   },
-  ownerPickerItemText: { fontSize: 16, color: COLORS.title, flex: 1 },
+  ownerPickerItemText: { fontSize: 15, color: COLORS.title, flex: 1 },
   ownerPickerItemSelected: { fontWeight: '600', color: COLORS.green },
-  ownerPickerItemSub: { fontSize: 11, color: '#999', marginTop: 2, maxWidth: 120 },
+  ownerPickerItemSub: { fontSize: 12, color: '#9B9B9B', marginTop: 2, maxWidth: 140 },
   ownerPickerCheck: { fontSize: 16, fontWeight: '700', color: COLORS.green, marginLeft: 8 },
 
-  responsibleItemActive: { backgroundColor: 'rgba(46,125,50,0.05)' },
+  responsibleItemActive: { backgroundColor: 'rgba(61,125,130,0.05)' },
   responsibleCheckbox: {
     width: 20,
     height: 20,
@@ -1640,16 +1666,6 @@ const s = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: COLORS.green,
   },
-  responsibleSaveBtn: {
-    marginHorizontal: 20,
-    marginTop: 12,
-    marginBottom: 4,
-    backgroundColor: COLORS.green,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  responsibleSaveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   mediaSectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
   mediaSectionTitleIcon: { width: 22, height: 22 },
