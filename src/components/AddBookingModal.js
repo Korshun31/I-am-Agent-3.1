@@ -17,6 +17,7 @@ import {
   Switch,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import ModalScrollFrame from './ModalScrollFrame';
 import * as ImagePicker from 'expo-image-picker';
@@ -111,18 +112,23 @@ function formatDateDisplay(d) {
 const COLORS = {
   boxBg: 'rgba(255,255,255,0.72)',
   title: '#2C2C2C',
-  inputBg: '#F5F2EB',
-  border: '#E0D8CC',
-  saveGreen: '#2E7D32',
-  dot: '#D5D5D0',
-  dotActive: '#2E7D32',
+  inputBg: '#F7F7F9',
+  border: '#D1D1D6',
+  accent: '#3D7D82',
+  accentBg: 'rgba(61,125,130,0.06)',
+  accentBorder: 'rgba(61,125,130,0.5)',
+  dot: '#C7C7CC',
+  dotPassed: '#888888',
+  dotActive: '#3D7D82',
+  label: '#6B6B6B',
+  placeholder: '#C7C7CC',
 };
 
 function CheckRow({ label, checked, onPress }) {
   return (
     <TouchableOpacity style={s.row} onPress={onPress} activeOpacity={0.7}>
       <View style={[s.checkbox, checked && s.checkboxChecked]}>
-        {checked && <Text style={s.checkMark}>✓</Text>}
+        {checked && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
       </View>
       <Text style={s.rowLabel}>{label}</Text>
     </TouchableOpacity>
@@ -603,15 +609,20 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
     <>
       <View style={s.headerRow}>
         <View style={s.headerSpacer} />
-        <Text style={s.title}>{editBooking ? t('editBookingTitle') : t('addBookingTitle')}</Text>
-        <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.8}>
-          <Text style={s.closeIcon}>✕</Text>
+        <View style={s.headerCenter}>
+          <Text style={s.title} numberOfLines={1}>
+            {editBooking ? t('editBookingTitle') : t('addBookingTitle')}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.7}>
+          <Ionicons name="close" size={20} color="#6B6B6B" />
         </TouchableOpacity>
       </View>
       <View style={s.dotsRow}>
-        {(notMyCustomer ? [1, 2] : [1, 2, 3, 4]).map((i) => (
-          <View key={i} style={[s.dot, i <= step && s.dotActive]} />
-        ))}
+        {(notMyCustomer ? [1, 2] : [1, 2, 3, 4]).map((i) => {
+          const dotStyle = i < step ? s.dotPassed : i === step ? s.dotActive : s.dot;
+          return <View key={i} style={dotStyle} />;
+        })}
       </View>
     </>
   );
@@ -649,7 +660,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
             disabled={saving}
           >
             {saving ? (
-              <ActivityIndicator size="small" color={COLORS.saveGreen} />
+              <ActivityIndicator size="small" color={COLORS.accent} />
             ) : (
               <Text style={s.saveBtnText}>{t('save')}</Text>
             )}
@@ -685,9 +696,9 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
               <TouchableOpacity
                 onPress={() => setClientPickerVisible(false)}
                 style={s.closeBtn}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
               >
-                <Text style={s.closeIcon}>✕</Text>
+                <Ionicons name="close" size={20} color="#6B6B6B" />
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -708,7 +719,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
             />
             {loadingClients ? (
               <View style={s.loadingWrap}>
-                <ActivityIndicator size="small" color={COLORS.saveGreen} />
+                <ActivityIndicator size="small" color={COLORS.accent} />
               </View>
             ) : (
               <ScrollView
@@ -1002,7 +1013,7 @@ isMonthFirst
                     {photos.length < MAX_BOOKING_PHOTOS && (
                       <TouchableOpacity style={s.mediaAddBtn} onPress={pickPhoto} activeOpacity={0.7} disabled={photoProcessing}>
                         {photoProcessing ? (
-                          <ActivityIndicator size="small" color={COLORS.saveGreen} />
+                          <ActivityIndicator size="small" color={COLORS.accent} />
                         ) : (
                           <>
                             <Text style={s.mediaAddIcon}>+</Text>
@@ -1047,17 +1058,21 @@ isMonthFirst
                           ? `${selectedClient.name} ${selectedClient.lastName}`.trim() || selectedClient.phone
                           : t('bookingChooseClientPlaceholder')}
                       </Text>
-                      <Text style={[s.chevron, notMyCustomer && s.chevronDisabled]}>▽</Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={14}
+                        color={notMyCustomer ? '#C7C7CC' : '#6B6B6B'}
+                      />
                     </TouchableOpacity>
 
                     <View style={[s.inputWithIconRow, notMyCustomer && s.inputWithIconRowDisabled]}>
-                      <Image source={require('../../assets/icon-passport-id.png')} style={s.inputFieldIcon} resizeMode="contain" />
+                      <Ionicons name="card-outline" size={16} color="#6B6B6B" style={{ marginRight: 10 }} />
                       <TextInput
                         style={[s.input, s.inputWithIconInput, notMyCustomer && s.inputDisabled]}
                         value={passportId}
                         onChangeText={setPassportId}
                         placeholder={t('bookingPassportIdPlaceholder')}
-                        placeholderTextColor="#999"
+                        placeholderTextColor={COLORS.placeholder}
                         editable={!notMyCustomer}
                       />
                     </View>
@@ -1272,14 +1287,14 @@ isMonthFirst
                 )
               )}
 
+        <AddContactModal
+          visible={addContactVisible}
+          onClose={() => setAddContactVisible(false)}
+          onSave={handleSaveContact}
+          contactType="clients"
+          editContact={null}
+        />
       </ModalScrollFrame>
-      <AddContactModal
-        visible={addContactVisible}
-        onClose={() => setAddContactVisible(false)}
-        onSave={handleSaveContact}
-        contactType="clients"
-        editContact={null}
-      />
     </>
   );
 }
@@ -1292,19 +1307,19 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 20,
-    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingHorizontal: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+    borderBottomColor: 'rgba(0,0,0,0.07)',
   },
   headerSpacer: { width: 36 },
+  headerCenter: { flex: 1, alignItems: 'center' },
   title: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '600',
     color: COLORS.title,
     textAlign: 'center',
-    flex: 1,
   },
   closeBtn: {
     width: 36,
@@ -1312,21 +1327,16 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeIcon: {
-    fontSize: 20,
-    color: '#E85D4C',
-    fontWeight: '600',
-  },
   dotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+    gap: 6,
+    paddingTop: 14,
+    paddingBottom: 16,
   },
-  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.dot },
-  dotActive: { backgroundColor: COLORS.dotActive },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.dot },
+  dotPassed: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.dotPassed },
+  dotActive: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.dotActive },
   mediaSectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
   mediaSectionTitleIcon: { width: 22, height: 22 },
   mediaSectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.title },
@@ -1359,18 +1369,20 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.06)',
   },
-  reminderOptionSelected: { backgroundColor: 'rgba(46,125,50,0.08)' },
+  reminderOptionSelected: { backgroundColor: 'rgba(61,125,130,0.08)' },
   reminderOptionText: { fontSize: 16, color: COLORS.title },
-  reminderOptionTextSelected: { fontWeight: '600', color: COLORS.saveGreen },
+  reminderOptionTextSelected: { fontWeight: '600', color: COLORS.accent },
   reminderSelectBtn: {
     marginTop: 8,
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: COLORS.saveGreen,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: COLORS.accentBorder,
+    backgroundColor: COLORS.accentBg,
   },
-  reminderSelectBtnText: { fontSize: 16, fontWeight: '600', color: '#FFF' },
+  reminderSelectBtnText: { fontSize: 15, fontWeight: '600', color: COLORS.accent },
   mediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   mediaThumbWrap: { width: 90, height: 90, borderRadius: 12, overflow: 'hidden', position: 'relative' },
   mediaThumb: { width: '100%', height: '100%' },
@@ -1385,7 +1397,7 @@ const s = StyleSheet.create({
     borderWidth: 1.5, borderColor: COLORS.border, borderStyle: 'dashed',
     alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.inputBg,
   },
-  mediaAddIcon: { fontSize: 28, color: COLORS.saveGreen, fontWeight: '300', marginTop: -2 },
+  mediaAddIcon: { fontSize: 28, color: COLORS.accent, fontWeight: '300', marginTop: -2 },
   mediaAddLabel: { fontSize: 10, color: '#999', marginTop: 2 },
   mediaLimitNote: { fontSize: 12, color: '#999', fontStyle: 'italic', marginTop: 6 },
   scroll: { flexShrink: 1 },
@@ -1406,73 +1418,79 @@ const s = StyleSheet.create({
     paddingBottom: 16,
   },
   fieldLabel: {
-    fontSize: 12,
-    color: '#888',
-    marginBottom: 4,
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.label,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    marginBottom: 6,
   },
   fieldLabelStep2: { marginBottom: 8 },
   readOnlyField: {
     backgroundColor: COLORS.inputBg,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    borderRadius: 10,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 46,
   },
   readOnlyText: {
-    fontSize: 16,
+    fontSize: 15,
     color: COLORS.title,
     fontWeight: '500',
   },
   section: { marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
   checkbox: {
-    width: 22,
-    height: 22,
+    width: 20,
+    height: 20,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: '#9A9090',
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
-  checkboxChecked: { borderColor: COLORS.saveGreen },
-  checkMark: { color: COLORS.saveGreen, fontSize: 14, fontWeight: '700' },
+  checkboxChecked: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
+  },
   rowLabel: { fontSize: 15, color: COLORS.title, flex: 1 },
   selectField: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: COLORS.inputBg,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    borderRadius: 10,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 46,
   },
   selectFieldDisabled: {
-    backgroundColor: '#EDEDEB',
+    backgroundColor: '#EDEDEC',
     opacity: 0.7,
   },
-  selectFieldText: { fontSize: 16, color: COLORS.title, flex: 1 },
-  selectFieldPlaceholder: { color: '#999' },
-  chevron: { fontSize: 12, color: '#6B6B6B', marginLeft: 8 },
-  chevronDisabled: { color: '#BBB' },
+  selectFieldText: { fontSize: 15, color: COLORS.title, flex: 1 },
+  selectFieldPlaceholder: { color: COLORS.placeholder },
   input: {
     backgroundColor: COLORS.inputBg,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    fontSize: 16,
+    borderRadius: 10,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    fontSize: 15,
     color: COLORS.title,
     borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: 20,
+    marginBottom: 16,
+    minHeight: 46,
   },
   inputDisabled: {
-    backgroundColor: '#EDEDEB',
+    backgroundColor: '#EDEDEC',
     opacity: 0.7,
     color: '#999',
   },
@@ -1480,20 +1498,16 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.inputBg,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingLeft: 16,
-    marginBottom: 20,
+    paddingLeft: 14,
+    marginBottom: 16,
+    minHeight: 46,
   },
   inputWithIconRowDisabled: {
-    backgroundColor: '#EDEDEB',
+    backgroundColor: '#EDEDEC',
     opacity: 0.7,
-  },
-  inputFieldIcon: {
-    width: 22,
-    height: 22,
-    marginRight: 12,
   },
   inputWithIconInput: {
     flex: 1,
@@ -1507,15 +1521,16 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 13,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: 'rgba(46, 125, 50, 0.5)',
-    backgroundColor: 'rgba(46, 125, 50, 0.06)',
-    gap: 8,
+    borderColor: COLORS.accentBorder,
+    backgroundColor: COLORS.accentBg,
+    gap: 6,
+    minHeight: 46,
   },
-  nextBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.saveGreen },
-  nextBtnArrow: { fontSize: 18, color: COLORS.saveGreen, fontWeight: '700' },
+  nextBtnText: { fontSize: 15, fontWeight: '600', color: COLORS.accent },
+  nextBtnArrow: { fontSize: 16, color: COLORS.accent, fontWeight: '700' },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
   dateRowReadonly: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   dateRowReadonlyStep2: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
@@ -1549,29 +1564,31 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 13,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: 'rgba(232, 93, 76, 0.5)',
-    backgroundColor: 'rgba(232, 93, 76, 0.06)',
-    gap: 8,
+    borderColor: 'rgba(0,0,0,0.12)',
+    backgroundColor: 'transparent',
+    gap: 6,
+    minHeight: 46,
   },
-  backBtnArrow: { fontSize: 18, color: '#E85D4C', fontWeight: '700' },
-  backBtnText: { fontSize: 16, fontWeight: '600', color: '#E85D4C' },
+  backBtnArrow: { fontSize: 16, color: '#6B6B6B', fontWeight: '600' },
+  backBtnText: { fontSize: 15, fontWeight: '600', color: '#6B6B6B' },
   saveBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 13,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: 'rgba(46, 125, 50, 0.5)',
-    backgroundColor: 'rgba(46, 125, 50, 0.06)',
-    gap: 8,
+    borderColor: COLORS.accentBorder,
+    backgroundColor: COLORS.accentBg,
+    gap: 6,
+    minHeight: 46,
   },
   saveBtnDisabled: { opacity: 0.7 },
-  saveBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.saveGreen },
+  saveBtnText: { fontSize: 15, fontWeight: '600', color: COLORS.accent },
   calendarInline: {
     marginBottom: 16,
   },
@@ -1616,7 +1633,7 @@ const s = StyleSheet.create({
   timeSelectBtnText: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.saveGreen,
+    color: COLORS.accent,
   },
   datePickerOverlay: {
     flex: 1,
@@ -1639,7 +1656,7 @@ const s = StyleSheet.create({
     borderBottomColor: 'rgba(0,0,0,0.06)',
   },
   datePickerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.title },
-  datePickerDoneText: { fontSize: 16, fontWeight: '600', color: COLORS.saveGreen },
+  datePickerDoneText: { fontSize: 16, fontWeight: '600', color: COLORS.accent },
   datePickerSpinner: { height: 200 },
   timePickerSpinnerWrap: {
     alignItems: 'center',
@@ -1675,7 +1692,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.05)',
   },
-  addNewText: { fontSize: 16, color: COLORS.saveGreen, fontWeight: '600' },
+  addNewText: { fontSize: 16, color: COLORS.accent, fontWeight: '600' },
   searchInput: {
     marginHorizontal: 16,
     marginVertical: 8,
@@ -1698,8 +1715,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
   },
   pickerItemText: { fontSize: 16, color: COLORS.title, flex: 1 },
-  pickerItemSelected: { fontWeight: '600', color: COLORS.saveGreen },
-  pickerCheck: { fontSize: 16, fontWeight: '700', color: COLORS.saveGreen },
+  pickerItemSelected: { fontWeight: '600', color: COLORS.accent },
+  pickerCheck: { fontSize: 16, fontWeight: '700', color: COLORS.accent },
   selectBtn: {
     paddingVertical: 14,
     marginHorizontal: 20,
@@ -1711,7 +1728,7 @@ const s = StyleSheet.create({
     borderColor: 'rgba(46, 125, 50, 0.5)',
     backgroundColor: 'rgba(46, 125, 50, 0.06)',
   },
-  selectBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.saveGreen },
+  selectBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.accent },
   // TD-082: помесячная разбивка
   breakdownBlock:        { marginTop: 12, marginBottom: 12, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: 'rgba(255,255,255,0.5)' },
   breakdownHeader:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -1720,6 +1737,6 @@ const s = StyleSheet.create({
   breakdownMonth:        { flex: 1, fontSize: 13, color: COLORS.title, textTransform: 'capitalize' },
   breakdownAmountInput:  { flex: 1, marginTop: 0 },
   breakdownCurrency:     { fontSize: 13, color: '#888', minWidth: 28 },
-  breakdownRecalcBtn:    { marginTop: 12, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.saveGreen, alignSelf: 'flex-start' },
-  breakdownRecalcText:   { fontSize: 13, color: COLORS.saveGreen, fontWeight: '600' },
+  breakdownRecalcBtn:    { marginTop: 12, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.accent, alignSelf: 'flex-start' },
+  breakdownRecalcText:   { fontSize: 13, color: COLORS.accent, fontWeight: '600' },
 });
