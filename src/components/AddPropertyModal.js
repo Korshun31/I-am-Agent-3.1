@@ -5,40 +5,65 @@ import {
   Modal,
   TouchableOpacity,
   StyleSheet,
-  Image,
   Platform,
   Pressable,
+  Image as RNImage,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../context/LanguageContext';
+import { TYPE_COLORS } from './PropertyItem';
+import { IconHouseType, IconCondoType } from './PropertyIcons';
 
-const COLORS = {
-  boxBg: 'rgba(255,255,255,0.92)',
-  title: '#2C2C2C',
-  border: '#E0D8CC',
-};
+// Iconка резорта взята как PNG-референс, перекрашивается через tintColor
+// в текущий цвет (TYPE_COLORS.resort для выбранного, серый для неактивного).
+function IconResortPng({ size = 28, color = '#888' }) {
+  return (
+    <RNImage
+      source={require('../../assets/icon-property-resort-new.png')}
+      style={{ width: size, height: size, tintColor: color }}
+      resizeMode="contain"
+    />
+  );
+}
 
 const PROPERTY_TYPES = [
-  { key: 'resort', color: '#C8E6C9', borderColor: '#81C784', icon: require('../../assets/icon-property-resort.png') },
-  { key: 'house', color: '#FFF9C4', borderColor: '#FFD54F', icon: require('../../assets/icon-property-house.png') },
-  { key: 'condo', color: '#BBDEFB', borderColor: '#64B5F6', icon: require('../../assets/icon-property-condo.png') },
+  { key: 'resort', Icon: IconResortPng },
+  { key: 'house',  Icon: IconHouseType },
+  { key: 'condo',  Icon: IconCondoType },
 ];
+
+function TypeTile({ typeKey, Icon, label, selected, onPress }) {
+  const typeColor = TYPE_COLORS[typeKey] || TYPE_COLORS.house;
+  const iconColor  = selected ? typeColor : '#C7C7CC';
+  const labelColor = selected ? typeColor : '#C7C7CC';
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.tile,
+        selected && { borderColor: typeColor, borderWidth: 1.5 },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Icon size={28} color={iconColor} />
+      <Text style={[styles.tileLabel, { color: labelColor }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
 
 export default function AddPropertyModal({ visible, onClose, onTypeSelected }) {
   const { t } = useLanguage();
   const [type, setType] = useState('house');
 
   useEffect(() => {
-    if (visible) {
-      setType('house');
-    }
+    if (visible) setType('house');
   }, [visible]);
 
   if (!visible) return null;
-
-  const handleSelect = (selectedType) => {
-    setType(selectedType);
-  };
 
   const handleNext = () => {
     onTypeSelected?.(type);
@@ -53,44 +78,45 @@ export default function AddPropertyModal({ visible, onClose, onTypeSelected }) {
         ) : (
           <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
         )}
+
         <Pressable style={styles.boxWrap} onPress={(e) => e.stopPropagation()}>
           <View style={styles.box}>
+            {/* Шапка */}
             <View style={styles.headerRow}>
               <View style={styles.headerSpacer} />
               <Text style={styles.title}>{t('addProperty')}</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-                <Text style={styles.closeIcon}>✕</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+                <Ionicons name="close" size={20} color="#8E8E93" />
               </TouchableOpacity>
             </View>
 
+            {/* Контент */}
             <View style={styles.content}>
-              <Text style={styles.hint}>{t('propertyType')}</Text>
+              <Text style={styles.sectionLabel}>{t('propertyType')}</Text>
+
               <View style={styles.typeRow}>
                 {PROPERTY_TYPES.map((pt) => (
-                  <TouchableOpacity
+                  <TypeTile
                     key={pt.key}
-                    style={[
-                      styles.typeBtn,
-                      type === pt.key
-                        ? { backgroundColor: pt.color, borderColor: pt.borderColor, ...styles.typeBtnActive }
-                        : styles.typeBtnInactive,
-                    ]}
-                    onPress={() => handleSelect(pt.key)}
-                    activeOpacity={0.7}
-                  >
-                    <Image
-                      source={pt.icon}
-                      style={[styles.typeBtnIcon, type !== pt.key && styles.typeBtnIconInactive]}
-                      resizeMode="contain"
-                    />
-                    <Text style={[styles.typeBtnLabel, type === pt.key && styles.typeBtnLabelActive]}>
-                      {t(`propertyType_${pt.key}`)}
-                    </Text>
-                  </TouchableOpacity>
+                    typeKey={pt.key}
+                    Icon={pt.Icon}
+                    label={t(`propertyType_${pt.key}`)}
+                    selected={type === pt.key}
+                    onPress={() => setType(pt.key)}
+                  />
                 ))}
               </View>
-              <TouchableOpacity style={styles.nextBtn} onPress={handleNext} activeOpacity={0.8}>
-                <Text style={styles.nextBtnText}>{t('next') || 'Next'}</Text>
+
+              {/* Кнопка «Далее» — outline, деликатная */}
+              <TouchableOpacity
+                style={[styles.nextBtn, !type && styles.nextBtnDisabled]}
+                onPress={handleNext}
+                activeOpacity={0.75}
+                disabled={!type}
+              >
+                <Text style={[styles.nextBtnText, !type && styles.nextBtnTextDisabled]}>
+                  {t('next') || 'Next'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -117,30 +143,29 @@ const styles = StyleSheet.create({
   box: {
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: COLORS.boxBg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    elevation: 10,
   },
+
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 20,
-    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingHorizontal: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+    borderBottomColor: 'rgba(0,0,0,0.07)',
   },
   headerSpacer: { width: 36 },
   title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.title,
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#2C2C2C',
     textAlign: 'center',
     flex: 1,
   },
@@ -150,72 +175,67 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeIcon: {
-    fontSize: 20,
-    color: '#E85D4C',
-    fontWeight: '600',
-  },
+
   content: {
-    padding: 20,
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
   },
-  hint: {
-    fontSize: 14,
+  sectionLabel: {
+    fontSize: 11,
     fontWeight: '600',
-    color: COLORS.title,
-    marginBottom: 14,
-    textAlign: 'center',
+    color: '#8E8E93',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    marginBottom: 16,
   },
+
   typeRow: {
     flexDirection: 'row',
     gap: 10,
   },
-  typeBtn: {
+  tile: {
     flex: 1,
+    height: 88,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 14,
-    borderWidth: 2,
-  },
-  typeBtnInactive: {
-    backgroundColor: '#EDEDEB',
-    borderColor: '#D5D5D0',
-  },
-  typeBtnActive: {
+    gap: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 1,
   },
-  typeBtnIcon: {
-    width: 36,
-    height: 36,
-    marginBottom: 6,
-  },
-  typeBtnIconInactive: {
-    opacity: 0.35,
-  },
-  typeBtnLabel: {
+  tileLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#AAAAAA',
+    textAlign: 'center',
   },
-  typeBtnLabelActive: {
-    color: '#2C2C2C',
-    fontWeight: '700',
-  },
+
+  // Кнопка «Далее» — outline: прозрачный фон, teal-обводка, teal-текст
   nextBtn: {
-    marginTop: 16,
-    height: 44,
+    marginTop: 40,
+    height: 46,
     borderRadius: 12,
-    backgroundColor: '#3D7D82',
+    borderWidth: 1.5,
+    borderColor: '#3D7D82',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  nextBtnDisabled: {
+    borderColor: '#C7C7CC',
+  },
   nextBtnText: {
-    color: '#FFFFFF',
+    color: '#3D7D82',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
+  },
+  nextBtnTextDisabled: {
+    color: '#C7C7CC',
   },
 });

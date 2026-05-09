@@ -202,3 +202,132 @@ export function IconHashtag({ size = 24, color = '#888' }) {
     </Svg>
   );
 }
+
+// IconHouseType — силуэт одного дома: крыша + корпус + дверь.
+// Расширен почти на весь viewBox чтобы визуально совпадать по размеру
+// с PNG-резортом и SVG-кондо.
+export function IconHouseType({ size = 24, color = '#888' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* Крыша */}
+      <Path
+        d="M1.5 11 L12 2 L22.5 11"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+      {/* Стены */}
+      <Path
+        d="M4 10.5 L4 22 L20 22 L20 10.5"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+      {/* Дверь */}
+      <Path
+        d="M9.5 22 L9.5 14 L14.5 14 L14.5 22"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+      {/* Ручка */}
+      <Circle cx={13.5} cy={18.2} r={0.6} fill={color} />
+    </Svg>
+  );
+}
+
+// IconResortType — три одинаковых дома в композиции «посёлок»:
+// один задний-верх, два передних снизу слева и справа.
+export function IconResortType({ size = 24, color = '#888' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* Задний дом (центр-верх) */}
+      <Path
+        d="M7.5 8 L12 4 L16.5 8"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+      <Path
+        d="M9 8 L9 13 L15 13 L15 8"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+      <Path
+        d="M11 13 L11 10.8 L13 10.8 L13 13"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+      <Circle cx={12} cy={9.6} r={0.45} fill={color} />
+
+      {/* Передний-левый дом */}
+      <Path
+        d="M1 16 L5.5 12 L10 16"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+      <Path
+        d="M2.5 16 L2.5 21 L8.5 21 L8.5 16"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+      <Path
+        d="M4.5 21 L4.5 18.6 L6.5 18.6 L6.5 21"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+      <Circle cx={5.5} cy={17.5} r={0.45} fill={color} />
+
+      {/* Передний-правый дом */}
+      <Path
+        d="M14 16 L18.5 12 L23 16"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+      <Path
+        d="M15.5 16 L15.5 21 L21.5 21 L21.5 16"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+      <Path
+        d="M17.5 21 L17.5 18.6 L19.5 18.6 L19.5 21"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+      <Circle cx={18.5} cy={17.5} r={0.45} fill={color} />
+    </Svg>
+  );
+}
+
+// IconCondoType — два многоквартирных здания: высокое слева с антенной
+// и сеткой pill-окон, ступенька-понижение справа с двумя столбцами окон, дверь.
+export function IconCondoType({ size = 24, color = '#888' }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* Объединённый L-силуэт двух зданий */}
+      <Path
+        d="M2 4 L2 21 L21 21 L21 9 L13 9 L13 4 Z"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+      {/* Внутренняя граница между зданиями — для наглядности ступеньки */}
+      <Path
+        d="M13 9 L13 21"
+        stroke={color} strokeWidth={SW * 0.75} strokeLinecap={CAP} opacity={0.5}
+      />
+      {/* Антенна высокого здания */}
+      <Path
+        d="M5 4 L5 1.5"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP}
+      />
+
+      {/* Окна высокого: 3 столбца × 4 ряда (вертикальные pill 1.2×2.4) */}
+      <Rect x={3.4}  y={5.8}  width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+      <Rect x={6.9}  y={5.8}  width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+      <Rect x={10.4} y={5.8}  width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+      <Rect x={3.4}  y={9.4}  width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+      <Rect x={6.9}  y={9.4}  width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+      <Rect x={10.4} y={9.4}  width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+      <Rect x={3.4}  y={13.0} width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+      <Rect x={6.9}  y={13.0} width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+      <Rect x={10.4} y={13.0} width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+
+      {/* Дверь высокого внизу */}
+      <Path
+        d="M6.5 21 L6.5 17 L8.5 17 L8.5 21"
+        stroke={color} strokeWidth={SW} strokeLinecap={CAP} strokeLinejoin={JN}
+      />
+
+      {/* Окна низкого: 2 столбца × 3 ряда */}
+      <Rect x={15.0} y={10.6} width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+      <Rect x={18.0} y={10.6} width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+      <Rect x={15.0} y={14.2} width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+      <Rect x={18.0} y={14.2} width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+      <Rect x={15.0} y={17.8} width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+      <Rect x={18.0} y={17.8} width={1.2} height={2.4} rx={0.6} stroke={color} strokeWidth={SW * 0.75} />
+    </Svg>
+  );
+}
