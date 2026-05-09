@@ -623,11 +623,6 @@ const styles = StyleSheet.create({
   },
   filterBtnActive: {
     borderColor: '#3D7D82',
-    shadowColor: '#5DB87A',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 4,
   },
   toolbarRow: {
     flexDirection: 'row',

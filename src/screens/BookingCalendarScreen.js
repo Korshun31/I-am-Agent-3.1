@@ -28,6 +28,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
 import { useIsFocused } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { deleteProperty } from '../services/propertiesService';
 import { deleteBooking } from '../services/bookingsService';
 import { cancelBookingReminders } from '../services/bookingRemindersService';
@@ -49,23 +50,29 @@ const MAX_COL_WIDTH = 150;
 const MONTH_WIDTH = 100; // 83 + 20%
 const NUM_MONTHS = 16;
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
-// Цвета полосок бронирований моих клиентов: красный, оранжевый, жёлтый, зелёный, голубой, синий, фиолетовый
+// 6 приглушённых цветов вместо 16 кислотных. Каждый читается на белом и сером фоне,
+// различим между соседями по строке. На гант-таймлайне цвет нужен для различия
+// соседних броней одного объекта, не для уникальной идентификации каждой брони.
 const PASTEL_COLORS = [
-  '#E57373', '#FF8A65', '#FFB74D', '#FFD54F',
-  '#81C784', '#4DB6AC', '#64B5F6', '#42A5F5',
-  '#7986CB', '#9575CD', '#BA68C8', '#F48FB1',
-  '#EF9A9A', '#FFAB91', '#A5D6A7', '#80DEEA',
+  '#B5CDE3',  // пыльно-синий
+  '#B8D4B8',  // шалфейно-зелёный
+  '#E3C9A3',  // тёплый песочный
+  '#C5B8D4',  // лавандовый
+  '#B8D0D0',  // дымчатый teal
+  '#D4C4B0',  // какао-бежевый
 ];
 
 const COLORS = {
-  background: '#F5F2EB',
-  title: '#2C2C2C',
-  subtitle: '#6B6B6B',
-  monthPast: '#E8E4DE',
-  monthCurrent: '#D4EDDA',
-  monthFuture: '#FFFFFF',
-  border: '#E0D8CC',
-  ownerBar: '#BDBDBD',
+  background:   '#F5F5F7',
+  title:        '#2C2C2C',
+  subtitle:     '#6B6B6B',
+  monthPast:    '#EFEFF1',
+  monthCurrent: 'rgba(61,125,130,0.10)',
+  monthFuture:  '#FFFFFF',
+  border:       '#E5E5EA',
+  searchBg:     'rgba(255,255,255,0.9)',
+  searchBorder: '#E5E5EA',
+  ownerBar:     '#D4D4D4',
 };
 
 function getBookingNumber(booking, samePropertyBookings) {
@@ -691,7 +698,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
             pointerEvents={detailVisible ? 'none' : 'auto'}>
       <View style={styles.container}>
       {!embeddedInModal && (
-        <View style={styles.fixedTop}>
+        <View style={[styles.fixedTop, { paddingHorizontal: SCREEN_WIDTH < 390 ? 16 : 20 }]}>
           <View style={styles.header}>
             <View style={styles.headerActions} />
             <Text style={styles.headerTitle}>{t('bookingCalendar')}</Text>
@@ -700,7 +707,11 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               onPress={() => setNotifModalVisible(true)}
               activeOpacity={0.7}
             >
-              <Text style={styles.bellIcon}>🔔</Text>
+              <Ionicons
+                name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+                size={22}
+                color={unreadCount > 0 ? '#3D7D82' : '#888'}
+              />
               {unreadCount > 0 ? (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
@@ -716,7 +727,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
           </View>
           <View style={styles.toolbarRow}>
             <View style={styles.searchWrap}>
-              <Text style={styles.searchIcon}>🔍</Text>
+              <Ionicons name="search-outline" size={16} color="#999" style={styles.searchIconIon} />
               <TextInput
                 style={styles.searchInput}
                 placeholder={t('search')}
@@ -728,7 +739,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={styles.searchClear}>✕</Text>
+                  <Ionicons name="close-circle" size={16} color="#BBBBBB" />
                 </TouchableOpacity>
               )}
             </View>
@@ -737,11 +748,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               activeOpacity={0.7}
               onPress={() => setFilterVisible(true)}
             >
-              <Image
-                source={require('../../assets/icon-filter.png')}
-                style={[styles.toolbarBtnImage, hasActiveFilter && styles.filterIconActive]}
-                resizeMode="contain"
-              />
+              <Ionicons name="funnel-outline" size={18} color={hasActiveFilter ? '#3D7D82' : '#888'} />
             </TouchableOpacity>
           </View>
         </View>
@@ -881,7 +888,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                           top: 0,
                           bottom: 0,
                           width: 1,
-                          backgroundColor: 'rgba(0,0,0,0.18)',
+                          backgroundColor: 'rgba(0,0,0,0.06)',
                         }}
                       />
                     ))}
@@ -895,7 +902,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                         top: 0,
                         height: listToShow.length * ROW_HEIGHT,
                         width: 2,
-                        backgroundColor: 'rgba(255, 0, 0, 0.15)',
+                        backgroundColor: 'rgba(61,125,130,0.40)',
                       }}
                     />
                   )}
@@ -1218,9 +1225,9 @@ const CalendarRow = React.memo(function CalendarRow({
                 left: leftPx,
                 width: widthPx,
                 backgroundColor: barColor,
-                borderRadius: 17,
-                borderWidth: 1,
-                borderColor: 'rgba(107, 107, 107, 0.3)',
+                borderRadius: 18,
+                borderWidth: 2,
+                borderColor: rawColor,
                 zIndex: 10,
               },
             ]}
@@ -1247,12 +1254,12 @@ const rowStyles = StyleSheet.create({
     flexDirection: 'row',
     position: 'relative',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.18)',
+    borderBottomColor: 'rgba(0,0,0,0.06)',
   },
   cell: {
     height: '100%',
     borderRightWidth: 1,
-    borderRightColor: 'rgba(0,0,0,0.18)',
+    borderRightColor: 'rgba(0,0,0,0.06)',
   },
   bar: {
     position: 'absolute',
@@ -1285,10 +1292,10 @@ const rowStyles = StyleSheet.create({
     fontWeight: '700',
   },
   barDateIn: {
-    color: '#2E7D32',
+    color: 'rgba(44,44,44,0.75)',
   },
   barDateOut: {
-    color: '#C62828',
+    color: 'rgba(44,44,44,0.75)',
   },
 });
 
@@ -1299,7 +1306,7 @@ const styles = StyleSheet.create({
   },
   fixedTop: {
     paddingTop: TOP_INSET,
-    paddingHorizontal: 20,
+    // paddingHorizontal задаётся динамически в JSX (16 на узких, 20 на широких)
   },
   centered: {
     justifyContent: 'center',
@@ -1318,7 +1325,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: -0.3,
     color: COLORS.title,
   },
   headerBtn: {
@@ -1326,9 +1334,6 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  bellIcon: {
-    fontSize: 22,
   },
   badge: {
     position: 'absolute',
@@ -1364,15 +1369,14 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(245,242,235,0.9)',
+    backgroundColor: COLORS.searchBg,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0D8CC',
+    borderColor: COLORS.searchBorder,
     paddingHorizontal: 12,
     height: 40,
   },
-  searchIcon: {
-    fontSize: 14,
+  searchIconIon: {
     marginRight: 6,
   },
   searchInput: {
@@ -1381,37 +1385,18 @@ const styles = StyleSheet.create({
     color: COLORS.title,
     paddingVertical: 0,
   },
-  searchClear: {
-    fontSize: 14,
-    color: '#999',
-    paddingLeft: 6,
-  },
   toolbarBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(245,242,235,0.9)',
+    backgroundColor: COLORS.searchBg,
     borderWidth: 1,
-    borderColor: '#E0D8CC',
+    borderColor: COLORS.searchBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toolbarBtnImage: {
-    width: 26,
-    height: 26,
-  },
   filterBtnActive: {
-    shadowColor: '#5DB87A',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  filterIconActive: {
-    shadowColor: '#5DB87A',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
+    borderColor: '#3D7D82',
   },
   emptyWrap: {
     flex: 1,
@@ -1426,7 +1411,7 @@ const styles = StyleSheet.create({
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(245,242,235,0.8)',
+    backgroundColor: 'rgba(245,245,247,0.85)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1458,7 +1443,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   cornerCell: {
-    backgroundColor: '#EDE9E3',
+    backgroundColor: '#EFEFEF',
   },
   yearText: {
     fontSize: 15,
@@ -1480,8 +1465,7 @@ const styles = StyleSheet.create({
     color: COLORS.title,
   },
   propertyLabelLink: {
-    color: '#D81B60',
-    textDecorationLine: 'underline',
+    color: '#3D7D82',
   },
   rightArea: {
     flex: 1,
@@ -1517,7 +1501,7 @@ const styles = StyleSheet.create({
   },
   monthYearRed: {
     fontWeight: '700',
-    color: '#E53935',
+    color: '#3D7D82',
   },
   monthDivisions: {
     position: 'absolute',
