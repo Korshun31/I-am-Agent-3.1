@@ -8,11 +8,13 @@ import {
   Image as RNImage,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
 
+// Пастельные цвета закладок — из палитры логотипа
 export const TYPE_COLORS = {
-  resort: { bg: 'rgba(168,230,163,0.7)', border: '#A8E6A3' },
-  house:  { bg: '#FFF9C4', border: '#FFD54F' },
-  condo:  { bg: '#BBDEFB', border: '#64B5F6' },
+  house:  '#E8B86D',
+  resort: '#8BAF8E',
+  condo:  '#7BAEC8',
 };
 
 export const TYPE_ICONS = {
@@ -26,17 +28,19 @@ const UNIT_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
 function PropertyItem({ item, expanded, onToggle, onPress, t }) {
   const arrowAnim = useState(() => new Animated.Value(0))[0];
 
-  // Stable handlers — depend only on stable parent callbacks + item.id
   const handleToggle = useCallback(() => onToggle(item.id), [onToggle, item.id]);
   const handlePress  = useCallback(() => onPress(item),    [onPress,  item]);
 
   const cardType = item._parentType
     ? item._parentType
     : (item.type || 'house');
-  const colors = TYPE_COLORS[cardType] || TYPE_COLORS.house;
-  const icon = TYPE_ICONS[cardType] || TYPE_ICONS.house;
-  const displayName = item._parentName ? `${item._parentName} › ${item.name || item.code || ''}`.trim() : item.name;
-  const codeDisplay = item.code_suffix ? (item.code ? item.code + ' ' : '') + `(${item.code_suffix})` : item.code;
+  const tabColor = TYPE_COLORS[cardType] || TYPE_COLORS.house;
+  const displayName = item._parentName
+    ? `${item._parentName} › ${item.name || item.code || ''}`.trim()
+    : item.name;
+  const codeDisplay = item.code_suffix
+    ? (item.code ? item.code + ' ' : '') + `(${item.code_suffix})`
+    : item.code;
 
   useEffect(() => {
     Animated.timing(arrowAnim, {
@@ -48,84 +52,95 @@ function PropertyItem({ item, expanded, onToggle, onPress, t }) {
 
   const arrowRotate = arrowAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['180deg', '0deg'],
+    outputRange: ['0deg', '180deg'],
   });
 
   return (
-    <View style={[styles.propertyCard, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-      <View style={styles.propertyRow}>
-        <TouchableOpacity style={styles.propertyMainArea} onPress={handlePress} activeOpacity={0.7}>
-          {typeof icon === 'string' ? (
-            <Text style={styles.propertyIcon}>{icon}</Text>
-          ) : (
-            <Image source={icon} style={styles.propertyIconImage} resizeMode="contain" />
-          )}
-          <Text style={styles.propertyName} numberOfLines={1}>{displayName}</Text>
-        </TouchableOpacity>
-        <Text style={styles.propertyCode}>{codeDisplay}</Text>
-        <TouchableOpacity onPress={handleToggle} activeOpacity={0.5} style={styles.expandBtn}>
-          <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
-            <RNImage source={require('../../assets/icon-arrow-down.png')} style={styles.expandArrowImage} resizeMode="contain" />
-          </Animated.View>
-        </TouchableOpacity>
-      </View>
-      {expanded && (
-        <View style={styles.expandedContent}>
-          {Array.isArray(item.photos) && item.photos.length > 0 ? (
-            <Image source={{ uri: item.photos_thumb?.[0] || item.photos[0] }} style={styles.expandedPhoto} cachePolicy="disk" />
-          ) : (
-            <View style={[styles.expandedPhoto, styles.expandedPhotoPlaceholder]}>
-              <RNImage source={require('../../assets/icon-photo.png')} style={styles.expandedPhotoPlaceholderIcon} resizeMode="contain" />
-            </View>
-          )}
-          <View style={styles.expandedDetails}>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>{t('propDistrict')}</Text>
-              <Text style={styles.detailColon}>:</Text>
-              <Text style={styles.detailValue}>{item.district || '—'}</Text>
-            </View>
-            {item.type === 'resort' ? (
+    <View style={styles.cardWrapper}>
+      <View style={styles.propertyCard}>
+        {/* Вертикальная цветная полоска вдоль всей левой стороны карточки.
+            overflow:'hidden' на propertyCard обрезает её по borderRadius карточки. */}
+        <View
+          style={[styles.typeStripe, { backgroundColor: tabColor }]}
+        />
+        <View style={styles.propertyRow}>
+          <TouchableOpacity style={styles.propertyMainArea} onPress={handlePress} activeOpacity={0.7}>
+            <Text style={styles.propertyName} numberOfLines={1}>{displayName}</Text>
+          </TouchableOpacity>
+          <Text style={styles.propertyCode}>{codeDisplay}</Text>
+          <TouchableOpacity onPress={handleToggle} activeOpacity={0.5} style={styles.expandBtn}>
+            <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
+              <Ionicons name="chevron-down" size={14} color="#C7C7CC" />
+            </Animated.View>
+          </TouchableOpacity>
+        </View>
+
+        {expanded && (
+          <View style={styles.expandedContent}>
+            {Array.isArray(item.photos) && item.photos.length > 0 ? (
+              <Image
+                source={{ uri: item.photos_thumb?.[0] || item.photos[0] }}
+                style={styles.expandedPhoto}
+                cachePolicy="disk"
+              />
+            ) : (
+              <View style={[styles.expandedPhoto, styles.expandedPhotoPlaceholder]}>
+                <RNImage
+                  source={require('../../assets/icon-photo.png')}
+                  style={styles.expandedPhotoPlaceholderIcon}
+                  resizeMode="contain"
+                />
+              </View>
+            )}
+            <View style={styles.expandedDetails}>
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>{t('propHouses')}</Text>
+                <Text style={styles.detailLabel}>{t('propDistrict')}</Text>
+                <Text style={styles.detailColon}>:</Text>
+                <Text style={styles.detailValue}>{item.district || '—'}</Text>
+              </View>
+              {item.type === 'resort' ? (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>{t('propHouses')}</Text>
+                  <Text style={styles.detailColon}>:</Text>
+                  <Text style={styles.detailValue}>
+                    {item.houses_count != null ? `${item.houses_count}  pc` : '—'}
+                  </Text>
+                </View>
+              ) : UNIT_TYPES.has(item.type) ? (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>{t('propBedrooms')}</Text>
+                  <Text style={styles.detailColon}>:</Text>
+                  <Text style={styles.detailValue}>
+                    {item.bedrooms != null ? item.bedrooms : '—'}
+                  </Text>
+                </View>
+              ) : item.type === 'condo' ? (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>{t('propFloors')}</Text>
+                  <Text style={styles.detailColon}>:</Text>
+                  <Text style={styles.detailValue}>
+                    {item.floors != null ? item.floors : '—'}
+                  </Text>
+                </View>
+              ) : null}
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>{t('propBeach')}</Text>
                 <Text style={styles.detailColon}>:</Text>
                 <Text style={styles.detailValue}>
-                  {item.houses_count != null ? `${item.houses_count}  pc` : '—'}
+                  {item.beach_distance != null ? `${item.beach_distance}  m` : '—'}
                 </Text>
               </View>
-            ) : UNIT_TYPES.has(item.type) ? (
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>{t('propBedrooms')}</Text>
+                <Text style={styles.detailLabel}>{t('propMarket')}</Text>
                 <Text style={styles.detailColon}>:</Text>
                 <Text style={styles.detailValue}>
-                  {item.bedrooms != null ? item.bedrooms : '—'}
+                  {item.market_distance != null ? `${item.market_distance}  m` : '—'}
                 </Text>
               </View>
-            ) : item.type === 'condo' ? (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>{t('propFloors')}</Text>
-                <Text style={styles.detailColon}>:</Text>
-                <Text style={styles.detailValue}>
-                  {item.floors != null ? item.floors : '—'}
-                </Text>
-              </View>
-            ) : null}
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>{t('propBeach')}</Text>
-              <Text style={styles.detailColon}>:</Text>
-              <Text style={styles.detailValue}>
-                {item.beach_distance != null ? `${item.beach_distance}  m` : '—'}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>{t('propMarket')}</Text>
-              <Text style={styles.detailColon}>:</Text>
-              <Text style={styles.detailValue}>
-                {item.market_distance != null ? `${item.market_distance}  m` : '—'}
-              </Text>
             </View>
           </View>
-        </View>
-      )}
+        )}
+      </View>
     </View>
   );
 }
@@ -133,42 +148,52 @@ function PropertyItem({ item, expanded, onToggle, onPress, t }) {
 export default memo(PropertyItem);
 
 const styles = StyleSheet.create({
-  propertyCard: {
-    borderRadius: 14,
-    borderWidth: 1.5,
+  cardWrapper: {
     marginBottom: 10,
+  },
+  // Вертикальная цветная полоска — абсолютный View вдоль всей левой стороны карточки.
+  // overflow:'hidden' на propertyCard обрезает углы по borderRadius карточки.
+  typeStripe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 6,
+  },
+  // Белая карточка. overflow: 'hidden' — полоска обрезается по скруглённым углам
+  propertyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
     overflow: 'hidden',
   },
   propertyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
-    paddingHorizontal: 14,
+    paddingLeft: 20,
+    paddingRight: 14,
   },
   propertyMainArea: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
   },
-  propertyIcon: {
-    fontSize: 24,
-    marginRight: 10,
-  },
-  propertyIconImage: {
-    width: 32,
-    height: 32,
-    marginRight: 10,
-  },
   propertyName: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,           // было 16 — на SE плотнее
+    fontWeight: '600',      // было 600 — держим semibold
     color: '#2C2C2C',
+    letterSpacing: -0.3,    // лёгкий негативный трекинг для SF
   },
   propertyCode: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#D81B60',
+    fontSize: 12,           // было 14
+    fontWeight: '600',      // было 700 — чуть легче
+    color: '#3D7D82',       // было #D81B60 (малиновый) → teal акцент проекта
     marginRight: 10,
   },
   expandBtn: {
@@ -176,17 +201,12 @@ const styles = StyleSheet.create({
     paddingLeft: 12,
     paddingRight: 4,
   },
-  expandArrowImage: {
-    width: 14,
-    height: 14,
-    tintColor: '#888888',
-  },
   expandedContent: {
     flexDirection: 'row',
     paddingHorizontal: 14,
     paddingBottom: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.08)',
+    borderTopColor: 'rgba(0,0,0,0.06)',  // тоньше разделитель на белом
     paddingTop: 10,
     gap: 12,
   },
@@ -196,14 +216,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   expandedPhotoPlaceholder: {
-    backgroundColor: 'rgba(0,0,0,0.06)',
+    backgroundColor: 'rgba(0,0,0,0.05)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   expandedPhotoPlaceholderIcon: {
     width: 36,
     height: 36,
-    opacity: 0.5,
+    opacity: 0.4,
   },
   expandedDetails: {
     flex: 1,
@@ -226,7 +246,7 @@ const styles = StyleSheet.create({
   },
   detailValue: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',      // было 700 — слегка смягчаем
     color: '#2C2C2C',
     flex: 1,
     textAlign: 'right',

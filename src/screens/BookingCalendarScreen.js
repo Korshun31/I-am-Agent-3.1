@@ -20,6 +20,7 @@ import {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import Constants from 'expo-constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import 'dayjs/locale/th';
@@ -40,7 +41,6 @@ import ContactDetailScreen from './ContactDetailScreen';
 import PropertyDetailScreen from './PropertyDetailScreen';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
-const BOTTOM_NAV_PADDING = 88;
 const ROW_HEIGHT = 45;
 const CHAR_WIDTH = 7;
 const COL_PADDING = 20;
@@ -141,6 +141,8 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const { user } = useUser();
   const isFocused = useIsFocused();
   const effectiveVisible = embeddedInModal ? isVisible : isFocused;
+  const insets = useSafeAreaInsets();
+  const bottomNavPadding = insets.bottom;
   const { t, language } = useLanguage();
   const { properties, bookings, contacts, propertiesLoading, bookingsLoading, refreshProperties, refreshBookings } = useAppData();
 
@@ -766,7 +768,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               <Animated.View
                 style={[
                   styles.leftColContent,
-                  { transform: [{ translateY: Animated.multiply(scrollY, -1) }] },
+                  { paddingBottom: bottomNavPadding, transform: [{ translateY: Animated.multiply(scrollY, -1) }] },
                 ]}
               >
                 {listToShow.map((unit) => {
@@ -832,7 +834,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
 
                 <Animated.ScrollView
                   style={styles.gridScroll}
-                  contentContainerStyle={{ paddingBottom: BOTTOM_NAV_PADDING, position: 'relative' }}
+                  contentContainerStyle={{ paddingBottom: bottomNavPadding, position: 'relative' }}
                   showsVerticalScrollIndicator={true}
                   onScroll={onVerticalScroll}
                   scrollEventThrottle={16}
@@ -1444,7 +1446,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   leftColContent: {
-    paddingBottom: BOTTOM_NAV_PADDING,
+    // paddingBottom задаётся динамически через bottomNavPadding в JSX
   },
   yearCell: {
     height: ROW_HEIGHT,

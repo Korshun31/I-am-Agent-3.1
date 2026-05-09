@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, TextInput, ActivityIndicator, Modal } from 'react-native';
 import Constants from 'expo-constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
 import { useUser } from '../context/UserContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -353,6 +354,7 @@ function ConfirmModal({ visible, title, message, confirmLabel, onConfirm, onCanc
 export default function CompanyScreen({ onBack, onUserUpdate }) {
   const { user = {} } = useUser();
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const { teamSnapshotVersion } = useAppData();
   const [editModalVisible, setEditModalVisible] = useState(false);
 
@@ -544,7 +546,7 @@ export default function CompanyScreen({ onBack, onUserUpdate }) {
 
       <ScrollView
         style={styles.scrollArea}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Work As toggle */}
@@ -812,7 +814,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 88,
   },
   workAsRow: {
     flexDirection: 'row',

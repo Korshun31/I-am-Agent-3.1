@@ -19,6 +19,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 import Constants from 'expo-constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
 import CalendarRangePicker from 'react-native-calendar-range-picker';
 import { useLanguage } from '../context/LanguageContext';
@@ -259,6 +260,7 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenBooking, isBooking
 export default function AgentCalendarScreen({ onReady }) {
   const { user } = useUser();
   const isVisible = useIsFocused();
+  const insets = useSafeAreaInsets();
   const { t, language } = useLanguage();
   const { properties, bookings, contacts, calendarEvents, refreshProperties, refreshBookings, refreshCalendarEvents } = useAppData();
 
@@ -670,7 +672,7 @@ export default function AgentCalendarScreen({ onReady }) {
           </TouchableOpacity>
         </View>
       </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.step2Content}>
           <View style={[styles.calendarInline, styles.calendarInlineStep2]} collapsable={false}>
             <CalendarRangePicker
@@ -821,7 +823,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100,
   },
   fixedTop: {
     paddingTop: TOP_INSET,

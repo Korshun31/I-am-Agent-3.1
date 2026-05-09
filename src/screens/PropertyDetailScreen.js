@@ -16,6 +16,8 @@ import {
   Image as RNImage,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
+import { IconPencil } from '../components/EditIcons';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
@@ -57,10 +59,25 @@ function sortByInternalCode(items) {
   });
 }
 
+// Палитра контуров секций — приглушённая радуга от красного к фиолетовому.
+// Порядок: red → orange → amber → green → teal → blue → lilac.
+// Все тона в одной матовой стилистике, согласованы с логотипом.
+const SECTION_PALETTE = {
+  red:    '#C8624A', // красный (логотип)
+  orange: '#C97A52', // приглушённый оранжевый
+  amber:  '#C4973A', // охра / жёлтый (логотип)
+  green:  '#8BAF8E', // зелёный (логотип)
+  teal:   '#6F9994', // пыльно-бирюзовый
+  blue:   '#7BAEC8', // голубой (логотип)
+  lilac:  '#9C8BB6', // фиолетовый (приглушённая лаванда)
+};
+
+// Прокидывается в Detail-контенты как заглушка совместимости — теперь
+// каждый блок имеет свой цвет из SECTION_PALETTE (см. JSX ниже).
 const BLOCK_COLORS = {
-  resort: { bg: 'rgba(168,230,163,0.7)', border: '#A8E6A3' },
-  house:  { bg: '#FFF9C4', border: '#FFD54F' },
-  condo:  { bg: '#BBDEFB', border: '#64B5F6' },
+  resort: { bg: '#FFFFFF', border: SECTION_PALETTE.green },
+  house:  { bg: '#FFFFFF', border: SECTION_PALETTE.amber },
+  condo:  { bg: '#FFFFFF', border: SECTION_PALETTE.blue },
 };
 
 const BOOKABLE_UNIT_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
@@ -99,11 +116,10 @@ function SectionBlock({ color, border, children }) {
   );
 }
 
-function InfoRow({ label, value, isLink, onPress, style, labelBold }) {
+function InfoRow({ label, value, isLink, onPress, style }) {
   return (
     <View style={[styles.infoRow, style]}>
-      <Text style={[styles.infoLabel, labelBold && styles.infoLabelBold]} numberOfLines={1}>{label}</Text>
-      <Text style={styles.infoColon}>:</Text>
+      <Text style={styles.infoLabel} numberOfLines={1}>{label}</Text>
       {isLink ? (
         <TouchableOpacity onPress={onPress} style={styles.infoValueWrap}>
           <Text style={[styles.infoValue, styles.infoLink]} numberOfLines={1}>{value}</Text>
@@ -374,9 +390,9 @@ const galleryStyles = StyleSheet.create({
   saveMenuText: { fontSize: 15, color: '#FFF', fontWeight: '500' },
 });
 
-function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
+function MediaSection({ photos, videos, t, typeColors, onPhotoPress, onVideoPress }) {
   return (
-    <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
+    <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.red}>
       <View style={styles.sectionTitleRow}>
         <RNImage source={require('../../assets/icon-photo.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
         <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdPhoto')}</Text>
@@ -476,17 +492,23 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
     ? (resort.code || '') + (p.code_suffix ? ` (${p.code_suffix})` : '')
     : p.code;
 
+  const hasPrices = [p.price_monthly, p.booking_deposit, p.save_deposit, p.commission, p.owner_commission_one_time, p.owner_commission_monthly, p.electricity_price, p.water_price, p.gas_price, p.internet_price, p.cleaning_price, p.exit_cleaning_price].some(v => v != null);
+
   return (
     <>
-      <SectionBlock color="rgba(255,204,0,0.2)" border="#FFCC00">
-        <InfoRow label={t('propertyCode')} value={codeDisplay} labelBold />
-        <InfoRow label={t('pdCity')} value={city} labelBold />
-        <InfoRow label={t('propDistrict')} value={district} labelBold />
-        {address ? <InfoRow label={t('pdAddress')} value={address} labelBold /> : null}
+      {/* 1. Фото/видео — red */}
+      <MediaSection photos={photos} videos={videos} t={t} typeColors={typeColors} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
+
+      {/* 2. Характеристики дома — orange */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.orange}>
+        <InfoRow label={t('propertyCode')} value={codeDisplay} />
+        <InfoRow label={t('pdCity')} value={city} />
+        <InfoRow label={t('propDistrict')} value={district} />
+        {address ? <InfoRow label={t('pdAddress')} value={address} /> : null}
         {!hideLocation && (googleMapsLink ? (
-          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(googleMapsLink)} labelBold />
+          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(googleMapsLink)} />
         ) : (
-          <InfoRow label={t('pdLocation')} value="—" labelBold />
+          <InfoRow label={t('pdLocation')} value="—" />
         ))}
         {p.website_url ? (
           <InfoRow
@@ -494,64 +516,85 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
             value={t('goToWebsite')}
             isLink
             onPress={() => Linking.openURL((p.website_url || '').replace(/^(?!https?:\/\/)/, 'https://'))}
-            labelBold
           />
         ) : null}
         <View style={styles.divider} />
-        <InfoRow label={t('propBedrooms')} value={p.bedrooms != null ? `${p.bedrooms}  pc` : '—'} labelBold />
-        <InfoRow label={t('pdBathrooms')} value={p.bathrooms != null ? `${p.bathrooms}  pc` : '—'} labelBold />
-        <InfoRow label={t('pdArea')} value={p.area != null ? `${p.area}  m2` : '—'} labelBold />
+        <InfoRow label={t('propBedrooms')} value={p.bedrooms != null ? `${p.bedrooms}  pc` : '—'} />
+        <InfoRow label={t('pdBathrooms')} value={p.bathrooms != null ? `${p.bathrooms}  pc` : '—'} />
+        <InfoRow label={t('pdArea')} value={p.area != null ? `${p.area}  m2` : '—'} />
         {isApartment && p.floor_number != null && (
-          <InfoRow label={t('propFloorNumber')} value={String(p.floor_number)} labelBold />
+          <InfoRow label={t('propFloorNumber')} value={String(p.floor_number)} />
         )}
-        <InfoRow label={t('propBeach')} value={beachDistance != null ? `${beachDistance}  m` : '—'} labelBold />
-        <InfoRow label={t('propMarket')} value={marketDistance != null ? `${marketDistance}  m` : '—'} labelBold />
-        <View style={styles.divider} />
-        <InfoRow label={isApartment ? t('pdReception') : t('pdOwner')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} labelBold />
-        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} labelBold /> : null}
-        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} labelBold /> : null}
-        {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} labelBold /> : null}
+        <InfoRow label={t('propBeach')} value={beachDistance != null ? `${beachDistance}  m` : '—'} />
+        <InfoRow label={t('propMarket')} value={marketDistance != null ? `${marketDistance}  m` : '—'} />
+      </SectionBlock>
+
+      {/* 3. Контакты — amber. Телефоны кликабельные → системный набор номера. */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.amber}>
+        <InfoRow label={isApartment ? t('pdReception') : t('pdOwner')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} />
+        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} isLink onPress={() => Linking.openURL(`tel:${p.ownerPhone1}`)} /> : null}
+        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} isLink onPress={() => Linking.openURL(`tel:${p.ownerPhone2}`)} /> : null}
+        {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} /> : null}
         {isApartment && (p.owner2Name || p.owner2Phone1 || p.owner2Phone2 || p.owner2Telegram) ? (
           <>
             <View style={styles.divider} />
-            <InfoRow label={t('pdOwnerContact')} value={owner2Name || '—'} isLink={!!owner2Name} onPress={onOwner2Press} labelBold />
-            {p.owner2Phone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.owner2Phone1} labelBold /> : null}
-            {p.owner2Phone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.owner2Phone2} labelBold /> : null}
-            {p.owner2Telegram ? <InfoRow label={t('telegram')} value={p.owner2Telegram} labelBold /> : null}
+            <InfoRow label={t('pdOwnerContact')} value={owner2Name || '—'} isLink={!!owner2Name} onPress={onOwner2Press} />
+            {p.owner2Phone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.owner2Phone1} isLink onPress={() => Linking.openURL(`tel:${p.owner2Phone1}`)} /> : null}
+            {p.owner2Phone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.owner2Phone2} isLink onPress={() => Linking.openURL(`tel:${p.owner2Phone2}`)} /> : null}
+            {p.owner2Telegram ? <InfoRow label={t('telegram')} value={p.owner2Telegram} /> : null}
           </>
         ) : null}
         {responsibleName !== undefined && (
           <>
             <View style={styles.divider} />
-            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} labelBold />
+            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} />
           </>
         )}
       </SectionBlock>
 
-      <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
+      {/* 4. Цены — green */}
+      {hasPrices && (
+        <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.green}>
+          {p.price_monthly != null && <PriceRow iconSource={require('../../assets/icon-price-booking-deposit.png')} label={t('pdPriceMonthly')} value={formatPrice(p.price_monthly)} prefix={p.price_monthly_is_from ? t('priceFrom') : null} />}
+          {p.booking_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-monthly.png')} label={t('pdBookingDeposit')} value={formatPrice(p.booking_deposit)} prefix={p.booking_deposit_is_from ? t('priceFrom') : null} />}
+          {p.save_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-commission.png')} label={t('pdSaveDeposit')} value={formatPrice(p.save_deposit)} prefix={p.save_deposit_is_from ? t('priceFrom') : null} />}
+          {p.commission != null && <PriceRow iconSource={require('../../assets/icon-price-save-deposit.png')} label={t('pdCommission')} value={formatPrice(p.commission)} prefix={p.commission_is_from ? t('priceFrom') : null} />}
+          {p.owner_commission_one_time != null && (
+            <PriceRow
+              iconSource={require('../../assets/icon-price-commission.png')}
+              label={t('pdOwnerCommOnce')}
+              value={p.owner_commission_one_time_is_percent ? `${p.owner_commission_one_time}%` : formatPrice(p.owner_commission_one_time)}
+            />
+          )}
+          {p.owner_commission_monthly != null && (
+            <PriceRow
+              iconSource={require('../../assets/icon-price-commission.png')}
+              label={t('pdOwnerCommMonthly')}
+              value={p.owner_commission_monthly_is_percent ? `${p.owner_commission_monthly}%` : formatPrice(p.owner_commission_monthly)}
+            />
+          )}
+          {p.electricity_price != null && <PriceRow iconSource={require('../../assets/icon-price-electricity.png')} label={t('pdElectricity')} value={formatPrice(p.electricity_price)} />}
+          {p.water_price != null && <PriceRow iconSource={require('../../assets/icon-price-water.png')} label={waterPriceLabel()} value={formatPrice(p.water_price)} />}
+          {p.gas_price != null && <PriceRow iconSource={require('../../assets/icon-price-gas.png')} label={t('pdGas')} value={formatPrice(p.gas_price)} />}
+          {p.internet_price != null && <PriceRow iconSource={require('../../assets/icon-price-exit-cleaning.png')} label={t('pdInternetMonth')} value={formatPrice(p.internet_price)} />}
+          {p.cleaning_price != null && <PriceRow iconSource={require('../../assets/icon-price-internet.png')} label={t('pdCleaning')} value={formatPrice(p.cleaning_price)} />}
+          {p.exit_cleaning_price != null && <PriceRow iconSource={require('../../assets/icon-price-cleaning.png')} label={t('pdExitCleaning')} value={formatPrice(p.exit_cleaning_price)} />}
+        </SectionBlock>
+      )}
 
-      {p.description ? (
-        <View style={styles.descriptionBlock}>
-          <View style={styles.sectionTitleRow}>
-            <RNImage source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
-            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdDescription')}</Text>
-          </View>
-          <Text style={styles.descriptionText}>{p.description}</Text>
-        </View>
-      ) : null}
-
-      <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
+      {/* 5. Брони — teal */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.teal}>
         <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
-            <View style={styles.sectionTitleLeft}>
-              <RNImage source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
-              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
-            </View>
-            {onOpenBookingCalendar && (
-              <TouchableOpacity onPress={() => onOpenBookingCalendar([p.id], resort ? codeDisplay : (p.name || p.code || ''))} style={styles.calendarLinkRow} activeOpacity={0.7}>
-                <RNImage source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
-              </TouchableOpacity>
-            )}
+          <View style={styles.sectionTitleLeft}>
+            <RNImage source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
           </View>
+          {onOpenBookingCalendar && (
+            <TouchableOpacity onPress={() => onOpenBookingCalendar([p.id], resort ? codeDisplay : (p.name || p.code || ''))} style={styles.calendarLinkRow} activeOpacity={0.7}>
+              <RNImage source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
+            </TouchableOpacity>
+          )}
+        </View>
         {bookings.length > 0 ? (
           bookings.map((b) => {
             const bookingNum = getBookingNumber(b, bookings);
@@ -576,7 +619,8 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         )}
       </SectionBlock>
 
-      <SectionBlock color="rgba(248,187,208,0.4)" border="#F48FB1">
+      {/* 6. Удобства — blue */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.blue}>
         <View style={styles.sectionTitleRow}>
           <RNImage source={require('../../assets/icon-amenities.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdAmenities')}</Text>
@@ -594,46 +638,24 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         )}
       </SectionBlock>
 
-      <SectionBlock color="rgba(224,224,224,0.4)" border="#BDBDBD">
-        <InfoRow label={t('pdAirCon')} value={p.air_conditioners != null ? `${p.air_conditioners}  pc` : '—'} labelBold />
-        <InfoRow label={t('pdInternetSpeed')} value={p.internet_speed ? `${p.internet_speed} ${t('pdInternetSpeedUnit')}` : '—'} labelBold />
+      {/* 7. Детали (кондиционеры, интернет, питомцы, долгосрок) — lilac */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.lilac}>
+        <InfoRow label={t('pdAirCon')} value={p.air_conditioners != null ? `${p.air_conditioners}  pc` : '—'} />
+        <InfoRow label={t('pdInternetSpeed')} value={p.internet_speed ? `${p.internet_speed} ${t('pdInternetSpeedUnit')}` : '—'} />
+        <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : 'NO'} />
+        <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('yes') : 'NO'} style={styles.infoRowNoMargin} />
       </SectionBlock>
 
-      <SectionBlock color="rgba(224,224,224,0.4)" border="#BDBDBD">
-        <View style={styles.sectionBlockGap}>
-          <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : 'NO'} style={styles.infoRowNoMargin} labelBold />
-          <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('yes') : 'NO'} style={styles.infoRowNoMargin} labelBold />
+      {/* Описание и комментарии — без цветной карточки, простой текст */}
+      {p.description ? (
+        <View style={styles.descriptionBlock}>
+          <View style={styles.sectionTitleRow}>
+            <RNImage source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdDescription')}</Text>
+          </View>
+          <Text style={styles.descriptionText}>{p.description}</Text>
         </View>
-      </SectionBlock>
-
-      {[p.price_monthly, p.booking_deposit, p.save_deposit, p.commission, p.owner_commission_one_time, p.owner_commission_monthly, p.electricity_price, p.water_price, p.gas_price, p.internet_price, p.cleaning_price, p.exit_cleaning_price].some(v => v != null) && (
-      <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
-        {p.price_monthly != null && <PriceRow iconSource={require('../../assets/icon-price-booking-deposit.png')} label={t('pdPriceMonthly')} value={formatPrice(p.price_monthly)} prefix={p.price_monthly_is_from ? t('priceFrom') : null} />}
-        {p.booking_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-monthly.png')} label={t('pdBookingDeposit')} value={formatPrice(p.booking_deposit)} prefix={p.booking_deposit_is_from ? t('priceFrom') : null} />}
-        {p.save_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-commission.png')} label={t('pdSaveDeposit')} value={formatPrice(p.save_deposit)} prefix={p.save_deposit_is_from ? t('priceFrom') : null} />}
-        {p.commission != null && <PriceRow iconSource={require('../../assets/icon-price-save-deposit.png')} label={t('pdCommission')} value={formatPrice(p.commission)} prefix={p.commission_is_from ? t('priceFrom') : null} />}
-        {p.owner_commission_one_time != null && (
-          <PriceRow
-            iconSource={require('../../assets/icon-price-commission.png')}
-            label={t('pdOwnerCommOnce')}
-            value={p.owner_commission_one_time_is_percent ? `${p.owner_commission_one_time}%` : formatPrice(p.owner_commission_one_time)}
-          />
-        )}
-        {p.owner_commission_monthly != null && (
-          <PriceRow
-            iconSource={require('../../assets/icon-price-commission.png')}
-            label={t('pdOwnerCommMonthly')}
-            value={p.owner_commission_monthly_is_percent ? `${p.owner_commission_monthly}%` : formatPrice(p.owner_commission_monthly)}
-          />
-        )}
-        {p.electricity_price != null && <PriceRow iconSource={require('../../assets/icon-price-electricity.png')} label={t('pdElectricity')} value={formatPrice(p.electricity_price)} />}
-        {p.water_price != null && <PriceRow iconSource={require('../../assets/icon-price-water.png')} label={waterPriceLabel()} value={formatPrice(p.water_price)} />}
-        {p.gas_price != null && <PriceRow iconSource={require('../../assets/icon-price-gas.png')} label={t('pdGas')} value={formatPrice(p.gas_price)} />}
-        {p.internet_price != null && <PriceRow iconSource={require('../../assets/icon-price-exit-cleaning.png')} label={t('pdInternetMonth')} value={formatPrice(p.internet_price)} />}
-        {p.cleaning_price != null && <PriceRow iconSource={require('../../assets/icon-price-internet.png')} label={t('pdCleaning')} value={formatPrice(p.cleaning_price)} />}
-        {p.exit_cleaning_price != null && <PriceRow iconSource={require('../../assets/icon-price-cleaning.png')} label={t('pdExitCleaning')} value={formatPrice(p.exit_cleaning_price)} />}
-      </SectionBlock>
-      )}
+      ) : null}
 
       {p.comments ? (
         <View style={styles.descriptionBlock}>
@@ -717,36 +739,42 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
 
   return (
     <>
-      <SectionBlock color="rgba(255,204,0,0.2)" border="#FFCC00">
-        <InfoRow label={t('propertyCode')} value={p.code} labelBold />
-        <InfoRow label={t('pdCity')} value={p.city} labelBold />
-        <InfoRow label={t('propDistrict')} value={p.district} labelBold />
-        {p.address ? <InfoRow label={t('pdAddress')} value={p.address} labelBold /> : null}
+      {/* 1. Фото/видео — red */}
+      <MediaSection photos={photos} videos={videos} t={t} typeColors={typeColors} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
+
+      {/* 2. Характеристики курорта — orange */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.orange}>
+        <InfoRow label={t('propertyCode')} value={p.code} />
+        <InfoRow label={t('pdCity')} value={p.city} />
+        <InfoRow label={t('propDistrict')} value={p.district} />
+        {p.address ? <InfoRow label={t('pdAddress')} value={p.address} /> : null}
         {!hideLocation && (p.google_maps_link ? (
-          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
+          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} />
         ) : (
-          <InfoRow label={t('pdLocation')} value="—" labelBold />
+          <InfoRow label={t('pdLocation')} value="—" />
         ))}
         <View style={styles.divider} />
-        <InfoRow label={t('propHouses')} value={p.houses_count != null ? `${p.houses_count}  pc` : '—'} labelBold />
-        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} labelBold />
-        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} labelBold />
-        <View style={styles.divider} />
-        <InfoRow label={t('pdOwnerManager')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} labelBold />
-        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} labelBold /> : null}
-        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} labelBold /> : null}
-        {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} labelBold /> : null}
+        <InfoRow label={t('propHouses')} value={p.houses_count != null ? `${p.houses_count}  pc` : '—'} />
+        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} />
+        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} />
+      </SectionBlock>
+
+      {/* 3. Контакты — amber. Телефоны кликабельные → системный набор номера. */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.amber}>
+        <InfoRow label={t('pdOwnerManager')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} />
+        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} isLink onPress={() => Linking.openURL(`tel:${p.ownerPhone1}`)} /> : null}
+        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} isLink onPress={() => Linking.openURL(`tel:${p.ownerPhone2}`)} /> : null}
+        {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} /> : null}
         {responsibleName !== undefined && (
           <>
             <View style={styles.divider} />
-            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} labelBold />
+            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} />
           </>
         )}
       </SectionBlock>
 
-      <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
-
-      <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
+      {/* 4. Брони — green */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.green}>
         <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
             <View style={styles.sectionTitleLeft}>
               <RNImage source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
@@ -943,15 +971,19 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
 
   return (
     <>
-      <SectionBlock color="rgba(255,204,0,0.2)" border="#FFCC00">
-        <InfoRow label={t('propertyCode')} value={p.code} labelBold />
-        <InfoRow label={t('pdCity')} value={p.city} labelBold />
-        <InfoRow label={t('propDistrict')} value={p.district} labelBold />
-        {p.address ? <InfoRow label={t('pdAddress')} value={p.address} labelBold /> : null}
+      {/* 1. Фото/видео — red */}
+      <MediaSection photos={photos} videos={videos} t={t} typeColors={typeColors} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
+
+      {/* 2. Характеристики кондо — orange */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.orange}>
+        <InfoRow label={t('propertyCode')} value={p.code} />
+        <InfoRow label={t('pdCity')} value={p.city} />
+        <InfoRow label={t('propDistrict')} value={p.district} />
+        {p.address ? <InfoRow label={t('pdAddress')} value={p.address} /> : null}
         {!hideLocation && (p.google_maps_link ? (
-          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
+          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} />
         ) : (
-          <InfoRow label={t('pdLocation')} value="—" labelBold />
+          <InfoRow label={t('pdLocation')} value="—" />
         ))}
         {p.website_url ? (
           <InfoRow
@@ -959,28 +991,29 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
             value={t('goToWebsite')}
             isLink
             onPress={() => Linking.openURL((p.website_url || '').replace(/^(?!https?:\/\/)/, 'https://'))}
-            labelBold
           />
         ) : null}
         <View style={styles.divider} />
-        <InfoRow label={t('propFloors')} value={p.floors != null ? `${p.floors}` : '—'} labelBold />
-        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} labelBold />
-        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} labelBold />
-        <View style={styles.divider} />
-        <InfoRow label={t('pdReception')} value={p.ownerName || '—'} labelBold />
-        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} labelBold /> : null}
-        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} labelBold /> : null}
+        <InfoRow label={t('propFloors')} value={p.floors != null ? `${p.floors}` : '—'} />
+        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} />
+        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} />
+      </SectionBlock>
+
+      {/* 3. Контакты — amber. Телефоны кликабельные → системный набор номера. */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.amber}>
+        <InfoRow label={t('pdReception')} value={p.ownerName || '—'} />
+        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} isLink onPress={() => Linking.openURL(`tel:${p.ownerPhone1}`)} /> : null}
+        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} isLink onPress={() => Linking.openURL(`tel:${p.ownerPhone2}`)} /> : null}
         {responsibleName !== undefined && (
           <>
             <View style={styles.divider} />
-            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} labelBold />
+            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} />
           </>
         )}
       </SectionBlock>
 
-      <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
-
-      <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
+      {/* 4. Брони — green */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.green}>
         <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
             <View style={styles.sectionTitleLeft}>
               <RNImage source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
@@ -1545,13 +1578,13 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         {/* Удалить — все могут удалять свои объекты; admin-режим всегда */}
         {(!isAgentRole || isCreator) && (
           <TouchableOpacity style={styles.actionBtn} onPress={handleDeletePress} activeOpacity={0.7}>
-            <RNImage source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
+            <Ionicons name="trash-outline" size={22} color="#888" />
           </TouchableOpacity>
         )}
         <View style={[styles.actionsRight, isTeamMember && { flex: 1, justifyContent: 'flex-end' }]}>
           {/* Редактировать */}
           <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
-            <RNImage source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
+            <IconPencil size={22} color="#888" />
           </TouchableOpacity>
           {/* Добавить бронирование / добавить дом — для агента только если есть can_manage_bookings */}
           {(!isTeamMember || canBook) && (
@@ -1564,11 +1597,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
                 else if (BOOKABLE_UNIT_TYPES.has(p.type)) setAddBookingVisible(true);
               }}
             >
-              {(p.type === 'resort' || p.type === 'condo') ? (
-                <RNImage source={require('../../assets/icon-add-property.png')} style={styles.actionIconLg} resizeMode="contain" />
-              ) : (
-                <RNImage source={require('../../assets/icon-add-booking.png')} style={styles.actionIconLg} resizeMode="contain" />
-              )}
+              <Ionicons name="add-outline" size={22} color="#888" />
             </TouchableOpacity>
           )}
         </View>
@@ -1704,7 +1733,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F2EB',
+    backgroundColor: '#F5F5F7',
     paddingTop: TOP_INSET,
   },
   header: {
@@ -1754,9 +1783,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(245,242,235,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderWidth: 1,
-    borderColor: '#E0D8CC',
+    borderColor: '#E5E5EA',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1773,9 +1802,14 @@ const styles = StyleSheet.create({
   },
   sectionBlock: {
     borderRadius: 14,
-    borderWidth: 1.5,
-    padding: 14,
+    borderWidth: 1,
+    padding: 16,
     marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
   sectionBlockGap: {
     gap: 10,
@@ -1826,36 +1860,26 @@ const styles = StyleSheet.create({
   },
   infoRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     marginBottom: 10,
-    flex: 1,
+    gap: 12,
   },
   infoLabel: {
     fontSize: 13,
-    color: '#2C2C2C',
-    width: 165,
-  },
-  infoLabelBold: {
-    fontWeight: '700',
-  },
-  infoColon: {
-    fontSize: 13,
-    color: '#6B6B6B',
-    marginRight: 8,
+    color: '#8E8E93',
   },
   infoValueWrap: {
     flex: 1,
   },
   infoValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#2C2C2C',
     flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
     textAlign: 'right',
   },
   infoLink: {
-    color: '#D81B60',
-    textDecorationLine: 'underline',
+    color: '#3D7D82',
   },
   divider: {
     height: 1,

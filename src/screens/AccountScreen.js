@@ -15,6 +15,7 @@ import {
   TextInput,
 } from 'react-native';
 import Constants from 'expo-constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MyDetailsEditModal from '../components/MyDetailsEditModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import LanguageModal from '../components/LanguageModal';
@@ -50,6 +51,7 @@ const ANIM_DURATION = 280;
 
 export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, onOpenContacts, onOpenStatistics, isVisible }) {
   const { user = {} } = useUser();
+  const insets = useSafeAreaInsets();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsClosing, setSettingsClosing] = useState(false);
   const [locationsOpen, setLocationsOpen] = useState(false);
@@ -288,7 +290,7 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
       </View>
       <ScrollView
         style={styles.scrollArea}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
       <View style={[styles.myDetailsBlock, hasCompanyInfo && styles.myDetailsBlockWithCompany]}>
@@ -781,7 +783,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 88,
   },
   header: {
     flexDirection: 'row',

@@ -14,6 +14,8 @@ import CompanyScreen from '../screens/CompanyScreen';
 const Tab = createBottomTabNavigator();
 const AccountStack = createNativeStackNavigator();
 
+// CustomTabBar — обёртка React Navigation tabBar prop.
+// Рендерит BottomNav с реальными state/navigation из навигатора.
 function CustomTabBar({ state, navigation }) {
   return (
     <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
@@ -127,6 +129,7 @@ function MainNavigator({ onLogout, onUserUpdate }) {
         <Tab.Screen name="Calendar" component={AgentCalendarScreen} />
         <Tab.Screen name="Account" children={renderAccountTab} />
       </Tab.Navigator>
+
       <ScreenWarmers />
     </View>
   );
