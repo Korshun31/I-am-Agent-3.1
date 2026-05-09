@@ -407,6 +407,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         setPreloadedContact(null);
         setAddModalVisible(false);
         setEditModalVisible(false);
+        setDetailVisible(false);
       });
     }
     prevVisibleRef.current = effectiveVisible;
