@@ -190,11 +190,11 @@ function PercentMoneyField({ label, sym, priceMonthly, checkIn, checkOut, monthl
           keyboardType="numeric"
         />
         <View style={{ flexDirection: 'row', borderRadius: 7, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' }}>
-          <TouchableOpacity onPress={() => handleToggle(false)} style={{ paddingHorizontal: 12, paddingVertical: 13, backgroundColor: !isPercent ? '#3D7D82' : COLORS.inputBg }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: !isPercent ? '#FFF' : '#666' }}>{sym}</Text>
+          <TouchableOpacity onPress={() => handleToggle(false)} style={{ paddingHorizontal: 12, paddingVertical: 13, backgroundColor: !isPercent ? COLORS.accentBg : COLORS.inputBg }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: !isPercent ? COLORS.accent : '#666' }}>{sym}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleToggle(true)} style={{ paddingHorizontal: 12, paddingVertical: 13, backgroundColor: isPercent ? '#3D7D82' : COLORS.inputBg }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: isPercent ? '#FFF' : '#666' }}>%</Text>
+          <TouchableOpacity onPress={() => handleToggle(true)} style={{ paddingHorizontal: 12, paddingVertical: 13, backgroundColor: isPercent ? COLORS.accentBg : COLORS.inputBg }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: isPercent ? COLORS.accent : '#666' }}>%</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1110,6 +1110,9 @@ isMonthFirst
                         <Text style={s.breakdownTitle}>{t('breakdownTitle')}</Text>
                         <Switch
                           style={{ transform: [{ scale: SCALE }] }}
+                          trackColor={{ false: '#D1D1D6', true: '#3D7D82' }}
+                          thumbColor="#FFFFFF"
+                          ios_backgroundColor="#D1D1D6"
                           value={monthlyBreakdown.length > 0}
                           onValueChange={(on) => {
                             if (on) {

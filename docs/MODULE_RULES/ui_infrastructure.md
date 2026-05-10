@@ -222,3 +222,92 @@ return (
 ### Эталон
 
 [src/components/AddBookingModal.js](src/components/AddBookingModal.js) — первая модалка, к которой применены правила UI-10 и UI-11. Использовать как референс при адаптации остальных модалок.
+
+## Брендовые цвета и интерактивные элементы
+
+### Палитра акцента
+
+**UI-12.** Бренд-цвет приложения — `#3D7D82` (тёмно-бирюзовый). В каждом файле модалки в `COLORS` объявляются три производные:
+
+```js
+const COLORS = {
+  accent: '#3D7D82',                    // основной зелёный — текст, иконки, активный track Switch
+  accentBg: 'rgba(61,125,130,0.06)',    // полупрозрачный фон выбранных/активных элементов
+  accentBorder: 'rgba(61,125,130,0.5)', // полупрозрачный контур кнопок
+  ...
+};
+```
+
+Эти три значения используются везде где в UI появляется зелёный — кнопки действия, активные сегменты, выбранные опции. Сплошной `#3D7D82` без полупрозрачности — только в `track` нативного Switch и в иконках.
+
+### Кнопки действия (Далее, Назад, Сохранить)
+
+**UI-13.** Все кнопки действия в модалках оформлены в едином стиле «контур + полупрозрачный фон + цветной текст»:
+
+```js
+nextBtn: {
+  flex: 1,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingVertical: sz(13),
+  borderRadius: sz(12),
+  borderWidth: sz(1),
+  borderColor: COLORS.accentBorder,
+  backgroundColor: COLORS.accentBg,
+  gap: sz(6),
+  minHeight: sz(46),
+},
+nextBtnText: { fontSize: sz(15), fontWeight: '600', color: COLORS.accent },
+```
+
+Запрещено: сплошная заливка `backgroundColor: '#3D7D82'` с белым текстом для основной кнопки. Это даёт «тяжёлый» вид и не сочетается с остальным интерфейсом.
+
+### Нативный Switch
+
+**UI-14.** Любой `<Switch>` в мобильной модалке обязательно получает три цветовых пропса плюс масштаб (UI-10.4):
+
+```jsx
+<Switch
+  style={{ transform: [{ scale: SCALE }] }}
+  trackColor={{ false: '#D1D1D6', true: '#3D7D82' }}
+  thumbColor="#FFFFFF"
+  ios_backgroundColor="#D1D1D6"
+  value={...}
+  onValueChange={...}
+/>
+```
+
+`trackColor.true` — единственное место в UI, где допустима сплошная заливка `#3D7D82` (это родной iOS-стиль зелёного переключателя).
+
+### Сегментированные тогглеры (например $/%)
+
+**UI-15.** Тогглер из двух или трёх кнопок-сегментов оформляется по схеме «общий контур + выделение выбранного полупрозрачным фоном и зелёным текстом»:
+
+```jsx
+<View style={{
+  flexDirection: 'row',
+  borderRadius: sz(7),
+  borderWidth: sz(1),
+  borderColor: COLORS.border,
+  overflow: 'hidden',
+}}>
+  <TouchableOpacity
+    onPress={() => setActive('a')}
+    style={{
+      paddingHorizontal: sz(12),
+      paddingVertical: sz(13),
+      backgroundColor: active === 'a' ? COLORS.accentBg : COLORS.inputBg,
+    }}
+  >
+    <Text style={{
+      fontSize: sz(13),
+      fontWeight: '700',
+      color: active === 'a' ? COLORS.accent : '#666',
+    }}>{labelA}</Text>
+  </TouchableOpacity>
+  {/* остальные сегменты — по той же схеме */}
+</View>
+```
+
+Запрещено: сплошная заливка `#3D7D82` с белым текстом для выбранного сегмента. Единственный исключительный случай со сплошным акцентом — нативный Switch (UI-14).
