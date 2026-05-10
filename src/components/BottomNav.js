@@ -50,7 +50,7 @@ const COLOR_INACTIVE = '#9CA3AF';
 
 // Палитра вкладок — насыщенный цвет иконки/текста + alpha-фон таблетки
 const TABS = [
-  { key: 'RealEstate', Icon: IconProperties, color: '#C8624A', bgColor: 'rgba(200,98,74,0.22)',  labelKey: 'base' },
+  { key: 'RealEstate', Icon: IconProperties, color: '#C97A52', bgColor: 'rgba(201,122,82,0.22)', labelKey: 'base' },
   { key: 'Bookings',   Icon: IconBookings,   color: '#C4973A', bgColor: 'rgba(196,151,58,0.22)', labelKey: 'bookings' },
   { key: 'Calendar',   Icon: IconCalendar,   color: '#8BAF8E', bgColor: 'rgba(139,175,142,0.22)', labelKey: 'calendar' },
   { key: 'Account',    Icon: IconAccount,    color: '#7BAEC8', bgColor: 'rgba(123,174,200,0.22)', labelKey: 'account' },
@@ -166,6 +166,8 @@ export default function BottomNav({ activeTab, onSelect }) {
                 styles.subPill,
                 {
                   backgroundColor: TABS[activeTab].bgColor,
+                  borderWidth:     1,
+                  borderColor:     TABS[activeTab].color,
                   width:           animW,
                   transform:       [{ translateX: animX }],
                 },
