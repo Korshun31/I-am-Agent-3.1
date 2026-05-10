@@ -251,25 +251,42 @@ function patchCalendarScale10() {
     const p = path.join(root, f);
     if (!fs.existsSync(p)) return;
     let s = fs.readFileSync(p, 'utf8');
+
+    // 1) Ensure Dimensions is in the react-native import (idempotent).
+    s = s.replace(/import\s+\{\s*([^}]*)\s*\}\s+from\s+['"]react-native['"];/, function (m, names) {
+      if (/\bDimensions\b/.test(names)) return m;
+      return 'import { ' + names.trim() + ', Dimensions } from \'react-native\';';
+    });
+
+    // 2) Insert/refresh __scale module-level (height-driven, with floor so SE doesn't go too small).
+    s = s.replace(/\nvar __scale = [^\n]*\n/, '\n');
+    s = s.replace(
+      /(from ['"]react-native['"];)/,
+      '$1\nvar __scale = Math.max(0.78, Math.min(1, (((typeof Dimensions !== \'undefined\' && Dimensions.get(\'window\').width) || 440) - 72) * 0.8 / 350));'
+    );
+
     if (f === 'Month.js') {
-      s = s.replace('paddingTop: 20,', 'paddingTop: 22,');
-      s = s.replace('var PADDING_HORIZONTAL = 10;', 'var PADDING_HORIZONTAL = 11;');
-      s = s.replace('height: 30,', 'height: 33,');
-      s = s.replace(/dayNamesContainer: \{\s*height: 50,/g, 'dayNamesContainer: {\n        height: 55,');
-      s = s.replace('fontSize: 16,', 'fontSize: 18,');
-      s = s.replace('dayName: {\n        fontSize: 15,', 'dayName: {\n        fontSize: 17,');
+      // Header "Май 2026" font
+      s = s.replace(/monthName:\s*\{\s*fontSize:\s*\d+,/, 'monthName: {\n        fontSize: Math.round(16*__scale),');
+      // Day-of-week labels ("Пн Вт Ср") font
+      s = s.replace(/dayName:\s*\{\s*fontSize:\s*\d+,/, 'dayName: {\n        fontSize: Math.round(15*__scale),');
+      // Day-of-week container height
+      s = s.replace(/dayNamesContainer:\s*\{\s*height:\s*\d+,/, 'dayNamesContainer: {\n        height: Math.round(50*__scale),');
     } else if (f === 'Week.js') {
-      s = s.replace('height: is6Weeks ? 45 : 50', 'height: is6Weeks ? 50 : 55');
-      s = s.replace('flex: 1, height: is6Weeks ? 45 : 50 }', 'flex: 1, height: is6Weeks ? 50 : 55 }');
+      // Row height for 6-row vs 5-row months
+      s = s.replace(/is6Weeks \? \d+ : \d+/g, 'is6Weeks ? Math.round(45*__scale) : Math.round(50*__scale)');
     } else if (f === 'Day.js') {
-      s = s.replace(/width: 30,\s*height: 30,/g, 'width: 33,\n        height: 33,');
-      s = s.replace(/height: 30,/g, 'height: 33,');
-      s = s.replace(/borderRadius: 15/g, 'borderRadius: 17');
-      s = s.replace(/top: -4, right: -4, minWidth: 14, height: 14, borderRadius: 7/g, 'top: -4, right: -4, minWidth: 15, height: 15, borderRadius: 8');
-      s = s.replace(/fontSize: 15/g, 'fontSize: 17');
-      s = s.replace(/fontSize: 9/g, 'fontSize: 10');
+      // Day cell (markStyle): width / height
+      s = s.replace(/width:\s*\d+,\s*height:\s*\d+,/, 'width: Math.round(30*__scale),\n        height: Math.round(30*__scale),');
+      // borderRadius for the day-circle (15 or already-patched 17). Followed by , or whitespace+}
+      s = s.replace(/borderRadius:\s*1[57]\b/g, 'borderRadius: Math.round(15*__scale)');
+      // Day number font size: matches both ", [{ fontSize: 15 }, dayStyle" (else-branch) and main "[{ fontSize: 15 }, dayStyle"
+      s = s.replace(/\[\{ fontSize: \d+ \}, dayStyle/g, '[{ fontSize: Math.round(15*__scale) }, dayStyle');
+      // Day number font size in dim-past branch
+      s = s.replace(/\? \[\{ fontSize: \d+, color:/g, '? [{ fontSize: Math.round(15*__scale), color:');
     } else if (f === 'CalendarList.js') {
-      s = s.replace('var LAYOUT_HEIGHT = 370;', 'var LAYOUT_HEIGHT = 407;');
+      // Total month block height (drives snap and FlatList layout)
+      s = s.replace(/var LAYOUT_HEIGHT = \d+;/, 'var LAYOUT_HEIGHT = Math.round(370*__scale);');
     }
     fs.writeFileSync(p, s);
   });
