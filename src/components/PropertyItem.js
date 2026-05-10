@@ -70,7 +70,7 @@ function PropertyItem({ item, expanded, onToggle, onPress, t }) {
           <Text style={styles.propertyCode}>{codeDisplay}</Text>
           <TouchableOpacity onPress={handleToggle} activeOpacity={0.5} style={styles.expandBtn}>
             <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
-              <Ionicons name="chevron-down" size={14} color="#C7C7CC" />
+              <Ionicons name="chevron-down" size={16} color="#C7C7CC" />
             </Animated.View>
           </TouchableOpacity>
         </View>
@@ -185,14 +185,14 @@ const styles = StyleSheet.create({
   },
   propertyName: {
     flex: 1,
-    fontSize: 15,           // было 16 — на SE плотнее
-    fontWeight: '600',      // было 600 — держим semibold
+    fontSize: 16,
+    fontWeight: '600',
     color: '#2C2C2C',
-    letterSpacing: -0.3,    // лёгкий негативный трекинг для SF
+    letterSpacing: -0.3,
   },
   propertyCode: {
-    fontSize: 12,           // было 14
-    fontWeight: '600',      // было 700 — чуть легче
+    fontSize: 14,
+    fontWeight: '600',
     color: '#3D7D82',       // было #D81B60 (малиновый) → teal акцент проекта
     marginRight: 10,
   },

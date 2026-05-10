@@ -40,6 +40,7 @@ import PropertyNotificationsModal from '../components/PropertyNotificationsModal
 import BookingDetailScreen from './BookingDetailScreen';
 import ContactDetailScreen from './ContactDetailScreen';
 import PropertyDetailScreen from './PropertyDetailScreen';
+import { TAB_BAR_CONTENT_HEIGHT } from '../components/BottomNav';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 const ROW_HEIGHT = 45;
@@ -149,7 +150,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const isFocused = useIsFocused();
   const effectiveVisible = embeddedInModal ? isVisible : isFocused;
   const insets = useSafeAreaInsets();
-  const bottomNavPadding = insets.bottom;
+  const bottomNavPadding = insets.bottom + TAB_BAR_CONTENT_HEIGHT + 12;
   const { t, language } = useLanguage();
   const { properties, bookings, contacts, propertiesLoading, bookingsLoading, refreshProperties, refreshBookings } = useAppData();
 
@@ -730,7 +731,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
           </View>
           <View style={styles.toolbarRow}>
             <View style={styles.searchWrap}>
-              <Ionicons name="search-outline" size={16} color="#999" style={styles.searchIconIon} />
+              <Ionicons name="search-outline" size={18} color="#999" style={styles.searchIconIon} />
               <TextInput
                 style={styles.searchInput}
                 placeholder={t('search')}
@@ -1385,7 +1386,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     color: COLORS.title,
     paddingVertical: 0,
   },
@@ -1464,7 +1465,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   propertyLabel: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.title,
   },

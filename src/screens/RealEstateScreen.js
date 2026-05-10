@@ -35,6 +35,7 @@ import PropertyEditWizard from '../components/PropertyEditWizard';
 import FilterBottomSheet from '../components/FilterBottomSheet';
 import PropertyDetailScreen from './PropertyDetailScreen';
 import PropertyItem from '../components/PropertyItem';
+import { TAB_BAR_CONTENT_HEIGHT } from '../components/BottomNav';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
@@ -458,7 +459,7 @@ export default function RealEstateScreen({ onReady }) {
 
       <View style={styles.toolbarRow}>
         <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={16} color="#999" style={styles.searchIconIon} />
+          <Ionicons name="search-outline" size={18} color="#999" style={styles.searchIconIon} />
           <TextInput
             style={styles.searchInput}
             placeholder={t('search')}
@@ -515,7 +516,7 @@ export default function RealEstateScreen({ onReady }) {
           data={listToShow}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
-          contentContainerStyle={[styles.listContent, { paddingHorizontal: hPad, paddingBottom: insets.bottom }]}
+          contentContainerStyle={[styles.listContent, { paddingHorizontal: hPad, paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + 12 }]}
           showsVerticalScrollIndicator={false}
           removeClippedSubviews
           initialNumToRender={12}
@@ -646,7 +647,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     color: COLORS.title,
     paddingVertical: 0,
   },

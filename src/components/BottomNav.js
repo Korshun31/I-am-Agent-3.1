@@ -41,9 +41,9 @@ const SUB_PILL_SIDE_INSET = (TAB_BAR_CONTENT_HEIGHT - SUB_PILL_HEIGHT) / 2;
 // Внутренние отступы активной таблетки и размеры контента
 const ACTIVE_PADDING_H = 16;
 const ACTIVE_GAP       = 6;
-const ACTIVE_ICON_SIZE   = 18;
+const ACTIVE_ICON_SIZE   = 22;
 const INACTIVE_ICON_SIZE = 22;
-const LABEL_FONT_SIZE    = 13;
+const LABEL_FONT_SIZE    = 16;
 
 // Цвет неактивных иконок
 const COLOR_INACTIVE = '#9CA3AF';
