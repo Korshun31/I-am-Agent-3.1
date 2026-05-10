@@ -96,3 +96,129 @@
 | TD | Описание | Приоритет |
 |---|---|---|
 | **TD-019** | ✅ ЗАКРЫТ 2026-04-30 — `App.js` рендерит `<Preloader />` на стадии preloader для обеих платформ | Закрыт |
+
+## Адаптивные мобильные модалки
+
+Цель: одна и та же мобильная модалка должна выглядеть одинаково красиво на iPhone SE (375pt), iPhone 16 (393pt), iPhone Pro Max (440pt) и на любом телефоне между ними. Принцип «протестировал на одном устройстве — на остальных тоже ляжет правильно».
+
+### Утилита масштабирования
+
+**UI-10.** Все размеры внутри мобильной модалки масштабируются через утилиту [src/utils/scale.js](src/utils/scale.js):
+
+```js
+import { Dimensions } from 'react-native';
+const REFERENCE_WIDTH = 440;   // ширина iPhone Pro Max в point — на ней scale = 1.0
+const MIN_SCALE = 0.85;        // нижний пол, чтобы шрифты не уезжали в нечитаемое
+const width = Dimensions.get('window').width;
+export const SCALE = Math.max(MIN_SCALE, Math.min(1, width / REFERENCE_WIDTH));
+export function sz(n) { return Math.round(n * SCALE); }
+```
+
+Получается: SE → SCALE ≈ 0.85, iPhone 16 → ≈ 0.89, Pro Max → 1.0. На любом устройстве в этом диапазоне scale считается ровно один раз при загрузке модуля.
+
+**UI-10.1.** Импортировать в файл модалки:
+
+```js
+import { sz, SCALE } from '../utils/scale';
+```
+
+Если в файле уже есть переменная `s = StyleSheet.create({...})` — НЕ переименовывать её в `s` для helper-а. Использовать `sz` (это «size scaled»). Иначе будет конфликт имён.
+
+**UI-10.2.** Все числовые литералы у следующих свойств в `StyleSheet.create({...})` оборачиваются в `sz()`:
+
+`fontSize`, `lineHeight`, `padding`, `paddingTop`, `paddingBottom`, `paddingLeft`, `paddingRight`, `paddingHorizontal`, `paddingVertical`, `margin`, `marginTop`, `marginBottom`, `marginLeft`, `marginRight`, `marginHorizontal`, `marginVertical`, `borderRadius`, `gap`, `columnGap`, `rowGap`, `width`, `minWidth`, `maxWidth`, `height`, `minHeight`, `maxHeight`, `borderWidth`, `borderTopWidth`, `borderBottomWidth`, `borderLeftWidth`, `borderRightWidth`.
+
+Пример пакетной замены через `sed` (BSD/macOS):
+
+```sh
+sed -E -i '' '<startLine>,$s/(fontSize|lineHeight|padding|paddingTop|paddingBottom|paddingLeft|paddingRight|paddingHorizontal|paddingVertical|margin|marginTop|marginBottom|marginLeft|marginRight|marginHorizontal|marginVertical|borderRadius|gap|columnGap|rowGap|width|minWidth|maxWidth|height|minHeight|maxHeight|borderWidth|borderTopWidth|borderBottomWidth|borderLeftWidth|borderRightWidth): ([0-9]+)/\1: sz(\2)/g' <file>
+```
+
+Где `<startLine>` — номер строки `StyleSheet.create({` в этом файле. Регекс `[0-9]+` ловит только целые числа — десятичные значения вроде `borderWidth: 1.5` чинятся отдельно: `sed -i '' 's/sz(1)\.5/sz(1.5)/g' <file>`. После любого пакетного `sed` обязательно `node -e "require('@babel/parser').parse(require('fs').readFileSync('<file>','utf8'),{sourceType:'module',plugins:['jsx']})"` для проверки синтаксиса.
+
+**UI-10.3.** Иконки. Числовые `size={N}` у иконок (Ionicons и т.п.) оборачиваются в `sz()`:
+
+```jsx
+<Ionicons name="close" size={sz(20)} color="#6B6B6B" />
+```
+
+**UI-10.4.** Нативный Switch (родной iOS-переключатель) сам не масштабируется — его сжимаем через `transform`:
+
+```jsx
+<Switch
+  style={{ transform: [{ scale: SCALE }] }}
+  value={...}
+  onValueChange={...}
+/>
+```
+
+Тот же приём — для системного DatePicker, любого нативного компонента с фиксированными внутренними размерами.
+
+**UI-10.5.** Что НЕ масштабируется через `sz`:
+
+- Внешний каркас модалки (`src/components/ModalScrollFrame.js`) — общий для всех модалок. Его пропорция «модалка ужимается под окно» уже сделана и работает; внутренний контент живёт по `sz()`.
+- Формулы внутри сторонних либ, у которых уже есть собственное масштабирование (например `react-native-calendar-range-picker` — патчится через `scripts/patch-calendar-eu-week.js`, имеет внутреннюю переменную `__scale` от ширины блока месяца).
+- Inline-вычисления в JSX, использующие `Dimensions.get('window').width/height` — оставлять как есть, не трогать.
+- Цветовые значения, `opacity`, `flex`, `zIndex`, проценты-строки (`width: '100%'`).
+
+### Ритмика отступов в формах
+
+**UI-11.** В каждой модалке с формой объявляются две константы сразу после импортов:
+
+```js
+const LABEL_GAP = 6;   // отступ между подписью (label) и её полем — тесная связь
+const BLOCK_GAP = 16;  // отступ между блоком «label+field» и следующим блоком
+```
+
+**UI-11.1.** У всех стилей подписей блоков (`fieldLabel`, `fieldLabelStep2`, аналогичные `*Label`) ставится `marginBottom: sz(LABEL_GAP)`.
+
+**UI-11.2.** У всех стилей полей ввода (`input`, `inputWithIconRow`, `dateField`, `selectField`, `timeInput`, аналогичные) ставится `marginBottom: sz(BLOCK_GAP)`.
+
+**UI-11.3.** Композитные поля (когда вместо обычного TextInput идёт несколько элементов в строку — например `PercentMoneyField` с TextInput + кнопками `$/%`) обязательно оборачиваются в `<View style={{ marginBottom: sz(BLOCK_GAP) }}>`. Внутренний TextInput при этом получает `marginBottom: 0`, чтобы не было двойного отступа.
+
+Антипаттерн (приводит к рваной ритмике):
+
+```jsx
+return (
+  <>
+    <Text style={s.fieldLabel}>{label}</Text>
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      <TextInput style={[s.input, { marginBottom: 0 }]} ... />
+      <Buttons ... />
+    </View>
+  </>
+);
+```
+
+Правильно:
+
+```jsx
+return (
+  <View style={{ marginBottom: sz(BLOCK_GAP) }}>
+    <Text style={s.fieldLabel}>{label}</Text>
+    <View style={{ flexDirection: 'row', gap: sz(8) }}>
+      <TextInput style={[s.input, { marginBottom: 0 }]} ... />
+      <Buttons ... />
+    </View>
+  </View>
+);
+```
+
+### Чек-лист «применить правила к модалке X»
+
+1. Импортировать `sz, SCALE` из `../utils/scale`.
+2. Объявить `LABEL_GAP = 6`, `BLOCK_GAP = 16` после импортов.
+3. Найти строку `const s = StyleSheet.create({` — запомнить её номер.
+4. Прогнать `sed` с регексом из UI-10.2 от этой строки до конца файла.
+5. Починить десятичные числа (`sz(1).5` → `sz(1.5)`) одним отдельным `sed`.
+6. Пройтись по JSX: все `size={N}` у иконок → `size={sz(N)}`.
+7. Все `<Switch>` и нативные пикеры обернуть в `style={{ transform: [{ scale: SCALE }] }}`.
+8. У всех `*Label` стилей выставить `marginBottom: sz(LABEL_GAP)`.
+9. У всех стилей полей выставить `marginBottom: sz(BLOCK_GAP)`.
+10. Композитные поля (фрагменты `<>` или строки с несколькими элементами) обернуть в `<View style={{ marginBottom: sz(BLOCK_GAP) }}>`, внутренний TextInput с `marginBottom: 0`.
+11. Прогнать babel-parser sanity check (`node -e "..."` из UI-10.2).
+12. Запустить Metro с `--clear`, посмотреть модалку на iPhone SE / 16 / 17 Pro Max — на всех должна выглядеть одинаково ритмично, отличаясь только пропорционально.
+
+### Эталон
+
+[src/components/AddBookingModal.js](src/components/AddBookingModal.js) — первая модалка, к которой применены правила UI-10 и UI-11. Использовать как референс при адаптации остальных модалок.
