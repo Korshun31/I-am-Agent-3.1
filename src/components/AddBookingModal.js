@@ -403,7 +403,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
     } else {
       setBookedRanges([]);
     }
-  }, [step, property?.id, editBooking?.id]);
+  }, [step, property?.id, editBooking?.id, bookings]);
 
   useEffect(() => {
     if (selectedClient) {
