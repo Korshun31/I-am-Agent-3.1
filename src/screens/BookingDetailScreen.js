@@ -484,17 +484,23 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
             <DetailRow label={t('pdBookingDeposit')} value={b.bookingDeposit != null ? formatPrice(b.bookingDeposit, bookingSym) : null} />
             <DetailRow label={t('pdSaveDeposit')} value={b.saveDeposit != null ? formatPrice(b.saveDeposit, bookingSym) : null} />
             <DetailRow label={t('bookingOwnerCommOnce')} value={b.ownerCommissionOneTime != null ? (b.ownerCommissionOneTimeIsPercent ? `${formatPrice(ownerOneTimeAmount(b), bookingSym)} (${Number(b.ownerCommissionOneTime).toLocaleString()}%)` : formatPrice(b.ownerCommissionOneTime, bookingSym)) : null} />
-            <DetailRow label={t('ownerCommissionMonthly')} value={(() => {
+            {(() => {
               if (b.ownerCommissionMonthly == null) return null;
-              if (!b.ownerCommissionMonthlyIsPercent) return formatPrice(b.ownerCommissionMonthly, bookingSym);
+              if (!b.ownerCommissionMonthlyIsPercent) {
+                return <DetailRow label={t('ownerCommissionMonthly')} value={formatPrice(b.ownerCommissionMonthly, bookingSym)} />;
+              }
               const months = ownerMonthlyByMonth(b);
               const total = months.reduce((s, r) => s + r.amount, 0);
               const pct = `(${Number(b.ownerCommissionMonthly).toLocaleString()}%)`;
-              if (months.length > 1) {
-                return `${months.map(r => Number(r.amount).toLocaleString()).join(' + ')} = ${formatPrice(total, bookingSym)} ${pct}`;
-              }
-              return `${formatPrice(total, bookingSym)} ${pct}`;
-            })()} />
+              return (
+                <>
+                  <DetailRow label={t('ownerCommissionMonthly')} value={`${formatPrice(total, bookingSym)} ${pct}`} />
+                  {months.length > 1 ? months.map((r, i) => (
+                    <DetailRow key={i} label={`${t('commissionMonth')} ${i + 1}`} value={formatPrice(r.amount, bookingSym)} />
+                  )) : null}
+                </>
+              );
+            })()}
             <DetailRow label={t('pdCommission')} value={b.commission != null ? formatPrice(b.commission, bookingSym) : null} />
           </View>
         ) : null}
@@ -638,12 +644,15 @@ const styles = StyleSheet.create({
   },
 
   detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 10,
+    gap: 12,
   },
   detailLabel: {
     fontSize: 13,
     color: COLORS.label,
-    marginBottom: 2,
   },
   detailValue: {
     fontSize: 15,
@@ -662,7 +671,7 @@ const styles = StyleSheet.create({
   propInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
     gap: 12,
   },
   propInfoLabel: {
@@ -679,6 +688,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: COLORS.title,
     flex: 1,
+    textAlign: 'right',
   },
   propInfoLink: {
     color: COLORS.accent,
@@ -694,6 +704,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    marginLeft: 'auto',
   },
   contactActionBtn: {
     width: 32,
