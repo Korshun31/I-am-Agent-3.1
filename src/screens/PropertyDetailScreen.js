@@ -31,6 +31,7 @@ import {
 } from '../components/PropertyIcons';
 import { IconBookings } from '../components/TabIcons';
 import { IconFolderClosed, IconFolderOpen } from '../components/FolderIcons';
+import OwnerInfoRow from '../components/OwnerInfoRow';
 import { TYPE_COLORS } from '../components/PropertyItem';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -553,17 +554,31 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
           <IconContacts size={22} color="#888" />
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdContacts')}</Text>
         </View>
-        <InfoRow label={isApartment ? t('pdReception') : t('pdOwner')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} />
-        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} isLink onPress={() => Linking.openURL(`tel:${p.ownerPhone1}`)} /> : null}
-        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} isLink onPress={() => Linking.openURL(`tel:${p.ownerPhone2}`)} /> : null}
-        {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} /> : null}
-        {isApartment && (p.owner2Name || p.owner2Phone1 || p.owner2Phone2 || p.owner2Telegram) ? (
+        <OwnerInfoRow
+          label={isApartment ? t('pdReception') : t('pdOwner')}
+          name={ownerName}
+          phone={p.ownerPhone1}
+          whatsapp={p.ownerWhatsapp}
+          telegram={p.ownerTelegram}
+          isLink={!!ownerName}
+          onPressName={onOwnerPress}
+          alignRight
+          t={t}
+        />
+        {isApartment && (p.owner2Name || p.owner2Phone1 || p.owner2Phone2 || p.owner2Whatsapp || p.owner2Telegram) ? (
           <>
             <View style={styles.divider} />
-            <InfoRow label={t('pdOwnerContact')} value={owner2Name || '—'} isLink={!!owner2Name} onPress={onOwner2Press} />
-            {p.owner2Phone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.owner2Phone1} isLink onPress={() => Linking.openURL(`tel:${p.owner2Phone1}`)} /> : null}
-            {p.owner2Phone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.owner2Phone2} isLink onPress={() => Linking.openURL(`tel:${p.owner2Phone2}`)} /> : null}
-            {p.owner2Telegram ? <InfoRow label={t('telegram')} value={p.owner2Telegram} /> : null}
+            <OwnerInfoRow
+              label={t('pdOwnerContact')}
+              name={owner2Name}
+              phone={p.owner2Phone1}
+              whatsapp={p.owner2Whatsapp}
+              telegram={p.owner2Telegram}
+              isLink={!!owner2Name}
+              onPressName={onOwner2Press}
+              alignRight
+              t={t}
+            />
           </>
         ) : null}
         {responsibleName !== undefined && (
@@ -617,7 +632,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
           </View>
           {onOpenBookingCalendar && (
             <TouchableOpacity onPress={() => onOpenBookingCalendar([p.id], resort ? codeDisplay : (p.name || p.code || ''))} style={styles.actionBtn} activeOpacity={0.7}>
-              <IconBookings size={22} color="#888" />
+              <IconBookings size={22} color="#3D7D82" />
             </TouchableOpacity>
           )}
         </View>
@@ -795,10 +810,17 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
           <IconContacts size={22} color="#888" />
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdContacts')}</Text>
         </View>
-        <InfoRow label={t('pdOwnerManager')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} />
-        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} isLink onPress={() => Linking.openURL(`tel:${p.ownerPhone1}`)} /> : null}
-        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} isLink onPress={() => Linking.openURL(`tel:${p.ownerPhone2}`)} /> : null}
-        {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} /> : null}
+        <OwnerInfoRow
+          label={t('pdOwnerManager')}
+          name={ownerName}
+          phone={p.ownerPhone1}
+          whatsapp={p.ownerWhatsapp}
+          telegram={p.ownerTelegram}
+          isLink={!!ownerName}
+          onPressName={onOwnerPress}
+          alignRight
+          t={t}
+        />
         {responsibleName !== undefined && (
           <>
             <View style={styles.divider} />
@@ -816,7 +838,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
             </View>
             {onOpenBookingCalendar && (
               <TouchableOpacity onPress={() => onOpenBookingCalendar(resortHouses.map((h) => h.id), p.name || p.code || '')} style={styles.actionBtn} activeOpacity={0.7}>
-                <IconBookings size={22} color="#888" />
+                <IconBookings size={22} color="#3D7D82" />
               </TouchableOpacity>
             )}
           </View>
@@ -1039,9 +1061,15 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
           <IconContacts size={22} color="#888" />
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdContacts')}</Text>
         </View>
-        <InfoRow label={t('pdReception')} value={p.ownerName || '—'} />
-        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} isLink onPress={() => Linking.openURL(`tel:${p.ownerPhone1}`)} /> : null}
-        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} isLink onPress={() => Linking.openURL(`tel:${p.ownerPhone2}`)} /> : null}
+        <OwnerInfoRow
+          label={t('pdReception')}
+          name={p.ownerName}
+          phone={p.ownerPhone1}
+          whatsapp={p.ownerWhatsapp}
+          telegram={p.ownerTelegram}
+          alignRight
+          t={t}
+        />
         {responsibleName !== undefined && (
           <>
             <View style={styles.divider} />
@@ -1059,7 +1087,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
             </View>
             {onOpenBookingCalendar && (
               <TouchableOpacity onPress={() => onOpenBookingCalendar(apartments.map((a) => a.id), p.name || p.code || '')} style={styles.actionBtn} activeOpacity={0.7}>
-                <IconBookings size={22} color="#888" />
+                <IconBookings size={22} color="#3D7D82" />
               </TouchableOpacity>
             )}
           </View>
@@ -1207,15 +1235,16 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             ownerName: `${owner.name} ${owner.lastName}`.trim(),
             ownerPhone1: owner.phone || '',
             ownerPhone2: owner.extraPhones?.[0] || '',
+            ownerWhatsapp: owner.whatsapp || '',
             ownerTelegram: owner.telegram || '',
           });
         } else {
           setOwnerContact(null);
-          Object.assign(updates, { ownerName: '', ownerPhone1: '', ownerPhone2: '', ownerTelegram: '' });
+          Object.assign(updates, { ownerName: '', ownerPhone1: '', ownerPhone2: '', ownerWhatsapp: '', ownerTelegram: '' });
         }
       } else {
         setOwnerContact(null);
-        Object.assign(updates, { ownerName: '', ownerPhone1: '', ownerPhone2: '', ownerTelegram: '' });
+        Object.assign(updates, { ownerName: '', ownerPhone1: '', ownerPhone2: '', ownerWhatsapp: '', ownerTelegram: '' });
       }
       if (prop.owner_id_2) {
         const owner2 = owners.find(o => o.id === prop.owner_id_2);
@@ -1225,15 +1254,16 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             owner2Name: `${owner2.name} ${owner2.lastName}`.trim(),
             owner2Phone1: owner2.phone || '',
             owner2Phone2: owner2.extraPhones?.[0] || '',
+            owner2Whatsapp: owner2.whatsapp || '',
             owner2Telegram: owner2.telegram || '',
           });
         } else {
           setOwner2Contact(null);
-          Object.assign(updates, { owner2Name: '', owner2Phone1: '', owner2Phone2: '', owner2Telegram: '' });
+          Object.assign(updates, { owner2Name: '', owner2Phone1: '', owner2Phone2: '', owner2Whatsapp: '', owner2Telegram: '' });
         }
       } else {
         setOwner2Contact(null);
-        Object.assign(updates, { owner2Name: '', owner2Phone1: '', owner2Phone2: '', owner2Telegram: '' });
+        Object.assign(updates, { owner2Name: '', owner2Phone1: '', owner2Phone2: '', owner2Whatsapp: '', owner2Telegram: '' });
       }
       setP(prev => ({ ...prev, ...updates }));
     } catch {}
@@ -2016,7 +2046,7 @@ const styles = StyleSheet.create({
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 10,
   },
   priceIcon: {
     fontSize: 16,
