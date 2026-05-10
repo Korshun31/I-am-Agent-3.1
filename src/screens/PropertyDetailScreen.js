@@ -408,7 +408,7 @@ function MediaSection({ photos, videos, t, typeColors, onPhotoPress, onVideoPres
   return (
     <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.red}>
       <View style={styles.sectionTitleRow}>
-        <IconPhoto size={22} color={SECTION_PALETTE.red} />
+        <IconPhoto size={22} color="#888" />
         <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdPhoto')}</Text>
       </View>
       {photos.length > 0 ? (
@@ -426,7 +426,7 @@ function MediaSection({ photos, videos, t, typeColors, onPhotoPress, onVideoPres
         />
       ) : (<Text style={styles.emptyMedia}>{t('pdNoPhotos')}</Text>)}
       <View style={[styles.sectionTitleRow, { marginTop: 12 }]}>
-        <IconVideo size={22} color={SECTION_PALETTE.red} />
+        <IconVideo size={22} color="#888" />
         <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdVideo')}</Text>
       </View>
       {videos.length > 0 ? (
@@ -516,7 +516,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
       {/* 2. Характеристики дома — orange */}
       <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.orange}>
         <View style={styles.sectionTitleRow}>
-          <IconSpecifications size={22} color={SECTION_PALETTE.orange} />
+          <IconSpecifications size={22} color="#888" />
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdSpecifications')}</Text>
         </View>
         <InfoRow label={t('propertyCode')} value={codeDisplay} />
@@ -550,7 +550,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
       {/* 3. Контакты — amber. Телефоны кликабельные → системный набор номера. */}
       <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.amber}>
         <View style={styles.sectionTitleRow}>
-          <IconContacts size={22} color={SECTION_PALETTE.amber} />
+          <IconContacts size={22} color="#888" />
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdContacts')}</Text>
         </View>
         <InfoRow label={isApartment ? t('pdReception') : t('pdOwner')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} />
@@ -578,7 +578,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
       {hasPrices && (
         <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.green}>
           <View style={styles.sectionTitleRow}>
-            <IconPrices size={22} color={SECTION_PALETTE.green} />
+            <IconPrices size={22} color="#888" />
             <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdPrices')}</Text>
           </View>
           {p.price_monthly != null && <PriceRow iconSource={require('../../assets/icon-price-booking-deposit.png')} label={t('pdPriceMonthly')} value={formatPrice(p.price_monthly)} prefix={p.price_monthly_is_from ? t('priceFrom') : null} />}
@@ -612,12 +612,12 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
       <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.teal}>
         <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
           <View style={styles.sectionTitleLeft}>
-            <IconBookingList size={22} color={SECTION_PALETTE.teal} />
+            <IconBookingList size={22} color="#888" />
             <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
           </View>
           {onOpenBookingCalendar && (
             <TouchableOpacity onPress={() => onOpenBookingCalendar([p.id], resort ? codeDisplay : (p.name || p.code || ''))} style={styles.actionBtn} activeOpacity={0.7}>
-              <IconBookings size={22} color={SECTION_PALETTE.teal} />
+              <IconBookings size={22} color="#888" />
             </TouchableOpacity>
           )}
         </View>
@@ -632,7 +632,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
                 onPress={onBookingPress ? () => onBookingPress(b, codePart, p) : undefined}
                 activeOpacity={onBookingPress ? 0.7 : 1}
               >
-                <View style={styles.bookingItemIcon}><IconHashtag size={19} color={SECTION_PALETTE.teal} /></View>
+                <View style={styles.bookingItemIcon}><IconHashtag size={19} color="#888" /></View>
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{codePart}</Text>
                 <Text style={styles.bookingItemDates}>
                   {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
@@ -648,7 +648,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
       {/* 6. Удобства — blue */}
       <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.blue}>
         <View style={styles.sectionTitleRow}>
-          <IconAmenities size={22} color={SECTION_PALETTE.blue} />
+          <IconAmenities size={22} color="#888" />
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdAmenities')}</Text>
         </View>
         <View style={styles.amenitiesGrid}>
@@ -771,7 +771,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
       {/* 2. Характеристики курорта — orange */}
       <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.orange}>
         <View style={styles.sectionTitleRow}>
-          <IconSpecifications size={22} color={SECTION_PALETTE.orange} />
+          <IconSpecifications size={22} color="#888" />
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdSpecifications')}</Text>
         </View>
         <InfoRow label={t('propertyCode')} value={p.code} />
@@ -792,7 +792,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
       {/* 3. Контакты — amber. Телефоны кликабельные → системный набор номера. */}
       <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.amber}>
         <View style={styles.sectionTitleRow}>
-          <IconContacts size={22} color={SECTION_PALETTE.amber} />
+          <IconContacts size={22} color="#888" />
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdContacts')}</Text>
         </View>
         <InfoRow label={t('pdOwnerManager')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} />
@@ -811,12 +811,12 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
       <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.green}>
         <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
             <View style={styles.sectionTitleLeft}>
-              <IconBookingList size={22} color={SECTION_PALETTE.green} />
+              <IconBookingList size={22} color="#888" />
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
             </View>
             {onOpenBookingCalendar && (
               <TouchableOpacity onPress={() => onOpenBookingCalendar(resortHouses.map((h) => h.id), p.name || p.code || '')} style={styles.actionBtn} activeOpacity={0.7}>
-                <IconBookings size={22} color={SECTION_PALETTE.green} />
+                <IconBookings size={22} color="#888" />
               </TouchableOpacity>
             )}
           </View>
@@ -830,7 +830,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
                 onPress={onBookingPress ? () => onBookingPress(b, b._codePart, house) : undefined}
                 activeOpacity={onBookingPress ? 0.7 : 1}
               >
-                <View style={styles.bookingItemIcon}><IconHashtag size={19} color={SECTION_PALETTE.green} /></View>
+                <View style={styles.bookingItemIcon}><IconHashtag size={19} color="#888" /></View>
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{b._codePart}</Text>
                 <Text style={styles.bookingItemDates}>
                   {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
@@ -1007,7 +1007,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
       {/* 2. Характеристики кондо — orange */}
       <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.orange}>
         <View style={styles.sectionTitleRow}>
-          <IconSpecifications size={22} color={SECTION_PALETTE.orange} />
+          <IconSpecifications size={22} color="#888" />
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdSpecifications')}</Text>
         </View>
         <InfoRow label={t('propertyCode')} value={p.code} />
@@ -1036,7 +1036,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
       {/* 3. Контакты — amber. Телефоны кликабельные → системный набор номера. */}
       <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.amber}>
         <View style={styles.sectionTitleRow}>
-          <IconContacts size={22} color={SECTION_PALETTE.amber} />
+          <IconContacts size={22} color="#888" />
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdContacts')}</Text>
         </View>
         <InfoRow label={t('pdReception')} value={p.ownerName || '—'} />
@@ -1054,12 +1054,12 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
       <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.green}>
         <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
             <View style={styles.sectionTitleLeft}>
-              <IconBookingList size={22} color={SECTION_PALETTE.green} />
+              <IconBookingList size={22} color="#888" />
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
             </View>
             {onOpenBookingCalendar && (
               <TouchableOpacity onPress={() => onOpenBookingCalendar(apartments.map((a) => a.id), p.name || p.code || '')} style={styles.actionBtn} activeOpacity={0.7}>
-                <IconBookings size={22} color={SECTION_PALETTE.green} />
+                <IconBookings size={22} color="#888" />
               </TouchableOpacity>
             )}
           </View>
@@ -1073,7 +1073,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
                 onPress={onBookingPress ? () => onBookingPress(b, b._codePart, apt) : undefined}
                 activeOpacity={onBookingPress ? 0.7 : 1}
               >
-                <View style={styles.bookingItemIcon}><IconHashtag size={19} color={SECTION_PALETTE.green} /></View>
+                <View style={styles.bookingItemIcon}><IconHashtag size={19} color="#888" /></View>
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{b._codePart}</Text>
                 <Text style={styles.bookingItemDates}>
                   {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
@@ -1838,7 +1838,6 @@ const styles = StyleSheet.create({
   },
   sectionBlock: {
     borderRadius: 14,
-    borderWidth: 1,
     padding: 16,
     marginBottom: 12,
     shadowColor: '#000',
@@ -1972,7 +1971,7 @@ const styles = StyleSheet.create({
   bookingItemCode: {
     flex: 1,
     fontSize: 15,
-    color: '#C45C6E',
+    color: '#3D7D82',
     fontWeight: '600',
   },
   bookingItemDates: {
