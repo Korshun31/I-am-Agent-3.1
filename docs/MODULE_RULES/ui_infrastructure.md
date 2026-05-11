@@ -376,6 +376,8 @@ import { FONT, WEIGHT } from '../utils/scale';
 
 **Лупа в поле поиска** — `size={FONT.body} color="#999"`. Воронка фильтра — 18pt намеренно мельче (визуально вторична).
 
+**Подпись поля в форме редактирования** (`fieldLabel` в визарде объекта — «АДРЕС», «ГОРОД», «СОБСТВЕННИК») — `fontSize: FONT.caption (12), fontWeight: '600', letterSpacing: 0.7, textTransform: 'uppercase', color: COLORS.label`. Это специальный КАПС-стиль iOS-форм (как в Settings), вне обычной label/value-пары. На другие экраны не переносить — только для подписей над полями в визардах редактирования.
+
 **Декоративные индикаторы вне текстовой иерархии** (значок ▶ на превью видео и подобные оверлеи на медиа) — могут быть крупнее (28pt). Это исключение из шкалы по функции — индикаторы воспроизведения в iOS традиционно 28-32pt.
 
 **Референс применения:** [src/screens/RealEstateScreen.js](src/screens/RealEstateScreen.js), [src/screens/BookingCalendarScreen.js](src/screens/BookingCalendarScreen.js), [src/screens/PropertyDetailScreen.js](src/screens/PropertyDetailScreen.js) и [src/components/OwnerInfoRow.js](src/components/OwnerInfoRow.js) — экраны и общий компонент, переведённые на шкалу. Использовать как образец при адаптации остальных экранов.

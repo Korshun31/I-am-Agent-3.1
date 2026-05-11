@@ -409,7 +409,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
               <View style={s.ownerPickerHeader}>
                 <Text style={s.ownerPickerTitle}>{t('wizOwner')}</Text>
                 <TouchableOpacity onPress={() => setOwnerPickerVisible(false)} style={s.ownerPickerClose} activeOpacity={0.7}>
-                  <Ionicons name="close" size={20} color="#6B6B6B" />
+                  <Ionicons name="close" size={22} color="#888" />
                 </TouchableOpacity>
               </View>
               <TouchableOpacity style={s.ownerPickerAddRow} onPress={() => { setOwnerPickerVisible(false); setAddOwnerFor('owner'); setAddOwnerModal(true); }} activeOpacity={0.6}>
@@ -466,7 +466,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
               <View style={s.ownerPickerHeader}>
                 <Text style={s.ownerPickerTitle}>{t('wizAdditionalOwner')}</Text>
                 <TouchableOpacity onPress={() => setOwner2PickerVisible(false)} style={s.ownerPickerClose} activeOpacity={0.7}>
-                  <Ionicons name="close" size={20} color="#6B6B6B" />
+                  <Ionicons name="close" size={22} color="#888" />
                 </TouchableOpacity>
               </View>
               <TouchableOpacity style={s.ownerPickerAddRow} onPress={() => { setOwner2PickerVisible(false); setAddOwnerFor('owner2'); setAddOwnerModal(true); }} activeOpacity={0.6}>
@@ -524,7 +524,7 @@ function StepInfo({ data, setData, t, propertyType, locations, locationDistricts
               <View style={s.ownerPickerHeader}>
                 <Text style={s.ownerPickerTitle}>{t('propResponsiblePicker')}</Text>
                 <TouchableOpacity onPress={() => setResponsiblePickerVisible(false)} style={s.ownerPickerClose} activeOpacity={0.7}>
-                  <Ionicons name="close" size={20} color="#6B6B6B" />
+                  <Ionicons name="close" size={22} color="#888" />
                 </TouchableOpacity>
               </View>
               <ScrollView style={s.ownerPickerScroll} contentContainerStyle={s.ownerPickerScrollContent} showsVerticalScrollIndicator>
@@ -1313,7 +1313,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
         <Text style={s.title} numberOfLines={1}>{t(currentStep.titleKey)}</Text>
       </View>
       <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.7}>
-        <Ionicons name="close" size={20} color="#6B6B6B" />
+        <Ionicons name="close" size={22} color="#888" />
       </TouchableOpacity>
     </View>
   );
@@ -1409,7 +1409,7 @@ const s = StyleSheet.create({
   },
   headerSpacer: { width: 36 },
   headerCenter: { flex: 1, alignItems: 'center' },
-  title: { fontSize: 17, fontWeight: '600', color: COLORS.title },
+  title: { fontSize: 20, fontWeight: '600', letterSpacing: -0.3, color: COLORS.title },
   closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
 
   dotsRow: {
@@ -1424,14 +1424,14 @@ const s = StyleSheet.create({
 
   fieldWrap: { marginBottom: 12 },
   fieldLabel: {
-    fontSize: 11, fontWeight: '600', color: COLORS.label,
+    fontSize: 12, fontWeight: '600', color: COLORS.label,
     letterSpacing: 0.7, textTransform: 'uppercase',
     marginBottom: 8,
   },
   input: {
     backgroundColor: COLORS.inputBg, borderRadius: 10,
     paddingVertical: 12, paddingHorizontal: 14,
-    fontSize: 15, color: COLORS.title,
+    fontSize: 16, color: COLORS.title,
     borderWidth: 1, borderColor: COLORS.border,
     minHeight: 46,
   },
@@ -1441,7 +1441,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
   },
-  switchLabel: { fontSize: 15, color: COLORS.title, flex: 1 },
+  switchLabel: { fontSize: 16, color: COLORS.title, flex: 1 },
   toggleTrack: {
     width: 48, height: 28, borderRadius: 14,
     backgroundColor: '#D5D5D0', justifyContent: 'center', paddingHorizontal: 3,
@@ -1476,7 +1476,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: '#D5D5D0',
   },
   waterTypeBtnActive: { backgroundColor: 'rgba(61,125,130,0.6)', borderColor: COLORS.green },
-  waterTypeBtnText: { fontSize: 11, color: '#999', fontWeight: '600' },
+  waterTypeBtnText: { fontSize: 12, color: '#999', fontWeight: '600' },
   waterTypeBtnTextActive: { color: '#FFFFFF' },
   ownerCommInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   ownerCommInput: { flex: 1 },
@@ -1495,9 +1495,9 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ownerCommModeBtnActive: { backgroundColor: 'rgba(61,125,130,0.6)', borderColor: COLORS.green },
-  ownerCommModeBtnText: { fontSize: 12, color: '#999', fontWeight: '700' },
-  ownerCommModeBtnTextActive: { color: '#FFFFFF' },
+  ownerCommModeBtnActive: { backgroundColor: COLORS.greenBg, borderColor: COLORS.green },
+  ownerCommModeBtnText: { fontSize: 12, color: '#666', fontWeight: '700' },
+  ownerCommModeBtnTextActive: { color: COLORS.green },
   ownerCommCalcText: { marginTop: 8, fontSize: 12, color: '#6B6B6B' },
 
   navRow: {
@@ -1516,7 +1516,7 @@ const s = StyleSheet.create({
     paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12,
   },
   navBtnDisabled: { opacity: 0.3 },
-  navBtnText: { fontSize: 15, fontWeight: '600', color: COLORS.label },
+  navBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.label },
   navBtnTextDisabled: { color: '#C7C7CC' },
   navBtnNext: {
     backgroundColor: 'transparent', borderWidth: 1.5, borderColor: COLORS.green,
@@ -1534,7 +1534,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     minHeight: 46,
   },
-  pickerBtnText: { fontSize: 15, color: COLORS.title, flex: 1 },
+  pickerBtnText: { fontSize: 16, color: COLORS.title, flex: 1 },
   pickerBtnPlaceholder: { color: COLORS.placeholder },
   pickerDropdown: {
     marginTop: 6, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border,
@@ -1545,16 +1545,16 @@ const s = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.04)',
   },
   pickerItemActive: { backgroundColor: 'rgba(46,125,50,0.08)' },
-  pickerItemCity: { fontSize: 15, fontWeight: '600', color: COLORS.title },
+  pickerItemCity: { fontSize: 16, fontWeight: '600', color: COLORS.title },
   pickerItemCityActive: { color: COLORS.green },
-  pickerItemSub: { fontSize: 11, color: '#999', marginTop: 2 },
-  pickerEmpty: { fontSize: 13, color: '#999', fontStyle: 'italic', padding: 14 },
+  pickerItemSub: { fontSize: 12, color: '#999', marginTop: 2 },
+  pickerEmpty: { fontSize: 14, color: '#999', fontStyle: 'italic', padding: 14 },
   pickerItemClear: {
     paddingVertical: 10, paddingHorizontal: 14,
     borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.04)',
     backgroundColor: 'rgba(232,93,76,0.06)',
   },
-  pickerItemClearText: { fontSize: 13, color: '#E85D4C', fontWeight: '600' },
+  pickerItemClearText: { fontSize: 14, color: '#E85D4C', fontWeight: '600' },
   pickerItemNew: {
     paddingVertical: 12, paddingHorizontal: 14,
     borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)',
@@ -1577,7 +1577,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: '#E5E5EA',
     alignItems: 'center', justifyContent: 'center',
   },
-  newDistrictBtnText: { fontSize: 20, color: '#888', fontWeight: '600', marginTop: -1 },
+  newDistrictBtnText: { fontSize: 22, color: '#888', fontWeight: '600', marginTop: -1 },
 
   ownerPickerBackdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -1603,7 +1603,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.05)',
   },
-  ownerPickerTitle: { flex: 1, fontSize: 17, fontWeight: '600', color: COLORS.title },
+  ownerPickerTitle: { flex: 1, fontSize: 16, fontWeight: '600', color: COLORS.title },
   ownerPickerClose: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   ownerPickerAddRow: {
     flexDirection: 'row',
@@ -1614,7 +1614,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.07)',
   },
-  ownerPickerAddText: { fontSize: 15, color: COLORS.green, fontWeight: '500' },
+  ownerPickerAddText: { fontSize: 16, color: COLORS.green, fontWeight: '500' },
   ownerPickerSearchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1644,7 +1644,7 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(0,0,0,0.06)',
   },
-  ownerPickerItemText: { fontSize: 15, color: COLORS.title, flex: 1 },
+  ownerPickerItemText: { fontSize: 16, color: COLORS.title, flex: 1 },
   ownerPickerItemSelected: { fontWeight: '600', color: COLORS.green },
   ownerPickerItemSub: { fontSize: 12, color: '#9B9B9B', marginTop: 2, maxWidth: 140 },
   ownerPickerCheck: { fontSize: 16, fontWeight: '700', color: COLORS.green, marginLeft: 8 },
@@ -1669,7 +1669,7 @@ const s = StyleSheet.create({
 
   mediaSectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
   mediaSectionTitleIcon: { width: 22, height: 22 },
-  mediaSectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.title },
+  mediaSectionTitle: { fontSize: 16, fontWeight: '600', color: COLORS.title },
   mediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   mediaThumbWrap: { width: 90, height: 90, borderRadius: 12, overflow: 'hidden', position: 'relative' },
   mediaThumb: { width: '100%', height: '100%' },
