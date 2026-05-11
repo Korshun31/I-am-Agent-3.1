@@ -19,6 +19,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 import Constants from 'expo-constants';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
 import CalendarRangePicker from 'react-native-calendar-range-picker';
@@ -41,6 +42,10 @@ import { cancelBookingReminders } from '../services/bookingRemindersService';
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CALENDAR_SCALE = 1.1;
+// Высота блока месяца, чтобы 6-недельный месяц вмещался с симметричными
+// отступами 22 сверху и снизу (как paddingTop по умолчанию в либе).
+const __LIB_SCALE = Math.max(0.78, Math.min(1, (SCREEN_WIDTH - 72) * 0.8 / 350));
+const MONTH_BOX_HEIGHT = 22 + 33 + Math.round(50 * __LIB_SCALE) + 6 * Math.round(45 * __LIB_SCALE) + 22;
 const CALENDAR_COLORS = [
   '#E57373', '#FF8A65', '#FFB74D', '#FFD54F',
   '#81C784', '#4DB6AC', '#64B5F6',
@@ -160,7 +165,7 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenBooking, isBooking
             <Text style={styles.eventObjectLabel} numberOfLines={1} ellipsizeMode="tail">{objName}</Text>
           ) : null}
           <TouchableOpacity onPress={onToggle} style={styles.expandBtn} activeOpacity={0.5}>
-            <Image source={require('../../assets/chevron-down.png')} style={[styles.chevronIcon, expanded && styles.chevronIconOpen]} resizeMode="contain" />
+            <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color="#6B6B6B" />
           </TouchableOpacity>
         </View>
         {expanded && (
@@ -220,7 +225,7 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenBooking, isBooking
           </View>
         )}
         <TouchableOpacity onPress={onToggle} style={styles.expandBtn} activeOpacity={0.5}>
-          <Image source={require('../../assets/chevron-down.png')} style={[styles.chevronIcon, expanded && styles.chevronIconOpen]} resizeMode="contain" />
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color="#6B6B6B" />
         </TouchableOpacity>
       </View>
       {expanded && (
@@ -657,7 +662,7 @@ export default function AgentCalendarScreen({ onReady }) {
             onPress={() => setNotifModalVisible(true)}
             activeOpacity={0.7}
           >
-            <Text style={styles.bellIcon}>🔔</Text>
+            <Ionicons name="notifications-outline" size={22} color="#888" />
             {unreadCount > 0 ? (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
@@ -687,7 +692,7 @@ export default function AgentCalendarScreen({ onReady }) {
               isMonthFirst
               dimPastDates
               style={{
-                container: { backgroundColor: 'transparent' },
+                container: { backgroundColor: 'transparent', paddingBottom: 22 },
                 dayTextColor: '#1d1c1d',
                 dayNameText: { color: '#bababe' },
                 disabledTextColor: '#bababe',
@@ -696,7 +701,7 @@ export default function AgentCalendarScreen({ onReady }) {
                 selectedDayBackgroundColor: '#FFB74D',
                 monthOverlayContainer: {
                   width: Math.round((Math.min(SCREEN_WIDTH - 72, 368)) * 0.8 * CALENDAR_SCALE),
-                  height: Math.round(360 * CALENDAR_SCALE),
+                  height: MONTH_BOX_HEIGHT,
                   backgroundColor: 'rgba(255,255,255,0.95)',
                   borderRadius: 12,
                   marginRight: 16,
@@ -743,14 +748,10 @@ export default function AgentCalendarScreen({ onReady }) {
           <View style={styles.eventsToolbar}>
             <View style={styles.eventsToolbarIcons}>
               <TouchableOpacity onPress={openAddEvent} activeOpacity={0.7} style={styles.eventsToolbarIconBtn}>
-                <Image source={require('../../assets/icon-add-calendar-event.png')} style={styles.eventsToolbarIcon} resizeMode="contain" />
+                <Ionicons name="add-outline" size={22} color="#888" />
               </TouchableOpacity>
               <TouchableOpacity onPress={toggleExpandAll} activeOpacity={0.7} style={styles.eventsToolbarIconBtn}>
-                <Image
-                  source={allEventsExpanded ? require('../../assets/icon-folder-open.png') : require('../../assets/icon-folder-closed.png')}
-                  style={styles.eventsToolbarIcon}
-                  resizeMode="contain"
-                />
+                <Ionicons name={allEventsExpanded ? 'folder-open-outline' : 'folder-outline'} size={22} color="#888" />
               </TouchableOpacity>
             </View>
           </View>
@@ -817,7 +818,7 @@ export default function AgentCalendarScreen({ onReady }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F2EB',
+    backgroundColor: '#F5F5F7',
   },
   scroll: {
     flex: 1,
@@ -842,9 +843,6 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  bellIcon: {
-    fontSize: 22,
   },
   badge: {
     position: 'absolute',
@@ -872,7 +870,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: -0.3,
     color: '#2C2C2C',
   },
   step2Content: {
@@ -882,7 +881,7 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   calendarInline: {
-    marginBottom: 16,
+    marginBottom: 8,
   },
   calendarInlineStep2: { marginBottom: 14 },
   eventsSection: {
@@ -902,12 +901,8 @@ const styles = StyleSheet.create({
   eventsToolbarIconBtn: {
     padding: 4,
   },
-  eventsToolbarIcon: {
-    width: 28,
-    height: 28,
-  },
   emptyText: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#6B6B6B',
     fontStyle: 'italic',
     textAlign: 'center',
@@ -947,12 +942,12 @@ const styles = StyleSheet.create({
   eventName: {
     flex: 1,
     minWidth: 0,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: '#2C2C2C',
   },
   eventObjectLabel: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#6B6B6B',
     maxWidth: 120,
     marginRight: 8,
@@ -964,17 +959,10 @@ const styles = StyleSheet.create({
   eventTimeText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#D81B60',
+    color: '#3D7D82',
   },
   expandBtn: {
     padding: 6,
-  },
-  chevronIcon: {
-    width: 14,
-    height: 10,
-  },
-  chevronIconOpen: {
-    transform: [{ rotate: '180deg' }],
   },
   eventExpanded: {
     paddingHorizontal: 14,
@@ -1010,14 +998,14 @@ const styles = StyleSheet.create({
   },
   eventDetailAmount: {
     fontWeight: '700',
-    color: '#2E7D32',
+    color: '#3D7D82',
   },
   eventDetailLink: {
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
     fontWeight: '600',
-    color: '#D81B60',
+    color: '#3D7D82',
   },
   eventComments: {
     fontSize: 14,
@@ -1032,7 +1020,7 @@ const styles = StyleSheet.create({
   editBtnText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#D81B60',
+    color: '#3D7D82',
   },
   eventFooterRow: {
     flexDirection: 'row',
@@ -1055,8 +1043,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   miniCheckboxChecked: {
-    backgroundColor: '#2E7D32',
-    borderColor: '#2E7D32',
+    backgroundColor: '#3D7D82',
+    borderColor: '#3D7D82',
   },
   miniCheckmark: {
     color: '#FFFFFF',
@@ -1068,7 +1056,7 @@ const styles = StyleSheet.create({
     color: '#2C2C2C',
   },
   completedLabelActive: {
-    color: '#2E7D32',
+    color: '#3D7D82',
     fontWeight: '700',
   },
   eventNameDimmed: {
@@ -1093,7 +1081,7 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#2E7D32',
+    backgroundColor: '#3D7D82',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,

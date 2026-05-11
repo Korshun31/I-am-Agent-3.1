@@ -20,7 +20,7 @@ const COLORS = {
   boxBg: 'rgba(255,255,255,0.72)',
   title: '#2C2C2C',
   border: '#E0D8CC',
-  inputBg: '#F5F2EB',
+  inputBg: '#F7F7F9',
 };
 
 /**

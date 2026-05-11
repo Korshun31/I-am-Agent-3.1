@@ -30,7 +30,7 @@ import { updateUserProfile, getCurrentUser, canChangePassword, deleteOwnAccount,
 import { getLocations, createLocation, updateLocation, deleteLocation, setLocationDistricts } from '../services/locationsService';
 
 const COLORS = {
-  background: '#F5F2EB',
+  background: '#F5F5F7',
   title: '#2C2C2C',
   subtitle: '#5A5A5A',
   myDetailsYellow: '#F7E98E',

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 
 export const COLORS = {
-  background: '#F5F2EB',
+  background: '#F5F5F7',
   backgroundLogin: '#FDF7EF', // кремовый фон экрана входа по макету
   redOrange: '#E85D4C',
   yellowOrange: '#F0A84A',

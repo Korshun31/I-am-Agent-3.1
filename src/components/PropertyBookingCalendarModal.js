@@ -56,7 +56,7 @@ export default function PropertyBookingCalendarModal({ visible, onClose, propert
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F2EB',
+    backgroundColor: '#F5F5F7',
     paddingTop: TOP_INSET,
   },
   header: {

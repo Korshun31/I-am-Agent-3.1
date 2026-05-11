@@ -36,7 +36,7 @@ const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 const TEST_GRID_VISIBLE = false;
 
 const COLORS = {
-  background: '#F5F2EB',
+  background: '#F5F5F7',
   title: '#2C2C2C',
   subtitle: '#5A5A5A',
   nameHeader: '#C45C6E',

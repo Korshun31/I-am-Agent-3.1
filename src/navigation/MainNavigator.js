@@ -117,7 +117,7 @@ function MainNavigator({ onLogout, onUserUpdate }) {
         tabBar={(props) => <CustomTabBar {...props} />}
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: '#F5F2EB' },
+          contentStyle: { backgroundColor: '#F5F5F7' },
           // freezeOnBlur: неактивные вкладки заморожены — смонтированы и готовы
           // показаться мгновенно, но React не обновляет их JSX пока они не в фокусе.
           // Это снимает каскад ре-рендеров от изменений в контекстах данных.

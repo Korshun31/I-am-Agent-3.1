@@ -160,7 +160,7 @@ export default function MainScreen({ onLogout, onUserUpdate }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F2EB',
+    backgroundColor: '#F5F5F7',
   },
   tabPanel: {
     position: 'absolute',

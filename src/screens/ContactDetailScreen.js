@@ -32,7 +32,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
 const COLORS = {
-  background: '#F5F2EB',
+  background: '#F5F5F7',
   title: '#2C2C2C',
   subtitle: '#5A5A5A',
   backArrow: '#5DB8D4',

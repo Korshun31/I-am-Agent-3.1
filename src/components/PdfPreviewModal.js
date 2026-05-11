@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   },
   viewFullScreen: {
     flex: 1,
-    backgroundColor: '#F5F2EB',
+    backgroundColor: '#F5F5F7',
   },
   viewHeader: {
     paddingTop: (Constants.statusBarHeight ?? 44) + 12,
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
-    backgroundColor: '#F5F2EB',
+    backgroundColor: '#F5F5F7',
   },
   btnView: {
     backgroundColor: '#F0EDE8',

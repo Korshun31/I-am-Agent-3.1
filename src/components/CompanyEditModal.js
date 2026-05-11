@@ -18,7 +18,7 @@ import ModalScrollFrame from './ModalScrollFrame';
 const COLORS = {
   boxBg: 'rgba(255,255,255,0.72)',
   title: '#2C2C2C',
-  inputBg: '#F5F2EB',
+  inputBg: '#F7F7F9',
   border: '#E0D8CC',
   addPink: '#D85A6A',
   plusGreen: '#5DB87A',

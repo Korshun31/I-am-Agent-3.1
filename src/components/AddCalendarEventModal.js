@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#F5F2EB',
+    backgroundColor: '#F5F5F7',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -623,7 +623,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 2,
     borderColor: '#6B6B6B',
-    backgroundColor: '#F5F2EB',
+    backgroundColor: '#F5F5F7',
     alignItems: 'center',
     justifyContent: 'center',
   },
