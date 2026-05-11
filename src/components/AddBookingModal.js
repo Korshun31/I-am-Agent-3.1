@@ -20,6 +20,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import ModalScrollFrame from './ModalScrollFrame';
+import { IconPhoto } from './PropertyIcons';
+import Checkbox from './Checkbox';
+import WizardFooter from './WizardFooter';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import dayjs from 'dayjs';
@@ -28,10 +31,8 @@ import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
 import { findOrCreateBookingClient, getContactById } from '../services/contactsService';
 import { computeTotalPrice, computeMonthlyBreakdown } from '../utils/bookingPricing';
-import { sz, SCALE } from '../utils/scale';
+import { SCALE } from '../utils/scale';
 
-const LABEL_GAP = 6;
-const BLOCK_GAP = 16;
 import { buildOccupancyArrays, hasOccupiedInRange } from '../utils/bookingOccupancy';
 import { createBooking, updateBooking } from '../services/bookingsService';
 import { getActiveTeamMembers } from '../services/companyService';
@@ -121,8 +122,8 @@ const COLORS = {
   accent: '#3D7D82',
   accentBg: 'rgba(61,125,130,0.06)',
   accentBorder: 'rgba(61,125,130,0.5)',
-  dot: '#C7C7CC',
-  dotPassed: '#888888',
+  dot: '#E5E5EA',
+  dotPassed: '#B0B0B5',
   dotActive: '#3D7D82',
   label: '#6B6B6B',
   placeholder: '#C7C7CC',
@@ -131,9 +132,7 @@ const COLORS = {
 function CheckRow({ label, checked, onPress }) {
   return (
     <TouchableOpacity style={s.row} onPress={onPress} activeOpacity={0.7}>
-      <View style={[s.checkbox, checked && s.checkboxChecked]}>
-        {checked && <Ionicons name="checkmark" size={sz(13)} color="#FFFFFF" />}
-      </View>
+      <Checkbox checked={checked} style={{ marginRight: 12 }} />
       <Text style={s.rowLabel}>{label}</Text>
     </TouchableOpacity>
   );
@@ -178,9 +177,9 @@ function PercentMoneyField({ label, sym, priceMonthly, checkIn, checkOut, monthl
     onChangePercent(next);
   };
   return (
-    <View style={{ marginBottom: sz(BLOCK_GAP) }}>
+    <View style={{ marginBottom: 16 }}>
       <Text style={s.fieldLabel}>{label} {isPercent ? '%' : sym}</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: sz(8) }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <TextInput
           style={[s.input, { flex: 1, marginBottom: 0 }]}
           value={value}
@@ -502,6 +501,15 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
     });
   };
 
+  const canSave = useMemo(() => {
+    if (editBooking) return true;
+    if (!checkIn || !checkOut) return false;
+    if (checkIn >= checkOut) return false;
+    if (hasOccupiedInRange(checkIn, checkOut, bookedRanges)) return false;
+    if (!notMyCustomer && !selectedClient?.id) return false;
+    return true;
+  }, [editBooking, checkIn, checkOut, bookedRanges, notMyCustomer, selectedClient]);
+
   const handleSave = async () => {
     Keyboard.dismiss();
     if (!checkIn || !checkOut) {
@@ -619,7 +627,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
           </Text>
         </View>
         <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.7}>
-          <Ionicons name="close" size={sz(20)} color="#6B6B6B" />
+          <Ionicons name="close" size={22} color="#888" />
         </TouchableOpacity>
       </View>
       <View style={s.dotsRow}>
@@ -631,58 +639,29 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
     </>
   );
 
+  const isFirstStep = step === 1;
+  const isLastStep = step === 4 || (step === 2 && notMyCustomer);
+  const showSaveIcon = !isLastStep;
+  const handlePrimaryPress =
+    step === 1 ? handleNext :
+    step === 2 ? handleNextFromDates :
+    step === 4 ? handleSave :
+    handleNextFromStep3;
+
   const footer = (
-    <View style={s.footerNav}>
-      {step === 1 ? (
-        <View style={s.stepNavRow}>
-          <TouchableOpacity style={s.nextBtn} onPress={handleNext} activeOpacity={0.7}>
-            <Text style={s.nextBtnText}>{t('next')}</Text>
-            <Text style={s.nextBtnArrow}>→</Text>
-          </TouchableOpacity>
-        </View>
-      ) : step === 2 ? (
-        <View style={s.stepNavRow}>
-          <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
-            <Text style={s.backBtnArrow}>←</Text>
-            <Text style={s.backBtnText}>{t('wizBack')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.nextBtn} onPress={handleNextFromDates} activeOpacity={0.7}>
-            <Text style={s.nextBtnText}>{notMyCustomer ? t('save') : t('next')}</Text>
-            {!notMyCustomer && <Text style={s.nextBtnArrow}>→</Text>}
-          </TouchableOpacity>
-        </View>
-      ) : step === 4 ? (
-        <View style={s.stepNavRow}>
-          <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
-            <Text style={s.backBtnArrow}>←</Text>
-            <Text style={s.backBtnText}>{t('wizBack')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.saveBtn, saving && s.saveBtnDisabled]}
-            onPress={handleSave}
-            activeOpacity={0.7}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color={COLORS.accent} />
-            ) : (
-              <Text style={s.saveBtnText}>{t('save')}</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={s.stepNavRow}>
-          <TouchableOpacity style={s.backBtn} onPress={handleBack} activeOpacity={0.7}>
-            <Text style={s.backBtnArrow}>←</Text>
-            <Text style={s.backBtnText}>{t('wizBack')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.nextBtn} onPress={handleNextFromStep3} activeOpacity={0.7}>
-            <Text style={s.nextBtnText}>{t('next')}</Text>
-            <Text style={s.nextBtnArrow}>→</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
+    <WizardFooter
+      isFirstStep={isFirstStep}
+      isLastStep={isLastStep}
+      onBack={handleBack}
+      onNext={handlePrimaryPress}
+      onSave={handleSave}
+      canSave={canSave}
+      saving={saving}
+      showSaveIcon={showSaveIcon}
+      backLabel={`‹  ${t('wizBack')}`}
+      nextLabel={`${t('wizNext')}  ›`}
+      saveLabel={t('save')}
+    />
   );
 
   const extraOverlay = (
@@ -702,7 +681,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
                 style={s.closeBtn}
                 activeOpacity={0.7}
               >
-                <Ionicons name="close" size={sz(20)} color="#6B6B6B" />
+                <Ionicons name="close" size={22} color="#888" />
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -846,6 +825,8 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         header={header}
         footer={footer}
         extraOverlay={extraOverlay}
+        boxWrapStyle={{ maxWidth: 380 }}
+        boxStyle={{ backgroundColor: '#FFFFFF' }}
         scrollContentContainerStyle={step === 2 ? s.step2Content : s.scrollContent}
         scrollProps={{
           showsVerticalScrollIndicator: true,
@@ -887,19 +868,21 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
 isMonthFirst
                         dimPastDates
                       style={{
-                        container: { backgroundColor: 'transparent' },
+                        container: { backgroundColor: 'transparent', paddingTop: 11, paddingBottom: 11 },
                         dayNameText: { color: '#bababe' },
                         monthOverlayContainer: {
                           width: Math.round((Math.min(Dimensions.get('window').width - 72, 368)) * 0.8),
                           backgroundColor: '#FFFFFF',
                           borderRadius: 16,
+                          borderWidth: 1,
+                          borderColor: '#E5E5EA',
                           overflow: 'hidden',
                           marginRight: 16,
                           shadowColor: '#000',
-                          shadowOffset: { width: 0, height: 2 },
-                          shadowOpacity: 0.08,
-                          shadowRadius: 8,
-                          elevation: 3,
+                          shadowOffset: { width: 0, height: 4 },
+                          shadowOpacity: 0.15,
+                          shadowRadius: 12,
+                          elevation: 6,
                         },
                         monthNameContainer: {
                           width: '100%',
@@ -963,6 +946,7 @@ isMonthFirst
               ) : step === 4 ? (
                 <>
                   <View style={s.mediaSectionTitleRow}>
+                    <Ionicons name="notifications-outline" size={22} color="#888" />
                     <Text style={s.mediaSectionTitle}>{t('bookingNotifications')}</Text>
                   </View>
                   <TouchableOpacity
@@ -975,7 +959,7 @@ isMonthFirst
                         ? reminderDays.map((d) => t(BOOKING_REMINDER_OPTIONS.find(o => o.days === d)?.key || 'bookingReminder1d')).join(', ')
                         : t('bookingAddNotification')}
                     </Text>
-                    <Text style={s.reminderChevron}>{reminderPickerOpen ? '▲' : '▼'}</Text>
+                    <Ionicons name={reminderPickerOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#6B6B6B" />
                   </TouchableOpacity>
                   {reminderPickerOpen && (
                     <View style={s.reminderOptionsWrap}>
@@ -1002,7 +986,7 @@ isMonthFirst
                     </View>
                   )}
                   <View style={[s.mediaSectionTitleRow, { marginTop: 20 }]}>
-                    <Image source={require('../../assets/icon-photo.png')} style={s.mediaSectionTitleIcon} resizeMode="contain" />
+                    <IconPhoto size={22} color="#888" />
                     <Text style={s.mediaSectionTitle}>{t('pdPhoto')}</Text>
                   </View>
                   <View style={s.mediaGrid}>
@@ -1020,7 +1004,7 @@ isMonthFirst
                           <ActivityIndicator size="small" color={COLORS.accent} />
                         ) : (
                           <>
-                            <Text style={s.mediaAddIcon}>+</Text>
+                            <Ionicons name="add-outline" size={28} color="#888" />
                             <Text style={s.mediaAddLabel}>{t('wizAddPhoto')}</Text>
                           </>
                         )}
@@ -1064,13 +1048,13 @@ isMonthFirst
                       </Text>
                       <Ionicons
                         name="chevron-down"
-                        size={sz(14)}
+                        size={14}
                         color={notMyCustomer ? '#C7C7CC' : '#6B6B6B'}
                       />
                     </TouchableOpacity>
 
                     <View style={[s.inputWithIconRow, notMyCustomer && s.inputWithIconRowDisabled]}>
-                      <Ionicons name="card-outline" size={sz(16)} color="#6B6B6B" style={{ marginRight: 10 }} />
+                      <Ionicons name="card-outline" size={16} color="#6B6B6B" style={{ marginRight: 10 }} />
                       <TextInput
                         style={[s.input, s.inputWithIconInput, notMyCustomer && s.inputDisabled]}
                         value={passportId}
@@ -1180,6 +1164,16 @@ isMonthFirst
                       keyboardType="numeric"
                     />
 
+                    <Text style={s.fieldLabel}>{t('pdCommission')} {sym}</Text>
+                    <TextInput
+                      style={s.input}
+                      value={commission}
+                      onChangeText={(v) => setCommission(formatMoneyDisplay(v))}
+                      placeholder="0"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+
                     <PercentMoneyField
                       label={t('bookingOwnerCommOnce')}
                       sym={sym}
@@ -1206,16 +1200,6 @@ isMonthFirst
                       onChangeValue={setOwnerCommissionMonthly}
                       isPercent={ownerCommissionMonthlyIsPercent}
                       onChangePercent={setOwnerCommissionMonthlyIsPercent}
-                    />
-
-                    <Text style={s.fieldLabel}>{t('pdCommission')} {sym}</Text>
-                    <TextInput
-                      style={s.input}
-                      value={commission}
-                      onChangeText={(v) => setCommission(formatMoneyDisplay(v))}
-                      placeholder="0"
-                      placeholderTextColor="#999"
-                      keyboardType="numeric"
                     />
 
                     <Text style={s.fieldLabel}>{t('bookingAdults')}</Text>
@@ -1312,190 +1296,126 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: sz(16),
-    paddingHorizontal: sz(16),
-    paddingBottom: sz(16),
-    borderBottomWidth: sz(1),
-    borderBottomColor: 'rgba(0,0,0,0.07)',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: 16, paddingHorizontal: 16, paddingBottom: 16,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.07)',
   },
-  headerSpacer: { width: sz(36) },
+  headerSpacer: { width: 36 },
   headerCenter: { flex: 1, alignItems: 'center' },
   title: {
-    fontSize: sz(17),
+    fontSize: 20,
     fontWeight: '600',
+    letterSpacing: -0.3,
     color: COLORS.title,
     textAlign: 'center',
   },
   closeBtn: {
-    width: sz(36),
-    height: sz(36),
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: sz(6),
-    paddingTop: sz(14),
-    paddingBottom: sz(16),
+    flexDirection: 'row', justifyContent: 'center', gap: 6,
+    paddingTop: 14, paddingBottom: 16,
   },
-  dot: { width: sz(6), height: sz(6), borderRadius: sz(3), backgroundColor: COLORS.dot },
-  dotPassed: { width: sz(6), height: sz(6), borderRadius: sz(3), backgroundColor: COLORS.dotPassed },
-  dotActive: { width: sz(6), height: sz(6), borderRadius: sz(3), backgroundColor: COLORS.dotActive },
-  mediaSectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: sz(10), gap: sz(8) },
-  mediaSectionTitleIcon: { width: sz(22), height: sz(22) },
-  mediaSectionTitle: { fontSize: sz(15), fontWeight: '700', color: COLORS.title },
+  dot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.dot },
+  dotPassed: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.dotPassed },
+  dotActive: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.dotActive },
+  mediaSectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
+  mediaSectionTitleIcon: { width: 22, height: 22 },
+  mediaSectionTitle: { fontSize: 16, fontWeight: '600', color: COLORS.title },
   reminderTriggerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: sz(14),
-    paddingHorizontal: sz(16),
-    backgroundColor: COLORS.inputBg,
-    borderRadius: sz(12),
-    borderWidth: sz(1),
-    borderColor: COLORS.border,
-    marginBottom: sz(10),
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, paddingHorizontal: 14,
+    backgroundColor: COLORS.inputBg, borderRadius: 10,
+    borderWidth: 1, borderColor: COLORS.border,
+    marginBottom: 10, minHeight: 46,
   },
-  reminderTriggerText: { fontSize: sz(16), fontWeight: '600', color: COLORS.title },
+  reminderTriggerText: { fontSize: 16, fontWeight: '600', color: COLORS.title },
   reminderTriggerPlaceholder: { color: '#999' },
-  reminderChevron: { fontSize: sz(12), color: '#6B6B6B' },
+  reminderChevron: { fontSize: 12, color: '#6B6B6B' },
   reminderOptionsWrap: {
-    marginBottom: sz(14),
-    backgroundColor: COLORS.inputBg,
-    borderRadius: sz(12),
-    borderWidth: sz(1),
-    borderColor: COLORS.border,
+    marginBottom: 14,
+    backgroundColor: COLORS.inputBg, borderRadius: 10,
+    borderWidth: 1, borderColor: COLORS.border,
     overflow: 'hidden',
   },
   reminderOption: {
-    paddingVertical: sz(12),
-    paddingHorizontal: sz(16),
-    borderBottomWidth: sz(1),
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)',
   },
   reminderOptionSelected: { backgroundColor: 'rgba(61,125,130,0.08)' },
-  reminderOptionText: { fontSize: sz(16), color: COLORS.title },
+  reminderOptionText: { fontSize: 16, color: COLORS.title },
   reminderOptionTextSelected: { fontWeight: '600', color: COLORS.accent },
   reminderSelectBtn: {
-    marginTop: sz(8),
-    paddingVertical: sz(12),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: sz(10),
-    borderWidth: sz(1.5),
-    borderColor: COLORS.accentBorder,
-    backgroundColor: COLORS.accentBg,
+    marginTop: 8, paddingVertical: 10, paddingHorizontal: 20,
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: 12, borderWidth: 1.5,
+    borderColor: COLORS.accent, backgroundColor: 'transparent',
   },
-  reminderSelectBtnText: { fontSize: sz(15), fontWeight: '600', color: COLORS.accent },
-  mediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: sz(10) },
-  mediaThumbWrap: { width: sz(90), height: sz(90), borderRadius: sz(12), overflow: 'hidden', position: 'relative' },
+  reminderSelectBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.accent },
+  mediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  mediaThumbWrap: { width: 90, height: 90, borderRadius: 12, overflow: 'hidden', position: 'relative' },
   mediaThumb: { width: '100%', height: '100%' },
   mediaRemoveBtn: {
     position: 'absolute', top: 4, right: 4,
-    width: sz(22), height: sz(22), borderRadius: sz(11),
+    width: 22, height: 22, borderRadius: 11,
     backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center',
   },
-  mediaRemoveText: { fontSize: sz(12), color: '#FFF', fontWeight: '700' },
+  mediaRemoveText: { fontSize: 12, color: '#FFF', fontWeight: '700' },
   mediaAddBtn: {
-    width: sz(90), height: sz(90), borderRadius: sz(12),
-    borderWidth: sz(1.5), borderColor: COLORS.border, borderStyle: 'dashed',
+    width: 90, height: 90, borderRadius: 12,
+    borderWidth: 1.5, borderColor: COLORS.border, borderStyle: 'dashed',
     alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.inputBg,
   },
-  mediaAddIcon: { fontSize: sz(28), color: COLORS.accent, fontWeight: '300', marginTop: -2 },
-  mediaAddLabel: { fontSize: sz(10), color: '#999', marginTop: sz(2) },
-  mediaLimitNote: { fontSize: sz(12), color: '#999', fontStyle: 'italic', marginTop: sz(6) },
+  mediaAddLabel: { fontSize: 10, color: '#999', marginTop: 2, textAlign: 'center' },
+  mediaLimitNote: { fontSize: 12, color: '#999', fontStyle: 'italic', marginTop: 6 },
   scroll: { flexShrink: 1 },
-  scrollStep3: { flex: 1, minHeight: sz(0) },
   scrollContent: {
-    padding: sz(20),
-    paddingBottom: sz(0),
+    padding: 20, paddingBottom: 0,
     flexGrow: 0,
   },
-  scrollContentStep2: {
-    padding: sz(14),
-    paddingBottom: sz(14),
-    flexGrow: 0,
-  },
-  step2Scroll: { flex: 1, minHeight: sz(0) },
   step2Content: {
-    padding: sz(16),
-    paddingBottom: sz(16),
+    padding: 16, paddingBottom: 16,
   },
   fieldLabel: {
-    fontSize: sz(11),
-    fontWeight: '600',
-    color: COLORS.label,
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
-    marginBottom: sz(LABEL_GAP),
+    fontSize: 12, fontWeight: '600', color: COLORS.label,
+    letterSpacing: 0.7, textTransform: 'uppercase',
+    marginBottom: 8,
   },
-  fieldLabelStep2: { marginBottom: sz(LABEL_GAP) },
+  fieldLabelStep2: { marginBottom: 6 },
   readOnlyField: {
-    backgroundColor: COLORS.inputBg,
-    borderRadius: sz(10),
-    paddingVertical: sz(13),
-    paddingHorizontal: sz(14),
-    marginBottom: sz(16),
-    borderWidth: sz(1),
-    borderColor: COLORS.border,
-    minHeight: sz(46),
+    backgroundColor: COLORS.inputBg, borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: COLORS.border,
+    marginBottom: 16, minHeight: 46,
   },
   readOnlyText: {
-    fontSize: sz(15),
-    color: COLORS.title,
-    fontWeight: '500',
+    fontSize: 16, color: COLORS.title,
   },
-  section: { marginBottom: sz(8) },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: sz(8) },
-  checkbox: {
-    width: sz(20),
-    height: sz(20),
-    borderRadius: sz(6),
-    borderWidth: sz(1.5),
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: sz(12),
-  },
-  checkboxChecked: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
-  },
-  rowLabel: { fontSize: sz(15), color: COLORS.title, flex: 1 },
+  section: { marginBottom: 8 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  rowLabel: { fontSize: 16, color: COLORS.title, flex: 1 },
   selectField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.inputBg,
-    borderRadius: sz(10),
-    paddingVertical: sz(13),
-    paddingHorizontal: sz(14),
-    marginBottom: sz(16),
-    borderWidth: sz(1),
-    borderColor: COLORS.border,
-    minHeight: sz(46),
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: COLORS.inputBg, borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: COLORS.border,
+    marginBottom: 16, minHeight: 46,
   },
   selectFieldDisabled: {
     backgroundColor: '#EDEDEC',
     opacity: 0.7,
   },
-  selectFieldText: { fontSize: sz(15), color: COLORS.title, flex: 1 },
+  selectFieldText: { fontSize: 16, color: COLORS.title, flex: 1 },
   selectFieldPlaceholder: { color: COLORS.placeholder },
   input: {
-    backgroundColor: COLORS.inputBg,
-    borderRadius: sz(10),
-    paddingVertical: sz(13),
-    paddingHorizontal: sz(14),
-    fontSize: sz(15),
-    color: COLORS.title,
-    borderWidth: sz(1),
-    borderColor: COLORS.border,
-    marginBottom: sz(BLOCK_GAP),
-    minHeight: sz(46),
+    backgroundColor: COLORS.inputBg, borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 14,
+    fontSize: 16, color: COLORS.title,
+    borderWidth: 1, borderColor: COLORS.border,
+    marginBottom: 16, minHeight: 46,
   },
   inputDisabled: {
     backgroundColor: '#EDEDEC',
@@ -1503,146 +1423,50 @@ const s = StyleSheet.create({
     color: '#999',
   },
   inputWithIconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.inputBg,
-    borderRadius: sz(10),
-    borderWidth: sz(1),
-    borderColor: COLORS.border,
-    paddingLeft: sz(14),
-    marginBottom: sz(BLOCK_GAP),
-    minHeight: sz(46),
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: COLORS.inputBg, borderRadius: 10,
+    borderWidth: 1, borderColor: COLORS.border,
+    paddingLeft: 14, marginBottom: 16, minHeight: 46,
   },
   inputWithIconRowDisabled: {
     backgroundColor: '#EDEDEC',
     opacity: 0.7,
   },
   inputWithIconInput: {
-    flex: 1,
-    marginBottom: sz(0),
-    paddingLeft: sz(0),
-    borderWidth: sz(0),
+    flex: 1, marginBottom: 0,
+    paddingLeft: 0, borderWidth: 0,
     backgroundColor: 'transparent',
   },
-  nextBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: sz(13),
-    borderRadius: sz(12),
-    borderWidth: sz(1.5),
-    borderColor: COLORS.accentBorder,
-    backgroundColor: COLORS.accentBg,
-    gap: sz(6),
-    minHeight: sz(46),
-  },
-  nextBtnText: { fontSize: sz(15), fontWeight: '600', color: COLORS.accent },
-  nextBtnArrow: { fontSize: sz(16), color: COLORS.accent, fontWeight: '700' },
-  dateRow: { flexDirection: 'row', alignItems: 'center', gap: sz(10), marginBottom: sz(16) },
-  dateRowReadonly: { flexDirection: 'row', alignItems: 'center', gap: sz(10), marginBottom: sz(12) },
-  dateRowReadonlyStep2: { flexDirection: 'row', alignItems: 'center', gap: sz(10), marginBottom: sz(12) },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  dateRowReadonly: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  dateRowReadonlyStep2: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   dateField: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.inputBg,
-    borderRadius: sz(12),
-    paddingVertical: sz(14),
-    paddingHorizontal: sz(16),
-    borderWidth: sz(1),
-    borderColor: COLORS.border,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: COLORS.inputBg, borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: COLORS.border,
+    minHeight: 46,
   },
-  dateFieldText: { fontSize: sz(16), color: COLORS.title },
+  dateFieldText: { fontSize: 16, color: COLORS.title },
   dateFieldPlaceholder: { color: '#999' },
-  dateDash: { fontSize: sz(16), color: '#888' },
-  inputMultiline: { minHeight: sz(80) },
-  step2Buttons: { flexDirection: 'row', gap: sz(12), marginTop: sz(8) },
-  footerNav: {
-    paddingHorizontal: sz(16),
-    paddingTop: sz(14),
-    paddingBottom: sz(20),
-    borderTopWidth: sz(1),
-    borderTopColor: 'rgba(0,0,0,0.06)',
-  },
-  stepNavRow: { flexDirection: 'row', gap: sz(12) },
-  backBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: sz(13),
-    borderRadius: sz(12),
-    borderWidth: sz(1.5),
-    borderColor: 'rgba(0,0,0,0.12)',
-    backgroundColor: 'transparent',
-    gap: sz(6),
-    minHeight: sz(46),
-  },
-  backBtnArrow: { fontSize: sz(16), color: '#6B6B6B', fontWeight: '600' },
-  backBtnText: { fontSize: sz(15), fontWeight: '600', color: '#6B6B6B' },
-  saveBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: sz(13),
-    borderRadius: sz(12),
-    borderWidth: sz(1.5),
-    borderColor: COLORS.accentBorder,
-    backgroundColor: COLORS.accentBg,
-    gap: sz(6),
-    minHeight: sz(46),
-  },
-  saveBtnDisabled: { opacity: 0.7 },
-  saveBtnText: { fontSize: sz(15), fontWeight: '600', color: COLORS.accent },
-  calendarInline: {
-    marginBottom: sz(16),
-  },
-  calendarInlineStep2: { marginBottom: sz(16) },
+  dateDash: { fontSize: 16, color: '#888' },
+  inputMultiline: { minHeight: 80 },
+  calendarInline: { marginBottom: 16 },
+  calendarInlineStep2: { marginBottom: 16 },
   timeBlock: {
-    marginTop: sz(14),
-    paddingTop: sz(14),
-    borderTopWidth: sz(1),
-    borderTopColor: 'rgba(0,0,0,0.06)',
+    marginTop: 14, paddingTop: 14,
+    borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)',
   },
-  timeRow: {
-    flexDirection: 'row',
-    gap: sz(12),
-  },
-  timeFieldWrap: {
-    flex: 1,
-  },
-  timeInput: {
-    backgroundColor: COLORS.inputBg,
-    borderRadius: sz(12),
-    paddingVertical: sz(12),
-    paddingHorizontal: sz(16),
-    fontSize: sz(16),
-    color: COLORS.title,
-    borderWidth: sz(1),
-    borderColor: COLORS.border,
-    marginTop: sz(6),
-  },
+  timeRow: { flexDirection: 'row', gap: 12 },
+  timeFieldWrap: { flex: 1 },
   timeSelectRow: {
-    backgroundColor: COLORS.inputBg,
-    borderRadius: sz(12),
-    paddingVertical: sz(12),
-    paddingHorizontal: sz(16),
-    marginTop: sz(6),
-    borderWidth: sz(1),
-    borderColor: COLORS.border,
+    backgroundColor: COLORS.inputBg, borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: COLORS.border,
+    marginTop: 6, minHeight: 46,
   },
-  timeSelectText: {
-    fontSize: sz(16),
-    color: COLORS.title,
-  },
-  timeSelectBtnText: {
-    fontSize: sz(16),
-    fontWeight: '700',
-    color: COLORS.accent,
-  },
+  timeSelectText: { fontSize: 16, color: COLORS.title },
+  timeSelectBtnText: { fontSize: 16, fontWeight: '700', color: COLORS.accent },
   datePickerOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -1655,96 +1479,72 @@ const s = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
   },
   datePickerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: sz(20),
-    paddingVertical: sz(16),
-    borderBottomWidth: sz(1),
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)',
   },
-  datePickerTitle: { fontSize: sz(18), fontWeight: '700', color: COLORS.title },
-  datePickerDoneText: { fontSize: sz(16), fontWeight: '600', color: COLORS.accent },
-  datePickerSpinner: { height: sz(200) },
+  datePickerTitle: { fontSize: 16, fontWeight: '600', color: COLORS.title },
+  datePickerDoneText: { fontSize: 16, fontWeight: '600', color: COLORS.accent },
+  datePickerSpinner: { height: 200 },
   timePickerSpinnerWrap: {
     alignItems: 'center',
   },
   pickerBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: sz(24),
+    justifyContent: 'center', alignItems: 'center',
+    padding: 24,
   },
   pickerBox: {
-    width: '100%',
-    maxWidth: sz(400),
-    maxHeight: '80%',
-    backgroundColor: COLORS.boxBg,
-    borderRadius: sz(16),
+    width: '100%', maxWidth: 400, maxHeight: '80%',
+    backgroundColor: COLORS.boxBg, borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: sz(1),
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)',
   },
   pickerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: sz(20),
-    paddingVertical: sz(16),
-    borderBottomWidth: sz(1),
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
   },
-  pickerTitle: { flex: 1, fontSize: sz(18), fontWeight: '700', color: COLORS.title },
+  pickerTitle: { flex: 1, fontSize: 16, fontWeight: '600', color: COLORS.title },
   addNewRow: {
-    paddingVertical: sz(14),
-    paddingHorizontal: sz(20),
-    borderBottomWidth: sz(1),
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    paddingVertical: 14, paddingHorizontal: 20,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
   },
-  addNewText: { fontSize: sz(16), color: COLORS.accent, fontWeight: '600' },
+  addNewText: { fontSize: 16, color: COLORS.accent, fontWeight: '600' },
   searchInput: {
-    marginHorizontal: sz(16),
-    marginVertical: sz(8),
-    backgroundColor: COLORS.inputBg,
-    borderRadius: sz(12),
-    paddingVertical: sz(10),
-    paddingHorizontal: sz(14),
-    fontSize: sz(16),
-    color: COLORS.title,
-    borderWidth: sz(1),
-    borderColor: COLORS.border,
+    marginHorizontal: 16, marginVertical: 8,
+    backgroundColor: COLORS.inputBg, borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 14,
+    fontSize: 16, color: COLORS.title,
+    borderWidth: 1, borderColor: COLORS.border,
   },
-  loadingWrap: { padding: sz(40), alignItems: 'center' },
-  pickerScroll: { maxHeight: sz(280) },
-  pickerScrollContent: { paddingBottom: sz(8) },
+  loadingWrap: { padding: 40, alignItems: 'center' },
+  pickerScroll: { maxHeight: 280 },
+  pickerScrollContent: { paddingBottom: 8 },
   pickerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: sz(14),
-    paddingHorizontal: sz(20),
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 14, paddingHorizontal: 20,
   },
-  pickerItemText: { fontSize: sz(16), color: COLORS.title, flex: 1 },
+  pickerItemText: { fontSize: 16, color: COLORS.title, flex: 1 },
   pickerItemSelected: { fontWeight: '600', color: COLORS.accent },
-  pickerCheck: { fontSize: sz(16), fontWeight: '700', color: COLORS.accent },
+  pickerCheck: { fontSize: 16, fontWeight: '700', color: COLORS.accent },
   selectBtn: {
-    paddingVertical: sz(14),
-    marginHorizontal: sz(20),
-    marginVertical: sz(16),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: sz(12),
-    borderWidth: sz(1.5),
-    borderColor: 'rgba(46, 125, 50, 0.5)',
-    backgroundColor: 'rgba(46, 125, 50, 0.06)',
+    paddingVertical: 10, paddingHorizontal: 20,
+    marginHorizontal: 20, marginVertical: 16,
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: 12, borderWidth: 1.5,
+    borderColor: COLORS.accent,
+    backgroundColor: 'transparent',
   },
-  selectBtnText: { fontSize: sz(16), fontWeight: '600', color: COLORS.accent },
+  selectBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.accent },
   // TD-082: помесячная разбивка
-  breakdownBlock:        { marginTop: sz(12), marginBottom: sz(12), padding: sz(12), borderRadius: sz(10), borderWidth: sz(1), borderColor: COLORS.border, backgroundColor: 'rgba(255,255,255,0.5)' },
+  breakdownBlock:        { marginTop: 12, marginBottom: 12, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: 'rgba(255,255,255,0.5)' },
   breakdownHeader:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  breakdownTitle:        { fontSize: sz(14), fontWeight: '600', color: COLORS.title },
-  breakdownRow:          { flexDirection: 'row', alignItems: 'center', gap: sz(8), marginTop: sz(8) },
-  breakdownMonth:        { flex: 1, fontSize: sz(13), color: COLORS.title, textTransform: 'capitalize' },
-  breakdownAmountInput:  { flex: 1, marginTop: sz(0) },
-  breakdownCurrency:     { fontSize: sz(13), color: '#888', minWidth: sz(28) },
-  breakdownRecalcBtn:    { marginTop: sz(12), paddingVertical: sz(8), paddingHorizontal: sz(12), borderRadius: sz(8), borderWidth: sz(1), borderColor: COLORS.accent, alignSelf: 'flex-start' },
-  breakdownRecalcText:   { fontSize: sz(13), color: COLORS.accent, fontWeight: '600' },
+  breakdownTitle:        { fontSize: 14, fontWeight: '600', color: COLORS.title },
+  breakdownRow:          { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  breakdownMonth:        { flex: 1, fontSize: 14, color: COLORS.title, textTransform: 'capitalize' },
+  breakdownAmountInput:  { flex: 1, marginTop: 0 },
+  breakdownCurrency:     { fontSize: 14, color: '#888', minWidth: 28 },
+  breakdownRecalcBtn:    { marginTop: 12, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.accent, alignSelf: 'flex-start' },
+  breakdownRecalcText:   { fontSize: 14, color: COLORS.accent, fontWeight: '600' },
 });

@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useLanguage } from '../context/LanguageContext';
+import Checkbox from './Checkbox';
 import {
   getUploadConfig,
   startUpload,
@@ -183,9 +184,7 @@ export default function DataUploadModal({ visible, onClose }) {
                   activeOpacity={0.8}
                   disabled={fieldsDisabled}
                 >
-                  <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
-                    {agreed ? <Text style={styles.checkmark}>✓</Text> : null}
-                  </View>
+                  <Checkbox checked={agreed} />
                   <Text style={[styles.checkboxLabel, fieldsDisabled && styles.textDisabled]}>
                     {t('dataUploadAgree')}
                   </Text>
@@ -290,21 +289,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     gap: 12,
   },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#6B6B6B',
-    backgroundColor: '#F5F2EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#5B8DEE',
-    borderColor: '#3A6FCC',
-  },
-  checkmark: { color: '#fff', fontSize: 14, fontWeight: '700' },
   checkboxLabel: {
     flex: 1,
     fontSize: 13,

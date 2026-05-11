@@ -86,7 +86,7 @@ export default function AddPropertyModal({ visible, onClose, onTypeSelected }) {
               <View style={styles.headerSpacer} />
               <Text style={styles.title}>{t('addProperty')}</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-                <Ionicons name="close" size={20} color="#6B6B6B" />
+                <Ionicons name="close" size={22} color="#888" />
               </TouchableOpacity>
             </View>
 
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   },
   boxWrap: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 380,
   },
   box: {
     borderRadius: 20,
@@ -163,8 +163,9 @@ const styles = StyleSheet.create({
   },
   headerSpacer: { width: 36 },
   title: {
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: '600',
+    letterSpacing: -0.3,
     color: '#2C2C2C',
     textAlign: 'center',
     flex: 1,
@@ -182,7 +183,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   sectionLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: '#6B6B6B',
     letterSpacing: 0.7,
@@ -232,7 +233,7 @@ const styles = StyleSheet.create({
   },
   nextBtnText: {
     color: '#3D7D82',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
   },
   nextBtnTextDisabled: {

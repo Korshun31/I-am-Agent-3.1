@@ -286,7 +286,7 @@ function patchCalendarScale10() {
       s = s.replace(/\? \[\{ fontSize: \d+, color:/g, '? [{ fontSize: Math.round(15*__scale), color:');
     } else if (f === 'CalendarList.js') {
       // Total month block height (drives snap and FlatList layout)
-      s = s.replace(/var LAYOUT_HEIGHT = \d+;/, 'var LAYOUT_HEIGHT = Math.round(370*__scale);');
+      s = s.replace(/var LAYOUT_HEIGHT = [^;]+;/, 'var LAYOUT_HEIGHT = Math.round(400*__scale);');
     }
     fs.writeFileSync(p, s);
   });

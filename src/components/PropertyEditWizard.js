@@ -14,7 +14,6 @@ import {
   ActivityIndicator,
   InteractionManager,
   Pressable,
-  Image as RNImage,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
@@ -32,6 +31,7 @@ import { getActiveTeamMembers } from '../services/companyService';
 import { uploadPhotoWithThumb, isLocalUri } from '../services/storageService';
 import AddContactModal from './AddContactModal';
 import ModalScrollFrame from './ModalScrollFrame';
+import WizardFooter from './WizardFooter';
 import { useAppData } from '../context/AppDataContext';
 
 const COLORS = {
@@ -1330,46 +1330,18 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
   );
 
   const footer = (
-    <View style={s.navRow}>
-      <TouchableOpacity
-        style={[s.navBtn, isFirst && s.navBtnDisabled]}
-        onPress={goBack}
-        disabled={isFirst}
-        activeOpacity={0.7}
-      >
-        <Text style={[s.navBtnText, isFirst && s.navBtnTextDisabled]}>‹  {t('wizBack')}</Text>
-      </TouchableOpacity>
-
-      {!isLast && (
-        <TouchableOpacity
-          style={s.navSaveIconBtn}
-          onPress={() => runAfterKeyboardDismiss(handleSave)}
-          activeOpacity={0.7}
-          disabled={saving}
-        >
-          <RNImage
-            source={require('../../assets/icon-save-new.png')}
-            style={{ width: 22, height: 22, tintColor: saving ? '#C7C7CC' : '#888' }}
-            resizeMode="contain"
-          />
-        </TouchableOpacity>
-      )}
-
-      <TouchableOpacity
-        style={[s.navBtn, s.navBtnNext, isLast && s.navBtnSave]}
-        onPress={goNext}
-        activeOpacity={0.7}
-        disabled={saving}
-      >
-        {saving && !uploadProgress ? (
-          <ActivityIndicator size="small" color="#FFF" />
-        ) : (
-          <Text style={[s.navBtnText, s.navBtnNextText, isLast && s.navBtnSaveText]}>
-            {saving ? `📤 ${uploadProgress}` : isLast ? t('save') : t('wizNext') + '  ›'}
-          </Text>
-        )}
-      </TouchableOpacity>
-    </View>
+    <WizardFooter
+      isFirstStep={isFirst}
+      isLastStep={isLast}
+      onBack={goBack}
+      onNext={goNext}
+      onSave={() => runAfterKeyboardDismiss(handleSave)}
+      saving={saving}
+      uploadProgress={uploadProgress}
+      backLabel={`‹  ${t('wizBack')}`}
+      nextLabel={`${t('wizNext')}  ›`}
+      saveLabel={t('save')}
+    />
   );
 
   return (
@@ -1499,33 +1471,6 @@ const s = StyleSheet.create({
   ownerCommModeBtnText: { fontSize: 12, color: '#666', fontWeight: '700' },
   ownerCommModeBtnTextActive: { color: COLORS.green },
   ownerCommCalcText: { marginTop: 8, fontSize: 12, color: '#6B6B6B' },
-
-  navRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 18, paddingVertical: 14,
-    borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.07)',
-  },
-  // Контейнер как у toolbarBtn на главной — белый с тонкой серой рамкой.
-  navSaveIconBtn: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderWidth: 1, borderColor: '#E5E5EA',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  navBtn: {
-    paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12,
-  },
-  navBtnDisabled: { opacity: 0.3 },
-  navBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.label },
-  navBtnTextDisabled: { color: '#C7C7CC' },
-  navBtnNext: {
-    backgroundColor: 'transparent', borderWidth: 1.5, borderColor: COLORS.green,
-  },
-  navBtnNextText: { color: COLORS.green },
-  navBtnSave: {
-    backgroundColor: 'transparent', borderColor: COLORS.green,
-  },
-  navBtnSaveText: { color: COLORS.green },
 
   pickerBtn: {
     backgroundColor: COLORS.inputBg, borderRadius: 10,

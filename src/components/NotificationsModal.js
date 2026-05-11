@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useLanguage } from '../context/LanguageContext';
+import Checkbox from './Checkbox';
 
 const COLORS = {
   boxBg: 'rgba(255,255,255,0.72)',
@@ -88,15 +89,11 @@ export default function NotificationsModal({ visible, onClose, settings = {}, on
               <View style={styles.section}>
                 <Text style={styles.subTitle}>{t('notifUnlockedScreen')}</Text>
                 <TouchableOpacity style={styles.optionRow} onPress={() => setUnlockedType(unlockedType === 'banner' ? '' : 'banner')} activeOpacity={0.8}>
-                  <View style={[styles.checkbox, unlockedType === 'banner' && styles.checkboxChecked]}>
-                    {unlockedType === 'banner' ? <Text style={styles.checkmark}>✓</Text> : null}
-                  </View>
+                  <Checkbox checked={unlockedType === 'banner'} />
                   <Text style={styles.optionLabel}>{t('notifBanner')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.optionRow} onPress={() => setUnlockedType(unlockedType === 'popup' ? '' : 'popup')} activeOpacity={0.8}>
-                  <View style={[styles.checkbox, unlockedType === 'popup' && styles.checkboxChecked]}>
-                    {unlockedType === 'popup' ? <Text style={styles.checkmark}>✓</Text> : null}
-                  </View>
+                  <Checkbox checked={unlockedType === 'popup'} />
                   <Text style={styles.optionLabel}>{t('notifPopup')}</Text>
                 </TouchableOpacity>
               </View>
@@ -104,15 +101,11 @@ export default function NotificationsModal({ visible, onClose, settings = {}, on
               <View style={styles.section}>
                 <Text style={styles.subTitle}>{t('notifLockedScreen')}</Text>
                 <TouchableOpacity style={styles.optionRow} onPress={() => setLockedType(lockedType === 'full' ? '' : 'full')} activeOpacity={0.8}>
-                  <View style={[styles.checkbox, lockedType === 'full' && styles.checkboxChecked]}>
-                    {lockedType === 'full' ? <Text style={styles.checkmark}>✓</Text> : null}
-                  </View>
+                  <Checkbox checked={lockedType === 'full'} />
                   <Text style={styles.optionLabel}>{t('notifShowFull')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.optionRow} onPress={() => setLockedType(lockedType === 'fact' ? '' : 'fact')} activeOpacity={0.8}>
-                  <View style={[styles.checkbox, lockedType === 'fact' && styles.checkboxChecked]}>
-                    {lockedType === 'fact' ? <Text style={styles.checkmark}>✓</Text> : null}
-                  </View>
+                  <Checkbox checked={lockedType === 'fact'} />
                   <Text style={styles.optionLabel}>{t('notifShowFact')}</Text>
                 </TouchableOpacity>
               </View>
@@ -246,25 +239,6 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: '#5B8DEE',
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#6B6B6B',
-    backgroundColor: '#F5F2EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#5B8DEE',
-    borderColor: '#3A6FCC',
-  },
-  checkmark: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
   },
   optionLabel: {
     fontSize: 16,

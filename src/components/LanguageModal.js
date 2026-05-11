@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useLanguage } from '../context/LanguageContext';
+import Checkbox from './Checkbox';
 
 const COLORS = {
   boxBg: 'rgba(255,255,255,0.72)',
@@ -68,9 +69,7 @@ export default function LanguageModal({ visible, onClose, selectedLanguage = '',
                   onPress={() => setSelected(lang.id)}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.checkbox, selected === lang.id && styles.checkboxChecked]}>
-                    {selected === lang.id ? <Text style={styles.checkmark}>✓</Text> : null}
-                  </View>
+                  <Checkbox checked={selected === lang.id} />
                   <Text style={styles.optionLabel}>{lang.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -167,25 +166,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     gap: 12,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#6B6B6B',
-    backgroundColor: '#F5F2EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#5B8DEE',
-    borderColor: '#3A6FCC',
-  },
-  checkmark: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
   },
   optionLabel: {
     fontSize: 16,

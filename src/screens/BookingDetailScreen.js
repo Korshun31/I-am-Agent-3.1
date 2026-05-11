@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { IconCalendar } from '../components/TabIcons';
 import { IconCall, IconWhatsapp, IconTelegram } from '../components/ContactIcons';
 import { IconPrices } from '../components/PropertyIcons';
+import { IconPencil } from '../components/EditIcons';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
 import { ownerOneTimeAmount, ownerMonthlyByMonth } from '../utils/ownerCommission';
@@ -322,7 +323,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
     <View style={styles.container}>
       <View style={[styles.header, { paddingHorizontal: hPad }]}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.8}>
-          <Ionicons name="chevron-back" size={22} color="#888" />
+          <Ionicons name="chevron-back" size={20} color="#2C2C2C" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{propertyCode || t('pdBookingList')}</Text>
         <View style={styles.headerRight} />
@@ -347,7 +348,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
                 )}
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionBtn} onPress={() => onEdit?.(b)} activeOpacity={0.7}>
-                <Ionicons name="create-outline" size={22} color="#888" />
+                <IconPencil size={22} color="#888" />
               </TouchableOpacity>
             </View>
           </View>
@@ -627,7 +628,7 @@ const styles = StyleSheet.create({
 
   cardTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: COLORS.title,
     marginBottom: 12,
   },
@@ -639,7 +640,7 @@ const styles = StyleSheet.create({
   },
   sectionTitleText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: COLORS.title,
   },
 
@@ -651,11 +652,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   detailLabel: {
-    fontSize: 13,
+    fontSize: 14,
     color: COLORS.label,
   },
   detailValue: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.title,
   },
@@ -675,7 +676,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   propInfoLabel: {
-    fontSize: 13,
+    fontSize: 14,
     color: COLORS.label,
     width: 130,
     flexShrink: 0,
@@ -684,8 +685,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   propInfoValue: {
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '600',
     color: COLORS.title,
     flex: 1,
     textAlign: 'right',
@@ -724,7 +725,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   contactLinkText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.accent,
   },
@@ -739,17 +740,17 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   contactValue: {
-    fontSize: 15,
+    fontSize: 16,
     color: COLORS.title,
   },
   placeholderText: {
-    fontSize: 15,
+    fontSize: 16,
     color: COLORS.label,
     fontStyle: 'italic',
   },
 
   commentsText: {
-    fontSize: 15,
+    fontSize: 16,
     color: COLORS.title,
     lineHeight: 22,
   },
