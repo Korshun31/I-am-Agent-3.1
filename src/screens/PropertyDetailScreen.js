@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { FONT } from '../utils/scale';
 import { IconPencil } from '../components/EditIcons';
 import {
   IconPhoto,
@@ -683,8 +684,8 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
       <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.lilac}>
         <InfoRow label={t('pdAirCon')} value={p.air_conditioners != null ? `${p.air_conditioners}  pc` : '—'} />
         <InfoRow label={t('pdInternetSpeed')} value={p.internet_speed ? `${p.internet_speed} ${t('pdInternetSpeedUnit')}` : '—'} />
-        <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : 'NO'} />
-        <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('yes') : 'NO'} style={styles.infoRowNoMargin} />
+        <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : t('pdForbidden')} />
+        <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('pdAllowed') : t('pdForbidden')} style={styles.infoRowNoMargin} />
       </SectionBlock>
 
       {/* Описание и комментарии — без цветной карточки, простой текст */}
@@ -1067,6 +1068,8 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
           phone={p.ownerPhone1}
           whatsapp={p.ownerWhatsapp}
           telegram={p.ownerTelegram}
+          isLink={!!p.ownerName}
+          onPressName={onOwnerPress}
           alignRight
           t={t}
         />
@@ -1633,7 +1636,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
-          <Text style={styles.backArrow}>‹</Text>
+          <Ionicons name="chevron-back" size={20} color="#2C2C2C" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{p.name}</Text>
         <View style={styles.backBtn} />
@@ -1823,7 +1826,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: -0.3,
     color: '#2C2C2C',
     flex: 1,
     textAlign: 'center',
@@ -1918,8 +1922,8 @@ const styles = StyleSheet.create({
     height: 22,
   },
   sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#2C2C2C',
     marginBottom: 10,
   },
@@ -1930,7 +1934,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   infoLabel: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#6B6B6B',
   },
   infoValueWrap: {
@@ -1938,7 +1942,7 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: '#1C1C1E',
     textAlign: 'right',
@@ -1959,8 +1963,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   mediaThumb: {
-    width: 100,
-    height: 80,
+    width: 110,
+    height: 88,
     borderRadius: 10,
     marginRight: 8,
     backgroundColor: '#DDD',
@@ -1982,7 +1986,7 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
   emptyMedia: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#999',
     fontStyle: 'italic',
   },
@@ -2000,7 +2004,7 @@ const styles = StyleSheet.create({
   },
   bookingItemCode: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     color: '#3D7D82',
     fontWeight: '600',
   },
@@ -2013,9 +2017,9 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   descriptionText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#2C2C2C',
-    lineHeight: 20,
+    lineHeight: 22,
   },
   amenitiesGrid: {
     flexDirection: 'row',
@@ -2035,11 +2039,11 @@ const styles = StyleSheet.create({
   },
   amenityLabel: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 14,
     color: '#2C2C2C',
   },
   amenityEmpty: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#999',
     fontStyle: 'italic',
   },
@@ -2059,13 +2063,13 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   priceLabel: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '400',
     color: '#2C2C2C',
     flex: 1,
   },
   priceValue: {
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: '700',
     color: '#2C2C2C',
     textAlign: 'right',
@@ -2115,13 +2119,13 @@ const styles = StyleSheet.create({
   },
   resortHouseName: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: '#2C2C2C',
     letterSpacing: -0.3,
   },
   resortHouseCode: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: '#3D7D82',
     marginRight: 10,
@@ -2139,7 +2143,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   emptyHouses: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#999',
     fontStyle: 'italic',
     textAlign: 'center',

@@ -75,17 +75,17 @@ export default function OwnerInfoRow({ label, name, phone, whatsapp, telegram, i
           <View style={actionsStyle}>
             {phone ? (
               <ContactActionBtn onPress={() => openPhone(phone, t)}>
-                <IconCall size={20} color={ICON_COLOR} />
+                <IconCall size={22} color={ICON_COLOR} />
               </ContactActionBtn>
             ) : null}
             {whatsapp ? (
               <ContactActionBtn onPress={() => openWhatsapp(whatsapp)}>
-                <IconWhatsapp size={20} color={ICON_COLOR} />
+                <IconWhatsapp size={22} color={ICON_COLOR} />
               </ContactActionBtn>
             ) : null}
             {telegram ? (
               <ContactActionBtn onPress={() => openTelegram(telegram)}>
-                <IconTelegram size={20} color={ICON_COLOR} />
+                <IconTelegram size={22} color={ICON_COLOR} />
               </ContactActionBtn>
             ) : null}
           </View>
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   label: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#6B6B6B',
     width: 130,
     flexShrink: 0,
@@ -112,8 +112,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   value: {
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#1C1C1E',
     flex: 1,
   },

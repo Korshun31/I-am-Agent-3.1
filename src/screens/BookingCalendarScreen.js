@@ -8,7 +8,6 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  Modal,
   Pressable,
   Dimensions,
   Alert,
@@ -29,6 +28,7 @@ import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { FONT } from '../utils/scale';
 import { deleteProperty } from '../services/propertiesService';
 import { deleteBooking } from '../services/bookingsService';
 import { cancelBookingReminders } from '../services/bookingRemindersService';
@@ -160,8 +160,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const [filterVisible, setFilterVisible] = useState(false);
   const [filterValues, setFilterValues] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [year, setYear] = useState(dayjs().year());
-  const [yearPickerVisible, setYearPickerVisible] = useState(false);
+  const [centerMonthIdx, setCenterMonthIdx] = useState(3);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
@@ -453,9 +452,10 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
 
   const months = React.useMemo(() => {
     const loc = language === 'ru' ? 'ru' : language === 'th' ? 'th' : 'en';
+    const base = dayjs().startOf('month');
     const arr = [];
     for (let i = -3; i < NUM_MONTHS - 3; i++) {
-      const d = dayjs().year(year).month(0).add(i, 'month').locale(loc);
+      const d = base.add(i, 'month').locale(loc);
       const raw = d.format('MMMM');
       arr.push({
         key: d.format('YYYY-MM'),
@@ -465,7 +465,9 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       });
     }
     return arr;
-  }, [year, language]);
+  }, [language]);
+
+  const year = months[centerMonthIdx]?.year ?? dayjs().year();
 
   const initialScrollX = React.useMemo(() => {
     const curYear = dayjs().year();
@@ -646,7 +648,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
 
   const currentYear = dayjs().year();
   const currentMonth = dayjs().month();
-  const yearsForPicker = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1, currentYear + 2];
 
   if (loading) {
     return (
@@ -731,7 +732,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
           </View>
           <View style={styles.toolbarRow}>
             <View style={styles.searchWrap}>
-              <Ionicons name="search-outline" size={18} color="#999" style={styles.searchIconIon} />
+              <Ionicons name="search-outline" size={FONT.body} color="#999" style={styles.searchIconIon} />
               <TextInput
                 style={styles.searchInput}
                 placeholder={t('search')}
@@ -768,13 +769,9 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         <View style={styles.calendarWrap}>
           <View style={styles.calendarRow}>
             <View style={[styles.leftColWrap, { width: leftColWidth }]}>
-              <TouchableOpacity
-                style={[styles.yearCell, styles.cornerCell]}
-                onPress={() => setYearPickerVisible(true)}
-                activeOpacity={0.8}
-              >
+              <View style={[styles.yearCell, styles.cornerCell]}>
                 <Text style={styles.yearText}>{year}</Text>
-              </TouchableOpacity>
+              </View>
             <View style={[styles.leftCol, { overflow: 'hidden' }]}>
               <Animated.View
                 style={[
@@ -811,6 +808,13 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               onScroll={(e) => {
                 const x = e?.nativeEvent?.contentOffset?.x;
                 timelineScrollXRef.current = Number.isFinite(x) ? x : 0;
+                const viewportW = e?.nativeEvent?.layoutMeasurement?.width;
+                if (!Number.isFinite(viewportW) || viewportW <= 0) return;
+                const centerX = (Number.isFinite(x) ? x : 0) + viewportW / 2;
+                let idx = Math.floor(centerX / MONTH_WIDTH);
+                if (idx < 0) idx = 0;
+                if (idx > NUM_MONTHS - 1) idx = NUM_MONTHS - 1;
+                setCenterMonthIdx((prev) => (prev === idx ? prev : idx));
               }}
               scrollEventThrottle={16}
             >
@@ -957,20 +961,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         user={user}
       />
 
-      {yearPickerVisible && (
-        <YearPickerModal
-          visible={yearPickerVisible}
-          years={yearsForPicker}
-          currentYear={year}
-          onSelect={(y) => {
-            setYear(y);
-            setYearPickerVisible(false);
-          }}
-          onClose={() => setYearPickerVisible(false)}
-          t={t}
-        />
-      )}
-
       <AddBookingModal
         visible={addModalVisible}
         onClose={() => { setAddModalVisible(false); setSelectedProperty(null); setInitialMonth(null); }}
@@ -1049,90 +1039,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     </View>
   );
 }
-
-function YearPickerModal({ visible, years, currentYear, onSelect, onClose, t }) {
-  if (!visible) return null;
-  return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
-      <Pressable style={yearPickerStyles.backdrop} onPress={onClose}>
-        <View style={yearPickerStyles.box}>
-          <Text style={yearPickerStyles.title}>{t('yearSelect')}</Text>
-          {years.map((y) => (
-            <TouchableOpacity
-              key={y}
-              style={[yearPickerStyles.option, y === currentYear && yearPickerStyles.optionActive]}
-              onPress={() => onSelect(y)}
-              activeOpacity={0.7}
-            >
-              <Text style={[yearPickerStyles.optionText, y === currentYear && yearPickerStyles.optionTextActive]}>{y}</Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity style={yearPickerStyles.closeBtn} onPress={onClose} activeOpacity={0.7}>
-            <Text style={yearPickerStyles.closeText}>{t('close')}</Text>
-          </TouchableOpacity>
-        </View>
-      </Pressable>
-    </Modal>
-  );
-}
-
-const yearPickerStyles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  box: {
-    width: 200,
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2C2C2C',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  option: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    marginBottom: 6,
-  },
-  optionActive: {
-    backgroundColor: 'rgba(46, 125, 50, 0.15)',
-  },
-  optionText: {
-    fontSize: 16,
-    color: '#2C2C2C',
-    textAlign: 'center',
-  },
-  optionTextActive: {
-    fontWeight: '700',
-    color: '#2E7D32',
-  },
-  closeBtn: {
-    marginTop: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  closeText: {
-    fontSize: 15,
-    color: '#888',
-  },
-});
 
 const CalendarRow = React.memo(function CalendarRow({
   unit,
@@ -1282,7 +1188,7 @@ const rowStyles = StyleSheet.create({
     gap: 4,
   },
   barText: {
-    fontSize: 11,
+    fontSize: 14,
     color: '#2C2C2C',
     fontWeight: '700',
     textAlign: 'center',
@@ -1293,7 +1199,7 @@ const rowStyles = StyleSheet.create({
     minWidth: 0,
   },
   barDateText: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '700',
   },
   barDateIn: {
@@ -1498,7 +1404,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.monthFuture,
   },
   monthLabel: {
-    fontSize: 11,
+    fontSize: 14,
     color: COLORS.title,
   },
   monthLabelBold: {

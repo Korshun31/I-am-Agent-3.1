@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { IconFolderClosed, IconFolderOpen } from '../components/FolderIcons';
 import { Ionicons } from '@expo/vector-icons';
+import { FONT } from '../utils/scale';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -459,7 +460,7 @@ export default function RealEstateScreen({ onReady }) {
 
       <View style={styles.toolbarRow}>
         <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={18} color="#999" style={styles.searchIconIon} />
+          <Ionicons name="search-outline" size={FONT.body} color="#999" style={styles.searchIconIon} />
           <TextInput
             style={styles.searchInput}
             placeholder={t('search')}
