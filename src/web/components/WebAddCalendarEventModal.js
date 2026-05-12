@@ -38,7 +38,7 @@ const REMINDER_OPTIONS = [
 
 const CALENDAR_COLORS = [
   '#E57373', '#FF8A65', '#FFB74D', '#FFD54F',
-  '#81C784', '#4DB6AC', '#64B5F6',
+  '#4DB6AC', '#64B5F6',
 ];
 
 function formatDateYMD(d) {

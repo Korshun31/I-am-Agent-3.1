@@ -19,6 +19,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 import Constants from 'expo-constants';
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
@@ -49,10 +50,10 @@ const CALENDAR_SCALE = 1.1;
 // отступами 16 сверху и снизу.
 const __LIB_SCALE = Math.max(0.78, Math.min(1, (SCREEN_WIDTH - 72) * 0.8 / 350));
 const MONTH_BOX_HEIGHT = 16 + 33 + Math.round(50 * __LIB_SCALE) + 6 * Math.round(45 * __LIB_SCALE) + 16;
-const CALENDAR_COLORS = [
-  '#E57373', '#FF8A65', '#FFB74D', '#FFD54F',
-  '#81C784', '#4DB6AC', '#64B5F6',
-];
+const AUTO_EVENT_COLORS = {
+  checkIn:  '#8BAF8E',
+  checkOut: '#C8624A',
+};
 
 const CALENDAR_LOCALES = {
   en: { monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], dayNames: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], today: 'Today', year: '' },
@@ -89,13 +90,6 @@ function getBookingNumber(booking, allBookings) {
   const seq = idx >= 0 ? idx + 1 : 0;
   return `${seq}/${String(yearShort).padStart(2, '0')}`;
 }
-
-const EVENT_BLOCK_COLORS = {
-  checkInMine: { bg: 'rgba(168,230,163,0.7)', border: '#81C784' },
-  checkOutMine: { bg: 'rgba(255,205,210,0.8)', border: '#E57373' },
-  commission: { bg: 'rgba(187,222,251,0.8)', border: '#64B5F6' },
-  other: { bg: 'rgba(224,224,224,0.8)', border: '#BDBDBD' },
-};
 
 const DRAWER_ANIMATION = {
   duration: 300,
@@ -145,23 +139,37 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenBooking, isBooking
 
   if (isBooking) {
     const isCommission = event.eventType === 'commissionOneTime' || event.eventType === 'commissionMonthly';
-    const typeIcon = isCommission
-      ? require('../../assets/icon-commission-owner.png')
-      : (event.eventType === 'checkIn' ? require('../../assets/icon-checkin.png') : require('../../assets/icon-checkout.png'));
+    const isCheckIn = event.eventType === 'checkIn';
+    const stripeColor = isCommission
+      ? null
+      : (isCheckIn ? AUTO_EVENT_COLORS.checkIn : AUTO_EVENT_COLORS.checkOut);
     const displayName = isCommission
       ? (event.commissionTitle || '')
       : (contactName || (event.booking?.notMyCustomer ? t('ownerCustomer') : ''));
-    const blockColors = isCommission
-      ? EVENT_BLOCK_COLORS.commission
-      : event.notMyCustomer
-      ? EVENT_BLOCK_COLORS.other
-      : (event.eventType === 'checkIn' ? EVENT_BLOCK_COLORS.checkInMine : EVENT_BLOCK_COLORS.checkOutMine);
     const objName = event.objectDisplayName || '';
     return (
-      <View style={[styles.eventCard, styles.eventCardPropertyStyle, { backgroundColor: blockColors.bg, borderColor: blockColors.border }]}>
-        <View style={styles.eventRow}>
+      <View style={styles.customEventCard}>
+        {stripeColor ? <View style={[styles.eventStripe, { backgroundColor: stripeColor }]} /> : null}
+        <View style={[styles.eventRow, stripeColor && styles.eventRowWithStripe]}>
           <TouchableOpacity style={styles.eventMainArea} onPress={() => {}} activeOpacity={1}>
-            <Image source={typeIcon} style={styles.eventTypeIcon} resizeMode="contain" />
+            {isCommission ? (
+              <Ionicons name="wallet-outline" size={18} color="#6B6B6B" style={styles.eventTypeIconVector} />
+            ) : (() => {
+              const isOwnerCheckOut = !isCheckIn && event.booking?.notMyCustomer;
+              const pillStyle = isCheckIn
+                ? styles.pillCheckIn
+                : (isOwnerCheckOut ? styles.pillMuted : styles.pillCheckOut);
+              const pillTextStyle = isCheckIn
+                ? styles.pillTextCheckIn
+                : (isOwnerCheckOut ? styles.pillTextMuted : styles.pillTextCheckOut);
+              return (
+                <View style={[styles.eventTypePill, pillStyle]}>
+                  <Text style={[styles.eventTypePillText, pillTextStyle]}>
+                    {t(isCheckIn ? 'agentCalendarCheckIn' : 'agentCalendarCheckOut')}
+                  </Text>
+                </View>
+              );
+            })()}
             <Text style={styles.eventName} numberOfLines={1}>{displayName}</Text>
           </TouchableOpacity>
           {objName ? (
@@ -172,37 +180,53 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenBooking, isBooking
           </TouchableOpacity>
         </View>
         {expanded && (
-          <View style={styles.eventExpanded}>
-            {event.property ? (
-              <TouchableOpacity style={styles.eventDetailRow} onPress={() => navigation.navigate('RealEstate', { propertyToOpen: event.property })} activeOpacity={0.7}>
-                <Image source={require('../../assets/icon-property-house.png')} style={styles.eventDetailIcon} resizeMode="contain" />
-                <Text style={styles.eventDetailLink}>{event.propertyLabel || '—'}</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.eventDetailRow}>
-                <Image source={require('../../assets/icon-property-house.png')} style={styles.eventDetailIcon} resizeMode="contain" />
-                <Text style={styles.eventDetailText}>{event.propertyLabel || '—'}</Text>
+          <View style={[styles.eventExpanded, stripeColor && styles.eventExpandedWithStripe]}>
+            <View style={styles.expandedRow}>
+              {Array.isArray(event.property?.photos) && event.property.photos.length > 0 ? (
+                <ExpoImage
+                  source={{ uri: event.property.photos_thumb?.[0] || event.property.photos[0] }}
+                  style={styles.expandedPhoto}
+                  cachePolicy="disk"
+                />
+              ) : (
+                <View style={[styles.expandedPhoto, styles.expandedPhotoPlaceholder]}>
+                  <Image source={require('../../assets/icon-photo.png')} style={styles.expandedPhotoPlaceholderIcon} resizeMode="contain" />
+                </View>
+              )}
+              <View style={styles.expandedDetails}>
+                <View style={styles.expandedDetailRow}>
+                  <Text style={styles.expandedDetailLabel}>{t('agentCalendarPropertyCode')}</Text>
+                  <Text style={styles.expandedDetailColon}>:</Text>
+                  {event.property ? (
+                    <TouchableOpacity onPress={() => navigation.navigate('RealEstate', { propertyToOpen: event.property })} activeOpacity={0.7} style={styles.expandedValueWrap}>
+                      <Text style={styles.expandedDetailValueLink} numberOfLines={1}>{event.propertyLabel || '—'}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={[styles.expandedDetailValue, styles.expandedValueWrap]} numberOfLines={1}>{event.propertyLabel || '—'}</Text>
+                  )}
+                </View>
+                <View style={styles.expandedDetailRow}>
+                  <Text style={styles.expandedDetailLabel}>{t('agentCalendarBookingCode')}</Text>
+                  <Text style={styles.expandedDetailColon}>:</Text>
+                  {event.booking?.notMyCustomer ? (
+                    <Text style={[styles.expandedDetailValue, styles.expandedValueWrap]}>N/A</Text>
+                  ) : (
+                    <TouchableOpacity onPress={() => onOpenBooking?.(event.booking, event.property, event.fullBookingCode)} activeOpacity={0.7} style={styles.expandedValueWrap}>
+                      <Text style={styles.expandedDetailValueLink} numberOfLines={1}>{event.fullBookingCode || event.bookingNum || '—'}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {isCommission && event.commissionAmount != null ? (
+                  <View style={styles.expandedDetailRow}>
+                    <Text style={styles.expandedDetailLabel}>{t('commissionPaymentAmount')}</Text>
+                    <Text style={styles.expandedDetailColon}>:</Text>
+                    <Text style={[styles.expandedDetailValue, styles.expandedValueWrap]}>
+                      {Number(event.commissionAmount).toLocaleString('en-US', { minimumFractionDigits: 0 }).replace(/,/g, ' ')} Thb
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-            )}
-            {event.booking?.notMyCustomer ? (
-              <View style={styles.eventDetailRow}>
-                <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.eventDetailIconBooking} resizeMode="contain" />
-                <Text style={styles.eventDetailText}>N/A</Text>
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.eventDetailRow} onPress={() => onOpenBooking?.(event.booking, event.property, event.fullBookingCode)} activeOpacity={0.7}>
-                <Image source={require('../../assets/icon-booking-hashtag.png')} style={styles.eventDetailIconBooking} resizeMode="contain" />
-                <Text style={styles.eventDetailLink} numberOfLines={1}>{event.fullBookingCode || event.bookingNum || '—'}</Text>
-              </TouchableOpacity>
-            )}
-            {isCommission && event.commissionAmount != null ? (
-              <View style={styles.eventDetailRow}>
-                <Text style={styles.eventDetailText}>{t('commissionPaymentAmount')}: </Text>
-                <Text style={styles.eventDetailAmount}>
-                  {Number(event.commissionAmount).toLocaleString('en-US', { minimumFractionDigits: 0 }).replace(/,/g, ' ')} Thb
-                </Text>
-              </View>
-            ) : null}
+            </View>
           </View>
         )}
       </View>
@@ -921,14 +945,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 24,
   },
-  eventCard: {
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
-  eventCardPropertyStyle: {
-    borderRadius: 14,
-    borderWidth: 1.5,
-  },
   customEventCard: {
     marginBottom: 10,
     backgroundColor: '#FFFFFF',
@@ -965,10 +981,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minWidth: 0,
   },
-  eventTypeIcon: {
-    width: 28,
-    height: 28,
+  eventTypeIconVector: {
     marginRight: 10,
+  },
+  eventTypePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    marginRight: 10,
+  },
+  eventTypePillText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  pillCheckIn: {
+    backgroundColor: '#F0F7F1',
+    borderColor: AUTO_EVENT_COLORS.checkIn,
+  },
+  pillCheckOut: {
+    backgroundColor: '#FAEEEB',
+    borderColor: AUTO_EVENT_COLORS.checkOut,
+  },
+  pillTextCheckIn: {
+    color: '#4D7A4F',
+  },
+  pillTextCheckOut: {
+    color: AUTO_EVENT_COLORS.checkOut,
+  },
+  pillMuted: {
+    backgroundColor: '#F4F4F6',
+    borderColor: '#BDBDBD',
+  },
+  pillTextMuted: {
+    color: '#6B6B6B',
   },
   eventName: {
     flex: 1,
@@ -1002,39 +1048,60 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(0,0,0,0.08)',
     paddingTop: 10,
   },
-  eventDetailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-    minHeight: 28,
-  },
-  eventDetailIcon: {
-    width: 28,
-    height: 28,
-    marginRight: 8,
-    alignSelf: 'center',
-    marginTop: -4,
-  },
-  eventDetailIconBooking: {
-    width: 22,
-    height: 22,
-    marginRight: 8,
-    alignSelf: 'center',
-    marginTop: 4,
-  },
   eventDetailText: {
     fontSize: 14,
     lineHeight: 20,
     color: '#2C2C2C',
   },
-  eventDetailAmount: {
-    fontWeight: '700',
-    color: '#3D7D82',
+  expandedRow: {
+    flexDirection: 'row',
+    gap: 12,
   },
-  eventDetailLink: {
+  expandedPhoto: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+  },
+  expandedPhotoPlaceholder: {
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expandedPhotoPlaceholderIcon: {
+    width: 36,
+    height: 36,
+    opacity: 0.4,
+  },
+  expandedDetails: {
     flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
+    justifyContent: 'flex-start',
+  },
+  expandedDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 12,
+  },
+  expandedDetailLabel: {
+    fontSize: 12,
+    color: '#6B6B6B',
+    flexShrink: 1,
+  },
+  expandedDetailColon: {
+    fontSize: 12,
+    color: '#6B6B6B',
+    marginRight: 8,
+  },
+  expandedValueWrap: {
+    marginLeft: 'auto',
+    flexShrink: 0,
+  },
+  expandedDetailValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2C2C2C',
+  },
+  expandedDetailValueLink: {
+    fontSize: 12,
     fontWeight: '600',
     color: '#3D7D82',
   },
