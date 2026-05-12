@@ -24,6 +24,7 @@ import { ownerOneTimeAmount, ownerMonthlyByMonth } from '../utils/ownerCommissio
 import { getContactById, getContacts } from '../services/contactsService';
 import { getProperties } from '../services/propertiesService';
 import { getBookings } from '../services/bookingsService';
+import { getActiveTeamMembers } from '../services/companyService';
 import { getCurrentUser } from '../services/authService';
 import { generateConfirmationPDF } from '../services/bookingConfirmationService';
 import PdfPreviewModal from '../components/PdfPreviewModal';
@@ -179,6 +180,24 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
   const [pdfPreviewVisible, setPdfPreviewVisible] = useState(false);
   const [pdfPreviewUri, setPdfPreviewUri] = useState(null);
   const [pdfPreviewHtml, setPdfPreviewHtml] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
+
+  const isAdminViewer = !user?.teamMembership;
+  const companyIdForTeam = user?.companyId || user?.teamMembership?.companyId || null;
+
+  useEffect(() => {
+    if (!isAdminViewer || !companyIdForTeam) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const members = await getActiveTeamMembers(companyIdForTeam);
+        if (!cancelled) setTeamMembers(members || []);
+      } catch {
+        if (!cancelled) setTeamMembers([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAdminViewer, companyIdForTeam]);
 
   const loadProperty = useCallback(async () => {
     if (!booking?.propertyId) {
@@ -441,6 +460,32 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
             </View>
           </View>
         </View>
+
+        {(() => {
+          if (!isAdminViewer) return null;
+          const raId = b.responsibleAgentId || null;
+          let responsibleLabel;
+          if (raId == null) {
+            responsibleLabel = user?.companyInfo?.name || user?.teamMembership?.companyName || t('workAsCompany') || 'Company';
+          } else {
+            const m = teamMembers.find(x => x.user_id === raId);
+            responsibleLabel = m
+              ? ([m.name, m.last_name].filter(Boolean).join(' ') || m.email || 'Agent')
+              : '—';
+          }
+          return (
+            <View style={styles.card}>
+              <View style={styles.sectionTitleRow}>
+                <Ionicons name="person-circle-outline" size={18} color="#888" />
+                <Text style={styles.sectionTitleText}>{t('bkResponsible') || 'Responsible'}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>{t('bkResponsible') || 'Responsible'}</Text>
+                <Text style={styles.detailValue}>{responsibleLabel}</Text>
+              </View>
+            </View>
+          );
+        })()}
 
         {(contact || loadingContact || b.contactId || b.notMyCustomer) ? (
           <View style={styles.card}>
