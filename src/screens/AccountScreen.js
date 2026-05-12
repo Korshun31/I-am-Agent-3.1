@@ -15,6 +15,9 @@ import {
   TextInput,
 } from 'react-native';
 import Constants from 'expo-constants';
+import { Ionicons } from '@expo/vector-icons';
+import { TAB_BAR_CONTENT_HEIGHT } from '../components/BottomNav';
+import { IconPencil } from '../components/EditIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MyDetailsEditModal from '../components/MyDetailsEditModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
@@ -33,15 +36,7 @@ const COLORS = {
   background: '#F5F5F7',
   title: '#2C2C2C',
   subtitle: '#5A5A5A',
-  myDetailsYellow: '#F7E98E',
-  settingsGreen: '#C5E3A8',
-  locationsBlue: '#A8D0E6',
-  contactsPink: '#E8B8C8',
-  statisticsPurple: '#B8A9C8',
   iconGray: '#6B6B6B',
-  logoutRed: '#E85D4C',
-  contactLink: '#D81B60',
-  companyYellowGreen: '#D4E89E',
 };
 
 const BLOCK_VERTICAL_PADDING = 16; // Верхний и нижний отступ блока: от края до первой/последней строки
@@ -72,24 +67,17 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
   const [dataUploadModalVisible, setDataUploadModalVisible] = useState(false);
   const [locationsContentHeight, setLocationsContentHeight] = useState(0);
   const [allowChangePassword, setAllowChangePassword] = useState(false);
-  const [companySectionOpen, setCompanySectionOpen] = useState(false);
-  const [companyClosing, setCompanyClosing] = useState(false);
-  const [companyContentHeight, setCompanyContentHeight] = useState(0);
   const [settingsContentHeight, setSettingsContentHeight] = useState(0);
   const { language, setLanguage, currency, setCurrency, t } = useLanguage();
   const settingsHeight = useRef(new Animated.Value(0)).current;
   const settingsWasOpen = useRef(false);
   const locationsHeight = useRef(new Animated.Value(0)).current;
   const locationsWasOpen = useRef(false);
-  const companyHeight = useRef(new Animated.Value(0)).current;
-  const companyWasOpen = useRef(false);
   const prevTabVisible = useRef(false);
   const { email = '', name = '', lastName = '', phone = '', telegram = '', documentNumber = '', extraPhones = [], extraEmails = [], whatsapp = '', photoUri = '', workAs = '', companyInfo = {}, plan = 'standard' } = user;
   const isAdmin = plan === PLANS.KORSHUN;
 
   const displayName = [name, lastName].filter(Boolean).join(' ') || name || null;
-
-  const hasCompanyInfo = workAs === 'company' && companyInfo && (companyInfo.name || companyInfo.phone || companyInfo.email);
 
   const openPhone = (number) => {
     const clean = (number || '').replace(/\s/g, '');
@@ -146,24 +134,6 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
       if (finished && toValue === 0) setSettingsClosing(false);
     });
   }, [settingsOpen, settingsHeight, settingsContentHeight]);
-
-  useEffect(() => {
-    const toValue = companySectionOpen ? companyContentHeight : 0;
-    const wasOpen = companyWasOpen.current;
-    companyWasOpen.current = companySectionOpen;
-    if (wasOpen === companySectionOpen) {
-      companyHeight.setValue(toValue);
-      return;
-    }
-    if (wasOpen && !companySectionOpen) setCompanyClosing(true);
-    Animated.timing(companyHeight, {
-      toValue,
-      duration: ANIM_DURATION,
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      if (finished && toValue === 0) setCompanyClosing(false);
-    });
-  }, [companySectionOpen, companyHeight, companyContentHeight]);
 
   useEffect(() => {
     const toValue = locationsOpen ? locationsContentHeight + LOCATIONS_BOTTOM_PADDING : 0;
@@ -233,7 +203,6 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
     // (из initialUser), и записать дефолт 'USD' значит затереть реальный
     // выбор юзера в LanguageContext+AsyncStorage. Откладываем до загрузки.
     if (!user?.id) return;
-    setCompanySectionOpen(false);
     setSettingsOpen(false);
     setLocationsOpen(false);
     const lang = ['en', 'th', 'ru'].includes(user.language) ? user.language : 'en';
@@ -275,7 +244,7 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
             activeOpacity={0.7}
           >
             <View style={styles.logoutIconWrap}>
-              <Image source={require('../../assets/logout-icon.png')} style={styles.logoutIconImage} resizeMode="contain" />
+              <Ionicons name="log-out-outline" size={22} color="#888" />
             </View>
           </TouchableOpacity>
         </View>
@@ -290,10 +259,10 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
       </View>
       <ScrollView
         style={styles.scrollArea}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + 12 }]}
         showsVerticalScrollIndicator={false}
       >
-      <View style={[styles.myDetailsBlock, hasCompanyInfo && styles.myDetailsBlockWithCompany]}>
+      <View style={styles.myDetailsBlock}>
         <View style={styles.myDetailsTitleRow}>
           <Text style={styles.myDetailsTitle}>{t('myDetails')}</Text>
           <TouchableOpacity
@@ -301,12 +270,18 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
             onPress={() => setEditModalVisible(true)}
             activeOpacity={0.8}
           >
-            <Image source={require('../../assets/pencil-icon.png')} style={styles.pencilIconImage} resizeMode="contain" />
+            <IconPencil size={22} color="#888" />
           </TouchableOpacity>
         </View>
+        {documentNumber ? (
+          <View style={styles.contactRow}>
+            <Ionicons name="card-outline" size={22} color="#888" style={styles.contactIcon} />
+            <Text style={[styles.contactText, styles.contactTextBold]}>{documentNumber}</Text>
+          </View>
+        ) : null}
         {phone ? (
           <View style={styles.contactRow}>
-            <Image source={require('../../assets/icon-contact-phone.png')} style={styles.contactIconImage} resizeMode="contain" />
+            <Ionicons name="call-outline" size={22} color="#888" style={styles.contactIcon} />
             <TouchableOpacity onPress={() => openPhone(phone)} activeOpacity={0.7}>
               <Text style={[styles.contactText, styles.contactTextLink]}>{phone}</Text>
             </TouchableOpacity>
@@ -315,114 +290,154 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
         {extraPhones && extraPhones.length > 0
           ? extraPhones.map((p, i) => (p ? (
               <View key={i} style={styles.contactRow}>
-                <Image source={require('../../assets/icon-contact-phone.png')} style={styles.contactIconImage} resizeMode="contain" />
+                <Ionicons name="call-outline" size={22} color="#888" style={styles.contactIcon} />
                 <TouchableOpacity onPress={() => openPhone(p)} activeOpacity={0.7}>
                   <Text style={[styles.contactText, styles.contactTextLink]}>{p}</Text>
                 </TouchableOpacity>
               </View>
             ) : null))
           : null}
+        {whatsapp ? (
+          <View style={styles.contactRow}>
+            <Ionicons name="logo-whatsapp" size={22} color="#888" style={styles.contactIcon} />
+            <TouchableOpacity onPress={() => openWhatsApp(whatsapp)} activeOpacity={0.7}>
+              <Text style={[styles.contactText, styles.contactTextLink]}>{whatsapp}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        {telegram ? (
+          <View style={styles.contactRow}>
+            <Ionicons name="paper-plane-outline" size={22} color="#888" style={styles.contactIcon} />
+            <TouchableOpacity onPress={() => openTelegram(telegram)} activeOpacity={0.7}>
+              <Text style={[styles.contactText, styles.contactTextLink]}>{telegram}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         {email ? (
           <View style={styles.contactRow}>
-            <Image source={require('../../assets/icon-contact-email.png')} style={styles.contactIconImage} resizeMode="contain" />
+            <Ionicons name="mail-outline" size={22} color="#888" style={styles.contactIcon} />
             <TouchableOpacity onPress={() => openEmail(email)} activeOpacity={0.7}>
               <Text style={[styles.contactText, styles.contactTextLink]}>{email}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
-        {documentNumber ? (
-          <View style={styles.contactRow}>
-            <Image source={require('../../assets/icon-passport-id.png')} style={styles.contactIconImage} resizeMode="contain" />
-            <Text style={[styles.contactText, styles.contactTextBold]}>{documentNumber}</Text>
-          </View>
-        ) : null}
         {extraEmails && extraEmails.length > 0
           ? extraEmails.map((e, i) => (e ? (
               <View key={`email-${i}`} style={styles.contactRow}>
-                <Image source={require('../../assets/icon-contact-email.png')} style={styles.contactIconImage} resizeMode="contain" />
+                <Ionicons name="mail-outline" size={22} color="#888" style={styles.contactIcon} />
                 <TouchableOpacity onPress={() => openEmail(e)} activeOpacity={0.7}>
                   <Text style={[styles.contactText, styles.contactTextLink]}>{e}</Text>
                 </TouchableOpacity>
               </View>
             ) : null))
           : null}
-        {telegram ? (
-          <View style={styles.contactRow}>
-            <Image source={require('../../assets/icon-contact-telegram.png')} style={styles.contactIconImage} resizeMode="contain" />
-            <TouchableOpacity onPress={() => openTelegram(telegram)} activeOpacity={0.7}>
-              <Text style={[styles.contactText, styles.contactTextLink]}>{telegram}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-        {whatsapp ? (
-          <View style={styles.contactRow}>
-            <Image source={require('../../assets/icon-contact-whatsapp.png')} style={styles.contactIconImage} resizeMode="contain" />
-            <TouchableOpacity onPress={() => openWhatsApp(whatsapp)} activeOpacity={0.7}>
-              <Text style={[styles.contactText, styles.contactTextLink]}>{whatsapp}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {hasCompanyInfo ? (
-          <>
-            <TouchableOpacity
-              style={styles.companyTriangleCorner}
-              onPress={() => setCompanySectionOpen(!companySectionOpen)}
-              activeOpacity={0.8}
-            >
-              <Image
-                source={require('../../assets/chevron-down.png')}
-                style={[styles.companyChevronSame, companySectionOpen && styles.companyChevronRotated]}
-                resizeMode="contain"
-              />
-            </TouchableOpacity>
-            <View
-              style={styles.companyMeasureWrap}
-              onLayout={(e) => setCompanyContentHeight(e.nativeEvent.layout.height)}
-            >
-              <View style={[styles.myDetailsTitleRow, styles.companyToggleRow]}>
-                <Text style={styles.myDetailsTitle}>{t('myCompany')}</Text>
-              </View>
-              {companyInfo.name ? <View style={styles.contactRow}><Text style={[styles.contactText, styles.contactTextBold]}>{companyInfo.name}</Text></View> : null}
-              {companyInfo.phone ? <View style={styles.contactRow}><Image source={require('../../assets/icon-contact-phone.png')} style={styles.contactIconImage} resizeMode="contain" /><TouchableOpacity onPress={() => openPhone(companyInfo.phone)} activeOpacity={0.7}><Text style={[styles.contactText, styles.contactTextLink]}>{companyInfo.phone}</Text></TouchableOpacity></View> : null}
-              {companyInfo.email ? <View style={styles.contactRow}><Image source={require('../../assets/icon-contact-email.png')} style={styles.contactIconImage} resizeMode="contain" /><TouchableOpacity onPress={() => openEmail(companyInfo.email)} activeOpacity={0.7}><Text style={[styles.contactText, styles.contactTextLink]}>{companyInfo.email}</Text></TouchableOpacity></View> : null}
-            </View>
-            <Animated.View style={[styles.companyExpandedWrap, { height: companyHeight, overflow: 'hidden' }]}>
-              <View style={[styles.myDetailsTitleRow, styles.companyToggleRow]}>
-                <Text style={styles.myDetailsTitle}>{t('myCompany')}</Text>
-              </View>
-              {companyInfo.name ? <View style={styles.contactRow}><Text style={[styles.contactText, styles.contactTextBold]}>{companyInfo.name}</Text></View> : null}
-              {companyInfo.phone ? <View style={styles.contactRow}><Image source={require('../../assets/icon-contact-phone.png')} style={styles.contactIconImage} resizeMode="contain" /><TouchableOpacity onPress={() => openPhone(companyInfo.phone)} activeOpacity={0.7}><Text style={[styles.contactText, styles.contactTextLink]}>{companyInfo.phone}</Text></TouchableOpacity></View> : null}
-              {companyInfo.email ? <View style={styles.contactRow}><Image source={require('../../assets/icon-contact-email.png')} style={styles.contactIconImage} resizeMode="contain" /><TouchableOpacity onPress={() => openEmail(companyInfo.email)} activeOpacity={0.7}><Text style={[styles.contactText, styles.contactTextLink]}>{companyInfo.email}</Text></TouchableOpacity></View> : null}
-            </Animated.View>
-          </>
-        ) : null}
       </View>
 
       {/* Company — видим только для админов (не агентов) */}
       {!user?.isAgentRole && (
-        <TouchableOpacity
-          style={[styles.menuBlock, styles.companyBlock]}
-          activeOpacity={0.85}
-          onPress={() => {
-            const isPremium = ['premium', 'korshun'].includes(user?.plan);
-            if (!isPremium) {
-              Alert.alert(
-                t('premiumFeature'),
-                t('companyModePremiumOnly'),
-                [{ text: 'OK' }]
-              );
-              return;
-            }
-            onOpenCompany?.();
-          }}
-        >
-          <View style={styles.menuBlockLeft}>
-            <Text style={styles.menuBlockEmoji}>🏢</Text>
+        <View style={[styles.collapsibleCard, styles.navCardSpacing]}>
+          <View style={[styles.collapsibleStripe, { backgroundColor: '#9C8BB6' }]} />
+          <TouchableOpacity
+            style={styles.collapsibleHeaderRow}
+            activeOpacity={0.85}
+            onPress={() => {
+              const isPremium = ['premium', 'korshun'].includes(user?.plan);
+              if (!isPremium) {
+                Alert.alert(
+                  t('premiumFeature'),
+                  t('companyModePremiumOnly'),
+                  [{ text: 'OK' }]
+                );
+                return;
+              }
+              onOpenCompany?.();
+            }}
+          >
             <Text style={styles.menuBlockLabel}>{t('company')}</Text>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
       )}
+
+      {/* Statistics — переход на экран статистики */}
+      <View style={[styles.collapsibleCard, styles.navCardSpacing]}>
+        <View style={[styles.collapsibleStripe, { backgroundColor: '#C8624A' }]} />
+        <TouchableOpacity
+          style={styles.collapsibleHeaderRow}
+          activeOpacity={0.85}
+          onPress={() => onOpenStatistics?.()}
+        >
+          <Text style={styles.menuBlockLabel}>{t('statistics')}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Contacts — переход на экран контактов */}
+      <View style={[styles.collapsibleCard, styles.navCardSpacing]}>
+        <View style={[styles.collapsibleStripe, { backgroundColor: '#C4973A' }]} />
+        <TouchableOpacity
+          style={styles.collapsibleHeaderRow}
+          activeOpacity={0.85}
+          onPress={() => onOpenContacts?.()}
+        >
+          <Text style={styles.menuBlockLabel}>{t('contacts')}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Locations — раздвижной, единая карточка с полоской слева */}
+      <View style={styles.locationsWrap}>
+        <View
+          style={styles.locationsMeasureWrap}
+          onLayout={(e) => setLocationsContentHeight(e.nativeEvent.layout.height)}
+        >
+          {locations.map((loc) => (
+            <View key={loc.id} style={styles.locationsItemWrap}>
+              <View style={styles.locationsItemPencilPlaceholder} />
+              <Text style={styles.locationsItem} numberOfLines={1}>{loc.displayName}</Text>
+            </View>
+          ))}
+          <TouchableOpacity style={styles.locationsAddRow} activeOpacity={0.7}>
+            <Text style={styles.locationsAddLink}>{t('locationsAddRemove')}</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.collapsibleCard}>
+          <View style={[styles.collapsibleStripe, { backgroundColor: '#8BAF8E' }]} />
+          <TouchableOpacity
+            style={styles.collapsibleHeaderRow}
+            onPress={() => setLocationsOpen(!locationsOpen)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.menuBlockLabel}>{t('locations')}</Text>
+            <Image source={require('../../assets/chevron-down.png')} style={[styles.chevronIcon, locationsOpen && styles.chevronIconOpen]} resizeMode="contain" />
+          </TouchableOpacity>
+          <Animated.View style={{ height: locationsHeight, overflow: 'hidden' }}>
+            <View style={styles.locationsExpandedInner}>
+              {locations.map((loc) => (
+                <TouchableOpacity
+                  key={loc.id}
+                  style={styles.locationsItemWrap}
+                  onPress={() => {
+                    setEditLocationData(loc);
+                    setAddLocationsModalVisible(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Image source={require('../../assets/pencil-icon.png')} style={styles.locationsItemPencil} resizeMode="contain" />
+                  <Text style={styles.locationsItem} numberOfLines={1}>{loc.displayName}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.locationsAddRow}
+                onPress={() => {
+                  setEditLocationData(null);
+                  setAddLocationsModalVisible(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.locationsAddLink}>{t('locationsAddRemove')}</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </View>
 
       {/* Settings — раздвижной, высота от содержимого (onLayout) */}
       <View style={styles.settingsWrap}>
@@ -455,27 +470,22 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
             </TouchableOpacity>
           ) : null}
         </View>
-        <TouchableOpacity
-          style={[
-            styles.menuBlock,
-            styles.settingsBlock,
-            (settingsOpen || settingsClosing) && styles.settingsBlockOpen,
-          ]}
-          onPress={() => {
-            const willOpen = !settingsOpen;
-            setSettingsOpen(willOpen);
-            if (willOpen) refreshCanChangePassword();
-          }}
-          activeOpacity={0.85}
-        >
-          <View style={styles.menuBlockLeft}>
-            <Image source={require('../../assets/settings-icon.png')} style={styles.settingsIconImage} resizeMode="contain" />
+        <View style={styles.collapsibleCard}>
+          <View style={[styles.collapsibleStripe, { backgroundColor: '#7BAEC8' }]} />
+          <TouchableOpacity
+            style={styles.collapsibleHeaderRow}
+            onPress={() => {
+              const willOpen = !settingsOpen;
+              setSettingsOpen(willOpen);
+              if (willOpen) refreshCanChangePassword();
+            }}
+            activeOpacity={0.85}
+          >
             <Text style={styles.menuBlockLabel}>{t('settings')}</Text>
-          </View>
-          <Image source={require('../../assets/chevron-down.png')} style={[styles.chevronIcon, settingsOpen && styles.chevronIconOpen]} resizeMode="contain" />
-        </TouchableOpacity>
-        <Animated.View style={[styles.settingsExpandedWrap, { height: settingsHeight, overflow: 'hidden' }]}>
-          <View style={styles.settingsExpandedInner}>
+            <Image source={require('../../assets/chevron-down.png')} style={[styles.chevronIcon, settingsOpen && styles.chevronIconOpen]} resizeMode="contain" />
+          </TouchableOpacity>
+          <Animated.View style={{ height: settingsHeight, overflow: 'hidden' }}>
+            <View style={styles.settingsExpandedInner}>
             <TouchableOpacity style={styles.settingsItem} onPress={() => setLanguageModalVisible(true)} activeOpacity={0.8}>
               <Image source={require('../../assets/icon-settings-language.png')} style={styles.settingsItemIcon} resizeMode="contain" />
               <Text style={styles.settingsItemLabel}>{t('language')}</Text>
@@ -501,93 +511,9 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
               </TouchableOpacity>
             ) : null}
           </View>
-        </Animated.View>
-      </View>
-
-      {/* Locations — раздвижной, высота от содержимого + 14px снизу */}
-      <View style={styles.locationsWrap}>
-        <View
-          style={styles.locationsMeasureWrap}
-          onLayout={(e) => setLocationsContentHeight(e.nativeEvent.layout.height)}
-        >
-          {locations.map((loc) => (
-            <View key={loc.id} style={styles.locationsItemWrap}>
-              <View style={styles.locationsItemPencilPlaceholder} />
-              <Text style={styles.locationsItem} numberOfLines={1}>{loc.displayName}</Text>
-            </View>
-          ))}
-          <TouchableOpacity style={styles.locationsAddRow} activeOpacity={0.7}>
-            <Text style={styles.locationsAddLink}>{t('locationsAddRemove')}</Text>
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity
-          style={[
-            styles.menuBlock,
-            styles.locationsBlock,
-            (locationsOpen || locationsClosing) && styles.locationsBlockOpen,
-          ]}
-          onPress={() => setLocationsOpen(!locationsOpen)}
-          activeOpacity={0.85}
-        >
-          <View style={styles.menuBlockLeft}>
-            <Image source={require('../../assets/icon-locations.png')} style={styles.menuBlockIconImage} resizeMode="contain" />
-            <Text style={styles.menuBlockLabel}>{t('locations')}</Text>
-          </View>
-          <Image source={require('../../assets/chevron-down.png')} style={[styles.chevronIcon, locationsOpen && styles.chevronIconOpen]} resizeMode="contain" />
-        </TouchableOpacity>
-        <Animated.View style={[styles.locationsExpandedWrap, { height: locationsHeight, overflow: 'hidden' }]}>
-          <View style={styles.locationsExpandedInner}>
-            {locations.map((loc) => (
-              <TouchableOpacity
-                key={loc.id}
-                style={styles.locationsItemWrap}
-                onPress={() => {
-                  setEditLocationData(loc);
-                  setAddLocationsModalVisible(true);
-                }}
-                activeOpacity={0.7}
-              >
-                <Image source={require('../../assets/pencil-icon.png')} style={styles.locationsItemPencil} resizeMode="contain" />
-                <Text style={styles.locationsItem} numberOfLines={1}>{loc.displayName}</Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity
-              style={styles.locationsAddRow}
-              onPress={() => {
-                setEditLocationData(null);
-                setAddLocationsModalVisible(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.locationsAddLink}>{t('locationsAddRemove')}</Text>
-            </TouchableOpacity>
-          </View>
           </Animated.View>
+        </View>
       </View>
-
-      {/* Contacts — переход на экран контактов */}
-      <TouchableOpacity
-        style={[styles.menuBlock, styles.contactsBlock]}
-        activeOpacity={0.85}
-        onPress={() => onOpenContacts?.()}
-      >
-        <View style={styles.menuBlockLeft}>
-          <Image source={require('../../assets/icon-contacts.png')} style={styles.menuBlockIconImage} resizeMode="contain" />
-          <Text style={styles.menuBlockLabel}>{t('contacts')}</Text>
-        </View>
-      </TouchableOpacity>
-
-      {/* Statistics — переход на экран статистики */}
-      <TouchableOpacity
-        style={[styles.menuBlock, styles.statisticsBlock]}
-        activeOpacity={0.85}
-        onPress={() => onOpenStatistics?.()}
-      >
-        <View style={styles.menuBlockLeft}>
-          <Image source={require('../../assets/icon-sum.png')} style={styles.menuBlockIconImage} resizeMode="contain" />
-          <Text style={styles.menuBlockLabel}>{t('statistics')}</Text>
-        </View>
-      </TouchableOpacity>
 
       {/* Delete Account */}
       <TouchableOpacity
@@ -595,7 +521,7 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
         onPress={() => { setDeleteConfirmVisible(true); setDeleteConfirmText(''); setDeleteError(''); }}
         activeOpacity={0.7}
       >
-        <Text style={{ color: '#C62828', fontSize: 15, fontWeight: '600' }}>
+        <Text style={{ color: '#C62828', fontSize: 14, fontWeight: '600' }}>
           {t('deleteAccountBtn') || 'Delete account'}
         </Text>
       </TouchableOpacity>
@@ -795,9 +721,10 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     flex: 1,
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
     color: COLORS.title,
+    letterSpacing: -0.3,
     textAlign: 'center',
   },
   logoutBtn: {
@@ -818,25 +745,25 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     backgroundColor: '#E0D8CC',
     marginBottom: 12,
   },
   avatarImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     marginBottom: 12,
   },
   agentName: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: COLORS.title,
   },
   myDetailsBlock: {
-    backgroundColor: COLORS.myDetailsYellow,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     paddingTop: BLOCK_VERTICAL_PADDING,
     paddingHorizontal: BLOCK_VERTICAL_PADDING,
@@ -844,12 +771,9 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  myDetailsBlockWithCompany: {
-    position: 'relative',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   myDetailsTitleRow: {
     flexDirection: 'row',
@@ -863,54 +787,65 @@ const styles = StyleSheet.create({
     color: COLORS.title,
   },
   pencilBtn: {
-    padding: 6,
-  },
-  pencilIconImage: {
-    width: 22,
-    height: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   contactRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
   },
-  contactIconImage: {
-    width: 22,
-    height: 22,
+  contactIcon: {
     marginRight: 10,
   },
   contactText: {
-    fontSize: 15,
+    fontSize: 16,
     color: COLORS.title,
   },
   contactTextLink: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.contactLink,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#3D7D82',
   },
   contactTextBold: {
     fontWeight: '700',
   },
-  menuBlock: {
+  settingsWrap: {
+    marginBottom: 10,
+  },
+  collapsibleCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  navCardSpacing: {
+    marginBottom: 10,
+  },
+  collapsibleStripe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+  },
+  collapsibleHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: 14,
     paddingVertical: BLOCK_VERTICAL_PADDING,
-    paddingHorizontal: 16,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  menuBlockLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  settingsWrap: {
-    marginBottom: 10,
+    paddingLeft: 20,
+    paddingRight: 16,
   },
   settingsMeasureWrap: {
     position: 'absolute',
@@ -922,28 +857,6 @@ const styles = StyleSheet.create({
     paddingBottom: BLOCK_VERTICAL_PADDING,
     paddingHorizontal: 16,
     paddingLeft: 32,
-  },
-  settingsBlock: { backgroundColor: COLORS.settingsGreen },
-  settingsBlockOpen: {
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-  },
-  settingsIconImage: {
-    width: 26,
-    height: 26,
-    marginRight: 12,
-  },
-  settingsExpandedWrap: {
-    backgroundColor: COLORS.settingsGreen,
-    borderBottomLeftRadius: 14,
-    borderBottomRightRadius: 14,
-    marginTop: -10,
-    marginHorizontal: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
   },
   settingsExpandedInner: {
     paddingTop: BLOCK_ROW_GAP,
@@ -966,17 +879,12 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   settingsItemLabel: {
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '400',
     color: COLORS.title,
   },
   locationsWrap: {
     marginBottom: 10,
-  },
-  locationsBlock: { backgroundColor: COLORS.locationsBlue },
-  locationsBlockOpen: {
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
   },
   locationsMeasureWrap: {
     position: 'absolute',
@@ -988,18 +896,6 @@ const styles = StyleSheet.create({
     paddingBottom: LOCATIONS_BOTTOM_PADDING,
     paddingHorizontal: 16,
     paddingLeft: 32,
-  },
-  locationsExpandedWrap: {
-    backgroundColor: COLORS.locationsBlue,
-    borderBottomLeftRadius: 14,
-    borderBottomRightRadius: 14,
-    marginTop: -10,
-    marginHorizontal: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
   },
   locationsExpandedInner: {
     paddingTop: BLOCK_ROW_GAP,
@@ -1025,27 +921,17 @@ const styles = StyleSheet.create({
   },
   locationsItem: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '400',
     color: COLORS.title,
   },
   locationsAddRow: {
     marginTop: 5,
   },
   locationsAddLink: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.contactLink,
-  },
-  companyBlock: { backgroundColor: COLORS.companyYellowGreen },
-  contactsBlock: { backgroundColor: COLORS.contactsPink },
-  statisticsBlock: { backgroundColor: COLORS.statisticsPurple },
-  menuBlockEmoji: { fontSize: 22, marginRight: 10 },
-  menuBlockIcon: { fontSize: 22, marginRight: 12 },
-  menuBlockIconImage: {
-    width: 26,
-    height: 26,
-    marginRight: 12,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#3D7D82',
   },
   menuBlockLabel: {
     fontSize: 16,
@@ -1058,35 +944,6 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   chevronIconOpen: {
-    transform: [{ rotate: '180deg' }],
-  },
-  companyToggleRow: {
-    marginTop: 20,
-  },
-  companyTriangleCorner: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-    padding: 4,
-    zIndex: 10,
-    elevation: 10,
-  },
-  companyMeasureWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: -9999,
-    opacity: 0,
-  },
-  companyExpandedWrap: {
-    marginTop: 0,
-  },
-  companyChevronSame: {
-    width: 14,
-    height: 10,
-    transform: [{ rotate: '0deg' }],
-  },
-  companyChevronRotated: {
     transform: [{ rotate: '180deg' }],
   },
   bottomSpacer: { height: 20 },
