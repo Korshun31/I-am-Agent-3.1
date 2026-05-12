@@ -26,24 +26,6 @@ const COMMON_PASSWORDS = [
   'zxcvbnm1', 'asdfghjk', 'qazwsxed', 'zaq12wsx', 'passw0rd',
 ];
 
-const fieldShadow = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.1,
-  shadowRadius: 4,
-  elevation: 3,
-};
-const buttonShadow = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 3 },
-  shadowOpacity: 0.12,
-  shadowRadius: 5,
-  elevation: 4,
-};
-
-// Увеличенный размер стикеров, чтобы «Password» и иконка глаза помещались
-const STICKER_LABEL_SIZE = { width: 108, height: 36 };
-
 export default function Registration({ onBack, onSuccess, onPendingConfirmation }) {
   const { t } = useLanguage();
   const [name, setName] = useState('');
@@ -89,7 +71,7 @@ export default function Registration({ onBack, onSuccess, onPendingConfirmation 
 
   return (
     <KeyboardAvoidingView
-      style={[styles.wrapper, { backgroundColor: COLORS.backgroundLogin }]}
+      style={[styles.wrapper, { backgroundColor: COLORS.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
@@ -104,11 +86,9 @@ export default function Registration({ onBack, onSuccess, onPendingConfirmation 
         <View style={styles.form}>
           {/* Name */}
           <View style={styles.fieldWrap}>
-            <View style={[styles.labelSticker, { backgroundColor: COLORS.regNameLabel }]}>
-              <Text style={styles.labelText}>{t('name')}</Text>
-            </View>
+            <Text style={styles.fieldLabel}>{t('name')}</Text>
             <TextInput
-              style={[styles.inputSticker, { backgroundColor: COLORS.regNameBg }, fieldShadow]}
+              style={styles.input}
               placeholder="John Smith"
               placeholderTextColor="#888"
               value={name}
@@ -121,12 +101,10 @@ export default function Registration({ onBack, onSuccess, onPendingConfirmation 
 
           {/* E-mail */}
           <View style={styles.fieldWrap}>
-            <View style={[styles.labelSticker, { backgroundColor: COLORS.regEmailLabel }]}>
-              <Text style={styles.labelText}>{t('email')}</Text>
-            </View>
+            <Text style={styles.fieldLabel}>{t('email')}</Text>
             <TextInput
               ref={emailRef}
-              style={[styles.inputSticker, { backgroundColor: COLORS.regEmailBg }, fieldShadow]}
+              style={styles.input}
               placeholder="Test@test.com"
               placeholderTextColor="#888"
               value={email}
@@ -140,8 +118,8 @@ export default function Registration({ onBack, onSuccess, onPendingConfirmation 
 
           {/* Password */}
           <View style={styles.fieldWrap}>
-            <View style={[styles.labelSticker, styles.labelWithIcon, { backgroundColor: COLORS.regPasswordLabel }]}>
-              <Text style={styles.labelText}>{t('password')}</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.fieldLabel}>{t('password')}</Text>
               <TouchableOpacity
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 onPress={() => setShowPassword(!showPassword)}
@@ -155,7 +133,7 @@ export default function Registration({ onBack, onSuccess, onPendingConfirmation 
             </View>
             <TextInput
               ref={passwordRef}
-              style={[styles.inputSticker, { backgroundColor: COLORS.regPasswordBg }, fieldShadow]}
+              style={styles.input}
               placeholder="••••••••"
               placeholderTextColor="#888"
               value={password}
@@ -168,8 +146,8 @@ export default function Registration({ onBack, onSuccess, onPendingConfirmation 
 
           {/* Password confirm */}
           <View style={styles.fieldWrap}>
-            <View style={[styles.labelSticker, styles.labelWithIcon, { backgroundColor: COLORS.regConfirmLabel }]}>
-              <Text style={styles.labelText}>{t('password')}</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.fieldLabel}>{t('password')}</Text>
               <TouchableOpacity
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 onPress={() => setShowPasswordConfirm(!showPasswordConfirm)}
@@ -183,7 +161,7 @@ export default function Registration({ onBack, onSuccess, onPendingConfirmation 
             </View>
             <TextInput
               ref={confirmRef}
-              style={[styles.inputSticker, { backgroundColor: COLORS.regConfirmBg }, fieldShadow]}
+              style={styles.input}
               placeholder={t('confirmPasswordPlaceholder')}
               placeholderTextColor="#888"
               value={passwordConfirm}
@@ -195,8 +173,8 @@ export default function Registration({ onBack, onSuccess, onPendingConfirmation 
           </View>
 
           <TouchableOpacity
-            style={[styles.submitButton, buttonShadow]}
-            activeOpacity={0.8}
+            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+            activeOpacity={0.7}
             disabled={loading}
             onPress={handleRegister}
           >
@@ -245,37 +223,20 @@ const styles = StyleSheet.create({
     maxWidth: 340,
   },
   fieldWrap: {
-    marginBottom: 20,
-    position: 'relative',
+    marginBottom: 4,
   },
-  labelSticker: {
-    position: 'absolute',
-    top: -12,
-    right: 12,
-    zIndex: 1,
-    ...STICKER_LABEL_SIZE,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.06)',
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B6B6B',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    marginBottom: 8,
   },
-  labelWithIcon: {
+  labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingRight: 4,
-  },
-  labelText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.title,
+    justifyContent: 'space-between',
   },
   eyeWrap: {
     width: 20,
@@ -297,26 +258,37 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     transform: [{ rotate: '-45deg' }],
   },
-  inputSticker: {
+  input: {
     height: 48,
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 16,
     fontSize: 16,
     color: COLORS.title,
-    borderWidth: 0,
+    backgroundColor: '#EBEBEE',
+    borderWidth: 1,
+    borderTopColor: '#D1D1D6',
+    borderLeftColor: '#D1D1D6',
+    borderBottomColor: '#F0F0F3',
+    borderRightColor: '#F0F0F3',
+    marginBottom: 16,
   },
   submitButton: {
-    backgroundColor: COLORS.green,
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: '#3D7D82',
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
     marginTop: 12,
     marginBottom: 20,
   },
+  submitButtonDisabled: {
+    opacity: 0.5,
+  },
   submitButtonText: {
-    color: '#FFF',
-    fontSize: 17,
-    fontWeight: '700',
+    color: '#3D7D82',
+    fontSize: 16,
+    fontWeight: '600',
   },
   regError: {
     color: '#C62828',
@@ -326,13 +298,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   backWrap: {
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     marginBottom: 32,
   },
   backLink: {
     fontSize: 15,
-    fontWeight: '500',
-    color: COLORS.backRed,
+    fontWeight: '600',
+    color: '#3D7D82',
     textDecorationLine: 'underline',
   },
   footer: {

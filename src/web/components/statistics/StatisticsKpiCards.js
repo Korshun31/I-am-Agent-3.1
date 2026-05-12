@@ -48,13 +48,13 @@ const s = StyleSheet.create({
   card: {
     flexGrow: 1,
     backgroundColor: C.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: C.border,
     padding: 16,
     gap: 6,
   },
-  label: { fontSize: 12, color: C.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  value: { fontSize: 24, fontWeight: '700', color: C.text },
-  sub:   { fontSize: 11, color: C.muted },
+  label: { fontSize: 12, color: C.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.7 },
+  value: { fontSize: 22, fontWeight: '600', color: C.text },
+  sub:   { fontSize: 12, color: C.muted },
 });

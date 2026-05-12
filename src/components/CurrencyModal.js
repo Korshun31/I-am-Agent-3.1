@@ -9,11 +9,13 @@ import {
   Pressable,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../context/LanguageContext';
+import Checkbox from './Checkbox';
 
 const COLORS = {
-  boxBg: 'rgba(255,255,255,0.72)',
   title: '#2C2C2C',
+  accent: '#3D7D82',
 };
 
 const CURRENCIES = [
@@ -59,7 +61,7 @@ export default function CurrencyModal({ visible, onClose, selectedCurrency = '',
               <View style={styles.headerSpacer} />
               <Text style={styles.title}>{t('currencySelection')}</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-                <Text style={styles.closeIcon}>✕</Text>
+                <Ionicons name="close" size={22} color="#888" />
               </TouchableOpacity>
             </View>
             <View style={styles.content}>
@@ -70,9 +72,7 @@ export default function CurrencyModal({ visible, onClose, selectedCurrency = '',
                   onPress={() => setSelected(cur.id)}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.checkbox, selected === cur.id && styles.checkboxChecked]}>
-                    {selected === cur.id ? <Text style={styles.checkmark}>✓</Text> : null}
-                  </View>
+                  <Checkbox checked={selected === cur.id} />
                   <Text style={styles.optionLabel}>{t(cur.labelKey)}</Text>
                 </TouchableOpacity>
               ))}
@@ -104,9 +104,7 @@ const styles = StyleSheet.create({
   box: {
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: COLORS.boxBg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -117,9 +115,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 20,
-    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingHorizontal: 16,
     paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.07)',
   },
   headerSpacer: {
     width: 36,
@@ -127,21 +127,17 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
     color: COLORS.title,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   closeBtn: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  closeIcon: {
-    fontSize: 20,
-    color: '#E85D4C',
-    fontWeight: '600',
   },
   content: {
     paddingHorizontal: 20,
@@ -156,13 +152,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: 'rgba(46, 125, 50, 0.5)',
-    backgroundColor: 'rgba(46, 125, 50, 0.06)',
+    borderColor: COLORS.accent,
+    backgroundColor: 'rgba(61,125,130,0.08)',
   },
   saveBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2E7D32',
+    color: COLORS.accent,
   },
   optionRow: {
     flexDirection: 'row',
@@ -170,28 +166,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
   },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#6B6B6B',
-    backgroundColor: '#F5F2EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#5B8DEE',
-    borderColor: '#3A6FCC',
-  },
-  checkmark: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
   optionLabel: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     color: COLORS.title,
   },
 });

@@ -16,6 +16,24 @@ import {
   Image as RNImage,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
+import { FONT } from '../utils/scale';
+import { IconPencil } from '../components/EditIcons';
+import {
+  IconPhoto,
+  IconVideo,
+  IconDescription,
+  IconBookingList,
+  IconAmenities,
+  IconHashtag,
+  IconSpecifications,
+  IconContacts,
+  IconPrices,
+} from '../components/PropertyIcons';
+import { IconBookings } from '../components/TabIcons';
+import { IconFolderClosed, IconFolderOpen } from '../components/FolderIcons';
+import OwnerInfoRow from '../components/OwnerInfoRow';
+import { TYPE_COLORS } from '../components/PropertyItem';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
@@ -57,10 +75,25 @@ function sortByInternalCode(items) {
   });
 }
 
+// Палитра контуров секций — приглушённая радуга от красного к фиолетовому.
+// Порядок: red → orange → amber → green → teal → blue → lilac.
+// Все тона в одной матовой стилистике, согласованы с логотипом.
+const SECTION_PALETTE = {
+  red:    '#C8624A', // красный (логотип)
+  orange: '#C97A52', // приглушённый оранжевый
+  amber:  '#C4973A', // охра / жёлтый (логотип)
+  green:  '#8BAF8E', // зелёный (логотип)
+  teal:   '#6F9994', // пыльно-бирюзовый
+  blue:   '#7BAEC8', // голубой (логотип)
+  lilac:  '#9C8BB6', // фиолетовый (приглушённая лаванда)
+};
+
+// Прокидывается в Detail-контенты как заглушка совместимости — теперь
+// каждый блок имеет свой цвет из SECTION_PALETTE (см. JSX ниже).
 const BLOCK_COLORS = {
-  resort: { bg: 'rgba(168,230,163,0.7)', border: '#A8E6A3' },
-  house:  { bg: '#FFF9C4', border: '#FFD54F' },
-  condo:  { bg: '#BBDEFB', border: '#64B5F6' },
+  resort: { bg: '#FFFFFF', border: SECTION_PALETTE.green },
+  house:  { bg: '#FFFFFF', border: SECTION_PALETTE.amber },
+  condo:  { bg: '#FFFFFF', border: SECTION_PALETTE.blue },
 };
 
 const BOOKABLE_UNIT_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
@@ -71,24 +104,26 @@ const AMENITY_KEYS = [
   'kettle', 'toaster', 'coffee_machine', 'multi_cooker', 'blender',
 ];
 
+// Каждый ключ ссылается на одноимённый PNG. Старые перетасованные ссылки
+// показывали неправильные картинки (бассейн ↔ паркинг, TV ↔ холодильник и т.д.)
 const AMENITY_ICON_SOURCES = {
-  swimming_pool: require('../../assets/icon-amenity-parking.png'),      // file had pool img
-  gym: require('../../assets/icon-amenity-gym.png'),
-  parking: require('../../assets/icon-amenity-internet.png'),           // file had P img
-  internet: require('../../assets/icon-amenity-swimming_pool.png'),     // file had wifi img
-  tv: require('../../assets/icon-amenity-fridge.png'),                  // file had TV img
-  washing_machine: require('../../assets/icon-amenity-washing_machine.png'),
-  dishwasher: require('../../assets/icon-amenity-dishwasher.png'),
-  fridge: require('../../assets/icon-amenity-tv.png'),                  // file had fridge img
-  stove: require('../../assets/icon-amenity-stove.png'),
-  oven: require('../../assets/icon-amenity-hood.png'),                  // file had oven img
-  hood: require('../../assets/icon-amenity-oven.png'),                  // file had hood img
-  microwave: require('../../assets/icon-amenity-microwave.png'),
-  kettle: require('../../assets/icon-amenity-blender.png'),             // file had kettle img
-  toaster: require('../../assets/icon-amenity-toaster.png'),
+  swimming_pool:  require('../../assets/icon-amenity-swimming_pool.png'),
+  gym:            require('../../assets/icon-amenity-gym.png'),
+  parking:        require('../../assets/icon-amenity-parking.png'),
+  internet:       require('../../assets/icon-amenity-internet.png'),
+  tv:             require('../../assets/icon-amenity-tv.png'),
+  washing_machine:require('../../assets/icon-amenity-washing_machine.png'),
+  dishwasher:     require('../../assets/icon-amenity-dishwasher.png'),
+  fridge:         require('../../assets/icon-amenity-fridge.png'),
+  stove:          require('../../assets/icon-amenity-stove.png'),
+  oven:           require('../../assets/icon-amenity-oven.png'),
+  hood:           require('../../assets/icon-amenity-hood.png'),
+  microwave:      require('../../assets/icon-amenity-microwave.png'),
+  kettle:         require('../../assets/icon-amenity-kettle.png'),
+  toaster:        require('../../assets/icon-amenity-toaster.png'),
   coffee_machine: require('../../assets/icon-amenity-coffee_machine.png'),
-  multi_cooker: require('../../assets/icon-amenity-multi_cooker.png'),
-  blender: require('../../assets/icon-amenity-kettle.png'),             // file had blender img
+  multi_cooker:   require('../../assets/icon-amenity-multi_cooker.png'),
+  blender:        require('../../assets/icon-amenity-blender.png'),
 };
 
 function SectionBlock({ color, border, children }) {
@@ -99,11 +134,10 @@ function SectionBlock({ color, border, children }) {
   );
 }
 
-function InfoRow({ label, value, isLink, onPress, style, labelBold }) {
+function InfoRow({ label, value, isLink, onPress, style }) {
   return (
     <View style={[styles.infoRow, style]}>
-      <Text style={[styles.infoLabel, labelBold && styles.infoLabelBold]} numberOfLines={1}>{label}</Text>
-      <Text style={styles.infoColon}>:</Text>
+      <Text style={styles.infoLabel} numberOfLines={1}>{label}</Text>
       {isLink ? (
         <TouchableOpacity onPress={onPress} style={styles.infoValueWrap}>
           <Text style={[styles.infoValue, styles.infoLink]} numberOfLines={1}>{value}</Text>
@@ -143,15 +177,14 @@ function ResortHouseItem({ item, expanded, onToggle, resortCode, onPress, t }) {
 
   const arrowRotate = arrowAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['180deg', '0deg'],
+    outputRange: ['0deg', '180deg'],
   });
 
   const codeDisplay = (resortCode != null ? resortCode : item.code) + (item.code_suffix ? ` (${item.code_suffix})` : '');
 
   return (
-    <View
-      style={[styles.resortHouseCard, { backgroundColor: 'rgba(168,230,163,0.7)', borderColor: '#A8E6A3' }]}
-    >
+    <View style={styles.resortHouseCard}>
+      <View style={[styles.resortHouseStripe, { backgroundColor: TYPE_COLORS.resort }]} />
       <View style={styles.resortHouseRow}>
         <TouchableOpacity
           style={styles.resortHouseMainArea}
@@ -159,13 +192,12 @@ function ResortHouseItem({ item, expanded, onToggle, resortCode, onPress, t }) {
           activeOpacity={onPress ? 0.7 : 1}
           disabled={!onPress}
         >
-          <RNImage source={require('../../assets/icon-property-resort.png')} style={styles.resortHouseIcon} resizeMode="contain" />
           <Text style={styles.resortHouseName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.resortHouseCode}>{codeDisplay}</Text>
         </TouchableOpacity>
+        <Text style={styles.resortHouseCode}>{codeDisplay}</Text>
         <TouchableOpacity onPress={onToggle} activeOpacity={0.5} style={styles.resortHouseExpandBtn}>
           <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
-            <RNImage source={require('../../assets/icon-arrow-down.png')} style={styles.resortHouseArrow} resizeMode="contain" />
+            <Ionicons name="chevron-down" size={14} color="#C7C7CC" />
           </Animated.View>
         </TouchableOpacity>
       </View>
@@ -374,11 +406,11 @@ const galleryStyles = StyleSheet.create({
   saveMenuText: { fontSize: 15, color: '#FFF', fontWeight: '500' },
 });
 
-function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
+function MediaSection({ photos, videos, t, typeColors, onPhotoPress, onVideoPress }) {
   return (
-    <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
+    <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.red}>
       <View style={styles.sectionTitleRow}>
-        <RNImage source={require('../../assets/icon-photo.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+        <IconPhoto size={22} color="#888" />
         <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdPhoto')}</Text>
       </View>
       {photos.length > 0 ? (
@@ -396,7 +428,7 @@ function MediaSection({ photos, videos, t, onPhotoPress, onVideoPress }) {
         />
       ) : (<Text style={styles.emptyMedia}>{t('pdNoPhotos')}</Text>)}
       <View style={[styles.sectionTitleRow, { marginTop: 12 }]}>
-        <RNImage source={require('../../assets/icon-video.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+        <IconVideo size={22} color="#888" />
         <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdVideo')}</Text>
       </View>
       {videos.length > 0 ? (
@@ -432,7 +464,7 @@ function formatBookingDate(dateStr) {
   const d = new Date(dateStr);
   const day = String(d.getDate()).padStart(2, '0');
   const m = String(d.getMonth() + 1).padStart(2, '0');
-  const y = d.getFullYear();
+  const y = String(d.getFullYear()).slice(-2);
   return `${day}.${m}.${y}`;
 }
 
@@ -476,17 +508,27 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
     ? (resort.code || '') + (p.code_suffix ? ` (${p.code_suffix})` : '')
     : p.code;
 
+  const hasPrices = [p.price_monthly, p.booking_deposit, p.save_deposit, p.commission, p.owner_commission_one_time, p.owner_commission_monthly, p.electricity_price, p.water_price, p.gas_price, p.internet_price, p.cleaning_price, p.exit_cleaning_price].some(v => v != null);
+
   return (
     <>
-      <SectionBlock color="rgba(255,204,0,0.2)" border="#FFCC00">
-        <InfoRow label={t('propertyCode')} value={codeDisplay} labelBold />
-        <InfoRow label={t('pdCity')} value={city} labelBold />
-        <InfoRow label={t('propDistrict')} value={district} labelBold />
-        {address ? <InfoRow label={t('pdAddress')} value={address} labelBold /> : null}
+      {/* 1. Фото/видео — red */}
+      <MediaSection photos={photos} videos={videos} t={t} typeColors={typeColors} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
+
+      {/* 2. Характеристики дома — orange */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.orange}>
+        <View style={styles.sectionTitleRow}>
+          <IconSpecifications size={22} color="#888" />
+          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdSpecifications')}</Text>
+        </View>
+        <InfoRow label={t('propertyCode')} value={codeDisplay} />
+        <InfoRow label={t('pdCity')} value={city} />
+        <InfoRow label={t('propDistrict')} value={district} />
+        {address ? <InfoRow label={t('pdAddress')} value={address} /> : null}
         {!hideLocation && (googleMapsLink ? (
-          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(googleMapsLink)} labelBold />
+          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(googleMapsLink)} />
         ) : (
-          <InfoRow label={t('pdLocation')} value="—" labelBold />
+          <InfoRow label={t('pdLocation')} value="—" />
         ))}
         {p.website_url ? (
           <InfoRow
@@ -494,64 +536,107 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
             value={t('goToWebsite')}
             isLink
             onPress={() => Linking.openURL((p.website_url || '').replace(/^(?!https?:\/\/)/, 'https://'))}
-            labelBold
           />
         ) : null}
         <View style={styles.divider} />
-        <InfoRow label={t('propBedrooms')} value={p.bedrooms != null ? `${p.bedrooms}  pc` : '—'} labelBold />
-        <InfoRow label={t('pdBathrooms')} value={p.bathrooms != null ? `${p.bathrooms}  pc` : '—'} labelBold />
-        <InfoRow label={t('pdArea')} value={p.area != null ? `${p.area}  m2` : '—'} labelBold />
+        <InfoRow label={t('propBedrooms')} value={p.bedrooms != null ? `${p.bedrooms}  pc` : '—'} />
+        <InfoRow label={t('pdBathrooms')} value={p.bathrooms != null ? `${p.bathrooms}  pc` : '—'} />
+        <InfoRow label={t('pdArea')} value={p.area != null ? `${p.area}  m2` : '—'} />
         {isApartment && p.floor_number != null && (
-          <InfoRow label={t('propFloorNumber')} value={String(p.floor_number)} labelBold />
+          <InfoRow label={t('propFloorNumber')} value={String(p.floor_number)} />
         )}
-        <InfoRow label={t('propBeach')} value={beachDistance != null ? `${beachDistance}  m` : '—'} labelBold />
-        <InfoRow label={t('propMarket')} value={marketDistance != null ? `${marketDistance}  m` : '—'} labelBold />
-        <View style={styles.divider} />
-        <InfoRow label={isApartment ? t('pdReception') : t('pdOwner')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} labelBold />
-        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} labelBold /> : null}
-        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} labelBold /> : null}
-        {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} labelBold /> : null}
-        {isApartment && (p.owner2Name || p.owner2Phone1 || p.owner2Phone2 || p.owner2Telegram) ? (
+        <InfoRow label={t('propBeach')} value={beachDistance != null ? `${beachDistance}  m` : '—'} />
+        <InfoRow label={t('propMarket')} value={marketDistance != null ? `${marketDistance}  m` : '—'} />
+      </SectionBlock>
+
+      {/* 3. Контакты — amber. Телефоны кликабельные → системный набор номера. */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.amber}>
+        <View style={styles.sectionTitleRow}>
+          <IconContacts size={22} color="#888" />
+          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdContacts')}</Text>
+        </View>
+        <OwnerInfoRow
+          label={isApartment ? t('pdReception') : t('pdOwner')}
+          name={ownerName}
+          phone={p.ownerPhone1}
+          whatsapp={p.ownerWhatsapp}
+          telegram={p.ownerTelegram}
+          isLink={!!ownerName}
+          onPressName={onOwnerPress}
+          alignRight
+          t={t}
+        />
+        {isApartment && (p.owner2Name || p.owner2Phone1 || p.owner2Phone2 || p.owner2Whatsapp || p.owner2Telegram) ? (
           <>
             <View style={styles.divider} />
-            <InfoRow label={t('pdOwnerContact')} value={owner2Name || '—'} isLink={!!owner2Name} onPress={onOwner2Press} labelBold />
-            {p.owner2Phone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.owner2Phone1} labelBold /> : null}
-            {p.owner2Phone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.owner2Phone2} labelBold /> : null}
-            {p.owner2Telegram ? <InfoRow label={t('telegram')} value={p.owner2Telegram} labelBold /> : null}
+            <OwnerInfoRow
+              label={t('pdOwnerContact')}
+              name={owner2Name}
+              phone={p.owner2Phone1}
+              whatsapp={p.owner2Whatsapp}
+              telegram={p.owner2Telegram}
+              isLink={!!owner2Name}
+              onPressName={onOwner2Press}
+              alignRight
+              t={t}
+            />
           </>
         ) : null}
         {responsibleName !== undefined && (
           <>
             <View style={styles.divider} />
-            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} labelBold />
+            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} />
           </>
         )}
       </SectionBlock>
 
-      <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
-
-      {p.description ? (
-        <View style={styles.descriptionBlock}>
+      {/* 4. Цены — green */}
+      {hasPrices && (
+        <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.green}>
           <View style={styles.sectionTitleRow}>
-            <RNImage source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
-            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdDescription')}</Text>
+            <IconPrices size={22} color="#888" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdPrices')}</Text>
           </View>
-          <Text style={styles.descriptionText}>{p.description}</Text>
-        </View>
-      ) : null}
+          {p.price_monthly != null && <PriceRow iconSource={require('../../assets/icon-price-booking-deposit.png')} label={t('pdPriceMonthly')} value={formatPrice(p.price_monthly)} prefix={p.price_monthly_is_from ? t('priceFrom') : null} />}
+          {p.booking_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-monthly.png')} label={t('pdBookingDeposit')} value={formatPrice(p.booking_deposit)} prefix={p.booking_deposit_is_from ? t('priceFrom') : null} />}
+          {p.save_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-commission.png')} label={t('pdSaveDeposit')} value={formatPrice(p.save_deposit)} prefix={p.save_deposit_is_from ? t('priceFrom') : null} />}
+          {p.commission != null && <PriceRow iconSource={require('../../assets/icon-price-save-deposit.png')} label={t('pdCommission')} value={formatPrice(p.commission)} prefix={p.commission_is_from ? t('priceFrom') : null} />}
+          {p.owner_commission_one_time != null && (
+            <PriceRow
+              iconSource={require('../../assets/icon-price-commission.png')}
+              label={t('pdOwnerCommOnce')}
+              value={p.owner_commission_one_time_is_percent ? `${p.owner_commission_one_time}%` : formatPrice(p.owner_commission_one_time)}
+            />
+          )}
+          {p.owner_commission_monthly != null && (
+            <PriceRow
+              iconSource={require('../../assets/icon-price-commission.png')}
+              label={t('pdOwnerCommMonthly')}
+              value={p.owner_commission_monthly_is_percent ? `${p.owner_commission_monthly}%` : formatPrice(p.owner_commission_monthly)}
+            />
+          )}
+          {p.electricity_price != null && <PriceRow iconSource={require('../../assets/icon-price-electricity.png')} label={t('pdElectricity')} value={formatPrice(p.electricity_price)} />}
+          {p.water_price != null && <PriceRow iconSource={require('../../assets/icon-price-water.png')} label={waterPriceLabel()} value={formatPrice(p.water_price)} />}
+          {p.gas_price != null && <PriceRow iconSource={require('../../assets/icon-price-gas.png')} label={t('pdGas')} value={formatPrice(p.gas_price)} />}
+          {p.internet_price != null && <PriceRow iconSource={require('../../assets/icon-price-exit-cleaning.png')} label={t('pdInternetMonth')} value={formatPrice(p.internet_price)} />}
+          {p.cleaning_price != null && <PriceRow iconSource={require('../../assets/icon-price-internet.png')} label={t('pdCleaning')} value={formatPrice(p.cleaning_price)} />}
+          {p.exit_cleaning_price != null && <PriceRow iconSource={require('../../assets/icon-price-cleaning.png')} label={t('pdExitCleaning')} value={formatPrice(p.exit_cleaning_price)} />}
+        </SectionBlock>
+      )}
 
-      <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
+      {/* 5. Брони — teal. Иконки тоже teal — в цвет блока. */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.teal}>
         <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
-            <View style={styles.sectionTitleLeft}>
-              <RNImage source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
-              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
-            </View>
-            {onOpenBookingCalendar && (
-              <TouchableOpacity onPress={() => onOpenBookingCalendar([p.id], resort ? codeDisplay : (p.name || p.code || ''))} style={styles.calendarLinkRow} activeOpacity={0.7}>
-                <RNImage source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
-              </TouchableOpacity>
-            )}
+          <View style={styles.sectionTitleLeft}>
+            <IconBookingList size={22} color="#888" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
           </View>
+          {onOpenBookingCalendar && (
+            <TouchableOpacity onPress={() => onOpenBookingCalendar([p.id], resort ? codeDisplay : (p.name || p.code || ''))} style={styles.actionBtn} activeOpacity={0.7}>
+              <IconBookings size={22} color="#3D7D82" />
+            </TouchableOpacity>
+          )}
+        </View>
         {bookings.length > 0 ? (
           bookings.map((b) => {
             const bookingNum = getBookingNumber(b, bookings);
@@ -563,7 +648,7 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
                 onPress={onBookingPress ? () => onBookingPress(b, codePart, p) : undefined}
                 activeOpacity={onBookingPress ? 0.7 : 1}
               >
-                <RNImage source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
+                <View style={styles.bookingItemIcon}><IconHashtag size={19} color="#888" /></View>
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{codePart}</Text>
                 <Text style={styles.bookingItemDates}>
                   {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
@@ -576,16 +661,17 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         )}
       </SectionBlock>
 
-      <SectionBlock color="rgba(248,187,208,0.4)" border="#F48FB1">
+      {/* 6. Удобства — blue */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.blue}>
         <View style={styles.sectionTitleRow}>
-          <RNImage source={require('../../assets/icon-amenities.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+          <IconAmenities size={22} color="#888" />
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdAmenities')}</Text>
         </View>
         <View style={styles.amenitiesGrid}>
           {AMENITY_KEYS.filter((key) => amenities[key]).map((key) => (
             <View key={key} style={styles.amenityItem}>
               <Image source={AMENITY_ICON_SOURCES[key]} style={styles.amenityIconImg} resizeMode="contain" />
-              <Text style={styles.amenityLabel}>{t(`amenity_${key}`)}</Text>
+              <Text style={styles.amenityLabel} numberOfLines={1}>{t(`amenity_${key}`)}</Text>
             </View>
           ))}
         </View>
@@ -594,46 +680,24 @@ function HouseDetailContent({ p, t, typeColors, formatPrice, waterPriceLabel, on
         )}
       </SectionBlock>
 
-      <SectionBlock color="rgba(224,224,224,0.4)" border="#BDBDBD">
-        <InfoRow label={t('pdAirCon')} value={p.air_conditioners != null ? `${p.air_conditioners}  pc` : '—'} labelBold />
-        <InfoRow label={t('pdInternetSpeed')} value={p.internet_speed ? `${p.internet_speed} ${t('pdInternetSpeedUnit')}` : '—'} labelBold />
+      {/* 7. Детали (кондиционеры, интернет, питомцы, долгосрок) — lilac */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.lilac}>
+        <InfoRow label={t('pdAirCon')} value={p.air_conditioners != null ? `${p.air_conditioners}  pc` : '—'} />
+        <InfoRow label={t('pdInternetSpeed')} value={p.internet_speed ? `${p.internet_speed} ${t('pdInternetSpeedUnit')}` : '—'} />
+        <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : t('pdForbidden')} />
+        <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('pdAllowed') : t('pdForbidden')} style={styles.infoRowNoMargin} />
       </SectionBlock>
 
-      <SectionBlock color="rgba(224,224,224,0.4)" border="#BDBDBD">
-        <View style={styles.sectionBlockGap}>
-          <InfoRow label={t('pdPets')} value={p.pets_allowed ? t('pdToBeDiscussed') : 'NO'} style={styles.infoRowNoMargin} labelBold />
-          <InfoRow label={t('pdLongTerm')} value={p.long_term_booking ? t('yes') : 'NO'} style={styles.infoRowNoMargin} labelBold />
+      {/* Описание и комментарии — без цветной карточки, простой текст */}
+      {p.description ? (
+        <View style={styles.descriptionBlock}>
+          <View style={styles.sectionTitleRow}>
+            <IconDescription size={22} color="#888" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdDescription')}</Text>
+          </View>
+          <Text style={styles.descriptionText}>{p.description}</Text>
         </View>
-      </SectionBlock>
-
-      {[p.price_monthly, p.booking_deposit, p.save_deposit, p.commission, p.owner_commission_one_time, p.owner_commission_monthly, p.electricity_price, p.water_price, p.gas_price, p.internet_price, p.cleaning_price, p.exit_cleaning_price].some(v => v != null) && (
-      <SectionBlock color="rgba(168,230,163,0.35)" border="#A8E6A3">
-        {p.price_monthly != null && <PriceRow iconSource={require('../../assets/icon-price-booking-deposit.png')} label={t('pdPriceMonthly')} value={formatPrice(p.price_monthly)} prefix={p.price_monthly_is_from ? t('priceFrom') : null} />}
-        {p.booking_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-monthly.png')} label={t('pdBookingDeposit')} value={formatPrice(p.booking_deposit)} prefix={p.booking_deposit_is_from ? t('priceFrom') : null} />}
-        {p.save_deposit != null && <PriceRow iconSource={require('../../assets/icon-price-commission.png')} label={t('pdSaveDeposit')} value={formatPrice(p.save_deposit)} prefix={p.save_deposit_is_from ? t('priceFrom') : null} />}
-        {p.commission != null && <PriceRow iconSource={require('../../assets/icon-price-save-deposit.png')} label={t('pdCommission')} value={formatPrice(p.commission)} prefix={p.commission_is_from ? t('priceFrom') : null} />}
-        {p.owner_commission_one_time != null && (
-          <PriceRow
-            iconSource={require('../../assets/icon-price-commission.png')}
-            label={t('pdOwnerCommOnce')}
-            value={p.owner_commission_one_time_is_percent ? `${p.owner_commission_one_time}%` : formatPrice(p.owner_commission_one_time)}
-          />
-        )}
-        {p.owner_commission_monthly != null && (
-          <PriceRow
-            iconSource={require('../../assets/icon-price-commission.png')}
-            label={t('pdOwnerCommMonthly')}
-            value={p.owner_commission_monthly_is_percent ? `${p.owner_commission_monthly}%` : formatPrice(p.owner_commission_monthly)}
-          />
-        )}
-        {p.electricity_price != null && <PriceRow iconSource={require('../../assets/icon-price-electricity.png')} label={t('pdElectricity')} value={formatPrice(p.electricity_price)} />}
-        {p.water_price != null && <PriceRow iconSource={require('../../assets/icon-price-water.png')} label={waterPriceLabel()} value={formatPrice(p.water_price)} />}
-        {p.gas_price != null && <PriceRow iconSource={require('../../assets/icon-price-gas.png')} label={t('pdGas')} value={formatPrice(p.gas_price)} />}
-        {p.internet_price != null && <PriceRow iconSource={require('../../assets/icon-price-exit-cleaning.png')} label={t('pdInternetMonth')} value={formatPrice(p.internet_price)} />}
-        {p.cleaning_price != null && <PriceRow iconSource={require('../../assets/icon-price-internet.png')} label={t('pdCleaning')} value={formatPrice(p.cleaning_price)} />}
-        {p.exit_cleaning_price != null && <PriceRow iconSource={require('../../assets/icon-price-cleaning.png')} label={t('pdExitCleaning')} value={formatPrice(p.exit_cleaning_price)} />}
-      </SectionBlock>
-      )}
+      ) : null}
 
       {p.comments ? (
         <View style={styles.descriptionBlock}>
@@ -717,44 +781,65 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
 
   return (
     <>
-      <SectionBlock color="rgba(255,204,0,0.2)" border="#FFCC00">
-        <InfoRow label={t('propertyCode')} value={p.code} labelBold />
-        <InfoRow label={t('pdCity')} value={p.city} labelBold />
-        <InfoRow label={t('propDistrict')} value={p.district} labelBold />
-        {p.address ? <InfoRow label={t('pdAddress')} value={p.address} labelBold /> : null}
+      {/* 1. Фото/видео — red */}
+      <MediaSection photos={photos} videos={videos} t={t} typeColors={typeColors} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
+
+      {/* 2. Характеристики курорта — orange */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.orange}>
+        <View style={styles.sectionTitleRow}>
+          <IconSpecifications size={22} color="#888" />
+          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdSpecifications')}</Text>
+        </View>
+        <InfoRow label={t('propertyCode')} value={p.code} />
+        <InfoRow label={t('pdCity')} value={p.city} />
+        <InfoRow label={t('propDistrict')} value={p.district} />
+        {p.address ? <InfoRow label={t('pdAddress')} value={p.address} /> : null}
         {!hideLocation && (p.google_maps_link ? (
-          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
+          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} />
         ) : (
-          <InfoRow label={t('pdLocation')} value="—" labelBold />
+          <InfoRow label={t('pdLocation')} value="—" />
         ))}
         <View style={styles.divider} />
-        <InfoRow label={t('propHouses')} value={p.houses_count != null ? `${p.houses_count}  pc` : '—'} labelBold />
-        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} labelBold />
-        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} labelBold />
-        <View style={styles.divider} />
-        <InfoRow label={t('pdOwnerManager')} value={ownerName || '—'} isLink={!!ownerName} onPress={onOwnerPress} labelBold />
-        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} labelBold /> : null}
-        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} labelBold /> : null}
-        {p.ownerTelegram ? <InfoRow label={t('telegram')} value={p.ownerTelegram} labelBold /> : null}
+        <InfoRow label={t('propHouses')} value={p.houses_count != null ? `${p.houses_count}  pc` : '—'} />
+        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} />
+        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} />
+      </SectionBlock>
+
+      {/* 3. Контакты — amber. Телефоны кликабельные → системный набор номера. */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.amber}>
+        <View style={styles.sectionTitleRow}>
+          <IconContacts size={22} color="#888" />
+          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdContacts')}</Text>
+        </View>
+        <OwnerInfoRow
+          label={t('pdOwnerManager')}
+          name={ownerName}
+          phone={p.ownerPhone1}
+          whatsapp={p.ownerWhatsapp}
+          telegram={p.ownerTelegram}
+          isLink={!!ownerName}
+          onPressName={onOwnerPress}
+          alignRight
+          t={t}
+        />
         {responsibleName !== undefined && (
           <>
             <View style={styles.divider} />
-            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} labelBold />
+            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} />
           </>
         )}
       </SectionBlock>
 
-      <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
-
-      <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
+      {/* 4. Брони — green */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.green}>
         <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
             <View style={styles.sectionTitleLeft}>
-              <RNImage source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+              <IconBookingList size={22} color="#888" />
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
             </View>
             {onOpenBookingCalendar && (
-              <TouchableOpacity onPress={() => onOpenBookingCalendar(resortHouses.map((h) => h.id), p.name || p.code || '')} style={styles.calendarLinkRow} activeOpacity={0.7}>
-                <RNImage source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
+              <TouchableOpacity onPress={() => onOpenBookingCalendar(resortHouses.map((h) => h.id), p.name || p.code || '')} style={styles.actionBtn} activeOpacity={0.7}>
+                <IconBookings size={22} color="#3D7D82" />
               </TouchableOpacity>
             )}
           </View>
@@ -768,7 +853,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
                 onPress={onBookingPress ? () => onBookingPress(b, b._codePart, house) : undefined}
                 activeOpacity={onBookingPress ? 0.7 : 1}
               >
-                <RNImage source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
+                <View style={styles.bookingItemIcon}><IconHashtag size={19} color="#888" /></View>
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{b._codePart}</Text>
                 <Text style={styles.bookingItemDates}>
                   {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
@@ -784,7 +869,7 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
       {p.description ? (
         <View style={styles.descriptionBlock}>
           <View style={styles.sectionTitleRow}>
-            <RNImage source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <IconDescription size={22} color="#888" />
             <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdDescription')}</Text>
           </View>
           <Text style={styles.descriptionText}>{p.description}</Text>
@@ -794,11 +879,9 @@ function ResortDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onV
       {/* Houses toolbar */}
       <View style={[styles.housesToolbar, { justifyContent: 'flex-end' }]}>
         <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={toggleAllHouses}>
-          <RNImage
-            source={allHousesExpanded ? require('../../assets/icon-folder-open.png') : require('../../assets/icon-folder-closed.png')}
-            style={styles.housesToolbarIcon}
-            resizeMode="contain"
-          />
+          {allHousesExpanded
+            ? <IconFolderOpen size={22} color="#888" />
+            : <IconFolderClosed size={22} color="#888" />}
         </TouchableOpacity>
       </View>
 
@@ -842,15 +925,14 @@ function CondoApartmentItem({ item, expanded, onToggle, onPress, t }) {
 
   const arrowRotate = arrowAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['180deg', '0deg'],
+    outputRange: ['0deg', '180deg'],
   });
 
   const codeDisplay = (item.code_suffix ? `${item.code || ''} (${item.code_suffix})` : item.code) || '';
 
   return (
-    <View
-      style={[styles.resortHouseCard, { backgroundColor: '#BBDEFB', borderColor: '#64B5F6' }]}
-    >
+    <View style={styles.resortHouseCard}>
+      <View style={[styles.resortHouseStripe, { backgroundColor: TYPE_COLORS.condo }]} />
       <View style={styles.resortHouseRow}>
         <TouchableOpacity
           style={styles.resortHouseMainArea}
@@ -858,13 +940,12 @@ function CondoApartmentItem({ item, expanded, onToggle, onPress, t }) {
           activeOpacity={onPress ? 0.7 : 1}
           disabled={!onPress}
         >
-          <RNImage source={require('../../assets/icon-property-condo.png')} style={styles.resortHouseIcon} resizeMode="contain" />
           <Text style={styles.resortHouseName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.resortHouseCode}>{codeDisplay}</Text>
         </TouchableOpacity>
+        <Text style={styles.resortHouseCode}>{codeDisplay}</Text>
         <TouchableOpacity onPress={onToggle} activeOpacity={0.5} style={styles.resortHouseExpandBtn}>
           <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
-            <RNImage source={require('../../assets/icon-arrow-down.png')} style={styles.resortHouseArrow} resizeMode="contain" />
+            <Ionicons name="chevron-down" size={14} color="#C7C7CC" />
           </Animated.View>
         </TouchableOpacity>
       </View>
@@ -943,15 +1024,23 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
 
   return (
     <>
-      <SectionBlock color="rgba(255,204,0,0.2)" border="#FFCC00">
-        <InfoRow label={t('propertyCode')} value={p.code} labelBold />
-        <InfoRow label={t('pdCity')} value={p.city} labelBold />
-        <InfoRow label={t('propDistrict')} value={p.district} labelBold />
-        {p.address ? <InfoRow label={t('pdAddress')} value={p.address} labelBold /> : null}
+      {/* 1. Фото/видео — red */}
+      <MediaSection photos={photos} videos={videos} t={t} typeColors={typeColors} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
+
+      {/* 2. Характеристики кондо — orange */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.orange}>
+        <View style={styles.sectionTitleRow}>
+          <IconSpecifications size={22} color="#888" />
+          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdSpecifications')}</Text>
+        </View>
+        <InfoRow label={t('propertyCode')} value={p.code} />
+        <InfoRow label={t('pdCity')} value={p.city} />
+        <InfoRow label={t('propDistrict')} value={p.district} />
+        {p.address ? <InfoRow label={t('pdAddress')} value={p.address} /> : null}
         {!hideLocation && (p.google_maps_link ? (
-          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} labelBold />
+          <InfoRow label={t('pdLocation')} value={t('pdGoogleMapLink')} isLink onPress={() => Linking.openURL(p.google_maps_link)} />
         ) : (
-          <InfoRow label={t('pdLocation')} value="—" labelBold />
+          <InfoRow label={t('pdLocation')} value="—" />
         ))}
         {p.website_url ? (
           <InfoRow
@@ -959,36 +1048,49 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
             value={t('goToWebsite')}
             isLink
             onPress={() => Linking.openURL((p.website_url || '').replace(/^(?!https?:\/\/)/, 'https://'))}
-            labelBold
           />
         ) : null}
         <View style={styles.divider} />
-        <InfoRow label={t('propFloors')} value={p.floors != null ? `${p.floors}` : '—'} labelBold />
-        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} labelBold />
-        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} labelBold />
-        <View style={styles.divider} />
-        <InfoRow label={t('pdReception')} value={p.ownerName || '—'} labelBold />
-        {p.ownerPhone1 ? <InfoRow label={t('pdPhone') + ' 1'} value={p.ownerPhone1} labelBold /> : null}
-        {p.ownerPhone2 ? <InfoRow label={t('pdPhone') + ' 2'} value={p.ownerPhone2} labelBold /> : null}
+        <InfoRow label={t('propFloors')} value={p.floors != null ? `${p.floors}` : '—'} />
+        <InfoRow label={t('propBeach')} value={p.beach_distance != null ? `${p.beach_distance}  m` : '—'} />
+        <InfoRow label={t('propMarket')} value={p.market_distance != null ? `${p.market_distance}  m` : '—'} />
+      </SectionBlock>
+
+      {/* 3. Контакты — amber. Телефоны кликабельные → системный набор номера. */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.amber}>
+        <View style={styles.sectionTitleRow}>
+          <IconContacts size={22} color="#888" />
+          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdContacts')}</Text>
+        </View>
+        <OwnerInfoRow
+          label={t('pdReception')}
+          name={p.ownerName}
+          phone={p.ownerPhone1}
+          whatsapp={p.ownerWhatsapp}
+          telegram={p.ownerTelegram}
+          isLink={!!p.ownerName}
+          onPressName={onOwnerPress}
+          alignRight
+          t={t}
+        />
         {responsibleName !== undefined && (
           <>
             <View style={styles.divider} />
-            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} labelBold />
+            <InfoRow label={t('propResponsibleLabel').replace(':', '')} value={responsibleName} />
           </>
         )}
       </SectionBlock>
 
-      <MediaSection photos={photos} videos={videos} t={t} onPhotoPress={onPhotoPress} onVideoPress={onVideoPress} />
-
-      <SectionBlock color="rgba(187,222,251,0.5)" border="#64B5F6">
+      {/* 4. Брони — green */}
+      <SectionBlock color="#FFFFFF" border={SECTION_PALETTE.green}>
         <View style={[styles.sectionTitleRow, styles.bookingListHeaderRow]}>
             <View style={styles.sectionTitleLeft}>
-              <RNImage source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+              <IconBookingList size={22} color="#888" />
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdBookingList')}</Text>
             </View>
             {onOpenBookingCalendar && (
-              <TouchableOpacity onPress={() => onOpenBookingCalendar(apartments.map((a) => a.id), p.name || p.code || '')} style={styles.calendarLinkRow} activeOpacity={0.7}>
-                <RNImage source={require('../../assets/icon-calendar-booking.png')} style={styles.calendarIcon} resizeMode="contain" />
+              <TouchableOpacity onPress={() => onOpenBookingCalendar(apartments.map((a) => a.id), p.name || p.code || '')} style={styles.actionBtn} activeOpacity={0.7}>
+                <IconBookings size={22} color="#3D7D82" />
               </TouchableOpacity>
             )}
           </View>
@@ -1002,7 +1104,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
                 onPress={onBookingPress ? () => onBookingPress(b, b._codePart, apt) : undefined}
                 activeOpacity={onBookingPress ? 0.7 : 1}
               >
-                <RNImage source={require('../../assets/icon-booking-hashtag.png')} style={styles.bookingItemIcon} resizeMode="contain" />
+                <View style={styles.bookingItemIcon}><IconHashtag size={19} color="#888" /></View>
                 <Text style={styles.bookingItemCode} numberOfLines={1}>{b._codePart}</Text>
                 <Text style={styles.bookingItemDates}>
                   {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
@@ -1018,7 +1120,7 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
       {p.description ? (
         <View style={styles.descriptionBlock}>
           <View style={styles.sectionTitleRow}>
-            <RNImage source={require('../../assets/icon-description.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+            <IconDescription size={22} color="#888" />
             <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('pdDescription')}</Text>
           </View>
           <Text style={styles.descriptionText}>{p.description}</Text>
@@ -1027,11 +1129,9 @@ function CondoDetailContent({ p, t, typeColors, onOwnerPress, onPhotoPress, onVi
 
       <View style={[styles.housesToolbar, { justifyContent: 'flex-end' }]}>
         <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={toggleAll}>
-          <RNImage
-            source={allExpanded ? require('../../assets/icon-folder-open.png') : require('../../assets/icon-folder-closed.png')}
-            style={styles.housesToolbarIcon}
-            resizeMode="contain"
-          />
+          {allExpanded
+            ? <IconFolderOpen size={22} color="#888" />
+            : <IconFolderClosed size={22} color="#888" />}
         </TouchableOpacity>
       </View>
 
@@ -1138,15 +1238,16 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             ownerName: `${owner.name} ${owner.lastName}`.trim(),
             ownerPhone1: owner.phone || '',
             ownerPhone2: owner.extraPhones?.[0] || '',
+            ownerWhatsapp: owner.whatsapp || '',
             ownerTelegram: owner.telegram || '',
           });
         } else {
           setOwnerContact(null);
-          Object.assign(updates, { ownerName: '', ownerPhone1: '', ownerPhone2: '', ownerTelegram: '' });
+          Object.assign(updates, { ownerName: '', ownerPhone1: '', ownerPhone2: '', ownerWhatsapp: '', ownerTelegram: '' });
         }
       } else {
         setOwnerContact(null);
-        Object.assign(updates, { ownerName: '', ownerPhone1: '', ownerPhone2: '', ownerTelegram: '' });
+        Object.assign(updates, { ownerName: '', ownerPhone1: '', ownerPhone2: '', ownerWhatsapp: '', ownerTelegram: '' });
       }
       if (prop.owner_id_2) {
         const owner2 = owners.find(o => o.id === prop.owner_id_2);
@@ -1156,15 +1257,16 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
             owner2Name: `${owner2.name} ${owner2.lastName}`.trim(),
             owner2Phone1: owner2.phone || '',
             owner2Phone2: owner2.extraPhones?.[0] || '',
+            owner2Whatsapp: owner2.whatsapp || '',
             owner2Telegram: owner2.telegram || '',
           });
         } else {
           setOwner2Contact(null);
-          Object.assign(updates, { owner2Name: '', owner2Phone1: '', owner2Phone2: '', owner2Telegram: '' });
+          Object.assign(updates, { owner2Name: '', owner2Phone1: '', owner2Phone2: '', owner2Whatsapp: '', owner2Telegram: '' });
         }
       } else {
         setOwner2Contact(null);
-        Object.assign(updates, { owner2Name: '', owner2Phone1: '', owner2Phone2: '', owner2Telegram: '' });
+        Object.assign(updates, { owner2Name: '', owner2Phone1: '', owner2Phone2: '', owner2Whatsapp: '', owner2Telegram: '' });
       }
       setP(prev => ({ ...prev, ...updates }));
     } catch {}
@@ -1534,7 +1636,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
-          <Text style={styles.backArrow}>‹</Text>
+          <Ionicons name="chevron-back" size={20} color="#2C2C2C" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{p.name}</Text>
         <View style={styles.backBtn} />
@@ -1545,13 +1647,13 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
         {/* Удалить — все могут удалять свои объекты; admin-режим всегда */}
         {(!isAgentRole || isCreator) && (
           <TouchableOpacity style={styles.actionBtn} onPress={handleDeletePress} activeOpacity={0.7}>
-            <RNImage source={require('../../assets/trash-icon.png')} style={styles.actionIconLg} resizeMode="contain" />
+            <Ionicons name="trash-outline" size={22} color="#888" />
           </TouchableOpacity>
         )}
         <View style={[styles.actionsRight, isTeamMember && { flex: 1, justifyContent: 'flex-end' }]}>
           {/* Редактировать */}
           <TouchableOpacity style={styles.actionBtn} onPress={() => setWizardVisible(true)} activeOpacity={0.7}>
-            <RNImage source={require('../../assets/pencil-icon.png')} style={styles.actionIcon} resizeMode="contain" />
+            <IconPencil size={22} color="#888" />
           </TouchableOpacity>
           {/* Добавить бронирование / добавить дом — для агента только если есть can_manage_bookings */}
           {(!isTeamMember || canBook) && (
@@ -1564,11 +1666,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
                 else if (BOOKABLE_UNIT_TYPES.has(p.type)) setAddBookingVisible(true);
               }}
             >
-              {(p.type === 'resort' || p.type === 'condo') ? (
-                <RNImage source={require('../../assets/icon-add-property.png')} style={styles.actionIconLg} resizeMode="contain" />
-              ) : (
-                <RNImage source={require('../../assets/icon-add-booking.png')} style={styles.actionIconLg} resizeMode="contain" />
-              )}
+              <Ionicons name="add-outline" size={22} color="#888" />
             </TouchableOpacity>
           )}
         </View>
@@ -1704,7 +1802,7 @@ export default function PropertyDetailScreen({ property, onBack, onDelete, onPro
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F2EB',
+    backgroundColor: '#F5F5F7',
     paddingTop: TOP_INSET,
   },
   header: {
@@ -1712,7 +1810,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    marginBottom: 10,
+    marginBottom: 14,
   },
   backBtn: {
     width: 36,
@@ -1728,7 +1826,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: -0.3,
     color: '#2C2C2C',
     flex: 1,
     textAlign: 'center',
@@ -1754,9 +1853,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(245,242,235,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderWidth: 1,
-    borderColor: '#E0D8CC',
+    borderColor: '#E5E5EA',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1773,9 +1872,13 @@ const styles = StyleSheet.create({
   },
   sectionBlock: {
     borderRadius: 14,
-    borderWidth: 1.5,
-    padding: 14,
+    padding: 16,
     marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
   sectionBlockGap: {
     gap: 10,
@@ -1819,43 +1922,33 @@ const styles = StyleSheet.create({
     height: 22,
   },
   sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#2C2C2C',
     marginBottom: 10,
   },
   infoRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     marginBottom: 10,
-    flex: 1,
+    gap: 12,
   },
   infoLabel: {
-    fontSize: 13,
-    color: '#2C2C2C',
-    width: 165,
-  },
-  infoLabelBold: {
-    fontWeight: '700',
-  },
-  infoColon: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#6B6B6B',
-    marginRight: 8,
   },
   infoValueWrap: {
     flex: 1,
   },
   infoValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#2C2C2C',
     flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
     textAlign: 'right',
   },
   infoLink: {
-    color: '#D81B60',
-    textDecorationLine: 'underline',
+    color: '#3D7D82',
   },
   divider: {
     height: 1,
@@ -1870,8 +1963,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   mediaThumb: {
-    width: 100,
-    height: 80,
+    width: 110,
+    height: 88,
     borderRadius: 10,
     marginRight: 8,
     backgroundColor: '#DDD',
@@ -1893,7 +1986,7 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
   emptyMedia: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#999',
     fontStyle: 'italic',
   },
@@ -1911,8 +2004,8 @@ const styles = StyleSheet.create({
   },
   bookingItemCode: {
     flex: 1,
-    fontSize: 15,
-    color: '#C45C6E',
+    fontSize: 14,
+    color: '#3D7D82',
     fontWeight: '600',
   },
   bookingItemDates: {
@@ -1924,9 +2017,9 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   descriptionText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#2C2C2C',
-    lineHeight: 20,
+    lineHeight: 22,
   },
   amenitiesGrid: {
     flexDirection: 'row',
@@ -1939,23 +2032,25 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   amenityIconImg: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
     marginRight: 10,
+    opacity: 0.8,
   },
   amenityLabel: {
-    fontSize: 13,
+    flex: 1,
+    fontSize: 14,
     color: '#2C2C2C',
   },
   amenityEmpty: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#999',
     fontStyle: 'italic',
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 10,
   },
   priceIcon: {
     fontSize: 16,
@@ -1965,15 +2060,16 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     marginRight: 4,
+    opacity: 0.8,
   },
   priceLabel: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '400',
     color: '#2C2C2C',
     flex: 1,
   },
   priceValue: {
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: '700',
     color: '#2C2C2C',
     textAlign: 'right',
@@ -1988,17 +2084,32 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
   },
+  // Карточка дома/квартиры внутри Resort/Condo — повторяет propertyCard с главной:
+  // белый фон, скруглённые углы, мягкая тень, цветная полоска слева по типу.
   resortHouseCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
-    borderWidth: 1.5,
     marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
     overflow: 'hidden',
+  },
+  resortHouseStripe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 6,
   },
   resortHouseRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingVertical: 14,
+    paddingLeft: 20,
+    paddingRight: 14,
   },
   resortHouseMainArea: {
     flex: 1,
@@ -2006,32 +2117,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minWidth: 0,
   },
-  resortHouseIcon: {
-    width: 28,
-    height: 28,
-    marginRight: 10,
-  },
   resortHouseName: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: '#2C2C2C',
+    letterSpacing: -0.3,
   },
   resortHouseCode: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#D81B60',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3D7D82',
     marginRight: 10,
   },
   resortHouseExpandBtn: {
-    paddingVertical: 6,
-    paddingLeft: 10,
+    paddingVertical: 8,
+    paddingLeft: 12,
     paddingRight: 4,
-  },
-  resortHouseArrow: {
-    width: 12,
-    height: 12,
-    tintColor: '#888888',
   },
   resortHouseExpanded: {
     paddingHorizontal: 14,
@@ -2041,7 +2143,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   emptyHouses: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#999',
     fontStyle: 'italic',
     textAlign: 'center',

@@ -13,6 +13,10 @@ import {
   UIManager,
 } from 'react-native';
 import Constants from 'expo-constants';
+import { Ionicons } from '@expo/vector-icons';
+import { IconPencil } from '../components/EditIcons';
+import { TAB_BAR_CONTENT_HEIGHT } from '../components/BottomNav';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLanguage } from '../context/LanguageContext';
 import { useAppData } from '../context/AppDataContext';
 import { deleteContact, updateContact } from '../services/contactsService';
@@ -32,15 +36,11 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
 const COLORS = {
-  background: '#F5F2EB',
+  background: '#F5F5F7',
   title: '#2C2C2C',
   subtitle: '#5A5A5A',
-  backArrow: '#5DB8D4',
   cardBg: '#FFFFFF',
   border: '#E0DAD2',
-  contactLink: '#D81B60',
-  labelColor: '#8A8A8A',
-  deleteRed: '#E85D4C',
   editGreen: '#2E7D32',
   clientBadge: '#449CDA',
   ownerBadge: '#C2920E',
@@ -97,6 +97,7 @@ function compareByCodeOrName(a, b) {
 
 export default function ContactDetailScreen({ contact, onBack, onContactUpdated, onContactDeleted, user }) {
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const { refreshContacts: refreshGlobalContacts, refreshProperties: refreshGlobalProperties, refreshBookings: refreshGlobalBookings } = useAppData();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [currentContact, setCurrentContact] = useState(contact);
@@ -211,11 +212,11 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
     }
   };
 
-  const InfoRow = ({ icon, value, onPress }) => {
+  const InfoRow = ({ iconName, value, onPress }) => {
     if (!value?.trim()) return null;
     return (
       <TouchableOpacity style={styles.infoRow} onPress={onPress} activeOpacity={0.7}>
-        <Image source={icon} style={styles.infoIcon} resizeMode="contain" />
+        <Ionicons name={iconName} size={22} color="#888" style={styles.infoIcon} />
         <Text style={[styles.infoText, onPress && styles.infoTextLink]}>{value}</Text>
       </TouchableOpacity>
     );
@@ -363,7 +364,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
       <View style={styles.fixedTop}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.8}>
-            <Text style={styles.backArrowText}>←</Text>
+            <Ionicons name="chevron-back" size={20} color="#2C2C2C" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{badgeLabel}</Text>
           <View style={styles.headerRight} />
@@ -372,7 +373,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
 
       <ScrollView
         style={styles.scrollArea}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + 12 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.profileSection}>
@@ -396,13 +397,13 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
             <Text style={styles.cardTitle}>{t('contacts')}</Text>
             {isOwnContact && (
               <TouchableOpacity onPress={() => setEditModalVisible(true)} style={styles.editBtn} activeOpacity={0.8}>
-                <Image source={require('../../assets/pencil-icon.png')} style={styles.editIcon} resizeMode="contain" />
+                <IconPencil size={22} color="#888" />
               </TouchableOpacity>
             )}
           </View>
 
           <InfoRow
-            icon={require('../../assets/icon-contact-phone.png')}
+            iconName="call-outline"
             value={c.phone}
             onPress={() => openPhone(c.phone)}
           />
@@ -410,14 +411,14 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
             p ? (
               <InfoRow
                 key={`p-${i}`}
-                icon={require('../../assets/icon-contact-phone.png')}
+                iconName="call-outline"
                 value={p}
                 onPress={() => openPhone(p)}
               />
             ) : null
           )}
           <InfoRow
-            icon={require('../../assets/icon-contact-email.png')}
+            iconName="mail-outline"
             value={c.email}
             onPress={() => openEmail(c.email)}
           />
@@ -425,7 +426,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
             e ? (
               <InfoRow
                 key={`e-${i}`}
-                icon={require('../../assets/icon-contact-email.png')}
+                iconName="mail-outline"
                 value={e}
                 onPress={() => openEmail(e)}
               />
@@ -435,7 +436,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
             v ? (
               <InfoRow
                 key={`tg-${i}`}
-                icon={require('../../assets/icon-contact-telegram.png')}
+                iconName="paper-plane-outline"
                 value={v}
                 onPress={() => openTelegram(v)}
               />
@@ -445,7 +446,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
             v ? (
               <InfoRow
                 key={`wa-${i}`}
-                icon={require('../../assets/icon-contact-whatsapp.png')}
+                iconName="logo-whatsapp"
                 value={v}
                 onPress={() => openWhatsApp(v)}
               />
@@ -460,19 +461,19 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
             </View>
             {c.documentNumber ? (
               <View style={styles.passportRow}>
-                <Image source={require('../../assets/icon-passport-id.png')} style={styles.passportRowIcon} resizeMode="contain" />
+                <Ionicons name="card-outline" size={22} color="#888" style={styles.passportRowIcon} />
                 <Text style={styles.detailValue}>{c.documentNumber}</Text>
               </View>
             ) : null}
             {c.nationality ? (
               <View style={styles.passportRow}>
-                <Image source={require('../../assets/icon-nationality.png')} style={styles.passportRowIcon} resizeMode="contain" />
+                <Ionicons name="globe-outline" size={22} color="#888" style={styles.passportRowIcon} />
                 <Text style={styles.detailValue}>{c.nationality}</Text>
               </View>
             ) : null}
             {c.birthday ? (
               <View style={styles.passportRow}>
-                <Image source={require('../../assets/icon-birthday.png')} style={styles.passportRowIcon} resizeMode="contain" />
+                <Ionicons name="calendar-outline" size={22} color="#888" style={styles.passportRowIcon} />
                 <Text style={styles.detailValue}>{c.birthday}</Text>
               </View>
             ) : null}
@@ -482,7 +483,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
         {isOwner ? (
           <View style={styles.ownerPropertiesSection}>
             <View style={styles.sectionTitleRow}>
-              <Image source={require('../../assets/icon-property-house.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+              <Ionicons name="home-outline" size={22} color="#888" />
               <Text style={styles.cardTitle}>{t('ownerProperties')}</Text>
             </View>
             {ownerPropertiesList.length > 0 ? (
@@ -505,7 +506,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
         {!isOwner ? (
           <View style={[styles.card, styles.bookingsBlock]}>
             <View style={styles.sectionTitleRow}>
-              <Image source={require('../../assets/icon-booking.png')} style={styles.sectionTitleIcon} resizeMode="contain" />
+              <Ionicons name="calendar-outline" size={22} color="#888" />
               <Text style={styles.cardTitle}>{t('clientBookings')}</Text>
             </View>
             {bookings.length > 0 ? (
@@ -528,7 +529,7 @@ export default function ContactDetailScreen({ contact, onBack, onContactUpdated,
                     }}
                     activeOpacity={0.7}
                   >
-                    <Image source={require('../../assets/icon-booking-hashtag.png')} style={[styles.bookingItemIcon, past && styles.bookingItemPastIcon]} resizeMode="contain" />
+                    <Ionicons name="pricetag-outline" size={19} color={past ? '#999' : '#888'} style={styles.bookingItemIcon} />
                     <Text style={[styles.bookingItemCode, past && styles.bookingItemPastText]} numberOfLines={1}>{codePart}</Text>
                     <Text style={[styles.bookingItemDates, past && styles.bookingItemPastText]}>
                       {formatBookingDate(b.checkIn)} — {formatBookingDate(b.checkOut)}
@@ -579,24 +580,22 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backBtn: {
-    width: 52,
-    padding: 8,
-    alignItems: 'flex-start',
+    width: 36,
+    height: 36,
+    alignItems: 'center',
     justifyContent: 'center',
-  },
-  backArrowText: {
-    fontSize: 24,
-    color: COLORS.backArrow,
   },
   headerTitle: {
     flex: 1,
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
     color: COLORS.title,
+    letterSpacing: -0.3,
     textAlign: 'center',
   },
   headerRight: {
-    width: 52,
+    width: 36,
+    height: 36,
   },
   scrollArea: {
     flex: 1,
@@ -604,7 +603,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 88,
   },
   profileSection: {
     alignItems: 'center',
@@ -614,7 +612,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#E0D8CC',
+    backgroundColor: '#EFEFEF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -627,13 +625,14 @@ const styles = StyleSheet.create({
   },
   avatarInitials: {
     fontSize: 32,
-    fontWeight: '700',
-    color: '#8A8A8A',
+    fontWeight: '600',
+    color: '#B8B8B8',
   },
   contactName: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
     color: COLORS.title,
+    letterSpacing: -0.3,
     marginBottom: 8,
   },
   typeBadge: {
@@ -642,7 +641,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   typeBadgeText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -665,15 +664,18 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: COLORS.title,
   },
   editBtn: {
-    padding: 6,
-  },
-  editIcon: {
-    width: 22,
-    height: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   infoRow: {
     flexDirection: 'row',
@@ -686,12 +688,12 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   infoText: {
-    fontSize: 15,
+    fontSize: 16,
     color: COLORS.title,
   },
   infoTextLink: {
-    fontWeight: '700',
-    color: COLORS.contactLink,
+    fontWeight: '600',
+    color: '#3D7D82',
   },
   detailRow: {
     marginBottom: 12,
@@ -707,13 +709,13 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   detailLabel: {
-    fontSize: 13,
-    color: COLORS.labelColor,
+    fontSize: 14,
+    color: '#6B6B6B',
     marginBottom: 2,
   },
   detailValue: {
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '600',
     color: COLORS.title,
   },
   deleteBtn: {
@@ -723,13 +725,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: 'rgba(232, 93, 76, 0.4)',
-    backgroundColor: 'rgba(232, 93, 76, 0.06)',
+    borderColor: '#C62828',
+    backgroundColor: 'rgba(198,40,40,0.06)',
   },
   deleteBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.deleteRed,
+    color: '#C62828',
   },
   bottomSpacer: {
     height: 20,
@@ -738,9 +740,6 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   bookingsBlock: {
-    backgroundColor: 'rgba(187,222,251,0.5)',
-    borderWidth: 1.5,
-    borderColor: '#64B5F6',
   },
   sectionTitleRow: {
     flexDirection: 'row',
@@ -775,8 +774,8 @@ const styles = StyleSheet.create({
   },
   bookingItemCode: {
     flex: 1,
-    fontSize: 15,
-    color: '#C45C6E',
+    fontSize: 14,
+    color: '#3D7D82',
     fontWeight: '600',
   },
   bookingItemDates: {
@@ -787,8 +786,8 @@ const styles = StyleSheet.create({
     color: '#888',
   },
   emptyBookings: {
-    fontSize: 13,
-    color: '#999',
+    fontSize: 14,
+    color: '#888',
     fontStyle: 'italic',
   },
 });

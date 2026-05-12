@@ -11,6 +11,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -38,13 +39,10 @@ async function resizeContactPhoto(uri) {
 }
 
 const COLORS = {
-  boxBg: 'rgba(255,255,255,0.72)',
   title: '#2C2C2C',
-  inputBg: '#F5F2EB',
-  border: '#E0D8CC',
-  addPink: '#D85A6A',
-  plusGreen: '#5DB87A',
-  saveGreen: '#2E7D32',
+  inputBg: '#F7F7F9',
+  accent: '#3D7D82',
+  label: '#6B6B6B',
 };
 
 export default function AddContactModal({ visible, onClose, onSave, contactType = 'clients', editContact = null }) {
@@ -287,7 +285,7 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
         }
       </Text>
       <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-        <Text style={styles.closeIcon}>✕</Text>
+        <Ionicons name="close" size={22} color="#888" />
       </TouchableOpacity>
     </View>
   );
@@ -342,6 +340,8 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
       ref={scrollRef}
       header={header}
       footer={footer}
+      boxWrapStyle={{ maxWidth: 380 }}
+      boxStyle={{ backgroundColor: '#FFFFFF' }}
       scrollContentContainerStyle={styles.scrollContent}
       extraOverlay={datePickerOverlay}
       scrollProps={{
@@ -356,42 +356,42 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
                     {photoUri ? (
                       <Image source={{ uri: photoUri }} style={styles.photoImage} />
                     ) : (
-                      <Text style={styles.photoIcon}>👤</Text>
+                      <Ionicons name="person" size={56} color="#B8B8B8" />
                     )}
                   </View>
                   <View style={styles.photoPlus}>
-                    <Text style={styles.plusText}>+</Text>
+                    <Ionicons name="add" size={20} color="#fff" />
                   </View>
                 </TouchableOpacity>
 
+                <Text style={styles.fieldLabel}>{t('name')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder={t('name')}
                   placeholderTextColor="#888"
                   value={name}
                   onChangeText={setName}
                   autoCapitalize="words"
                 />
+                <Text style={styles.fieldLabel}>{t('lastName')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder={t('lastName')}
                   placeholderTextColor="#888"
                   value={lastName}
                   onChangeText={setLastName}
                   autoCapitalize="words"
                 />
+                <Text style={styles.fieldLabel}>{t('phoneNumber')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder={t('phoneNumber')}
                   placeholderTextColor="#888"
                   value={phone}
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   returnKeyType="done"
                 />
+                <Text style={styles.fieldLabel}>{t('email')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder={t('email')}
                   placeholderTextColor="#888"
                   value={email}
                   onChangeText={setEmail}
@@ -410,7 +410,7 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
                       autoCapitalize="none"
                     />
                     <TouchableOpacity style={styles.removeBtn} onPress={() => confirmRemoveContact(() => removeExtraTelegram(index))} activeOpacity={0.8}>
-                      <Text style={styles.removeBtnText}>−</Text>
+                      <Ionicons name="trash-outline" size={22} color="#888" />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -427,7 +427,7 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
                       returnKeyType="done"
                     />
                     <TouchableOpacity style={styles.removeBtn} onPress={() => confirmRemoveContact(() => removeExtraWhatsapp(index))} activeOpacity={0.8}>
-                      <Text style={styles.removeBtnText}>−</Text>
+                      <Ionicons name="trash-outline" size={22} color="#888" />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -444,7 +444,7 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
                       returnKeyType="done"
                     />
                     <TouchableOpacity style={styles.removeBtn} onPress={() => confirmRemoveContact(() => removeExtraPhone(index))} activeOpacity={0.8}>
-                      <Text style={styles.removeBtnText}>−</Text>
+                      <Ionicons name="trash-outline" size={22} color="#888" />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -461,7 +461,7 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
                       autoCapitalize="none"
                     />
                     <TouchableOpacity style={styles.removeBtn} onPress={() => confirmRemoveContact(() => removeExtraEmail(index))} activeOpacity={0.8}>
-                      <Text style={styles.removeBtnText}>−</Text>
+                      <Ionicons name="trash-outline" size={22} color="#888" />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -470,19 +470,19 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
                   {showAddContactChoices ? (
                     <View style={styles.addContactChoicesRow}>
                       <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addExtraPhone} activeOpacity={0.8}>
-                        <Image source={require('../../assets/icon-contact-phone.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
+                        <Ionicons name="call-outline" size={22} color={COLORS.accent} />
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addExtraEmail} activeOpacity={0.8}>
-                        <Image source={require('../../assets/icon-contact-email.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
+                        <Ionicons name="mail-outline" size={22} color={COLORS.accent} />
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addExtraTelegram} activeOpacity={0.8}>
-                        <Image source={require('../../assets/icon-contact-telegram.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
+                        <Ionicons name="paper-plane-outline" size={22} color={COLORS.accent} />
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.addContactChoiceBtn} onPress={addExtraWhatsapp} activeOpacity={0.8}>
-                        <Image source={require('../../assets/icon-contact-whatsapp.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
+                        <Ionicons name="logo-whatsapp" size={22} color={COLORS.accent} />
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.addContactChoiceBtn} onPress={() => setShowAddContactChoices(false)} activeOpacity={0.8}>
-                        <Image source={require('../../assets/icon-contact-cancel.png')} style={styles.addContactChoiceIcon} resizeMode="contain" />
+                        <Ionicons name="close" size={22} color={COLORS.accent} />
                       </TouchableOpacity>
                     </View>
                   ) : (
@@ -491,45 +491,35 @@ export default function AddContactModal({ visible, onClose, onSave, contactType 
                       onPress={() => setShowAddContactChoices(true)}
                       hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
                     >
-                      <Image source={require('../../assets/add-contact-icon.png')} style={styles.addContactIconImage} resizeMode="contain" />
+                      <Ionicons name="add-circle-outline" size={22} color={COLORS.accent} />
                       <Text style={styles.addContactText}>{t('addNewContact')}</Text>
                     </Pressable>
                   )}
                 </View>
 
-                <View style={styles.inputWithIconRow}>
-                  <Image source={require('../../assets/icon-passport-id.png')} style={styles.inputFieldIcon} resizeMode="contain" />
-                  <TextInput
-                    style={[styles.input, styles.inputWithIconInput]}
-                    placeholder=""
-                    placeholderTextColor="#888"
-                    value={documentNumber}
-                    onChangeText={setDocumentNumber}
-                  />
-                </View>
-                <View style={styles.inputWithIconRow}>
-                  <Image source={require('../../assets/icon-nationality.png')} style={styles.inputFieldIcon} resizeMode="contain" />
-                  <TextInput
-                    style={[styles.input, styles.inputWithIconInput]}
-                    placeholder=""
-                    placeholderTextColor="#888"
-                    value={nationality}
-                    onChangeText={setNationality}
-                    autoCapitalize="words"
-                  />
-                </View>
-                <View style={styles.inputWithIconRow}>
-                  <Image source={require('../../assets/icon-birthday.png')} style={styles.inputFieldIcon} resizeMode="contain" />
-                  <TouchableOpacity
-                    style={[styles.input, styles.inputWithIconInput]}
-                    onPress={() => { Keyboard.dismiss(); setShowDatePicker(true); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={birthday ? styles.inputText : styles.inputPlaceholder}>
-                      {birthday || t('birthdayDate')}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                <Text style={styles.fieldLabel}>{t('passportId') || 'Документ'}</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholderTextColor="#888"
+                  value={documentNumber}
+                  onChangeText={setDocumentNumber}
+                />
+                <Text style={styles.fieldLabel}>{t('nationality') || 'Гражданство'}</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholderTextColor="#888"
+                  value={nationality}
+                  onChangeText={setNationality}
+                  autoCapitalize="words"
+                />
+                <Text style={styles.fieldLabel}>{t('birthdayDate')}</Text>
+                <TouchableOpacity
+                  style={styles.input}
+                  onPress={() => { Keyboard.dismiss(); setShowDatePicker(true); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.inputText}>{birthday}</Text>
+                </TouchableOpacity>
 
                 {/* TD-103: документы контакта (паспорт, договор и пр.) */}
                 <View style={styles.docsSection}>
@@ -557,9 +547,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 20,
-    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingHorizontal: 16,
     paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.07)',
   },
   headerSpacer: {
     width: 36,
@@ -567,10 +559,11 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
     color: COLORS.title,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   closeBtn: {
     width: 36,
@@ -578,15 +571,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeIcon: {
-    fontSize: 20,
-    color: '#E85D4C',
-    fontWeight: '600',
-  },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    alignItems: 'center',
+    padding: 20,
+    backgroundColor: 'transparent',
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.label,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    marginBottom: 8,
   },
   photoWrap: {
     marginBottom: 20,
@@ -597,20 +592,15 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#E0D8CC',
+    backgroundColor: '#EFEFEF',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.border,
     overflow: 'hidden',
   },
   photoImage: {
     width: 100,
     height: 100,
     borderRadius: 50,
-  },
-  photoIcon: {
-    fontSize: 40,
   },
   photoPlus: {
     position: 'absolute',
@@ -619,7 +609,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: COLORS.plusGreen,
+    backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -630,23 +620,18 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 3,
   },
-  plusText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-    lineHeight: 20,
-  },
   input: {
     width: '100%',
     backgroundColor: COLORS.inputBg,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 14,
     fontSize: 16,
     color: COLORS.title,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#D1D1D6',
+    minHeight: 46,
   },
   inputWithIconRow: {
     flexDirection: 'row',
@@ -654,14 +639,13 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 12,
     backgroundColor: COLORS.inputBg,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#D1D1D6',
     paddingLeft: 14,
+    minHeight: 46,
   },
   inputFieldIcon: {
-    width: 22,
-    height: 22,
     marginRight: 12,
   },
   inputWithIconInput: {
@@ -732,11 +716,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  removeBtnText: {
-    fontSize: 24,
-    color: '#C73E3E',
-    fontWeight: '300',
-  },
   addContactBlockWrap: {
     width: '100%',
     marginTop: 0,
@@ -754,14 +733,10 @@ const styles = StyleSheet.create({
     minHeight: 48,
     justifyContent: 'center',
   },
-  addContactIconImage: {
-    width: 30,
-    height: 30,
-  },
   addContactText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.addPink,
+    color: COLORS.accent,
   },
   addContactChoicesRow: {
     flexDirection: 'row',
@@ -776,12 +751,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 2,
+    paddingVertical: 8,
     paddingHorizontal: 0,
-  },
-  addContactChoiceIcon: {
-    width: 23,
-    height: 23,
   },
   saveBtn: {
     marginHorizontal: 20,
@@ -793,22 +764,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: 'rgba(46, 125, 50, 0.5)',
-    backgroundColor: 'rgba(46, 125, 50, 0.06)',
+    borderColor: COLORS.accent,
+    backgroundColor: 'rgba(61,125,130,0.08)',
   },
   saveBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.saveGreen,
+    color: COLORS.accent,
   },
   // TD-103: документы контакта
   docsSection: { marginTop: 12, paddingHorizontal: 14 },
   docsLabel:   { fontSize: 13, color: '#6C757D', marginBottom: 6 },
   docsGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  docTile:     { width: 72, height: 72, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border, position: 'relative' },
+  docTile:     { width: 72, height: 72, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#D1D1D6', position: 'relative' },
   docTileImg:  { width: '100%', height: '100%' },
   docTileRemove:    { position: 'absolute', top: 3, right: 3, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   docTileRemoveText:{ fontSize: 10, color: '#FFF', fontWeight: '700' },
-  docTileAdd:  { width: 72, height: 72, borderRadius: 10, borderWidth: 2, borderColor: COLORS.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.inputBg },
+  docTileAdd:  { width: 72, height: 72, borderRadius: 10, borderWidth: 2, borderColor: '#D1D1D6', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.inputBg },
   docTileAddText:   { fontSize: 26, color: '#ADB5BD', fontWeight: '300' },
 });

@@ -6,19 +6,23 @@ import {
   StyleSheet,
   FlatList,
   TextInput,
-  Image,
   Animated,
   LayoutAnimation,
   Platform,
   UIManager,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
+import { IconFolderClosed, IconFolderOpen } from '../components/FolderIcons';
+import { Ionicons } from '@expo/vector-icons';
+import { FONT } from '../utils/scale';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 import Constants from 'expo-constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLanguage } from '../context/LanguageContext';
 import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
@@ -32,6 +36,7 @@ import PropertyEditWizard from '../components/PropertyEditWizard';
 import FilterBottomSheet from '../components/FilterBottomSheet';
 import PropertyDetailScreen from './PropertyDetailScreen';
 import PropertyItem from '../components/PropertyItem';
+import { TAB_BAR_CONTENT_HEIGHT } from '../components/BottomNav';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
@@ -58,16 +63,20 @@ function compareByCodeOrName(a, b) {
 }
 
 const COLORS = {
-  background: '#F5F2EB',
+  background: '#F5F5F7',   // Apple-серый — подложка под белые карточки
   title: '#2C2C2C',
   subtitle: '#6B6B6B',
-  searchBg: 'rgba(245,242,235,0.9)',
-  searchBorder: '#E0D8CC',
+  searchBg: 'rgba(255,255,255,0.9)',   // белый — на сером смотрится чисто
+  searchBorder: '#E5E5EA',             // системный iOS-разделитель
 };
 
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
 
 export default function RealEstateScreen({ onReady }) {
+  const { width } = useWindowDimensions();
+  // Адаптивные отступы: SE (< 390pt) → 16, стандартные и Pro Max → 20
+  const hPad = width < 390 ? 16 : 20;
+  const insets = useSafeAreaInsets();
   const { user } = useUser();
   const route = useRoute();
   const navigation = useNavigation();
@@ -418,7 +427,7 @@ export default function RealEstateScreen({ onReady }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.fixedTop}>
+      <View style={[styles.fixedTop, { paddingHorizontal: hPad }]}>
       <View style={styles.header}>
         <View style={styles.headerActions} />
         <Text style={styles.headerTitle}>{t('realEstate')}</Text>
@@ -428,7 +437,11 @@ export default function RealEstateScreen({ onReady }) {
             onPress={() => setNotifModalVisible(true)}
             activeOpacity={0.7}
           >
-            <Text style={styles.bellIcon}>🔔</Text>
+            <Ionicons
+              name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+              size={22}
+              color={unreadCount > 0 ? '#3D7D82' : '#888'}
+            />
             {unreadCount > 0 ? (
               // Новые уведомления — красный бейдж с числом непрочитанных
               <View style={styles.badge}>
@@ -447,7 +460,7 @@ export default function RealEstateScreen({ onReady }) {
 
       <View style={styles.toolbarRow}>
         <View style={styles.searchWrap}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <Ionicons name="search-outline" size={FONT.body} color="#999" style={styles.searchIconIon} />
           <TextInput
             style={styles.searchInput}
             placeholder={t('search')}
@@ -459,25 +472,21 @@ export default function RealEstateScreen({ onReady }) {
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.searchClear}>✕</Text>
+              <Ionicons name="close-circle" size={16} color="#BBBBBB" />
             </TouchableOpacity>
           )}
         </View>
         {canAdd && (
           <TouchableOpacity style={styles.toolbarBtn} activeOpacity={0.7} onPress={() => setAddModalVisible(true)}>
-            <Image source={require('../../assets/icon-add-property.png')} style={styles.toolbarBtnImage} resizeMode="contain" />
+            <Ionicons name="add-outline" size={22} color="#888" />
           </TouchableOpacity>
         )}
         {(hasActiveFilter || searchQuery.length > 0) && (
           <TouchableOpacity style={styles.toolbarBtn} activeOpacity={0.7} onPress={toggleExpandAll}>
-            <Image
-              source={allExpanded
-                ? require('../../assets/icon-folder-open.png')
-                : require('../../assets/icon-folder-closed.png')
-              }
-              style={styles.toolbarBtnImage}
-              resizeMode="contain"
-            />
+            {allExpanded
+              ? <IconFolderOpen  size={22} color="#888" />
+              : <IconFolderClosed size={22} color="#888" />
+            }
           </TouchableOpacity>
         )}
         {/* Фильтр — в тулбаре, стиль как у остальных кнопок */}
@@ -486,10 +495,10 @@ export default function RealEstateScreen({ onReady }) {
           activeOpacity={0.7}
           onPress={() => setFilterVisible(true)}
         >
-          <Image
-            source={require('../../assets/icon-filter.png')}
-            style={[styles.toolbarBtnImage, hasActiveFilter && styles.filterIconActive]}
-            resizeMode="contain"
+          <Ionicons
+            name="funnel-outline"
+            size={18}
+            color={hasActiveFilter ? '#3D7D82' : '#888'}
           />
         </TouchableOpacity>
       </View>
@@ -508,7 +517,7 @@ export default function RealEstateScreen({ onReady }) {
           data={listToShow}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingHorizontal: hPad, paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + 12 }]}
           showsVerticalScrollIndicator={false}
           removeClippedSubviews
           initialNumToRender={12}
@@ -565,7 +574,7 @@ const styles = StyleSheet.create({
   },
   fixedTop: {
     paddingTop: TOP_INSET,
-    paddingHorizontal: 20,
+    // paddingHorizontal задаётся динамически через hPad в JSX
   },
   header: {
     flexDirection: 'row',
@@ -584,9 +593,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bellIcon: {
-    fontSize: 22,
-  },
   badge: {
     position: 'absolute',
     top: 2,
@@ -594,13 +600,13 @@ const styles = StyleSheet.create({
     minWidth: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#E53935',   // красный — новые уведомления
+    backgroundColor: '#E53935',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
   },
   badgeRead: {
-    backgroundColor: '#AAAAAA',   // серый — только прочитанные
+    backgroundColor: '#AAAAAA',
   },
   badgeText: {
     fontSize: 9,
@@ -613,31 +619,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',      // было 700 — semibold по-яблочному приятнее
+    letterSpacing: -0.3,
     color: COLORS.title,
   },
-  filterBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   filterBtnActive: {
-    shadowColor: '#5DB87A',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  filterIconImage: {
-    width: 24,
-    height: 24,
-  },
-  filterIconActive: {
-    shadowColor: '#5DB87A',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
+    borderColor: '#3D7D82',
   },
   toolbarRow: {
     flexDirection: 'row',
@@ -656,20 +643,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 40,
   },
-  searchIcon: {
-    fontSize: 14,
+  searchIconIon: {
     marginRight: 6,
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     color: COLORS.title,
     paddingVertical: 0,
-  },
-  searchClear: {
-    fontSize: 14,
-    color: '#999',
-    paddingLeft: 6,
   },
   toolbarBtn: {
     width: 40,
@@ -681,13 +662,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toolbarBtnIcon: {
-    fontSize: 20,
-  },
-  toolbarBtnImage: {
-    width: 26,
-    height: 26,
-  },
+
   emptyWrap: {
     flex: 1,
     justifyContent: 'center',
@@ -703,7 +678,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 100,
+    // paddingHorizontal и paddingBottom задаются динамически в JSX
   },
 });

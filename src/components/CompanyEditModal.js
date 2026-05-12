@@ -6,23 +6,20 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Pressable,
   Keyboard,
   Image,
   Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadCompanyLogo } from '../services/storageService';
 import ModalScrollFrame from './ModalScrollFrame';
 
 const COLORS = {
-  boxBg: 'rgba(255,255,255,0.72)',
   title: '#2C2C2C',
-  inputBg: '#F5F2EB',
-  border: '#E0D8CC',
-  addPink: '#D85A6A',
-  plusGreen: '#5DB87A',
-  saveGreen: '#2E7D32',
+  inputBg: '#F7F7F9',
+  accent: '#3D7D82',
+  label: '#6B6B6B',
 };
 
 export default function CompanyEditModal({ visible, onClose, companyInfo = {}, onSave }) {
@@ -35,11 +32,7 @@ export default function CompanyEditModal({ visible, onClose, companyInfo = {}, o
   const [whatsapp, setWhatsapp] = useState('');
   const [instagram, setInstagram] = useState('');
   const [workingHours, setWorkingHours] = useState('');
-  const [showAddContactChoices, setShowAddContactChoices] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [showTelegram, setShowTelegram] = useState(false);
-  const [showWhatsapp, setShowWhatsapp] = useState(false);
-  const [showInstagram, setShowInstagram] = useState(false);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -52,10 +45,6 @@ export default function CompanyEditModal({ visible, onClose, companyInfo = {}, o
       setWhatsapp(companyInfo.whatsapp || '');
       setInstagram(companyInfo.instagram || '');
       setWorkingHours(companyInfo.workingHours || '');
-      setShowAddContactChoices(false);
-      setShowTelegram(!!companyInfo.telegram);
-      setShowWhatsapp(!!companyInfo.whatsapp);
-      setShowInstagram(!!companyInfo.instagram);
     }
   }, [visible, companyInfo]);
 
@@ -121,7 +110,7 @@ export default function CompanyEditModal({ visible, onClose, companyInfo = {}, o
       <View style={styles.headerSpacer} />
       <Text style={styles.title}>{t('companyEditTitle')}</Text>
       <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-        <Text style={styles.closeIcon}>✕</Text>
+        <Ionicons name="close" size={22} color="#888" />
       </TouchableOpacity>
     </View>
   );
@@ -131,16 +120,16 @@ export default function CompanyEditModal({ visible, onClose, companyInfo = {}, o
       <TouchableOpacity style={styles.photoWrap} onPress={pickLogo} activeOpacity={0.8} disabled={uploadingLogo}>
         <View style={styles.photoCircle}>
           {uploadingLogo ? (
-            <Text style={styles.logoPlaceholder}>⏳</Text>
+            <Ionicons name="hourglass-outline" size={32} color="#888" />
           ) : logoUrl ? (
-            <Image source={{ uri: logoUrl }} style={styles.logoImage} />
+            <Image source={{ uri: logoUrl }} style={styles.logoImage} resizeMode="contain" />
           ) : (
-            <Text style={styles.logoPlaceholder}>🏢</Text>
+            <Ionicons name="business" size={40} color="#B8B8B8" />
           )}
         </View>
         {!uploadingLogo && (
           <View style={styles.photoPlus}>
-            <Text style={styles.plusText}>+</Text>
+            <Ionicons name="add" size={20} color="#fff" />
           </View>
         )}
       </TouchableOpacity>
@@ -162,6 +151,8 @@ export default function CompanyEditModal({ visible, onClose, companyInfo = {}, o
       header={header}
       aboveScrollSlot={logoSlot}
       footer={footer}
+      boxWrapStyle={{ maxWidth: 380 }}
+      boxStyle={{ backgroundColor: '#FFFFFF' }}
       scrollContentContainerStyle={styles.scrollContent}
       scrollProps={{
         showsVerticalScrollIndicator: false,
@@ -169,122 +160,59 @@ export default function CompanyEditModal({ visible, onClose, companyInfo = {}, o
         keyboardDismissMode: 'interactive',
       }}
     >
+                <Text style={styles.fieldLabel}>{t('companyName')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder={t('companyName')}
                   placeholderTextColor="#888"
                   value={name}
                   onChangeText={setName}
                 />
+                <Text style={styles.fieldLabel}>{t('companyPhone')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder={t('companyPhone')}
                   placeholderTextColor="#888"
                   value={phone}
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   returnKeyType="done"
                 />
+                <Text style={styles.fieldLabel}>{t('companyEmail')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder={t('companyEmail')}
                   placeholderTextColor="#888"
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
-
-                {showTelegram && (
-                  <TextInput
-                    style={styles.input}
-                    placeholder={t('companyTelegram')}
-                    placeholderTextColor="#888"
-                    value={telegram}
-                    onChangeText={setTelegram}
-                    autoCapitalize="none"
-                  />
-                )}
-
-                {showWhatsapp && (
-                  <TextInput
-                    style={styles.input}
-                    placeholder={t('companyWhatsapp')}
-                    placeholderTextColor="#888"
-                    value={whatsapp}
-                    onChangeText={setWhatsapp}
-                    keyboardType="phone-pad"
-                    returnKeyType="done"
-                  />
-                )}
-
-                {showInstagram && (
-                  <TextInput
-                    style={styles.input}
-                    placeholder={t('companyInstagram')}
-                    placeholderTextColor="#888"
-                    value={instagram}
-                    onChangeText={setInstagram}
-                    autoCapitalize="none"
-                  />
-                )}
-
-                {/* Add contact button */}
-                <View style={styles.addContactBlockWrap}>
-                  {showAddContactChoices ? (
-                    <View style={styles.addContactChoicesRow}>
-                      {!showTelegram && (
-                        <TouchableOpacity
-                          style={styles.addContactChoiceBtn}
-                          onPress={() => { setShowTelegram(true); setShowAddContactChoices(false); }}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={styles.addContactChoiceText}>Telegram</Text>
-                        </TouchableOpacity>
-                      )}
-                      {!showWhatsapp && (
-                        <TouchableOpacity
-                          style={styles.addContactChoiceBtn}
-                          onPress={() => { setShowWhatsapp(true); setShowAddContactChoices(false); }}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={styles.addContactChoiceText}>WhatsApp</Text>
-                        </TouchableOpacity>
-                      )}
-                      {!showInstagram && (
-                        <TouchableOpacity
-                          style={styles.addContactChoiceBtn}
-                          onPress={() => { setShowInstagram(true); setShowAddContactChoices(false); }}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={styles.addContactChoiceText}>Instagram</Text>
-                        </TouchableOpacity>
-                      )}
-                      <TouchableOpacity
-                        style={styles.addContactChoiceBtn}
-                        onPress={() => setShowAddContactChoices(false)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.addContactChoiceText}>✕</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    (!showTelegram || !showWhatsapp || !showInstagram) && (
-                      <Pressable
-                        style={styles.addContactBtn}
-                        onPress={() => setShowAddContactChoices(true)}
-                        hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-                      >
-                        <Text style={styles.addContactIcon}>📞</Text>
-                        <Text style={styles.addContactText}>{t('addContact')}</Text>
-                      </Pressable>
-                    )
-                  )}
-                </View>
-
+                <Text style={styles.fieldLabel}>{t('companyTelegram')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder={t('companyWorkingHours')}
+                  placeholderTextColor="#888"
+                  value={telegram}
+                  onChangeText={setTelegram}
+                  autoCapitalize="none"
+                />
+                <Text style={styles.fieldLabel}>{t('companyWhatsapp')}</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholderTextColor="#888"
+                  value={whatsapp}
+                  onChangeText={setWhatsapp}
+                  keyboardType="phone-pad"
+                  returnKeyType="done"
+                />
+                <Text style={styles.fieldLabel}>{t('companyInstagram')}</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholderTextColor="#888"
+                  value={instagram}
+                  onChangeText={setInstagram}
+                  autoCapitalize="none"
+                />
+                <Text style={styles.fieldLabel}>{t('companyWorkingHours')}</Text>
+                <TextInput
+                  style={styles.input}
                   placeholderTextColor="#888"
                   value={workingHours}
                   onChangeText={setWorkingHours}
@@ -298,9 +226,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 20,
-    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingHorizontal: 16,
     paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.07)',
   },
   headerSpacer: {
     width: 36,
@@ -308,21 +238,17 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
     color: COLORS.title,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   closeBtn: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  closeIcon: {
-    fontSize: 20,
-    color: '#E85D4C',
-    fontWeight: '600',
   },
   logoSection: {
     paddingHorizontal: 20,
@@ -335,103 +261,63 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   photoCircle: {
-    width: 80,
+    width: 140,
     height: 80,
     borderRadius: 12,
-    backgroundColor: '#E0D8CC',
+    backgroundColor: '#EFEFEF',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.border,
     overflow: 'hidden',
   },
   logoImage: {
-    width: 80,
+    width: 140,
     height: 80,
-    borderRadius: 10,
-  },
-  logoPlaceholder: {
-    fontSize: 32,
+    borderRadius: 12,
+    resizeMode: 'contain',
   },
   logoHint: {
     fontSize: 12,
     color: '#888',
-    marginTop: 4,
+    marginTop: 6,
   },
   photoPlus: {
     position: 'absolute',
     right: -4,
     bottom: -4,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: COLORS.plusGreen,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#fff',
   },
-  plusText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
-    lineHeight: 18,
-  },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 0,
+    padding: 20,
+    backgroundColor: 'transparent',
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.label,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    marginBottom: 8,
   },
   input: {
     width: '100%',
     backgroundColor: COLORS.inputBg,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 14,
     fontSize: 16,
     color: COLORS.title,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  addContactBlockWrap: {
-    width: '100%',
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  addContactBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 8,
-    paddingHorizontal: 4,
-  },
-  addContactIcon: {
-    fontSize: 18,
-  },
-  addContactText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.addPink,
-  },
-  addContactChoicesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  addContactChoiceBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: COLORS.inputBg,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  addContactChoiceText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.title,
+    borderColor: '#D1D1D6',
+    minHeight: 46,
   },
   saveBtn: {
     marginHorizontal: 20,
@@ -443,12 +329,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: 'rgba(46, 125, 50, 0.5)',
-    backgroundColor: 'rgba(46, 125, 50, 0.06)',
+    borderColor: COLORS.accent,
+    backgroundColor: 'rgba(61,125,130,0.08)',
   },
   saveBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.saveGreen,
+    color: COLORS.accent,
   },
 });

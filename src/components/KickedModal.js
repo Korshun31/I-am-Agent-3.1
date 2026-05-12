@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../context/LanguageContext';
 
 // Модалка «Вы были исключены из компании …». Показывается на экране логина
@@ -24,7 +25,7 @@ export default function KickedModal({ visible, companyName, onClose }) {
             hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             accessibilityLabel="Close"
           >
-            <Text style={styles.closeIcon}>✕</Text>
+            <Ionicons name="close" size={22} color="#888" />
           </TouchableOpacity>
           <Text style={styles.message}>{message}</Text>
         </View>
@@ -57,16 +58,11 @@ const styles = StyleSheet.create({
   closeBtn: {
     position: 'absolute',
     top: 8,
-    right: 12,
-    width: 32,
-    height: 32,
+    right: 8,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  closeIcon: {
-    fontSize: 20,
-    color: '#6C757D',
-    lineHeight: 22,
   },
   message: {
     fontSize: 16,

@@ -13,14 +13,15 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../context/LanguageContext';
 import { updatePassword } from '../services/authService';
 
 const COLORS = {
-  boxBg: 'rgba(255,255,255,0.72)',
   title: '#2C2C2C',
-  border: '#E0D8CC',
-  inputBg: '#F5F2EB',
+  inputBg: '#F7F7F9',
+  accent: '#3D7D82',
+  label: '#6B6B6B',
 };
 
 /**
@@ -98,31 +99,31 @@ export default function ChangePasswordModal({ visible, onClose }) {
               <View style={styles.headerSpacer} />
               <Text style={styles.title}>{t('changePassword')}</Text>
               <TouchableOpacity onPress={handleCancel} style={styles.closeBtn} activeOpacity={0.8}>
-                <Text style={styles.closeIcon}>✕</Text>
+                <Ionicons name="close" size={22} color="#888" />
               </TouchableOpacity>
             </View>
             <View style={styles.formWrap}>
+              <Text style={styles.fieldLabel}>{t('currentPassword')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder={t('currentPassword')}
                 placeholderTextColor="#888"
                 value={currentPassword}
                 onChangeText={(v) => { setCurrentPassword(v); setError(''); }}
                 secureTextEntry
                 autoCapitalize="none"
               />
+              <Text style={styles.fieldLabel}>{t('newPassword')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder={t('newPassword')}
                 placeholderTextColor="#888"
                 value={newPassword}
                 onChangeText={(v) => { setNewPassword(v); setError(''); }}
                 secureTextEntry
                 autoCapitalize="none"
               />
+              <Text style={styles.fieldLabel}>{t('confirmNewPassword')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder={t('confirmNewPassword')}
                 placeholderTextColor="#888"
                 value={confirmPassword}
                 onChangeText={(v) => { setConfirmPassword(v); setError(''); }}
@@ -141,7 +142,7 @@ export default function ChangePasswordModal({ visible, onClose }) {
                   activeOpacity={0.7}
                 >
                   {loading ? (
-                    <ActivityIndicator size="small" color="#2E7D32" />
+                    <ActivityIndicator size="small" color={COLORS.accent} />
                   ) : (
                     <Text style={styles.saveBtnText}>{t('save')}</Text>
                   )}
@@ -172,9 +173,7 @@ const styles = StyleSheet.create({
   box: {
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: COLORS.boxBg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -185,9 +184,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 20,
-    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingHorizontal: 16,
     paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.07)',
   },
   headerSpacer: {
     width: 36,
@@ -195,10 +196,11 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
     color: COLORS.title,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   closeBtn: {
     width: 36,
@@ -206,29 +208,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeIcon: {
-    fontSize: 20,
-    color: '#E85D4C',
-    fontWeight: '600',
-  },
   formWrap: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    padding: 20,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.label,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    marginBottom: 8,
   },
   input: {
     backgroundColor: COLORS.inputBg,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     fontSize: 16,
     color: COLORS.title,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 16,
+    borderColor: '#D1D1D6',
+    minHeight: 46,
+    marginBottom: 12,
   },
   errorText: {
     fontSize: 14,
-    color: '#C73E3E',
+    color: '#C62828',
     marginBottom: 12,
   },
   buttonsRow: {
@@ -243,13 +248,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: 'rgba(232, 93, 76, 0.5)',
-    backgroundColor: 'rgba(232, 93, 76, 0.06)',
+    borderColor: '#C62828',
+    backgroundColor: 'rgba(198,40,40,0.06)',
   },
   cancelBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#E85D4C',
+    color: '#C62828',
   },
   saveBtn: {
     flex: 1,
@@ -258,8 +263,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: 'rgba(46, 125, 50, 0.5)',
-    backgroundColor: 'rgba(46, 125, 50, 0.06)',
+    borderColor: COLORS.accent,
+    backgroundColor: 'rgba(61,125,130,0.08)',
   },
   saveBtnDisabled: {
     opacity: 0.6,
@@ -267,6 +272,6 @@ const styles = StyleSheet.create({
   saveBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2E7D32',
+    color: COLORS.accent,
   },
 });

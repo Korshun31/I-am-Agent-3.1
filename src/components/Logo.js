@@ -2,8 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 
 export const COLORS = {
-  background: '#F5F2EB',
-  backgroundLogin: '#FDF7EF', // кремовый фон экрана входа по макету
+  background: '#F5F5F7',
   redOrange: '#E85D4C',
   yellowOrange: '#F0A84A',
   green: '#5DB87A',
@@ -11,20 +10,7 @@ export const COLORS = {
   darkTeal: '#2D8B7E',
   title: '#2C2C2C',
   subtitle: '#5A5A5A',
-  stickerYellow: '#F7E98E',   // стикер жёлтый (E-mail)
-  stickerBlue: '#A8D0E6',     // стикер голубой (Password)
   facebookBlue: '#1877F2',
-  signUpPink: '#D85A6A',
-  backRed: '#C73E3E',         // ссылка Back
-  // Регистрация: цветные стикеры полей (светлый = поле, тёмный = метка)
-  regNameBg: '#F5D0D0',       // поле Name — светлый розовый
-  regNameLabel: '#E8A0A0',    // метка Name — тёмнее
-  regEmailBg: '#FFE0B8',      // поле E-mail — светлый оранжевый
-  regEmailLabel: '#F0C070',   // метка E-mail — тёмнее
-  regPasswordBg: '#FFF4B8',   // поле Password — светлый жёлтый
-  regPasswordLabel: '#F7E98E', // метка Password — тёмнее
-  regConfirmBg: '#C5E3F0',    // поле Confirm — светлый голубой
-  regConfirmLabel: '#A8D0E6', // метка Password (confirm) — тёмнее
 };
 
 // Один логотип везде: 5 полос, веер. size только меняет масштаб.

@@ -18,31 +18,48 @@ const { height: SCREEN_H } = Dimensions.get('window');
 const MODAL_HEIGHT = Math.min(SCREEN_H * 0.85, 620);
 const CITY_LIST_MAX_HEIGHT = 280;
 import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
+import { Image as RNImage } from 'react-native';
+import { TYPE_COLORS } from './PropertyItem';
+import { IconHouseType, IconCondoType } from './PropertyIcons';
+import Checkbox from './Checkbox';
+
+function IconResortPng({ size = 28, color = '#888' }) {
+  return (
+    <RNImage
+      source={require('../../assets/icon-property-resort-new.png')}
+      style={{ width: size, height: size, tintColor: color }}
+      resizeMode="contain"
+    />
+  );
+}
 import { useLanguage } from '../context/LanguageContext';
 
 const AMENITY_KEYS = ['swimming_pool', 'gym', 'parking', 'washing_machine'];
 
 const TYPE_BLOCKS = [
-  { key: 'resort', color: '#C8E6C9', borderColor: '#81C784', icon: require('../../assets/icon-property-resort.png') },
-  { key: 'house', color: '#FFF9C4', borderColor: '#FFD54F', icon: require('../../assets/icon-property-house.png') },
-  { key: 'condo', color: '#BBDEFB', borderColor: '#64B5F6', icon: require('../../assets/icon-property-condo.png') },
+  { key: 'resort', Icon: IconResortPng },
+  { key: 'house',  Icon: IconHouseType },
+  { key: 'condo',  Icon: IconCondoType },
 ];
 
 const COLORS = {
-  boxBg: 'rgba(255,255,255,0.72)',
+  boxBg: '#FFFFFF',
+  inputBg: '#F7F7F9',
   title: '#2C2C2C',
-  border: '#E0D8CC',
+  label: '#6B6B6B',
+  border: '#D1D1D6',
   muted: '#888',
-  accent: '#5DB87A',
-  saveGreen: '#2E7D32',
+  accent: '#3D7D82',
+  accentBg: 'rgba(61,125,130,0.06)',
+  accentBorder: 'rgba(61,125,130,0.5)',
+  saveGreen: '#3D7D82',
 };
 
 function CheckRow({ label, checked, onPress }) {
   return (
     <TouchableOpacity style={s.row} onPress={onPress} activeOpacity={0.7}>
-      <View style={[s.checkbox, checked && s.checkboxChecked]}>
-        {checked && <Text style={s.checkMark}>✓</Text>}
-      </View>
+      <Checkbox checked={checked} style={{ marginRight: 12 }} />
       <Text style={s.rowLabel}>{label}</Text>
     </TouchableOpacity>
   );
@@ -208,7 +225,7 @@ export default function FilterBottomSheet({
         {Platform.OS === 'web' ? (
           <View style={[StyleSheet.absoluteFill, s.backdropWeb]} />
         ) : (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.3)' }]} />
+          <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
         )}
         <Pressable style={s.boxWrap} onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}>
           <View style={s.box}>
@@ -216,7 +233,7 @@ export default function FilterBottomSheet({
               <View style={s.headerSpacer} />
               <Text style={s.title}>{t('filterTitle')}</Text>
               <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.8}>
-                <Text style={s.closeIcon}>✕</Text>
+                <Ionicons name="close" size={22} color="#888" />
               </TouchableOpacity>
             </View>
 
@@ -249,7 +266,7 @@ export default function FilterBottomSheet({
                   <Text style={[s.cityFieldText, !city && s.cityFieldPlaceholder]} numberOfLines={1}>
                     {city || t('filterAny')}
                   </Text>
-                  <Text style={s.cityFieldChevron}>▽</Text>
+                  <Ionicons name="chevron-down" size={14} color="#6B6B6B" />
                 </TouchableOpacity>
               </View>
             )}
@@ -269,7 +286,7 @@ export default function FilterBottomSheet({
                         ? [...selectedDistricts][0]
                         : `${selectedDistricts.size} ${t('filterDistrictsCount')}`}
                   </Text>
-                  <Text style={s.cityFieldChevron}>▽</Text>
+                  <Ionicons name="chevron-down" size={14} color="#6B6B6B" />
                 </TouchableOpacity>
               </View>
             )}
@@ -279,19 +296,21 @@ export default function FilterBottomSheet({
               <View style={s.typeRow}>
                 {TYPE_BLOCKS.map((pt) => {
                   const isActive = selectedTypes.has(pt.key);
+                  const typeColor = TYPE_COLORS[pt.key] || TYPE_COLORS.house;
+                  const iconColor = isActive ? typeColor : '#C7C7CC';
+                  const labelColor = isActive ? typeColor : '#C7C7CC';
                   return (
                     <TouchableOpacity
                       key={pt.key}
                       style={[
                         s.typeBtn,
-                        isActive ? { backgroundColor: pt.color, borderColor: pt.borderColor } : s.typeBtnInactive,
-                        isActive && s.typeBtnActive,
+                        isActive && { borderColor: typeColor, borderWidth: 1.5 },
                       ]}
                       onPress={() => toggleType(pt.key)}
                       activeOpacity={0.7}
                     >
-                      <Image source={pt.icon} style={[s.typeBtnIcon, !isActive && s.typeBtnIconInactive]} resizeMode="contain" />
-                      <Text style={[s.typeBtnLabel, isActive && s.typeBtnLabelActive]}>
+                      <pt.Icon size={28} color={iconColor} />
+                      <Text style={[s.typeBtnLabel, { color: labelColor }]} numberOfLines={1}>
                         {typeLabels[pt.key]}
                       </Text>
                     </TouchableOpacity>
@@ -387,7 +406,7 @@ export default function FilterBottomSheet({
               <View style={s.cityPickerHeader}>
                 <Text style={s.cityPickerTitle}>{t('pdCity')}</Text>
                 <TouchableOpacity onPress={() => setCityPickerVisible(false)} style={s.closeBtn} activeOpacity={0.8}>
-                  <Text style={s.closeIcon}>✕</Text>
+                  <Ionicons name="close" size={22} color="#888" />
                 </TouchableOpacity>
               </View>
               {cities.length > 10 && (
@@ -433,7 +452,7 @@ export default function FilterBottomSheet({
               <View style={s.cityPickerHeader}>
                 <Text style={s.cityPickerTitle}>{t('propDistrict')}</Text>
                 <TouchableOpacity onPress={() => setDistrictPickerVisible(false)} style={s.closeBtn} activeOpacity={0.8}>
-                  <Text style={s.closeIcon}>✕</Text>
+                  <Ionicons name="close" size={22} color="#888" />
                 </TouchableOpacity>
               </View>
               {districts.length > 10 && (
@@ -455,9 +474,7 @@ export default function FilterBottomSheet({
                 {filteredDistricts.map(d => (
                   <TouchableOpacity key={d} style={s.cityPickerItem} onPress={() => toggleDistrictPicker(d)} activeOpacity={0.7}>
                     <Text style={[s.cityPickerItemText, districtPickerSelected.has(d) && s.cityPickerItemSelected]} numberOfLines={1}>{d}</Text>
-                    <View style={[s.pickerCheckbox, districtPickerSelected.has(d) && s.pickerCheckboxChecked]}>
-                      {districtPickerSelected.has(d) && <Text style={s.pickerCheckMark}>✓</Text>}
-                    </View>
+                    <Checkbox checked={districtPickerSelected.has(d)} style={{ marginLeft: 12 }} />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -484,7 +501,7 @@ const s = StyleSheet.create({
   },
   boxWrap: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 380,
     height: MODAL_HEIGHT,
   },
   box: {
@@ -494,7 +511,7 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: COLORS.boxBg,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: '#E5E5EA',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -511,51 +528,36 @@ const s = StyleSheet.create({
     borderBottomColor: 'rgba(0,0,0,0.06)',
   },
   headerSpacer: { width: 36 },
-  title: { flex: 1, fontSize: 18, fontWeight: '700', color: COLORS.title, textAlign: 'center' },
+  title: { flex: 1, fontSize: 20, fontWeight: '600', letterSpacing: -0.3, color: COLORS.title, textAlign: 'center' },
   closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  closeIcon: { fontSize: 20, color: '#E85D4C', fontWeight: '600' },
   scroll: { flex: 1 },
   scrollContent: { padding: 20, paddingTop: 16 },
   section: { marginBottom: 20 },
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: COLORS.title, marginBottom: 10 },
+  sectionTitle: {
+    fontSize: 12, fontWeight: '600', color: COLORS.label,
+    letterSpacing: 0.7, textTransform: 'uppercase',
+    marginBottom: 8,
+  },
   typeRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
   typeBtn: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
+    height: 88,
     borderRadius: 12,
-    borderWidth: 2,
-  },
-  typeBtnInactive: {
-    backgroundColor: '#EDEDEB',
-    borderColor: '#D5D5D0',
-  },
-  typeBtnActive: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  typeBtnIcon: { width: 32, height: 32, marginBottom: 4 },
-  typeBtnIconInactive: { opacity: 0.35 },
-  typeBtnLabel: { fontSize: 12, fontWeight: '600', color: '#AAAAAA' },
-  typeBtnLabelActive: { color: '#2C2C2C', fontWeight: '700' },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  checkboxChecked: { borderColor: COLORS.saveGreen },
-  checkMark: { color: COLORS.saveGreen, fontSize: 14, fontWeight: '700' },
-  rowLabel: { fontSize: 15, color: COLORS.title, flex: 1 },
+  typeBtnLabel: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  rowLabel: { fontSize: 16, color: COLORS.title, flex: 1 },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   bedroomRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   bedroomBox: {
@@ -564,13 +566,13 @@ const s = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: COLORS.border,
-    backgroundColor: '#F5F2EB',
+    backgroundColor: COLORS.inputBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   bedroomBoxSelected: {
-    backgroundColor: 'rgba(46, 125, 50, 0.06)',
-    borderColor: 'rgba(46, 125, 50, 0.5)',
+    backgroundColor: COLORS.accentBg,
+    borderColor: COLORS.accentBorder,
   },
   bedroomBoxText: { fontSize: 16, color: COLORS.title, fontWeight: '500' },
   bedroomBoxTextSelected: { color: COLORS.saveGreen, fontWeight: '600' },
@@ -578,7 +580,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#F0EDE8',
+    backgroundColor: COLORS.inputBg,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
@@ -588,7 +590,7 @@ const s = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   priceInput: {
     flex: 1,
-    backgroundColor: '#F5F2EB',
+    backgroundColor: COLORS.inputBg,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -602,7 +604,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F5F2EB',
+    backgroundColor: COLORS.inputBg,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -620,13 +622,13 @@ const s = StyleSheet.create({
   },
   cityPickerBox: {
     width: '100%',
-    maxWidth: 340,
+    maxWidth: 380,
     maxHeight: '80%',
     backgroundColor: COLORS.boxBg,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: '#E5E5EA',
   },
   cityPickerHeader: {
     flexDirection: 'row',
@@ -636,13 +638,13 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.06)',
   },
-  cityPickerTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: COLORS.title, textAlign: 'center' },
+  cityPickerTitle: { flex: 1, fontSize: 16, fontWeight: '600', color: COLORS.title, textAlign: 'center' },
   citySearchInput: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     fontSize: 16,
     color: COLORS.title,
-    backgroundColor: '#F5F2EB',
+    backgroundColor: COLORS.inputBg,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
@@ -659,60 +661,46 @@ const s = StyleSheet.create({
   },
   cityPickerItemText: { fontSize: 16, color: COLORS.title, flex: 1 },
   cityPickerItemSelected: { fontWeight: '600', color: COLORS.saveGreen },
-  pickerCheckbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12,
-  },
-  pickerCheckboxChecked: { borderColor: COLORS.saveGreen },
-  pickerCheckMark: { color: COLORS.saveGreen, fontSize: 14, fontWeight: '700' },
   cityPickerCheck: { fontSize: 16, fontWeight: '700', color: COLORS.saveGreen },
   cityPickerSelectBtn: {
-    paddingVertical: 14,
+    paddingVertical: 10,
     marginHorizontal: 20,
     marginVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: 'rgba(46, 125, 50, 0.5)',
-    backgroundColor: 'rgba(46, 125, 50, 0.06)',
+    borderColor: COLORS.accent,
+    backgroundColor: 'transparent',
   },
   cityPickerSelectBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.saveGreen },
   buttons: {
     flexDirection: 'row',
     gap: 12,
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingBottom: 20,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.06)',
+    borderTopColor: 'rgba(0,0,0,0.07)',
   },
   clearBtn: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 10,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(0,0,0,0.2)',
-    backgroundColor: 'rgba(0,0,0,0.04)',
+    backgroundColor: 'transparent',
   },
-  clearBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.title },
+  clearBtnText: { fontSize: 16, fontWeight: '600', color: '#6B6B6B' },
   applyBtn: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 10,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: 'rgba(46, 125, 50, 0.5)',
-    backgroundColor: 'rgba(46, 125, 50, 0.06)',
+    borderColor: COLORS.accent,
+    backgroundColor: 'transparent',
   },
-  applyBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.saveGreen },
+  applyBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.accent },
 });

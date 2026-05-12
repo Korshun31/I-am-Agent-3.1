@@ -50,6 +50,6 @@ const s = StyleSheet.create({
     backgroundColor: C.surface,
   },
   btnActive: { borderColor: ACCENT, backgroundColor: C.accentBg },
-  btnText: { fontSize: 13, color: C.muted, fontWeight: '500' },
-  btnTextActive: { color: ACCENT, fontWeight: '700' },
+  btnText: { fontSize: 14, color: C.muted, fontWeight: '600' },
+  btnTextActive: { color: ACCENT, fontWeight: '600' },
 });

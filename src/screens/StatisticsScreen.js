@@ -1,6 +1,9 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import { TAB_BAR_CONTENT_HEIGHT } from '../components/BottomNav';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
 import { useLanguage } from '../context/LanguageContext';
 import { useUser } from '../context/UserContext';
@@ -33,13 +36,13 @@ import StatisticsMonthBreakdownModal from '../web/components/statistics/Statisti
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
 const COLORS = {
-  background: '#F5F2EB',
+  background: '#F5F5F7',
   title:      '#2C2C2C',
-  backArrow:  '#5DB8D4',
   accent:     '#3D7D82',
 };
 
 export default function StatisticsScreen({ onBack }) {
+  const insets = useSafeAreaInsets();
   const { t, currency } = useLanguage();
   const { user } = useUser();
   const {
@@ -146,7 +149,7 @@ export default function StatisticsScreen({ onBack }) {
       <View style={styles.fixedTop}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.8}>
-            <Text style={styles.backArrowText}>←</Text>
+            <Ionicons name="chevron-back" size={20} color="#2C2C2C" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{t('statistics')}</Text>
           <View style={styles.headerRight} />
@@ -155,7 +158,7 @@ export default function StatisticsScreen({ onBack }) {
 
       <ScrollView
         style={styles.scrollArea}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + 12 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} />
@@ -298,31 +301,28 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backBtn: {
-    width: 52,
-    padding: 8,
-    alignItems: 'flex-start',
+    width: 36,
+    height: 36,
+    alignItems: 'center',
     justifyContent: 'center',
-  },
-  backArrowText: {
-    fontSize: 24,
-    color: COLORS.backArrow,
   },
   headerTitle: {
     flex: 1,
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
     color: COLORS.title,
+    letterSpacing: -0.3,
     textAlign: 'center',
   },
   headerRight: {
-    width: 52,
+    width: 36,
+    height: 36,
   },
   scrollArea: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 88,
+    paddingHorizontal: 20,
   },
   pickerScroll: {
     paddingVertical: 4,

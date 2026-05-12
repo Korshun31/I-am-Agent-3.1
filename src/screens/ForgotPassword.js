@@ -32,7 +32,7 @@ export default function ForgotPassword({ onBack }) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.wrapper, { backgroundColor: COLORS.backgroundLogin }]}
+      style={[styles.wrapper, { backgroundColor: COLORS.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -44,6 +44,7 @@ export default function ForgotPassword({ onBack }) {
 
         {!sent && (
           <View style={styles.form}>
+            <Text style={styles.fieldLabel}>{t('email') || 'E-MAIL'}</Text>
             <TextInput
               style={styles.input}
               placeholder="mail@mail.com"
@@ -83,15 +84,26 @@ const styles = StyleSheet.create({
   title:          { fontSize: 22, fontWeight: '700', color: COLORS.title, marginTop: 18, marginBottom: 8, textAlign: 'center' },
   subtitle:       { fontSize: 14, color: COLORS.subtitle, marginBottom: 28, textAlign: 'center', maxWidth: 340, lineHeight: 20 },
   form:           { width: '100%', maxWidth: 340 },
+  fieldLabel:     {
+    fontSize: 12, fontWeight: '600', color: '#6B6B6B',
+    letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 8,
+  },
   input:          {
-    borderRadius: 12, paddingVertical: 15, paddingHorizontal: 16,
-    fontSize: 16, color: COLORS.title, backgroundColor: '#FFF8DC',
-    marginBottom: 14,
+    borderRadius: 10, paddingVertical: 15, paddingHorizontal: 16,
+    fontSize: 16, color: COLORS.title,
+    backgroundColor: '#EBEBEE', borderWidth: 1,
+    borderTopColor: '#D1D1D6', borderLeftColor: '#D1D1D6',
+    borderBottomColor: '#F0F0F3', borderRightColor: '#F0F0F3',
+    marginBottom: 16,
   },
   error:          { color: '#C62828', fontSize: 14, textAlign: 'center', marginBottom: 12 },
-  submitBtn:      { backgroundColor: COLORS.green, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
+  submitBtn:      {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5, borderColor: '#3D7D82',
+    borderRadius: 12, paddingVertical: 14, alignItems: 'center',
+  },
   submitBtnDisabled: { opacity: 0.5 },
-  submitBtnText:  { color: '#FFF', fontSize: 17, fontWeight: '700' },
+  submitBtnText:  { color: '#3D7D82', fontSize: 16, fontWeight: '600' },
   backBtn:        { marginTop: 22, padding: 10 },
-  backBtnText:    { color: COLORS.subtitle, fontSize: 15, textDecorationLine: 'underline' },
+  backBtnText:    { color: '#3D7D82', fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
 });

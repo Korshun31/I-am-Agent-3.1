@@ -8,7 +8,6 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  Modal,
   Pressable,
   Dimensions,
   Alert,
@@ -20,6 +19,7 @@ import {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import Constants from 'expo-constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import 'dayjs/locale/th';
@@ -27,6 +27,8 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAppData } from '../context/AppDataContext';
 import { useUser } from '../context/UserContext';
 import { useIsFocused } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { FONT } from '../utils/scale';
 import { deleteProperty } from '../services/propertiesService';
 import { deleteBooking } from '../services/bookingsService';
 import { cancelBookingReminders } from '../services/bookingRemindersService';
@@ -38,9 +40,9 @@ import PropertyNotificationsModal from '../components/PropertyNotificationsModal
 import BookingDetailScreen from './BookingDetailScreen';
 import ContactDetailScreen from './ContactDetailScreen';
 import PropertyDetailScreen from './PropertyDetailScreen';
+import { TAB_BAR_CONTENT_HEIGHT } from '../components/BottomNav';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
-const BOTTOM_NAV_PADDING = 88;
 const ROW_HEIGHT = 45;
 const CHAR_WIDTH = 7;
 const COL_PADDING = 20;
@@ -49,23 +51,29 @@ const MAX_COL_WIDTH = 150;
 const MONTH_WIDTH = 100; // 83 + 20%
 const NUM_MONTHS = 16;
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
-// Цвета полосок бронирований моих клиентов: красный, оранжевый, жёлтый, зелёный, голубой, синий, фиолетовый
+// 6 приглушённых цветов вместо 16 кислотных. Каждый читается на белом и сером фоне,
+// различим между соседями по строке. На гант-таймлайне цвет нужен для различия
+// соседних броней одного объекта, не для уникальной идентификации каждой брони.
 const PASTEL_COLORS = [
-  '#E57373', '#FF8A65', '#FFB74D', '#FFD54F',
-  '#81C784', '#4DB6AC', '#64B5F6', '#42A5F5',
-  '#7986CB', '#9575CD', '#BA68C8', '#F48FB1',
-  '#EF9A9A', '#FFAB91', '#A5D6A7', '#80DEEA',
+  '#B5CDE3',  // пыльно-синий
+  '#B8D4B8',  // шалфейно-зелёный
+  '#E3C9A3',  // тёплый песочный
+  '#C5B8D4',  // лавандовый
+  '#B8D0D0',  // дымчатый teal
+  '#D4C4B0',  // какао-бежевый
 ];
 
 const COLORS = {
-  background: '#F5F2EB',
-  title: '#2C2C2C',
-  subtitle: '#6B6B6B',
-  monthPast: '#E8E4DE',
-  monthCurrent: '#D4EDDA',
-  monthFuture: '#FFFFFF',
-  border: '#E0D8CC',
-  ownerBar: '#BDBDBD',
+  background:   '#F5F5F7',
+  title:        '#2C2C2C',
+  subtitle:     '#6B6B6B',
+  monthPast:    '#EFEFF1',
+  monthCurrent: 'rgba(61,125,130,0.10)',
+  monthFuture:  '#FFFFFF',
+  border:       '#E5E5EA',
+  searchBg:     'rgba(255,255,255,0.9)',
+  searchBorder: '#E5E5EA',
+  ownerBar:     '#D4D4D4',
 };
 
 function getBookingNumber(booking, samePropertyBookings) {
@@ -141,6 +149,8 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const { user } = useUser();
   const isFocused = useIsFocused();
   const effectiveVisible = embeddedInModal ? isVisible : isFocused;
+  const insets = useSafeAreaInsets();
+  const bottomNavPadding = insets.bottom + TAB_BAR_CONTENT_HEIGHT + 12;
   const { t, language } = useLanguage();
   const { properties, bookings, contacts, propertiesLoading, bookingsLoading, refreshProperties, refreshBookings } = useAppData();
 
@@ -150,8 +160,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const [filterVisible, setFilterVisible] = useState(false);
   const [filterValues, setFilterValues] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [year, setYear] = useState(dayjs().year());
-  const [yearPickerVisible, setYearPickerVisible] = useState(false);
+  const [centerMonthIdx, setCenterMonthIdx] = useState(3);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
@@ -443,10 +452,11 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
 
   const months = React.useMemo(() => {
     const loc = language === 'ru' ? 'ru' : language === 'th' ? 'th' : 'en';
+    const base = dayjs().startOf('month');
     const arr = [];
     for (let i = -3; i < NUM_MONTHS - 3; i++) {
-      const d = dayjs().year(year).month(0).add(i, 'month').locale(loc);
-      const raw = d.format('MMMM');
+      const d = base.add(i, 'month').locale(loc);
+      const raw = d.format('MMM');
       arr.push({
         key: d.format('YYYY-MM'),
         year: d.year(),
@@ -455,7 +465,9 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       });
     }
     return arr;
-  }, [year, language]);
+  }, [language]);
+
+  const year = months[centerMonthIdx]?.year ?? dayjs().year();
 
   const initialScrollX = React.useMemo(() => {
     const curYear = dayjs().year();
@@ -610,10 +622,12 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         ownerPhone1: owner?.phone || '',
         ownerPhone2: owner?.extraPhones?.[0] || '',
         ownerTelegram: owner?.telegram || '',
+        ownerWhatsapp: owner?.whatsapp || '',
         owner2Name: owner2 ? `${owner2.name} ${owner2.lastName}`.trim() : '',
         owner2Phone1: owner2?.phone || '',
         owner2Phone2: owner2?.extraPhones?.[0] || '',
         owner2Telegram: owner2?.telegram || '',
+        owner2Whatsapp: owner2?.whatsapp || '',
       };
     })() : null;
 
@@ -634,7 +648,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
 
   const currentYear = dayjs().year();
   const currentMonth = dayjs().month();
-  const yearsForPicker = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1, currentYear + 2];
 
   if (loading) {
     return (
@@ -690,7 +703,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
             pointerEvents={detailVisible ? 'none' : 'auto'}>
       <View style={styles.container}>
       {!embeddedInModal && (
-        <View style={styles.fixedTop}>
+        <View style={[styles.fixedTop, { paddingHorizontal: SCREEN_WIDTH < 390 ? 16 : 20 }]}>
           <View style={styles.header}>
             <View style={styles.headerActions} />
             <Text style={styles.headerTitle}>{t('bookingCalendar')}</Text>
@@ -699,7 +712,11 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               onPress={() => setNotifModalVisible(true)}
               activeOpacity={0.7}
             >
-              <Text style={styles.bellIcon}>🔔</Text>
+              <Ionicons
+                name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+                size={22}
+                color={unreadCount > 0 ? '#3D7D82' : '#888'}
+              />
               {unreadCount > 0 ? (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
@@ -715,7 +732,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
           </View>
           <View style={styles.toolbarRow}>
             <View style={styles.searchWrap}>
-              <Text style={styles.searchIcon}>🔍</Text>
+              <Ionicons name="search-outline" size={FONT.body} color="#999" style={styles.searchIconIon} />
               <TextInput
                 style={styles.searchInput}
                 placeholder={t('search')}
@@ -727,7 +744,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={styles.searchClear}>✕</Text>
+                  <Ionicons name="close-circle" size={16} color="#BBBBBB" />
                 </TouchableOpacity>
               )}
             </View>
@@ -736,11 +753,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               activeOpacity={0.7}
               onPress={() => setFilterVisible(true)}
             >
-              <Image
-                source={require('../../assets/icon-filter.png')}
-                style={[styles.toolbarBtnImage, hasActiveFilter && styles.filterIconActive]}
-                resizeMode="contain"
-              />
+              <Ionicons name="funnel-outline" size={18} color={hasActiveFilter ? '#3D7D82' : '#888'} />
             </TouchableOpacity>
           </View>
         </View>
@@ -756,18 +769,14 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         <View style={styles.calendarWrap}>
           <View style={styles.calendarRow}>
             <View style={[styles.leftColWrap, { width: leftColWidth }]}>
-              <TouchableOpacity
-                style={[styles.yearCell, styles.cornerCell]}
-                onPress={() => setYearPickerVisible(true)}
-                activeOpacity={0.8}
-              >
+              <View style={[styles.yearCell, styles.cornerCell]}>
                 <Text style={styles.yearText}>{year}</Text>
-              </TouchableOpacity>
+              </View>
             <View style={[styles.leftCol, { overflow: 'hidden' }]}>
               <Animated.View
                 style={[
                   styles.leftColContent,
-                  { transform: [{ translateY: Animated.multiply(scrollY, -1) }] },
+                  { paddingBottom: bottomNavPadding, transform: [{ translateY: Animated.multiply(scrollY, -1) }] },
                 ]}
               >
                 {listToShow.map((unit) => {
@@ -799,6 +808,13 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               onScroll={(e) => {
                 const x = e?.nativeEvent?.contentOffset?.x;
                 timelineScrollXRef.current = Number.isFinite(x) ? x : 0;
+                const viewportW = e?.nativeEvent?.layoutMeasurement?.width;
+                if (!Number.isFinite(viewportW) || viewportW <= 0) return;
+                const centerX = (Number.isFinite(x) ? x : 0) + viewportW / 2;
+                let idx = Math.floor(centerX / MONTH_WIDTH);
+                if (idx < 0) idx = 0;
+                if (idx > NUM_MONTHS - 1) idx = NUM_MONTHS - 1;
+                setCenterMonthIdx((prev) => (prev === idx ? prev : idx));
               }}
               scrollEventThrottle={16}
             >
@@ -833,7 +849,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
 
                 <Animated.ScrollView
                   style={styles.gridScroll}
-                  contentContainerStyle={{ paddingBottom: BOTTOM_NAV_PADDING, position: 'relative' }}
+                  contentContainerStyle={{ paddingBottom: bottomNavPadding, position: 'relative' }}
                   showsVerticalScrollIndicator={true}
                   onScroll={onVerticalScroll}
                   scrollEventThrottle={16}
@@ -880,7 +896,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                           top: 0,
                           bottom: 0,
                           width: 1,
-                          backgroundColor: 'rgba(0,0,0,0.18)',
+                          backgroundColor: 'rgba(0,0,0,0.06)',
                         }}
                       />
                     ))}
@@ -894,7 +910,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                         top: 0,
                         height: listToShow.length * ROW_HEIGHT,
                         width: 2,
-                        backgroundColor: 'rgba(255, 0, 0, 0.15)',
+                        backgroundColor: 'rgba(61,125,130,0.40)',
                       }}
                     />
                   )}
@@ -945,20 +961,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         user={user}
       />
 
-      {yearPickerVisible && (
-        <YearPickerModal
-          visible={yearPickerVisible}
-          years={yearsForPicker}
-          currentYear={year}
-          onSelect={(y) => {
-            setYear(y);
-            setYearPickerVisible(false);
-          }}
-          onClose={() => setYearPickerVisible(false)}
-          t={t}
-        />
-      )}
-
       <AddBookingModal
         visible={addModalVisible}
         onClose={() => { setAddModalVisible(false); setSelectedProperty(null); setInitialMonth(null); }}
@@ -987,6 +989,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         <View style={[StyleSheet.absoluteFill, { opacity: detailVisible ? 1 : 0 }]}
               pointerEvents={detailVisible ? 'auto' : 'none'}>
           <BookingDetailScreen
+            embeddedInModal={embeddedInModal}
             booking={selectedBooking}
             propertyCode={(() => {
               const parent = selectedProperty.parent_id ? getParent(selectedProperty.parent_id) : null;
@@ -999,6 +1002,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
             initialProperty={preloadedProperty}
             initialContact={preloadedContact}
             onContactPress={(contact) => setSelectedOwnerContact(contact)}
+            onPropertyPress={(prop) => setSelectedPropertyForDetail(prop)}
             user={user}
             onBack={() => {
               setDetailVisible(false);
@@ -1036,90 +1040,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     </View>
   );
 }
-
-function YearPickerModal({ visible, years, currentYear, onSelect, onClose, t }) {
-  if (!visible) return null;
-  return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
-      <Pressable style={yearPickerStyles.backdrop} onPress={onClose}>
-        <View style={yearPickerStyles.box}>
-          <Text style={yearPickerStyles.title}>{t('yearSelect')}</Text>
-          {years.map((y) => (
-            <TouchableOpacity
-              key={y}
-              style={[yearPickerStyles.option, y === currentYear && yearPickerStyles.optionActive]}
-              onPress={() => onSelect(y)}
-              activeOpacity={0.7}
-            >
-              <Text style={[yearPickerStyles.optionText, y === currentYear && yearPickerStyles.optionTextActive]}>{y}</Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity style={yearPickerStyles.closeBtn} onPress={onClose} activeOpacity={0.7}>
-            <Text style={yearPickerStyles.closeText}>{t('close')}</Text>
-          </TouchableOpacity>
-        </View>
-      </Pressable>
-    </Modal>
-  );
-}
-
-const yearPickerStyles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  box: {
-    width: 200,
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2C2C2C',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  option: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    marginBottom: 6,
-  },
-  optionActive: {
-    backgroundColor: 'rgba(46, 125, 50, 0.15)',
-  },
-  optionText: {
-    fontSize: 16,
-    color: '#2C2C2C',
-    textAlign: 'center',
-  },
-  optionTextActive: {
-    fontWeight: '700',
-    color: '#2E7D32',
-  },
-  closeBtn: {
-    marginTop: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  closeText: {
-    fontSize: 15,
-    color: '#888',
-  },
-});
 
 const CalendarRow = React.memo(function CalendarRow({
   unit,
@@ -1217,9 +1137,9 @@ const CalendarRow = React.memo(function CalendarRow({
                 left: leftPx,
                 width: widthPx,
                 backgroundColor: barColor,
-                borderRadius: 17,
-                borderWidth: 1,
-                borderColor: 'rgba(107, 107, 107, 0.3)',
+                borderRadius: 18,
+                borderWidth: 2,
+                borderColor: rawColor,
                 zIndex: 10,
               },
             ]}
@@ -1246,12 +1166,12 @@ const rowStyles = StyleSheet.create({
     flexDirection: 'row',
     position: 'relative',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.18)',
+    borderBottomColor: 'rgba(0,0,0,0.06)',
   },
   cell: {
     height: '100%',
     borderRightWidth: 1,
-    borderRightColor: 'rgba(0,0,0,0.18)',
+    borderRightColor: 'rgba(0,0,0,0.06)',
   },
   bar: {
     position: 'absolute',
@@ -1269,7 +1189,7 @@ const rowStyles = StyleSheet.create({
     gap: 4,
   },
   barText: {
-    fontSize: 11,
+    fontSize: 14,
     color: '#2C2C2C',
     fontWeight: '700',
     textAlign: 'center',
@@ -1280,14 +1200,14 @@ const rowStyles = StyleSheet.create({
     minWidth: 0,
   },
   barDateText: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '700',
   },
   barDateIn: {
-    color: '#2E7D32',
+    color: 'rgba(44,44,44,0.75)',
   },
   barDateOut: {
-    color: '#C62828',
+    color: 'rgba(44,44,44,0.75)',
   },
 });
 
@@ -1298,7 +1218,7 @@ const styles = StyleSheet.create({
   },
   fixedTop: {
     paddingTop: TOP_INSET,
-    paddingHorizontal: 20,
+    // paddingHorizontal задаётся динамически в JSX (16 на узких, 20 на широких)
   },
   centered: {
     justifyContent: 'center',
@@ -1317,7 +1237,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: -0.3,
     color: COLORS.title,
   },
   headerBtn: {
@@ -1325,9 +1246,6 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  bellIcon: {
-    fontSize: 22,
   },
   badge: {
     position: 'absolute',
@@ -1363,54 +1281,34 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(245,242,235,0.9)',
+    backgroundColor: COLORS.searchBg,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0D8CC',
+    borderColor: COLORS.searchBorder,
     paddingHorizontal: 12,
     height: 40,
   },
-  searchIcon: {
-    fontSize: 14,
+  searchIconIon: {
     marginRight: 6,
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     color: COLORS.title,
     paddingVertical: 0,
-  },
-  searchClear: {
-    fontSize: 14,
-    color: '#999',
-    paddingLeft: 6,
   },
   toolbarBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(245,242,235,0.9)',
+    backgroundColor: COLORS.searchBg,
     borderWidth: 1,
-    borderColor: '#E0D8CC',
+    borderColor: COLORS.searchBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toolbarBtnImage: {
-    width: 26,
-    height: 26,
-  },
   filterBtnActive: {
-    shadowColor: '#5DB87A',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  filterIconActive: {
-    shadowColor: '#5DB87A',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
+    borderColor: '#3D7D82',
   },
   emptyWrap: {
     flex: 1,
@@ -1425,7 +1323,7 @@ const styles = StyleSheet.create({
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(245,242,235,0.8)',
+    backgroundColor: 'rgba(245,245,247,0.85)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1445,7 +1343,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   leftColContent: {
-    paddingBottom: BOTTOM_NAV_PADDING,
+    // paddingBottom задаётся динамически через bottomNavPadding в JSX
   },
   yearCell: {
     height: ROW_HEIGHT,
@@ -1457,7 +1355,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   cornerCell: {
-    backgroundColor: '#EDE9E3',
+    backgroundColor: '#EFEFEF',
   },
   yearText: {
     fontSize: 15,
@@ -1474,13 +1372,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   propertyLabel: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.title,
   },
   propertyLabelLink: {
-    color: '#D81B60',
-    textDecorationLine: 'underline',
+    color: '#3D7D82',
   },
   rightArea: {
     flex: 1,
@@ -1508,7 +1405,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.monthFuture,
   },
   monthLabel: {
-    fontSize: 11,
+    fontSize: 14,
     color: COLORS.title,
   },
   monthLabelBold: {
@@ -1516,7 +1413,7 @@ const styles = StyleSheet.create({
   },
   monthYearRed: {
     fontWeight: '700',
-    color: '#E53935',
+    color: '#3D7D82',
   },
   monthDivisions: {
     position: 'absolute',

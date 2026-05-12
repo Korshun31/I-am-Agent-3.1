@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import BookingCalendarScreen from '../screens/BookingCalendarScreen';
@@ -34,7 +35,7 @@ export default function PropertyBookingCalendarModal({ visible, onClose, propert
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.backBtn} activeOpacity={0.7}>
-            <Text style={styles.backArrow}>‹</Text>
+            <Ionicons name="chevron-back" size={20} color="#2C2C2C" />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">{displayTitle}</Text>
           <View style={styles.backBtn} />
@@ -56,7 +57,7 @@ export default function PropertyBookingCalendarModal({ visible, onClose, propert
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F2EB',
+    backgroundColor: '#F5F5F7',
     paddingTop: TOP_INSET,
   },
   header: {
@@ -64,26 +65,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0D8CC',
+    borderBottomColor: 'rgba(0,0,0,0.07)',
     backgroundColor: '#FFF',
   },
   backBtn: {
-    width: 40,
-    alignItems: 'flex-start',
-  },
-  backArrow: {
-    fontSize: 32,
-    color: '#2C2C2C',
-    fontWeight: '300',
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
     color: '#2C2C2C',
     flex: 1,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   calendarWrap: {
     flex: 1,
