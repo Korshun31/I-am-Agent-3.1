@@ -10,7 +10,7 @@ export default function EmailConfirmationPending({ email, onBack }) {
   const { t } = useLanguage();
 
   return (
-    <View style={[styles.wrapper, { backgroundColor: COLORS.backgroundLogin }]}>
+    <View style={[styles.wrapper, { backgroundColor: COLORS.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Logo size="small" />
         <Text style={styles.title}>{t('emailPendingTitle')}</Text>

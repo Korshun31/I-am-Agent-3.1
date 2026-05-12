@@ -10,15 +10,16 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
-  Image,
   Keyboard,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../context/LanguageContext';
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../services/calendarEventsService';
 import { requestReminderPermissions, scheduleReminder, cancelReminders } from '../services/calendarRemindersService';
 import { getCurrentUser } from '../services/authService';
 import ModalScrollFrame from './ModalScrollFrame';
+import Checkbox from './Checkbox';
 
 const REPEAT_OPTIONS = [
   { value: null, key: 'agentCalendarRepeatNone' },
@@ -42,8 +43,8 @@ const REMINDER_OPTIONS = [
 ];
 
 const CALENDAR_COLORS = [
-  '#E57373', '#FF8A65', '#FFB74D', '#FFD54F',
-  '#81C784', '#4DB6AC', '#64B5F6',
+  '#B5CDE3', '#B8D4B8', '#E3C9A3',
+  '#C5B8D4', '#B8D0D0', '#D4C4B0',
 ];
 
 const MONTH_NAMES = {
@@ -56,12 +57,6 @@ function formatDateYMD(d) {
   if (!d) return '';
   const x = d instanceof Date ? d : new Date(d);
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
-}
-
-function formatDateDisplay(d) {
-  if (!d) return '';
-  const x = d instanceof Date ? d : new Date(d);
-  return `${String(x.getDate()).padStart(2, '0')}.${String(x.getMonth() + 1).padStart(2, '0')}.${x.getFullYear()}`;
 }
 
 function formatTimeDisplay(timeStr) {
@@ -221,14 +216,14 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
     <View style={styles.headerRow}>
       {isEdit ? (
         <TouchableOpacity onPress={handleDelete} style={styles.trashBtn} activeOpacity={0.7}>
-          <Image source={require('../../assets/trash-icon.png')} style={styles.trashIcon} resizeMode="contain" />
+          <Ionicons name="trash-outline" size={22} color="#888" />
         </TouchableOpacity>
       ) : (
         <View style={styles.trashBtn} />
       )}
       <Text style={styles.title}>{isEdit ? t('agentCalendarEditEvent') : t('agentCalendarAddEvent')}</Text>
       <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-        <Text style={styles.closeIcon}>✕</Text>
+        <Ionicons name="close" size={22} color="#888" />
       </TouchableOpacity>
     </View>
   );
@@ -240,7 +235,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
       disabled={saving}
     >
       {saving ? (
-        <ActivityIndicator size="small" color="#fff" />
+        <ActivityIndicator size="small" color="#3D7D82" />
       ) : (
         <Text style={styles.saveBtnText}>{t('save')}</Text>
       )}
@@ -269,7 +264,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
                   <View style={styles.reminderModalHeader}>
                     <Text style={styles.reminderModalTitle}>{t('agentCalendarReminderWhen')}</Text>
                     <TouchableOpacity onPress={() => setShowReminderModal(false)} style={styles.reminderModalClose}>
-                      <Text style={styles.reminderModalCloseText}>✕</Text>
+                      <Ionicons name="close" size={22} color="#888" />
                     </TouchableOpacity>
                   </View>
                   <ScrollView style={styles.reminderModalScroll} showsVerticalScrollIndicator>
@@ -286,9 +281,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
                           }}
                           activeOpacity={0.7}
                         >
-                          <View style={[styles.reminderCheckbox, isSelected && styles.reminderCheckboxChecked]}>
-                            {isSelected ? <Text style={styles.reminderCheckmark}>✓</Text> : null}
-                          </View>
+                          <Checkbox checked={isSelected} size={22} />
                           <Text style={[styles.reminderModalOptionText, isSelected && styles.reminderModalOptionTextSelected]}>
                             {t(opt.key)}
                           </Text>
@@ -310,7 +303,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
                   <View style={styles.reminderModalHeader}>
                     <Text style={styles.reminderModalTitle}>{t('agentCalendarRepeatSelect')}</Text>
                     <TouchableOpacity onPress={() => setShowRepeatModal(false)} style={styles.reminderModalClose}>
-                      <Text style={styles.reminderModalCloseText}>✕</Text>
+                      <Ionicons name="close" size={22} color="#888" />
                     </TouchableOpacity>
                   </View>
                   <ScrollView style={styles.reminderModalScroll} showsVerticalScrollIndicator>
@@ -325,9 +318,7 @@ export default function AddCalendarEventModal({ visible, onClose, onSaved, editE
                           }}
                           activeOpacity={0.7}
                         >
-                          <View style={[styles.reminderCheckbox, isSelected && styles.reminderCheckboxChecked]}>
-                            {isSelected ? <Text style={styles.reminderCheckmark}>✓</Text> : null}
-                          </View>
+                          <Checkbox checked={isSelected} size={22} />
                           <Text style={[styles.reminderModalOptionText, isSelected && styles.reminderModalOptionTextSelected]}>
                             {t(opt.key)}
                           </Text>
@@ -479,7 +470,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0D8CC',
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   trashBtn: {
     width: 40,
@@ -487,14 +478,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  trashIcon: {
-    width: 22,
-    height: 22,
-  },
   title: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
     color: '#2C2C2C',
+    letterSpacing: -0.3,
   },
   closeBtn: {
     width: 40,
@@ -502,30 +490,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-end',
   },
-  closeIcon: {
-    fontSize: 22,
-    color: '#6B6B6B',
-  },
   scroll: {
     paddingHorizontal: 16,
     paddingTop: 0,
     paddingBottom: 24,
   },
   fieldLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#2C2C2C',
+    color: '#6B6B6B',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#F5F5F7',
-    borderRadius: 12,
+    backgroundColor: '#F7F7F9',
+    borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
     color: '#2C2C2C',
     borderWidth: 1,
-    borderColor: '#E0D8CC',
+    borderColor: '#D1D1D6',
     marginBottom: 16,
   },
   commentsInput: {
@@ -537,33 +523,12 @@ const styles = StyleSheet.create({
   },
   timeSelectText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#D81B60',
+    fontWeight: '600',
+    color: '#3D7D82',
   },
   pickerWrap: {
     marginBottom: 16,
     alignItems: 'center',
-  },
-  reminderPickerScroll: {
-    maxHeight: 220,
-    width: '100%',
-  },
-  reminderOption: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0D8CC',
-  },
-  reminderOptionSelected: {
-    backgroundColor: 'rgba(216, 27, 96, 0.08)',
-  },
-  reminderOptionText: {
-    fontSize: 16,
-    color: '#2C2C2C',
-  },
-  reminderOptionTextSelected: {
-    fontWeight: '700',
-    color: '#D81B60',
   },
   reminderModalBoxWrap: {
     flex: 1,
@@ -588,19 +553,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0D8CC',
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   reminderModalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#2C2C2C',
   },
   reminderModalClose: {
     padding: 8,
-  },
-  reminderModalCloseText: {
-    fontSize: 22,
-    color: '#6B6B6B',
   },
   reminderModalScroll: {
     maxHeight: 320,
@@ -612,37 +573,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0D8CC',
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   reminderModalOptionSelected: {
-    backgroundColor: 'rgba(216, 27, 96, 0.08)',
-  },
-  reminderCheckbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#6B6B6B',
-    backgroundColor: '#F5F5F7',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reminderCheckboxChecked: {
-    backgroundColor: '#5B8DEE',
-    borderColor: '#3A6FCC',
-  },
-  reminderCheckmark: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
+    backgroundColor: 'rgba(61,125,130,0.06)',
   },
   reminderModalOptionText: {
     fontSize: 16,
     color: '#2C2C2C',
   },
   reminderModalOptionTextSelected: {
-    fontWeight: '700',
-    color: '#D81B60',
+    fontWeight: '600',
+    color: '#3D7D82',
   },
   reminderModalDone: {
     paddingVertical: 14,
@@ -652,7 +594,7 @@ const styles = StyleSheet.create({
   reminderModalDoneText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2E7D32',
+    color: '#3D7D82',
   },
   pickerDone: {
     marginTop: 8,
@@ -662,7 +604,7 @@ const styles = StyleSheet.create({
   pickerDoneText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2E7D32',
+    color: '#3D7D82',
   },
   colorRow: {
     flexDirection: 'row',
@@ -681,19 +623,21 @@ const styles = StyleSheet.create({
     borderColor: '#2C2C2C',
   },
   saveBtn: {
-    backgroundColor: '#2E7D32',
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: '#3D7D82',
     marginHorizontal: 16,
     marginBottom: 20,
-    paddingVertical: 14,
-    borderRadius: 14,
+    paddingVertical: 13,
+    borderRadius: 12,
     alignItems: 'center',
   },
   saveBtnDisabled: {
-    opacity: 0.7,
+    opacity: 0.5,
   },
   saveBtnText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: '600',
+    color: '#3D7D82',
   },
 });

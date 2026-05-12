@@ -33,6 +33,9 @@ import { getUnreadCount, getTotalCount } from '../services/notificationsService'
 import { supabase } from '../services/supabase';
 import AddCalendarEventModal from '../components/AddCalendarEventModal';
 import AddBookingModal from '../components/AddBookingModal';
+import { IconFolderClosed, IconFolderOpen } from '../components/FolderIcons';
+import Checkbox from '../components/Checkbox';
+import { TAB_BAR_CONTENT_HEIGHT } from '../components/BottomNav';
 import PropertyNotificationsModal from '../components/PropertyNotificationsModal';
 import BookingDetailScreen from './BookingDetailScreen';
 import ContactDetailScreen from './ContactDetailScreen';
@@ -43,9 +46,9 @@ const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CALENDAR_SCALE = 1.1;
 // Высота блока месяца, чтобы 6-недельный месяц вмещался с симметричными
-// отступами 22 сверху и снизу (как paddingTop по умолчанию в либе).
+// отступами 16 сверху и снизу.
 const __LIB_SCALE = Math.max(0.78, Math.min(1, (SCREEN_WIDTH - 72) * 0.8 / 350));
-const MONTH_BOX_HEIGHT = 22 + 33 + Math.round(50 * __LIB_SCALE) + 6 * Math.round(45 * __LIB_SCALE) + 22;
+const MONTH_BOX_HEIGHT = 16 + 33 + Math.round(50 * __LIB_SCALE) + 6 * Math.round(45 * __LIB_SCALE) + 16;
 const CALENDAR_COLORS = [
   '#E57373', '#FF8A65', '#FFB74D', '#FFD54F',
   '#81C784', '#4DB6AC', '#64B5F6',
@@ -206,12 +209,12 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenBooking, isBooking
     );
   }
 
-  const customColors = { bg: 'rgba(255,249,196,0.8)', border: event.color || '#FFD54F' };
+  const stripeColor = event.color || '#B5CDE3';
   return (
-    <View style={[styles.eventCard, styles.eventCardPropertyStyle, { backgroundColor: customColors.bg, borderColor: customColors.border }]}>
-      <View style={styles.eventRow}>
+    <View style={styles.customEventCard}>
+      <View style={[styles.eventStripe, { backgroundColor: stripeColor }]} />
+      <View style={[styles.eventRow, styles.eventRowWithStripe]}>
         <TouchableOpacity style={styles.eventMainArea} onPress={() => {}} activeOpacity={1}>
-          <View style={[styles.customEventDot, { backgroundColor: event.color || '#81C784' }]} />
           <Text style={[styles.eventName, localCompleted && styles.eventNameDimmed]} numberOfLines={1} ellipsizeMode="tail">{event.title}</Text>
         </TouchableOpacity>
         {event.eventTime ? (
@@ -229,7 +232,7 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenBooking, isBooking
         </TouchableOpacity>
       </View>
       {expanded && (
-        <View style={styles.eventExpanded}>
+        <View style={[styles.eventExpanded, styles.eventExpandedWithStripe]}>
           {(event.eventDate || event.eventTime) && (
             <Text style={styles.eventDetailText}>
               {formatDateDisplay(event.eventDate)}
@@ -240,14 +243,12 @@ function EventCard({ event, expanded, onToggle, onEdit, onOpenBooking, isBooking
             <Text style={styles.eventComments}>{event.comments}</Text>
           ) : null}
           <View style={styles.eventFooterRow}>
-            <TouchableOpacity 
-              style={styles.completedCheckboxRow} 
+            <TouchableOpacity
+              style={styles.completedCheckboxRow}
               onPress={handleToggleCompleted}
               activeOpacity={0.7}
             >
-              <View style={[styles.miniCheckbox, localCompleted && styles.miniCheckboxChecked]}>
-                {localCompleted && <Text style={styles.miniCheckmark}>✓</Text>}
-              </View>
+              <Checkbox checked={localCompleted} size={20} />
               <Text style={[styles.completedLabel, localCompleted && styles.completedLabelActive]}>
                 {t('agentCalendarEventCompleted')}
               </Text>
@@ -677,9 +678,8 @@ export default function AgentCalendarScreen({ onReady }) {
           </TouchableOpacity>
         </View>
       </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom }]} showsVerticalScrollIndicator={false}>
-        <View style={styles.step2Content}>
-          <View style={[styles.calendarInline, styles.calendarInlineStep2]} collapsable={false}>
+      <View style={styles.step2Content}>
+        <View style={[styles.calendarInline, styles.calendarInlineStep2]} collapsable={false}>
             <CalendarRangePicker
               locale={CALENDAR_LOCALES[language] || CALENDAR_LOCALES.en}
               startDate={selectedDate}
@@ -692,7 +692,7 @@ export default function AgentCalendarScreen({ onReady }) {
               isMonthFirst
               dimPastDates
               style={{
-                container: { backgroundColor: 'transparent', paddingBottom: 22 },
+                container: { backgroundColor: 'transparent', paddingBottom: 0 },
                 dayTextColor: '#1d1c1d',
                 dayNameText: { color: '#bababe' },
                 disabledTextColor: '#bababe',
@@ -744,38 +744,44 @@ export default function AgentCalendarScreen({ onReady }) {
           </View>
         </View>
 
-        <View style={styles.eventsSection}>
-          <View style={styles.eventsToolbar}>
-            <View style={styles.eventsToolbarIcons}>
-              <TouchableOpacity onPress={openAddEvent} activeOpacity={0.7} style={styles.eventsToolbarIconBtn}>
-                <Ionicons name="add-outline" size={22} color="#888" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={toggleExpandAll} activeOpacity={0.7} style={styles.eventsToolbarIconBtn}>
-                <Ionicons name={allEventsExpanded ? 'folder-open-outline' : 'folder-outline'} size={22} color="#888" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {loading ? (
-            <ActivityIndicator size="small" color="#6B6B6B" style={{ marginVertical: 24 }} />
-          ) : dayEvents.length === 0 ? (
-            <Text style={styles.emptyText}>{t('agentCalendarNoEvents')}</Text>
-          ) : (
-            dayEvents.map((ev) => (
-              <EventCard
-                key={ev.key}
-                event={ev}
-                expanded={expandedIds.has(ev.key)}
-                onToggle={() => toggleExpand(ev.key)}
-                onEdit={ev.type === 'booking' ? () => openEditBooking(ev) : () => openEditEvent(ev)}
-                onOpenBooking={handleViewBooking}
-                isBooking={ev.type === 'booking'}
-                t={t}
-                onStatusChange={() => loadData({ silent: true })}
-              />
-            ))
-          )}
+      <View style={styles.eventsToolbarFixed}>
+        <View style={styles.eventsToolbarIcons}>
+          <TouchableOpacity onPress={openAddEvent} activeOpacity={0.7} style={styles.eventsToolbarIconBtn}>
+            <Ionicons name="add-outline" size={22} color="#888" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleExpandAll} activeOpacity={0.7} style={styles.eventsToolbarIconBtn}>
+            {allEventsExpanded
+              ? <IconFolderOpen   size={22} color="#888" />
+              : <IconFolderClosed size={22} color="#888" />
+            }
+          </TouchableOpacity>
         </View>
+      </View>
+
+      <ScrollView
+        style={styles.eventsScroll}
+        contentContainerStyle={[styles.eventsScrollContent, { paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + 12 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color="#6B6B6B" style={{ marginVertical: 24 }} />
+        ) : dayEvents.length === 0 ? (
+          <Text style={styles.emptyText}>{t('agentCalendarNoEvents')}</Text>
+        ) : (
+          dayEvents.map((ev) => (
+            <EventCard
+              key={ev.key}
+              event={ev}
+              expanded={expandedIds.has(ev.key)}
+              onToggle={() => toggleExpand(ev.key)}
+              onEdit={ev.type === 'booking' ? () => openEditBooking(ev) : () => openEditEvent(ev)}
+              onOpenBooking={handleViewBooking}
+              isBooking={ev.type === 'booking'}
+              t={t}
+              onStatusChange={() => loadData({ silent: true })}
+            />
+          ))
+        )}
       </ScrollView>
 
       <AddCalendarEventModal
@@ -820,10 +826,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F7',
   },
-  scroll: {
+  eventsScroll: {
     flex: 1,
+    paddingHorizontal: 16,
   },
-  scrollContent: {
+  eventsScrollContent: {
+    paddingTop: 4,
   },
   fixedTop: {
     paddingTop: TOP_INSET,
@@ -883,14 +891,12 @@ const styles = StyleSheet.create({
   calendarInline: {
     marginBottom: 8,
   },
-  calendarInlineStep2: { marginBottom: 14 },
-  eventsSection: {
-    paddingHorizontal: 16,
-  },
-  eventsToolbar: {
+  calendarInlineStep2: { marginBottom: 16 },
+  eventsToolbarFixed: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
+    paddingHorizontal: 16,
     marginBottom: 12,
   },
   eventsToolbarIcons: {
@@ -899,7 +905,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   eventsToolbarIconBtn: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyText: {
     fontSize: 16,
@@ -916,11 +929,35 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1.5,
   },
+  customEventCard: {
+    marginBottom: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  eventStripe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 6,
+  },
   eventRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 14,
+  },
+  eventRowWithStripe: {
+    paddingLeft: 20,
+  },
+  eventExpandedWithStripe: {
+    paddingLeft: 20,
   },
   eventMainArea: {
     flex: 1,
@@ -931,12 +968,6 @@ const styles = StyleSheet.create({
   eventTypeIcon: {
     width: 28,
     height: 28,
-    marginRight: 10,
-  },
-  customEventDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
     marginRight: 10,
   },
   eventName: {
@@ -1032,24 +1063,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  miniCheckbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: '#2C2C2C',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miniCheckboxChecked: {
-    backgroundColor: '#3D7D82',
-    borderColor: '#3D7D82',
-  },
-  miniCheckmark: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '900',
   },
   completedLabel: {
     fontSize: 14,

@@ -13,7 +13,7 @@ export default function EmailConfirmedSuccess({ onGoToLogin }) {
   const { t } = useLanguage();
 
   return (
-    <View style={[styles.wrapper, { backgroundColor: COLORS.backgroundLogin }]}>
+    <View style={[styles.wrapper, { backgroundColor: COLORS.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Logo size="small" />
         <Text style={styles.checkmark}>✓</Text>

@@ -24,29 +24,6 @@ const LOCK_DURATION_MS = 60 * 1000;
 const ATTEMPTS_KEY = (email) => `loginAttempts:${(email || '').trim().toLowerCase()}`;
 const LOCK_KEY     = (email) => `loginLockedUntil:${(email || '').trim().toLowerCase()}`;
 
-// Тени в стиле макета: выраженные drop shadow, «слоистость»
-const inputShadow = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.12,
-  shadowRadius: 6,
-  elevation: 4,
-};
-const labelShadow = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 1 },
-  shadowOpacity: 0.1,
-  shadowRadius: 3,
-  elevation: 3,
-};
-const buttonShadow = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 3 },
-  shadowOpacity: 0.15,
-  shadowRadius: 6,
-  elevation: 5,
-};
-
 export default function Login({ onSignUp, onLogin, onForgotPassword }) {
   const { t } = useLanguage();
   const [email, setEmail] = useState('');
@@ -155,7 +132,7 @@ export default function Login({ onSignUp, onLogin, onForgotPassword }) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.wrapper, { backgroundColor: COLORS.backgroundLogin }]}
+      style={[styles.wrapper, { backgroundColor: COLORS.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
@@ -169,11 +146,9 @@ export default function Login({ onSignUp, onLogin, onForgotPassword }) {
 
         <View style={styles.form}>
           <View style={styles.fieldWrap}>
-            <View style={[styles.labelSticker, styles.labelStickerEmail]}>
-              <Text style={styles.labelBannerText}>{t('email')}</Text>
-            </View>
+            <Text style={styles.fieldLabel}>{t('email')}</Text>
             <TextInput
-              style={[styles.input, styles.inputEmail, inputShadow]}
+              style={styles.input}
               placeholder="mail@mail.com"
               placeholderTextColor="#777"
               value={email}
@@ -186,12 +161,10 @@ export default function Login({ onSignUp, onLogin, onForgotPassword }) {
             />
           </View>
           <View style={styles.fieldWrap}>
-            <View style={[styles.labelSticker, styles.labelStickerPassword]}>
-              <Text style={styles.labelBannerText}>{t('password')}</Text>
-            </View>
+            <Text style={styles.fieldLabel}>{t('password')}</Text>
             <TextInput
               ref={passwordRef}
-              style={[styles.input, styles.inputPassword, inputShadow]}
+              style={styles.input}
               placeholder="••••••••"
               placeholderTextColor="#777"
               value={password}
@@ -207,8 +180,8 @@ export default function Login({ onSignUp, onLogin, onForgotPassword }) {
           </View>
 
           <TouchableOpacity
-            style={[styles.loginButton, buttonShadow, (isLocked || loading) && styles.loginButtonDisabled]}
-            activeOpacity={0.8}
+            style={[styles.loginButton, (isLocked || loading) && styles.loginButtonDisabled]}
+            activeOpacity={0.7}
             onPress={handleLogin}
             disabled={isLocked || loading}
           >
@@ -270,57 +243,36 @@ const styles = StyleSheet.create({
     maxWidth: 340,
   },
   fieldWrap: {
-    marginBottom: 22,
-    position: 'relative',
+    marginBottom: 4,
   },
-  // Стикеры как на странице регистрации: один размер, цвет поля совпадает с цветом метки
-  labelSticker: {
-    position: 'absolute',
-    top: -12,
-    right: 12,
-    zIndex: 1,
-    width: 100,
-    height: 36,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.06)',
-  },
-  labelStickerEmail: {
-    backgroundColor: COLORS.stickerYellow,
-  },
-  labelStickerPassword: {
-    backgroundColor: COLORS.stickerBlue,
-  },
-  labelBannerText: {
-    fontSize: 13,
+  fieldLabel: {
+    fontSize: 12,
     fontWeight: '600',
-    color: COLORS.title,
+    color: '#6B6B6B',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    marginBottom: 8,
   },
   input: {
-    borderRadius: 12,
+    borderRadius: 10,
     paddingVertical: 15,
     paddingHorizontal: 16,
     fontSize: 16,
     color: COLORS.title,
-    borderWidth: 0,
-  },
-  inputEmail: {
-    backgroundColor: COLORS.stickerYellow,
-  },
-  inputPassword: {
-    backgroundColor: COLORS.stickerBlue,
+    backgroundColor: '#EBEBEE',
+    borderWidth: 1,
+    borderTopColor: '#D1D1D6',
+    borderLeftColor: '#D1D1D6',
+    borderBottomColor: '#F0F0F3',
+    borderRightColor: '#F0F0F3',
+    marginBottom: 16,
   },
   loginButton: {
-    backgroundColor: COLORS.green,
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: '#3D7D82',
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
     marginTop: 10,
     marginBottom: 26,
@@ -329,9 +281,9 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   loginButtonText: {
-    color: '#FFF',
-    fontSize: 17,
-    fontWeight: '700',
+    color: '#3D7D82',
+    fontSize: 16,
+    fontWeight: '600',
   },
   forgotLink: {
     alignSelf: 'center',
@@ -340,8 +292,9 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   forgotLinkText: {
-    color: COLORS.subtitle,
+    color: '#3D7D82',
     fontSize: 14,
+    fontWeight: '600',
     textDecorationLine: 'underline',
   },
   signUpRow: {
@@ -365,7 +318,7 @@ const styles = StyleSheet.create({
   signUpLink: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.signUpPink,
+    color: '#3D7D82',
     textDecorationLine: 'underline',
   },
 });
