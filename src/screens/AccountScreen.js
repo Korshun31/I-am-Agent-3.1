@@ -517,11 +517,11 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
 
       {/* Delete Account */}
       <TouchableOpacity
-        style={{ marginTop: 30, marginBottom: 20, paddingVertical: 14, alignItems: 'center' }}
+        style={{ marginTop: 2, marginBottom: 4, paddingTop: 14, paddingBottom: 0, alignItems: 'center' }}
         onPress={() => { setDeleteConfirmVisible(true); setDeleteConfirmText(''); setDeleteError(''); }}
         activeOpacity={0.7}
       >
-        <Text style={{ color: '#C62828', fontSize: 14, fontWeight: '600' }}>
+        <Text style={{ color: '#C62828', fontSize: 16, fontWeight: '600', textDecorationLine: 'underline' }}>
           {t('deleteAccountBtn') || 'Delete account'}
         </Text>
       </TouchableOpacity>
