@@ -589,7 +589,7 @@ export default function CompanyScreen({ onBack, onUserUpdate }) {
               {filledFields.length > 0 ? (
                 filledFields.map((f, i) => (
                   <View key={i} style={styles.fieldRow}>
-                    <Text style={styles.fieldLabel}>{f.label}:</Text>
+                    <Text style={styles.fieldLabel}>{f.label}</Text>
                     <Text style={styles.fieldValue}>{f.value}</Text>
                   </View>
                 ))
@@ -870,14 +870,13 @@ const styles = StyleSheet.create({
   infoBlock: {
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    marginBottom: 14,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   logo: {
     width: 60,
@@ -888,17 +887,20 @@ const styles = StyleSheet.create({
   },
   fieldRow: {
     flexDirection: 'row',
-    marginBottom: 6,
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 12,
   },
   fieldLabel: {
     fontSize: 14,
-    color: COLORS.fieldLabel,
+    color: '#6B6B6B',
   },
   fieldValue: {
-    fontSize: 14,
+    flex: 1,
+    fontSize: 16,
     fontWeight: '600',
-    color: COLORS.fieldValue,
-    marginLeft: 8,
+    color: '#1C1C1E',
+    textAlign: 'right',
   },
   noDataText: {
     color: '#999',
