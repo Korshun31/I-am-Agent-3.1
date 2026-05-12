@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, TextInput, ActivityIndicator, Modal } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { IconPencil } from '../components/EditIcons';
+import { TAB_BAR_CONTENT_HEIGHT } from '../components/BottomNav';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
@@ -30,7 +33,6 @@ const COLORS = {
   background: '#F5F5F7',
   title: '#2C2C2C',
   subtitle: '#5A5A5A',
-  backArrow: '#5DB8D4',
   accent: ACCENT,
   fieldLabel: '#5A5A5A',
   fieldValue: '#2C2C2C',
@@ -531,12 +533,12 @@ export default function CompanyScreen({ onBack, onUserUpdate }) {
       <View style={styles.fixedTop}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.8}>
-            <Text style={styles.backArrowText}>←</Text>
+            <Ionicons name="chevron-back" size={20} color="#2C2C2C" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{t('company')}</Text>
           {isCompany ? (
-            <TouchableOpacity onPress={() => setEditModalVisible(true)} style={styles.headerRight} activeOpacity={0.8}>
-              <Text style={styles.editIcon}>✏️</Text>
+            <TouchableOpacity onPress={() => setEditModalVisible(true)} style={styles.pencilBtn} activeOpacity={0.8}>
+              <IconPencil size={22} color="#888" />
             </TouchableOpacity>
           ) : (
             <View style={styles.headerRight} />
@@ -546,7 +548,7 @@ export default function CompanyScreen({ onBack, onUserUpdate }) {
 
       <ScrollView
         style={styles.scrollArea}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + 12 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Work As toggle */}
@@ -785,29 +787,32 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backBtn: {
-    width: 52,
-    padding: 8,
-    alignItems: 'flex-start',
+    width: 36,
+    height: 36,
+    alignItems: 'center',
     justifyContent: 'center',
-  },
-  backArrowText: {
-    fontSize: 24,
-    color: COLORS.backArrow,
   },
   headerTitle: {
     flex: 1,
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
     color: COLORS.title,
+    letterSpacing: -0.3,
     textAlign: 'center',
   },
   headerRight: {
-    width: 52,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+    width: 40,
+    height: 40,
   },
-  editIcon: {
-    fontSize: 20,
+  pencilBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scrollArea: {
     flex: 1,
@@ -822,32 +827,32 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   workAsLabel: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.title,
   },
   workAsTabs: {
     flexDirection: 'row',
-    gap: 8,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#D1D1D6',
+    overflow: 'hidden',
   },
   workAsTab: {
     paddingVertical: 8,
     paddingHorizontal: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#C0C0C0',
+    backgroundColor: '#F7F7F9',
   },
   workAsTabActive: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
+    backgroundColor: 'rgba(61,125,130,0.08)',
   },
   workAsTabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.title,
+    color: '#666',
   },
   workAsTabTextActive: {
-    color: '#FFFFFF',
+    color: COLORS.accent,
   },
   emptyMessage: {
     color: '#999',
@@ -857,8 +862,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#000000',
+    fontWeight: '600',
+    color: COLORS.title,
     textAlign: 'left',
     marginBottom: 8,
   },
@@ -905,24 +910,24 @@ const styles = StyleSheet.create({
 const s = StyleSheet.create({
   loadingWrap: { padding: 20, alignItems: 'center' },
   headerRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 },
-  inviteBtn: { backgroundColor: ACCENT, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10 },
-  inviteBtnText: { color: '#FFF', fontSize: 13, fontWeight: '700' },
+  inviteBtn: { borderWidth: 1.5, borderColor: ACCENT, backgroundColor: 'rgba(61,125,130,0.08)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+  inviteBtnText: { color: ACCENT, fontSize: 14, fontWeight: '600' },
 
   section: { marginBottom: 16 },
-  sectionLabel: { fontSize: 11, fontWeight: '700', color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  sectionLabel: { fontSize: 12, fontWeight: '600', color: '#6B6B6B', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 8 },
 
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border, gap: 12 },
   memberAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: ACCENT + '20', alignItems: 'center', justifyContent: 'center' },
   memberAvatarText: { fontSize: 15, fontWeight: '700', color: ACCENT },
   memberInfo: { flex: 1 },
-  memberName: { fontSize: 14, fontWeight: '600', color: C.text },
-  memberEmail: { fontSize: 12, color: C.muted, marginTop: 1 },
+  memberName: { fontSize: 16, fontWeight: '600', color: C.text },
+  memberEmail: { fontSize: 14, color: C.muted, marginTop: 2 },
   memberMeta: { alignItems: 'flex-end', gap: 4 },
   roleBadge: { backgroundColor: C.bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   roleBadgeOwner: { backgroundColor: ACCENT + '15' },
-  roleBadgeText: { fontSize: 11, fontWeight: '700', color: C.muted },
+  roleBadgeText: { fontSize: 12, fontWeight: '600', color: C.muted },
   roleBadgeTextOwner: { color: ACCENT },
-  memberDate: { fontSize: 11, color: C.muted },
+  memberDate: { fontSize: 12, color: C.muted },
 
   invitationRow: { borderWidth: 1, borderColor: C.border, borderRadius: 12, marginBottom: 8, overflow: 'hidden' },
   invitationRowExpired: { backgroundColor: C.bg, opacity: 0.85 },
@@ -979,8 +984,8 @@ const s = StyleSheet.create({
   permTagText: { fontSize: 10, fontWeight: '500', color: C.muted },
   permTagTextActive: { color: ACCENT, fontWeight: '700' },
   memberEditHint: { fontSize: 14, color: C.muted },
-  dismissBtn: { marginTop: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#FFCDD2', backgroundColor: C.dangerBg },
-  dismissBtnText: { fontSize: 10, fontWeight: '700', color: C.danger },
+  dismissBtn: { marginTop: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5, borderColor: C.danger, backgroundColor: C.dangerBg },
+  dismissBtnText: { fontSize: 12, fontWeight: '600', color: C.danger },
 
   saveErrorWrap: { paddingHorizontal: 24, paddingBottom: 4 },
   saveErrorText: { fontSize: 13, color: C.danger, lineHeight: 19 },
