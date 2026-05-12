@@ -87,13 +87,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   title: {
-    fontSize: 26,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '600',
+    letterSpacing: -0.3,
     color: COLORS.title,
     marginBottom: 6,
   },
   tagline: {
-    fontSize: 15,
+    fontSize: 14,
     color: COLORS.subtitle,
     marginBottom: 28,
   },

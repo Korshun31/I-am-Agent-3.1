@@ -105,5 +105,5 @@ const styles = StyleSheet.create({
   submitBtnDisabled: { opacity: 0.5 },
   submitBtnText:  { color: '#3D7D82', fontSize: 16, fontWeight: '600' },
   backBtn:        { marginTop: 22, padding: 10 },
-  backBtnText:    { color: '#3D7D82', fontSize: 15, fontWeight: '600', textDecorationLine: 'underline' },
+  backBtnText:    { color: '#3D7D82', fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
 });

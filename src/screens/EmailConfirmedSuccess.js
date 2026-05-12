@@ -2,6 +2,7 @@ import React from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../context/LanguageContext';
 import Logo, { COLORS } from '../components/Logo';
 
@@ -16,7 +17,7 @@ export default function EmailConfirmedSuccess({ onGoToLogin }) {
     <View style={[styles.wrapper, { backgroundColor: COLORS.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Logo size="small" />
-        <Text style={styles.checkmark}>✓</Text>
+        <Ionicons name="checkmark-circle" size={56} color="#3D7D82" style={styles.checkmark} />
         <Text style={styles.title}>{t('emailConfirmedTitle')}</Text>
         <Text style={styles.hint}>{t('emailConfirmedHintWeb')}</Text>
         <Text style={styles.hint}>{t('emailConfirmedHintMobile')}</Text>
@@ -32,9 +33,9 @@ export default function EmailConfirmedSuccess({ onGoToLogin }) {
 const styles = StyleSheet.create({
   wrapper:        { flex: 1 },
   scrollContent:  { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32, alignItems: 'center' },
-  checkmark:      { fontSize: 56, color: '#2E7D32', marginTop: 24, marginBottom: 8 },
-  title:          { fontSize: 22, fontWeight: '700', color: COLORS.title, marginBottom: 18, textAlign: 'center' },
+  checkmark:      { marginTop: 24, marginBottom: 8 },
+  title:          { fontSize: 20, fontWeight: '600', letterSpacing: -0.3, color: COLORS.title, marginBottom: 18, textAlign: 'center' },
   hint:           { fontSize: 14, color: COLORS.subtitle, marginBottom: 12, textAlign: 'center', maxWidth: 360, lineHeight: 20 },
-  btn:            { backgroundColor: COLORS.green, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, marginTop: 22 },
-  btnText:        { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  btn:            { borderWidth: 1.5, borderColor: '#3D7D82', backgroundColor: 'rgba(61,125,130,0.08)', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, marginTop: 22 },
+  btnText:        { color: '#3D7D82', fontSize: 16, fontWeight: '600' },
 });

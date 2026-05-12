@@ -406,7 +406,7 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
             activeOpacity={0.85}
           >
             <Text style={styles.menuBlockLabel}>{t('locations')}</Text>
-            <Image source={require('../../assets/chevron-down.png')} style={[styles.chevronIcon, locationsOpen && styles.chevronIconOpen]} resizeMode="contain" />
+            <Ionicons name={locationsOpen ? 'chevron-up' : 'chevron-down'} size={16} color="#888" />
           </TouchableOpacity>
           <Animated.View style={{ height: locationsHeight, overflow: 'hidden' }}>
             <View style={styles.locationsExpandedInner}>
@@ -482,7 +482,7 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
             activeOpacity={0.85}
           >
             <Text style={styles.menuBlockLabel}>{t('settings')}</Text>
-            <Image source={require('../../assets/chevron-down.png')} style={[styles.chevronIcon, settingsOpen && styles.chevronIconOpen]} resizeMode="contain" />
+            <Ionicons name={settingsOpen ? 'chevron-up' : 'chevron-down'} size={16} color="#888" />
           </TouchableOpacity>
           <Animated.View style={{ height: settingsHeight, overflow: 'hidden' }}>
             <View style={styles.settingsExpandedInner}>

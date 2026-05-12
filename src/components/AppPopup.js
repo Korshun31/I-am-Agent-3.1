@@ -75,9 +75,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#C73E3E',
+    fontSize: 20,
+    fontWeight: '600',
+    letterSpacing: -0.3,
+    color: '#C62828',
     marginBottom: 16,
     textAlign: 'center',
   },

@@ -167,7 +167,7 @@ function OwnerInfoRow({ label, name, phone, whatsapp, telegram, isLink, onPressN
   );
 }
 
-export default function BookingDetailScreen({ booking, propertyCode, onBack, onContactPress, onPropertyPress, onDelete, onEdit, initialProperty, initialContact, user }) {
+export default function BookingDetailScreen({ booking, propertyCode, onBack, onContactPress, onPropertyPress, onDelete, onEdit, initialProperty, initialContact, user, embeddedInModal = false }) {
   const { t, language } = useLanguage();
   const { width } = useWindowDimensions();
   const hPad = width < 390 ? 16 : 20;
@@ -321,7 +321,7 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingHorizontal: hPad }]}>
+      <View style={[styles.header, { paddingHorizontal: hPad }, embeddedInModal && { paddingTop: 12 }]}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.8}>
           <Ionicons name="chevron-back" size={20} color="#2C2C2C" />
         </TouchableOpacity>

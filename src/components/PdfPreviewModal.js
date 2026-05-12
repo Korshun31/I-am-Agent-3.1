@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import Constants from 'expo-constants';
+import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -18,9 +19,9 @@ const COLORS = {
   backdrop: 'rgba(0,0,0,0.6)',
   boxBg: '#FFFFFF',
   title: '#2C2C2C',
-  accent: '#5DB8D4',
-  border: '#E0DAD2',
-  label: '#8A8A8A',
+  accent: '#3D7D82',
+  border: 'rgba(0,0,0,0.07)',
+  label: '#6B6B6B',
 };
 
 /**
@@ -48,7 +49,8 @@ export default function PdfPreviewModal({ visible, pdfUri, html, onClose, onSend
         <View style={styles.viewFullScreen}>
           <View style={styles.viewHeader}>
             <TouchableOpacity onPress={() => setViewMode('choice')} style={styles.backBtn} activeOpacity={0.8}>
-              <Text style={styles.backBtnText}>← {t('back')}</Text>
+              <Ionicons name="chevron-back" size={20} color={COLORS.accent} />
+              <Text style={styles.backBtnText}>{t('back')}</Text>
             </TouchableOpacity>
           </View>
           <WebView
@@ -71,9 +73,10 @@ export default function PdfPreviewModal({ visible, pdfUri, html, onClose, onSend
         <Pressable style={styles.boxWrap} onPress={(e) => e.stopPropagation()}>
           <View style={styles.box}>
             <View style={styles.headerRow}>
+              <View style={styles.headerSpacer} />
               <Text style={styles.title}>{t('pdfPreviewTitle')}</Text>
               <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.8}>
-                <Text style={styles.closeIcon}>✕</Text>
+                <Ionicons name="close" size={22} color="#888" />
               </TouchableOpacity>
             </View>
             <View style={styles.contentArea}>
@@ -124,21 +127,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
+  headerSpacer: { width: 36, height: 36 },
   title: {
-    fontSize: 17,
-    fontWeight: '700',
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '600',
     color: COLORS.title,
+    textAlign: 'center',
+    letterSpacing: -0.3,
   },
   closeBtn: {
-    padding: 4,
-  },
-  closeIcon: {
-    fontSize: 22,
-    color: '#D32F2F',
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   contentArea: {
     padding: 24,
@@ -182,10 +188,13 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
   backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 8,
   },
   backBtnText: {
-    fontSize: 17,
+    fontSize: 16,
+    fontWeight: '600',
     color: COLORS.accent,
   },
   webview: {
@@ -193,9 +202,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   btnView: {
-    backgroundColor: '#F0EDE8',
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderWidth: 1.5,
+    borderColor: '#E5E5EA',
   },
   btnViewText: {
     fontSize: 16,
@@ -203,11 +212,13 @@ const styles = StyleSheet.create({
     color: COLORS.title,
   },
   btnSend: {
-    backgroundColor: COLORS.accent,
+    backgroundColor: 'rgba(61,125,130,0.08)',
+    borderWidth: 1.5,
+    borderColor: COLORS.accent,
   },
   btnSendText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: COLORS.accent,
   },
 });

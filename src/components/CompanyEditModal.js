@@ -122,7 +122,7 @@ export default function CompanyEditModal({ visible, onClose, companyInfo = {}, o
           {uploadingLogo ? (
             <Ionicons name="hourglass-outline" size={32} color="#888" />
           ) : logoUrl ? (
-            <Image source={{ uri: logoUrl }} style={styles.logoImage} />
+            <Image source={{ uri: logoUrl }} style={styles.logoImage} resizeMode="contain" />
           ) : (
             <Ionicons name="business" size={40} color="#B8B8B8" />
           )}
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   photoCircle: {
-    width: 80,
+    width: 140,
     height: 80,
     borderRadius: 12,
     backgroundColor: '#EFEFEF',
@@ -270,9 +270,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   logoImage: {
-    width: 80,
+    width: 140,
     height: 80,
     borderRadius: 12,
+    resizeMode: 'contain',
   },
   logoHint: {
     fontSize: 12,

@@ -456,7 +456,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     const arr = [];
     for (let i = -3; i < NUM_MONTHS - 3; i++) {
       const d = base.add(i, 'month').locale(loc);
-      const raw = d.format('MMMM');
+      const raw = d.format('MMM');
       arr.push({
         key: d.format('YYYY-MM'),
         year: d.year(),
@@ -989,6 +989,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
         <View style={[StyleSheet.absoluteFill, { opacity: detailVisible ? 1 : 0 }]}
               pointerEvents={detailVisible ? 'auto' : 'none'}>
           <BookingDetailScreen
+            embeddedInModal={embeddedInModal}
             booking={selectedBooking}
             propertyCode={(() => {
               const parent = selectedProperty.parent_id ? getParent(selectedProperty.parent_id) : null;

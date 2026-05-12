@@ -14,6 +14,7 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../context/LanguageContext';
 import {
   getNotifications,
@@ -251,7 +252,7 @@ export default function PropertyNotificationsModal({ visible, onClose, onBadgeUp
             <View style={s.headerSpacer} />
             <Text style={s.headerTitle}>{t('notifications')}</Text>
             <TouchableOpacity onPress={handleClose} style={s.closeBtn} activeOpacity={0.8}>
-              <Text style={s.closeIcon}>✕</Text>
+              <Ionicons name="close" size={22} color="#888" />
             </TouchableOpacity>
           </View>
 
@@ -261,7 +262,7 @@ export default function PropertyNotificationsModal({ visible, onClose, onBadgeUp
             </View>
           ) : notifs.length === 0 ? (
             <View style={s.stateWrap}>
-              <Text style={s.emptyIcon}>🔔</Text>
+              <Ionicons name="notifications-outline" size={40} color="#3D7D82" />
               <Text style={s.emptyTitle}>{t('notifNoItems')}</Text>
             </View>
           ) : (
@@ -290,8 +291,8 @@ export default function PropertyNotificationsModal({ visible, onClose, onBadgeUp
 }
 
 // ── Стили ─────────────────────────────────────────────────────────────────────
-const SHEET_BG = '#FAFAF8';
-const BORDER   = '#E8E4DE';
+const SHEET_BG = '#FFFFFF';
+const BORDER   = 'rgba(0,0,0,0.07)';
 const MUTED    = '#888';
 
 const s = StyleSheet.create({
@@ -330,30 +331,26 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: BORDER,
   },
   headerSpacer: { width: 36 },
   headerTitle: {
     flex: 1,
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
     color: '#2C2C2C',
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   closeBtn: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  closeIcon: {
-    fontSize: 18,
-    color: '#E85D4C',
-    fontWeight: '600',
   },
   stateWrap: {
     alignItems: 'center',
@@ -362,15 +359,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 32,
     gap: 14,
   },
-  emptyIcon: {
-    fontSize: 36,
-    opacity: 0.35,
-  },
   emptyTitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: MUTED,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
   },
   list: {},
   listContent: {

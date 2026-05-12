@@ -235,18 +235,18 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   detailLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B6B6B',
     width: 70,
   },
   detailColon: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B6B6B',
     marginRight: 8,
   },
   detailValue: {
-    fontSize: 13,
-    fontWeight: '600',      // было 700 — слегка смягчаем
+    fontSize: 12,
+    fontWeight: '600',
     color: '#2C2C2C',
     flex: 1,
     textAlign: 'right',

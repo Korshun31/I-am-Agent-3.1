@@ -584,7 +584,7 @@ export default function CompanyScreen({ onBack, onUserUpdate }) {
             <Text style={styles.sectionTitle}>{t('companyInfo')}</Text>
             <View style={styles.infoBlock}>
               {companyInfo.logoUrl ? (
-                <Image source={{ uri: companyInfo.logoUrl }} style={styles.logo} />
+                <Image source={{ uri: companyInfo.logoUrl }} style={styles.logo} resizeMode="contain" />
               ) : null}
               {filledFields.length > 0 ? (
                 filledFields.map((f, i) => (
@@ -639,7 +639,7 @@ export default function CompanyScreen({ onBack, onUserUpdate }) {
                       <Text style={s.cancelBtnText}>{t('cancel')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[s.sendBtn, (!inviteEmail.trim() || inviting) && s.sendBtnDisabled]} onPress={handleInvite} disabled={!inviteEmail.trim() || inviting}>
-                      {inviting ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={s.sendBtnText}>{t('inviteAgent')}</Text>}
+                      {inviting ? <ActivityIndicator size="small" color={ACCENT} /> : <Text style={s.sendBtnText}>{t('inviteAgent')}</Text>}
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -879,9 +879,10 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   logo: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 140,
+    height: 80,
+    borderRadius: 12,
+    resizeMode: 'contain',
     alignSelf: 'center',
     marginBottom: 12,
   },
@@ -962,15 +963,15 @@ const s = StyleSheet.create({
   toastClose: { fontSize: 14, color: C.muted, fontWeight: '700', marginLeft: 12 },
 
   inviteForm: { backgroundColor: C.bg, borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border, gap: 8 },
-  inviteFormLabel: { fontSize: 13, fontWeight: '600', color: C.text },
-  inviteInput: { height: 40, borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, fontSize: 14, color: C.text, backgroundColor: '#FFF' },
+  inviteFormLabel: { fontSize: 12, fontWeight: '600', color: '#6B6B6B', letterSpacing: 0.7, textTransform: 'uppercase' },
+  inviteInput: { minHeight: 46, borderWidth: 1, borderColor: '#D1D1D6', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: C.text, backgroundColor: '#FFF' },
   inviteErrorText: { fontSize: 12, color: C.danger, marginTop: 2 },
   inviteFormActions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end', marginTop: 4 },
-  cancelBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: C.border },
-  cancelBtnText: { fontSize: 13, fontWeight: '600', color: C.muted },
-  sendBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: ACCENT },
+  cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border },
+  cancelBtnText: { fontSize: 14, fontWeight: '600', color: C.muted },
+  sendBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: ACCENT, backgroundColor: 'rgba(61,125,130,0.08)' },
   sendBtnDisabled: { opacity: 0.5 },
-  sendBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  sendBtnText: { fontSize: 14, fontWeight: '600', color: ACCENT },
 
   emptyText: { fontSize: 13, color: C.muted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 16 },
 

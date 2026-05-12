@@ -29,10 +29,10 @@ export default function EmailConfirmationPending({ email, onBack }) {
 const styles = StyleSheet.create({
   wrapper:        { flex: 1 },
   scrollContent:  { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32, alignItems: 'center' },
-  title:          { fontSize: 22, fontWeight: '700', color: COLORS.title, marginTop: 18, marginBottom: 12, textAlign: 'center' },
+  title:          { fontSize: 20, fontWeight: '600', letterSpacing: -0.3, color: COLORS.title, marginTop: 18, marginBottom: 12, textAlign: 'center' },
   email:          { fontSize: 16, fontWeight: '600', color: COLORS.title, marginBottom: 18, textAlign: 'center' },
   hint:           { fontSize: 14, color: COLORS.subtitle, marginBottom: 12, textAlign: 'center', maxWidth: 340, lineHeight: 20 },
-  subhint:        { fontSize: 13, color: COLORS.subtitle, marginBottom: 28, textAlign: 'center', maxWidth: 340, lineHeight: 18, opacity: 0.8 },
+  subhint:        { fontSize: 12, color: COLORS.subtitle, marginBottom: 28, textAlign: 'center', maxWidth: 340, lineHeight: 18, opacity: 0.8 },
   backBtn:        { marginTop: 16, padding: 12 },
-  backBtnText:    { color: COLORS.subtitle, fontSize: 15, textDecorationLine: 'underline' },
+  backBtnText:    { color: COLORS.subtitle, fontSize: 14, textDecorationLine: 'underline' },
 });

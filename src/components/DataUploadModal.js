@@ -13,6 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../context/LanguageContext';
 import Checkbox from './Checkbox';
 import {
@@ -23,10 +24,10 @@ import {
 } from '../services/dataUploadService';
 
 const COLORS = {
-  boxBg: 'rgba(255,255,255,0.72)',
   title: '#2C2C2C',
-  border: '#E0D8CC',
   inputBg: '#F7F7F9',
+  accent: '#3D7D82',
+  label: '#6B6B6B',
   disabled: '#CCC',
 };
 
@@ -143,7 +144,7 @@ export default function DataUploadModal({ visible, onClose }) {
               <View style={styles.headerSpacer} />
               <Text style={styles.title}>{t('dataUploadTitle')}</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-                <Text style={styles.closeIcon}>✕</Text>
+                <Ionicons name="close" size={22} color="#888" />
               </TouchableOpacity>
             </View>
 
@@ -201,9 +202,9 @@ export default function DataUploadModal({ visible, onClose }) {
                   disabled={loading}
                 >
                   {loading ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <ActivityIndicator size="small" color={enabled ? '#C62828' : COLORS.accent} />
                   ) : (
-                    <Text style={styles.actionBtnText}>
+                    <Text style={[styles.actionBtnText, enabled && styles.actionBtnTextStop]}>
                       {enabled ? t('dataUploadStop') : t('dataUploadStart')}
                     </Text>
                   )}
@@ -235,9 +236,7 @@ const styles = StyleSheet.create({
   box: {
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: COLORS.boxBg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -248,36 +247,44 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 20,
-    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingHorizontal: 16,
     paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.07)',
   },
   headerSpacer: { width: 36, height: 36 },
   title: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.title,
-    textAlign: 'center',
-  },
-  closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  closeIcon: { fontSize: 20, color: '#E85D4C', fontWeight: '600' },
-  loadingWrap: { padding: 40, alignItems: 'center' },
-  scroll: { maxHeight: 400 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 24 },
-  fieldLabel: {
-    fontSize: 14,
+    fontSize: 20,
     fontWeight: '600',
     color: COLORS.title,
-    marginBottom: 6,
+    textAlign: 'center',
+    letterSpacing: -0.3,
+  },
+  closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  loadingWrap: { padding: 40, alignItems: 'center' },
+  scroll: { maxHeight: 400 },
+  scrollContent: { padding: 20 },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.label,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    marginBottom: 8,
   },
   input: {
     backgroundColor: COLORS.inputBg,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: 16,
     color: COLORS.title,
+    borderWidth: 1,
+    borderColor: '#D1D1D6',
+    minHeight: 46,
+    marginBottom: 12,
   },
   inputDisabled: {
     backgroundColor: '#E8E8E8',
@@ -286,34 +293,40 @@ const styles = StyleSheet.create({
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginTop: 20,
+    marginTop: 8,
     gap: 12,
   },
   checkboxLabel: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 14,
     color: COLORS.title,
     lineHeight: 20,
   },
   textDisabled: { color: '#888' },
   actionBtn: {
-    marginTop: 24,
+    marginTop: 16,
     paddingVertical: 14,
     borderRadius: 12,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
   },
   actionBtnStart: {
-    backgroundColor: '#2E7D32',
+    borderColor: COLORS.accent,
+    backgroundColor: 'rgba(61,125,130,0.08)',
   },
   actionBtnStop: {
-    backgroundColor: '#E85D4C',
+    borderColor: '#C62828',
+    backgroundColor: 'rgba(198,40,40,0.06)',
   },
   actionBtnDisabled: { opacity: 0.7 },
   actionBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: COLORS.accent,
+  },
+  actionBtnTextStop: {
+    color: '#C62828',
   },
 });
