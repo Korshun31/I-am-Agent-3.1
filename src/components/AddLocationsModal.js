@@ -5,11 +5,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
-  Image,
   ScrollView,
   TextInput,
   Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { IconPencil } from './EditIcons';
 import { getLocationDistricts, setLocationDistricts, updateDistrictName, removeDistrict } from '../services/locationsService';
 import { getPropertiesCountByLocation } from '../services/propertiesService';
 import { useLanguage } from '../context/LanguageContext';
@@ -25,11 +26,12 @@ function getCountryStateCity() {
 }
 
 const COLORS = {
-  boxBg: 'rgba(255,255,255,0.92)',
   title: '#2C2C2C',
-  border: '#E0D8CC',
-  fieldBg: 'rgba(245,242,235,0.8)',
-  link: '#D81B60',
+  border: '#D1D1D6',
+  fieldBg: '#F7F7F9',
+  accent: '#3D7D82',
+  label: '#6B6B6B',
+  danger: '#C62828',
 };
 
 function LocationField({ label, value, placeholder, options, onSelect, searchPlaceholder }) {
@@ -63,7 +65,7 @@ function LocationField({ label, value, placeholder, options, onSelect, searchPla
         <Text style={[styles.fieldText, !value && styles.fieldPlaceholder]} numberOfLines={1}>
           {value || placeholder}
         </Text>
-        <Text style={styles.fieldChevron}>▽</Text>
+        <Ionicons name="chevron-down" size={16} color="#888" />
       </TouchableOpacity>
       {open && options && options.length > 0 && (
         <View style={styles.dropdown}>
@@ -348,14 +350,14 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
     <View style={styles.headerRow}>
       {editIndex !== undefined && editIndex !== null ? (
         <TouchableOpacity onPress={handleDelete} style={styles.headerLeftBtn} activeOpacity={0.8}>
-          <Image source={require('../../assets/trash-icon.png')} style={styles.trashIconImage} resizeMode="contain" />
+          <Ionicons name="trash-outline" size={22} color="#888" />
         </TouchableOpacity>
       ) : (
         <View style={styles.headerLeftBtn} />
       )}
       <Text style={styles.title}>{editIndex !== undefined && editIndex !== null ? t('editLocation') : t('addLocationsTitle')}</Text>
       <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-        <Text style={styles.closeIcon}>✕</Text>
+        <Ionicons name="close" size={22} color="#888" />
       </TouchableOpacity>
     </View>
   );
@@ -372,6 +374,8 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
       onRequestClose={onClose}
       header={header}
       footer={footer}
+      boxWrapStyle={{ maxWidth: 380 }}
+      boxStyle={{ backgroundColor: '#FFFFFF' }}
       scrollContentContainerStyle={styles.content}
       scrollProps={{
         showsVerticalScrollIndicator: false,
@@ -422,20 +426,20 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
                               onSubmitEditing={handleConfirmEditDistrict}
                             />
                             <TouchableOpacity style={styles.districtActionBtn} onPress={handleConfirmEditDistrict} activeOpacity={0.7}>
-                              <Text style={styles.districtActionConfirm}>✓</Text>
+                              <Ionicons name="checkmark" size={22} color={COLORS.accent} />
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.districtActionBtn} onPress={handleCancelEditDistrict} activeOpacity={0.7}>
-                              <Text style={styles.districtActionCancel}>✕</Text>
+                              <Ionicons name="close" size={22} color="#888" />
                             </TouchableOpacity>
                           </>
                         ) : (
                           <>
                             <Text style={styles.districtItem} numberOfLines={1}>{d}</Text>
                             <TouchableOpacity style={styles.districtActionBtn} onPress={() => handleStartEditDistrict(d)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                              <Image source={require('../../assets/pencil-icon.png')} style={styles.districtIcon} resizeMode="contain" />
+                              <IconPencil size={20} color="#888" />
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.districtActionBtn} onPress={() => handleDeleteDistrict(d)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                              <Text style={styles.districtMinusIcon}>−</Text>
+                              <Ionicons name="trash-outline" size={22} color="#888" />
                             </TouchableOpacity>
                           </>
                         )}
@@ -455,7 +459,14 @@ export default function AddLocationsModal({ visible, onClose, onSave, onDelete, 
                       onSubmitEditing={handleAddDistrict}
                     />
                     <TouchableOpacity style={styles.addDistrictBtn} onPress={handleAddDistrict} activeOpacity={0.7}>
-                      <Text style={styles.addDistrictBtnText}>+</Text>
+                      <Ionicons name="add" size={22} color={COLORS.accent} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.addDistrictCancelBtn}
+                      onPress={() => { setShowAddDistrictInput(false); setNewDistrictValue(''); }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="close" size={22} color="#888" />
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -473,11 +484,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 20,
-    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingHorizontal: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+    borderBottomColor: 'rgba(0,0,0,0.07)',
   },
   closeBtn: {
     width: 36,
@@ -485,25 +496,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeIcon: {
-    fontSize: 20,
-    color: '#E85D4C',
-    fontWeight: '600',
-  },
   title: {
-    fontSize: 18,
-    fontWeight: '700',
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '600',
     color: COLORS.title,
+    textAlign: 'center',
+    letterSpacing: -0.3,
   },
   headerLeftBtn: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  trashIconImage: {
-    width: 22,
-    height: 22,
   },
   content: {
     padding: 20,
@@ -518,21 +523,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: 'rgba(46, 125, 50, 0.5)',
-    backgroundColor: 'rgba(46, 125, 50, 0.06)',
+    borderColor: COLORS.accent,
+    backgroundColor: 'rgba(61,125,130,0.08)',
   },
   saveLocationBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2E7D32',
+    color: COLORS.accent,
   },
   fieldWrap: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   fieldLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    color: COLORS.title,
+    color: COLORS.label,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
     marginBottom: 8,
   },
   fieldTouch: {
@@ -540,11 +547,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: COLORS.fieldBg,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 46,
   },
   fieldText: {
     fontSize: 16,
@@ -552,12 +560,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   fieldPlaceholder: {
-    color: '#999',
-  },
-  fieldChevron: {
-    fontSize: 12,
-    color: '#6B6B6B',
-    marginLeft: 8,
+    color: '#888',
   },
   dropdownSearch: {
     paddingVertical: 12,
@@ -594,9 +597,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   districtsLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    color: COLORS.title,
+    color: COLORS.label,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
     marginBottom: 8,
   },
   districtsList: {
@@ -611,6 +616,7 @@ const styles = StyleSheet.create({
   districtItem: {
     flex: 1,
     fontSize: 16,
+    fontWeight: '600',
     color: COLORS.title,
   },
   editDistrictInput: {
@@ -625,37 +631,22 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   districtActionBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  districtIcon: {
-    width: 18,
-    height: 18,
-  },
-  districtMinusIcon: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#E85D4C',
-  },
-  districtActionConfirm: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2E7D32',
-  },
-  districtActionCancel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#999',
   },
   addDistrictLinkWrap: {
     marginTop: 4,
   },
   addDistrictLink: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.link,
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.accent,
   },
   addDistrictRow: {
     flexDirection: 'row',
@@ -665,28 +656,35 @@ const styles = StyleSheet.create({
   addDistrictInput: {
     flex: 1,
     backgroundColor: COLORS.fieldBg,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     fontSize: 16,
     color: COLORS.title,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 46,
     marginRight: 8,
   },
   addDistrictBtn: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: 'rgba(46, 125, 50, 0.15)',
+    backgroundColor: 'rgba(61,125,130,0.08)',
     borderWidth: 1.5,
-    borderColor: 'rgba(46, 125, 50, 0.5)',
+    borderColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addDistrictBtnText: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#2E7D32',
+  addDistrictCancelBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
   },
 });

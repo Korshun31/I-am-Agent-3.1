@@ -446,26 +446,26 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
           onLayout={(e) => setSettingsContentHeight(e.nativeEvent.layout.height)}
         >
           <TouchableOpacity style={styles.settingsItem} activeOpacity={0.8}>
-            <Image source={require('../../assets/icon-settings-language.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+            <Ionicons name="language-outline" size={22} color="#3D7D82" style={styles.settingsItemIcon} />
             <Text style={styles.settingsItemLabel}>{t('language')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.settingsItem} activeOpacity={0.8}>
-            <Image source={require('../../assets/icon-settings-notifications.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+            <Ionicons name="notifications-outline" size={22} color="#3D7D82" style={styles.settingsItemIcon} />
             <Text style={styles.settingsItemLabel}>{t('notifications')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={!isAdmin && !allowChangePassword ? [styles.settingsItem, styles.settingsItemLast] : styles.settingsItem} activeOpacity={0.8}>
-            <Image source={require('../../assets/icon-settings-currency.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+            <Ionicons name="wallet-outline" size={22} color="#3D7D82" style={styles.settingsItemIcon} />
             <Text style={styles.settingsItemLabel}>{t('currencySelection')}</Text>
           </TouchableOpacity>
           {isAdmin ? (
             <TouchableOpacity style={allowChangePassword ? styles.settingsItem : [styles.settingsItem, styles.settingsItemLast]} activeOpacity={0.8}>
-              <Image source={require('../../assets/icon-sum.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+              <Ionicons name="cloud-upload-outline" size={22} color="#3D7D82" style={styles.settingsItemIcon} />
               <Text style={styles.settingsItemLabel}>{t('dataUploadDb')}</Text>
             </TouchableOpacity>
           ) : null}
           {allowChangePassword ? (
             <TouchableOpacity style={[styles.settingsItem, styles.settingsItemLast]} activeOpacity={0.8}>
-              <Image source={require('../../assets/icon-change-password.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+              <Ionicons name="lock-closed-outline" size={22} color="#3D7D82" style={styles.settingsItemIcon} />
               <Text style={styles.settingsItemLabel}>{t('changePassword')}</Text>
             </TouchableOpacity>
           ) : null}
@@ -487,26 +487,26 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
           <Animated.View style={{ height: settingsHeight, overflow: 'hidden' }}>
             <View style={styles.settingsExpandedInner}>
             <TouchableOpacity style={styles.settingsItem} onPress={() => setLanguageModalVisible(true)} activeOpacity={0.8}>
-              <Image source={require('../../assets/icon-settings-language.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+              <Ionicons name="language-outline" size={22} color="#3D7D82" style={styles.settingsItemIcon} />
               <Text style={styles.settingsItemLabel}>{t('language')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.settingsItem} onPress={() => setNotificationsModalVisible(true)} activeOpacity={0.8}>
-              <Image source={require('../../assets/icon-settings-notifications.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+              <Ionicons name="notifications-outline" size={22} color="#3D7D82" style={styles.settingsItemIcon} />
               <Text style={styles.settingsItemLabel}>{t('notifications')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={!isAdmin && !allowChangePassword ? [styles.settingsItem, styles.settingsItemLast] : styles.settingsItem} onPress={() => setCurrencyModalVisible(true)} activeOpacity={0.8}>
-              <Image source={require('../../assets/icon-settings-currency.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+              <Ionicons name="wallet-outline" size={22} color="#3D7D82" style={styles.settingsItemIcon} />
               <Text style={styles.settingsItemLabel}>{t('currencySelection')}</Text>
             </TouchableOpacity>
             {isAdmin ? (
               <TouchableOpacity style={allowChangePassword ? styles.settingsItem : [styles.settingsItem, styles.settingsItemLast]} onPress={() => setDataUploadModalVisible(true)} activeOpacity={0.8}>
-                <Image source={require('../../assets/icon-sum.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+                <Ionicons name="cloud-upload-outline" size={22} color="#3D7D82" style={styles.settingsItemIcon} />
                 <Text style={styles.settingsItemLabel}>{t('dataUploadDb')}</Text>
               </TouchableOpacity>
             ) : null}
             {allowChangePassword ? (
               <TouchableOpacity style={[styles.settingsItem, styles.settingsItemLast]} onPress={() => setChangePasswordModalVisible(true)} activeOpacity={0.8}>
-                <Image source={require('../../assets/icon-change-password.png')} style={styles.settingsItemIcon} resizeMode="contain" />
+                <Ionicons name="lock-closed-outline" size={22} color="#3D7D82" style={styles.settingsItemIcon} />
                 <Text style={styles.settingsItemLabel}>{t('changePassword')}</Text>
               </TouchableOpacity>
             ) : null}
