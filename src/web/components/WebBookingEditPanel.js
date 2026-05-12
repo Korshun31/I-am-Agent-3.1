@@ -611,16 +611,16 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
               </Field>
             </SectionCard>
 
-            {/* Ответственный за бронь — только для админа на доме с responsible_agent_id */}
+            {/* Ответственный за бронь — только для админа; для агента ответственный = он сам */}
             {(() => {
               if (isAgent) return null;
+              if (!form.propertyId) return null;
               const sp = properties.find(p => p.id === form.propertyId);
               const houseAgentId = sp?.responsible_agent_id || null;
-              if (!houseAgentId) return null;
-              const houseAgent = teamMembers.find(m => m.user_id === houseAgentId);
+              const houseAgent = houseAgentId ? teamMembers.find(m => m.user_id === houseAgentId) : null;
               const houseAgentLabel = houseAgent
                 ? ([houseAgent.name, houseAgent.last_name].filter(Boolean).join(' ') || houseAgent.email || 'Agent')
-                : 'Agent';
+                : null;
               const companyLabel = user?.companyInfo?.name || user?.teamMembership?.companyName || t('workAsCompany') || 'Company';
               const selected = form.responsibleAgentId || null;
               return (
@@ -638,17 +638,31 @@ export default function WebBookingEditPanel({ visible, mode, booking, properties
                       >
                         <Text style={{ color: C.text, fontSize: 14 }} numberOfLines={1}>{companyLabel}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => set('responsibleAgentId', houseAgentId)}
-                        style={{
-                          flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
-                          borderWidth: 1,
-                          borderColor: selected === houseAgentId ? ACCENT : C.border,
-                          backgroundColor: selected === houseAgentId ? C.accentBg : C.surface,
-                        }}
-                      >
-                        <Text style={{ color: C.text, fontSize: 14 }} numberOfLines={1}>{houseAgentLabel}</Text>
-                      </TouchableOpacity>
+                      {houseAgentId ? (
+                        <TouchableOpacity
+                          onPress={() => set('responsibleAgentId', houseAgentId)}
+                          style={{
+                            flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
+                            borderWidth: 1,
+                            borderColor: selected === houseAgentId ? ACCENT : C.border,
+                            backgroundColor: selected === houseAgentId ? C.accentBg : C.surface,
+                          }}
+                        >
+                          <Text style={{ color: C.text, fontSize: 14 }} numberOfLines={1}>{houseAgentLabel}</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <View
+                          style={{
+                            flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
+                            borderWidth: 1, borderStyle: 'dashed',
+                            borderColor: C.border, backgroundColor: C.bg,
+                          }}
+                        >
+                          <Text style={{ color: C.light, fontSize: 14, fontStyle: 'italic' }} numberOfLines={1}>
+                            {t('bkNoHouseAgent') || 'No house agent'}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   </Field>
                 </SectionCard>

@@ -1219,13 +1219,13 @@ isMonthFirst
                       <CheckRow label={t('pdPets')} checked={pets} onPress={() => setPets(!pets)} />
                     </View>
 
-                    {/* Responsible agent picker — admin only, when the property has a responsible agent */}
-                    {!isAgent && property?.responsible_agent_id && (() => {
-                      const houseAgentId = property.responsible_agent_id;
-                      const houseAgent = teamMembers.find(m => m.user_id === houseAgentId);
+                    {/* Responsible agent picker — admin only; agent is always responsible for their own bookings */}
+                    {!isAgent && property && (() => {
+                      const houseAgentId = property.responsible_agent_id || null;
+                      const houseAgent = houseAgentId ? teamMembers.find(m => m.user_id === houseAgentId) : null;
                       const houseAgentLabel = houseAgent
                         ? ([houseAgent.name, houseAgent.last_name].filter(Boolean).join(' ') || houseAgent.email || 'Agent')
-                        : 'Agent';
+                        : null;
                       const companyLabel = user?.companyInfo?.name || user?.teamMembership?.companyName || t('workAsCompany') || 'Company';
                       const selected = responsibleAgentId || null;
                       return (
@@ -1243,17 +1243,31 @@ isMonthFirst
                             >
                               <Text style={{ color: '#212529', fontSize: 14 }} numberOfLines={1}>{companyLabel}</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() => setResponsibleAgentId(houseAgentId)}
-                              style={{
-                                flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
-                                borderWidth: 1,
-                                borderColor: selected === houseAgentId ? '#3D7D82' : '#E0E0E0',
-                                backgroundColor: selected === houseAgentId ? '#EAF4F5' : '#FFF',
-                              }}
-                            >
-                              <Text style={{ color: '#212529', fontSize: 14 }} numberOfLines={1}>{houseAgentLabel}</Text>
-                            </TouchableOpacity>
+                            {houseAgentId ? (
+                              <TouchableOpacity
+                                onPress={() => setResponsibleAgentId(houseAgentId)}
+                                style={{
+                                  flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
+                                  borderWidth: 1,
+                                  borderColor: selected === houseAgentId ? '#3D7D82' : '#E0E0E0',
+                                  backgroundColor: selected === houseAgentId ? '#EAF4F5' : '#FFF',
+                                }}
+                              >
+                                <Text style={{ color: '#212529', fontSize: 14 }} numberOfLines={1}>{houseAgentLabel}</Text>
+                              </TouchableOpacity>
+                            ) : (
+                              <View
+                                style={{
+                                  flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 8,
+                                  borderWidth: 1, borderStyle: 'dashed',
+                                  borderColor: '#E0E0E0', backgroundColor: '#F4F6F9',
+                                }}
+                              >
+                                <Text style={{ color: '#ADB5BD', fontSize: 14, fontStyle: 'italic' }} numberOfLines={1}>
+                                  {t('bkNoHouseAgent') || 'No house agent'}
+                                </Text>
+                              </View>
+                            )}
                           </View>
                         </>
                       );
