@@ -197,8 +197,25 @@ function ResortHouseItem({ item, expanded, onToggle, resortCode, onPress, t }) {
       </View>
       {expanded && (
         <View style={styles.resortHouseExpanded}>
-          <InfoRow label="Bedrooms" value={item.bedrooms != null ? `${item.bedrooms}` : '—'} />
-          <InfoRow label="Area" value={item.area != null ? `${item.area} m2` : '—'} />
+          {Array.isArray(item.photos) && item.photos.length > 0 ? (
+            <Image
+              source={{ uri: item.photos_thumb?.[0] || item.photos[0] }}
+              style={styles.resortHouseExpandedPhoto}
+              cachePolicy="disk"
+            />
+          ) : (
+            <View style={[styles.resortHouseExpandedPhoto, styles.resortHouseExpandedPhotoPlaceholder]}>
+              <Image
+                source={require('../../assets/icon-photo.png')}
+                style={styles.resortHouseExpandedPhotoIcon}
+                contentFit="contain"
+              />
+            </View>
+          )}
+          <View style={styles.resortHouseExpandedDetails}>
+            <InfoRow label="Bedrooms" value={item.bedrooms != null ? `${item.bedrooms}` : '—'} />
+            <InfoRow label="Area" value={item.area != null ? `${item.area} m2` : '—'} />
+          </View>
         </View>
       )}
     </View>
@@ -751,8 +768,25 @@ function CondoApartmentItem({ item, expanded, onToggle, onPress, t }) {
       </View>
       {expanded && (
         <View style={styles.resortHouseExpanded}>
-          <InfoRow label="Bedrooms" value={item.bedrooms != null ? `${item.bedrooms}` : '—'} />
-          <InfoRow label="Area" value={item.area != null ? `${item.area} m2` : '—'} />
+          {Array.isArray(item.photos) && item.photos.length > 0 ? (
+            <Image
+              source={{ uri: item.photos_thumb?.[0] || item.photos[0] }}
+              style={styles.resortHouseExpandedPhoto}
+              cachePolicy="disk"
+            />
+          ) : (
+            <View style={[styles.resortHouseExpandedPhoto, styles.resortHouseExpandedPhotoPlaceholder]}>
+              <Image
+                source={require('../../assets/icon-photo.png')}
+                style={styles.resortHouseExpandedPhotoIcon}
+                contentFit="contain"
+              />
+            </View>
+          )}
+          <View style={styles.resortHouseExpandedDetails}>
+            <InfoRow label="Bedrooms" value={item.bedrooms != null ? `${item.bedrooms}` : '—'} />
+            <InfoRow label="Area" value={item.area != null ? `${item.area} m2` : '—'} />
+          </View>
         </View>
       )}
     </View>
@@ -1936,11 +1970,32 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   resortHouseExpanded: {
+    flexDirection: 'row',
     paddingHorizontal: 14,
-    paddingBottom: 10,
+    paddingBottom: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.08)',
-    paddingTop: 8,
+    borderTopColor: 'rgba(0,0,0,0.06)',
+    gap: 12,
+  },
+  resortHouseExpandedPhoto: {
+    width: 120,
+    height: 80,
+    borderRadius: 12,
+  },
+  resortHouseExpandedPhotoPlaceholder: {
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resortHouseExpandedPhotoIcon: {
+    width: 36,
+    height: 36,
+    opacity: 0.4,
+  },
+  resortHouseExpandedDetails: {
+    flex: 1,
+    justifyContent: 'center',
   },
   emptyHouses: {
     fontSize: 14,

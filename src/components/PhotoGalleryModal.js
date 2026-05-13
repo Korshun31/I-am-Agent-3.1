@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Modal,
   FlatList,
+  ScrollView,
   Alert,
   ActivityIndicator,
   StatusBar,
@@ -134,7 +135,18 @@ export default function PhotoGalleryModal({ visible, photos, initialIndex, onClo
           viewabilityConfig={viewabilityConfig}
           renderItem={({ item }) => (
             <View style={galleryStyles.page}>
-              <Image source={{ uri: item }} style={galleryStyles.fullImage} contentFit="contain" cachePolicy="disk" />
+              <ScrollView
+                style={galleryStyles.zoomScroll}
+                contentContainerStyle={galleryStyles.zoomContent}
+                maximumZoomScale={3}
+                minimumZoomScale={1}
+                bouncesZoom
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+                pinchGestureEnabled
+              >
+                <Image source={{ uri: item }} style={galleryStyles.fullImage} contentFit="contain" cachePolicy="disk" />
+              </ScrollView>
             </View>
           )}
         />
@@ -192,6 +204,8 @@ const galleryStyles = StyleSheet.create({
   },
   deleteBtnIcon: { width: 20, height: 20, tintColor: '#FFF' },
   page: { width: SCREEN_W, height: SCREEN_H, justifyContent: 'center', alignItems: 'center' },
+  zoomScroll: { width: SCREEN_W, height: SCREEN_H },
+  zoomContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center' },
   fullImage: { width: SCREEN_W - 20, height: SCREEN_H * 0.7 },
   counter: {
     position: 'absolute', bottom: 50, alignSelf: 'center',
