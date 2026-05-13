@@ -445,6 +445,13 @@ export default function AgentCalendarScreen({ onReady }) {
 
     (bookings || []).forEach(b => {
       if (!b.checkIn) return;
+      // Личный календарь: события только по бронированиям, где я ответственный.
+      // Агент → b.responsibleAgentId === user.id
+      // Админ → b.responsibleAgentId == null (бронь "на компанию")
+      const isMineByResp = user?.isAgentRole
+        ? b.responsibleAgentId === user.id
+        : b.responsibleAgentId == null;
+      if (!isMineByResp) return;
       const prop = propsMap[b.propertyId];
 
       const objName = truncateLabel(getObjectDisplayName(b));
@@ -547,7 +554,7 @@ export default function AgentCalendarScreen({ onReady }) {
       return (timeA || '').localeCompare(timeB || '');
     });
     return list;
-  }, [selectedDate, bookings, calendarEvents, properties]);
+  }, [selectedDate, bookings, calendarEvents, properties, user?.id, user?.isAgentRole]);
 
   const dayEvents = mergedDayEvents;
 
@@ -556,6 +563,14 @@ export default function AgentCalendarScreen({ onReady }) {
   const eventCountsByDate = React.useMemo(() => {
     const counts = {};
     (bookings || []).forEach((b) => {
+      // Личный календарь: считаем точки только по моим бронированиям.
+      // Агент → b.responsibleAgentId === user.id
+      // Админ → b.responsibleAgentId == null (бронь "на компанию")
+      const isMineByResp = user?.isAgentRole
+        ? b.responsibleAgentId === user.id
+        : b.responsibleAgentId == null;
+      if (!isMineByResp) return;
+
       // Заселение: только свои бронирования (не клиенты собственника)
       if (!b.notMyCustomer && b.checkIn) {
         const d = dayjs(b.checkIn).format('YYYY-MM-DD');
