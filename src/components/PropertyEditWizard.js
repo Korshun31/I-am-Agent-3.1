@@ -1122,11 +1122,20 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
   const [maxPhotos, setMaxPhotos] = useState(10);
   const scrollRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  // Страж: инициализируем state только при переходе visible false→true.
+  // Иначе при сохранении родитель обновляет пропс property → useEffect снова стрелял
+  // и setStep(0) откатывал визард на первый шаг — на долю секунды виден первый экран.
+  const wasVisibleRef = useRef(false);
 
   const loadOwners = () => getContacts('owners').then(setOwners).catch(() => {});
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      wasVisibleRef.current = false;
+      return;
+    }
+    if (wasVisibleRef.current) return;
+    wasVisibleRef.current = true;
     setStep(0);
     const shouldInit = mode === 'create' || property;
     if (shouldInit) {
