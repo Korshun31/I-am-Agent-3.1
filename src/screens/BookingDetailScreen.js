@@ -28,6 +28,7 @@ import { getActiveTeamMembers } from '../services/companyService';
 import { getCurrentUser } from '../services/authService';
 import { generateConfirmationPDF } from '../services/bookingConfirmationService';
 import PdfPreviewModal from '../components/PdfPreviewModal';
+import PhotoGalleryModal from '../components/PhotoGalleryModal';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
@@ -181,6 +182,8 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
   const [pdfPreviewUri, setPdfPreviewUri] = useState(null);
   const [pdfPreviewHtml, setPdfPreviewHtml] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [galleryVisible, setGalleryVisible] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   const isAdminViewer = !user?.teamMembership;
   const companyIdForTeam = user?.companyId || user?.teamMembership?.companyId || null;
@@ -572,7 +575,13 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
             <Text style={styles.cardTitle}>{t('wizAddPhoto')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photosRow}>
               {photos.map((uri, idx) => (
-                <Image key={idx} source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
+                <TouchableOpacity
+                  key={idx}
+                  activeOpacity={0.85}
+                  onPress={() => { setGalleryIndex(idx); setGalleryVisible(true); }}
+                >
+                  <Image source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
+                </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
@@ -591,6 +600,14 @@ export default function BookingDetailScreen({ booking, propertyCode, onBack, onC
           setPdfPreviewHtml(null);
         }}
         onSend={handlePdfSend}
+      />
+
+      <PhotoGalleryModal
+        visible={galleryVisible}
+        photos={photos}
+        initialIndex={galleryIndex}
+        onClose={() => setGalleryVisible(false)}
+        t={t}
       />
     </View>
   );
