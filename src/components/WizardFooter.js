@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import IconSaveDraft from './IconSaveDraft';
 
 const ACCENT = '#3D7D82';
 const LABEL = '#6B6B6B';
 const DISABLED = '#C7C7CC';
-const ICON_GREY = '#888';
 
 export default function WizardFooter({
   isFirstStep = false,
@@ -37,16 +37,12 @@ export default function WizardFooter({
 
       {saveIconVisible && (
         <TouchableOpacity
-          style={styles.iconBtn}
+          style={[styles.iconBtn, saveDisabled && styles.btnDisabled]}
           onPress={onSave}
           activeOpacity={0.7}
           disabled={saveDisabled}
         >
-          <Image
-            source={require('../../assets/icon-save-new.png')}
-            style={{ width: 22, height: 22, tintColor: saveDisabled ? DISABLED : ICON_GREY }}
-            resizeMode="contain"
-          />
+          <IconSaveDraft size={26} color={saveDisabled ? DISABLED : ACCENT} />
         </TouchableOpacity>
       )}
 
@@ -77,7 +73,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.07)',
   },
   btn: {
-    paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12,
+    height: 44, paddingHorizontal: 20, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
   },
   btnDisabled: { opacity: 0.3 },
   btnAccent: {
@@ -87,9 +84,8 @@ const styles = StyleSheet.create({
   textDisabled: { color: DISABLED },
   textAccent: { color: ACCENT },
   iconBtn: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderWidth: 1, borderColor: '#E5E5EA',
+    height: 44, width: 44, borderRadius: 12,
+    borderWidth: 1.5, borderColor: ACCENT,
     alignItems: 'center', justifyContent: 'center',
   },
 });

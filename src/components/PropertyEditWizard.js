@@ -1338,6 +1338,10 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
     </View>
   );
 
+  // Обязательные поля по PR-CR-1 (docs/MODULE_RULES/properties.md):
+  // название, локация (город), район. Без них кнопка save неактивна.
+  const canSave = !!(data?.name && String(data.name).trim() && data?.location_id && data?.district);
+
   const footer = (
     <WizardFooter
       isFirstStep={isFirst}
@@ -1345,6 +1349,7 @@ export default function PropertyEditWizard({ visible, property, onClose, onSave,
       onBack={goBack}
       onNext={goNext}
       onSave={() => runAfterKeyboardDismiss(handleSave)}
+      canSave={canSave}
       saving={saving}
       uploadProgress={uploadProgress}
       backLabel={`‹  ${t('wizBack')}`}
