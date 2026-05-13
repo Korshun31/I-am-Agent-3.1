@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   expandedPhoto: {
-    width: 80,
+    width: 120,
     height: 80,
     borderRadius: 12,
   },

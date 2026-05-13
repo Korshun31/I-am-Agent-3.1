@@ -184,7 +184,7 @@ function PercentMoneyField({ label, sym, priceMonthly, checkIn, checkOut, monthl
           style={[s.input, { flex: 1, marginBottom: 0 }]}
           value={value}
           onChangeText={(v) => isPercent ? handlePercentInput(v) : onChangeValue(formatMoneyDisplay(v))}
-          placeholder={isPercent ? '10' : '0'}
+          placeholder="0"
           placeholderTextColor="#999"
           keyboardType="numeric"
         />

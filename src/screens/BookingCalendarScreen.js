@@ -1191,7 +1191,7 @@ const rowStyles = StyleSheet.create({
   barText: {
     fontSize: 14,
     color: '#2C2C2C',
-    fontWeight: '700',
+    fontWeight: '400',
     textAlign: 'center',
   },
   barTextCenter: {
@@ -1201,7 +1201,7 @@ const rowStyles = StyleSheet.create({
   },
   barDateText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   barDateIn: {
     color: 'rgba(44,44,44,0.75)',

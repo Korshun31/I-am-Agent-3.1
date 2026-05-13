@@ -50,22 +50,21 @@ const ModalScrollFrame = forwardRef(function ModalScrollFrame({
       onRequestClose={onRequestClose}
       statusBarTranslucent
     >
-      <Pressable style={styles.backdrop} onPress={handleBackdropPress}>
+      <View style={styles.root}>
         {Platform.OS === 'web' ? (
           <View style={[StyleSheet.absoluteFill, styles.backdropWeb]} />
         ) : (
           <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
         )}
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleBackdropPress} />
         <KeyboardAvoidingView
           style={styles.keyboardWrap}
           behavior={keyboardBehavior}
           keyboardVerticalOffset={keyboardOffset}
+          pointerEvents="box-none"
         >
           <View style={styles.centerWrap} pointerEvents="box-none">
-            <Pressable
-              style={[styles.boxWrap, boxWrapStyle]}
-              onPress={(e) => { e.stopPropagation(); Keyboard.dismiss(); }}
-            >
+            <View style={[styles.boxWrap, boxWrapStyle]}>
               <View style={[styles.box, boxStyle]}>
                 {header}
                 {aboveScrollSlot}
@@ -83,10 +82,10 @@ const ModalScrollFrame = forwardRef(function ModalScrollFrame({
                 )}
                 {footer}
               </View>
-            </Pressable>
+            </View>
           </View>
         </KeyboardAvoidingView>
-      </Pressable>
+      </View>
       {extraOverlay}
     </Modal>
   );
@@ -95,11 +94,8 @@ const ModalScrollFrame = forwardRef(function ModalScrollFrame({
 export default ModalScrollFrame;
 
 const styles = StyleSheet.create({
-  backdrop: {
+  root: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
   },
   backdropWeb: {
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -108,6 +104,8 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     maxWidth: 400,
+    alignSelf: 'center',
+    padding: 20,
   },
   centerWrap: {
     flex: 1,
