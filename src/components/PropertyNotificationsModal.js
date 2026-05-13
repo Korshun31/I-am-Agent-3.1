@@ -116,8 +116,6 @@ export default function PropertyNotificationsModal({ visible, onClose, onBadgeUp
   const isClosingRef = useRef(false);
 
   const animateIn = useCallback(() => {
-    backdropAnim.setValue(0);
-    panelAnim.setValue(SCREEN_HEIGHT);
     Animated.parallel([
       Animated.timing(backdropAnim, {
         toValue: 1,
@@ -156,14 +154,18 @@ export default function PropertyNotificationsModal({ visible, onClose, onBadgeUp
   useEffect(() => {
     if (visible) {
       isClosingRef.current = false;
+      // Сбрасываем позиции ДО монтирования Modal — иначе при повторном открытии
+      // panelAnim остаётся на 0, панель видна, потом animateIn пересбрасывает её
+      // за экран и едет обратно — получается «зацеп».
+      backdropAnim.setValue(0);
+      panelAnim.setValue(SCREEN_HEIGHT);
       setInternalVisible(true);
+      // Запускаем анимацию через два кадра — даёт iOS-Modal успеть смонтироваться.
+      // requestAnimationFrame синхроннее, чем onShow (который на iOS приходит уже
+      // после системного fade — отсюда «белая прослойка» под нашей панелью).
+      requestAnimationFrame(() => requestAnimationFrame(() => animateIn()));
     }
-  }, [visible]);
-
-  useEffect(() => {
-    if (internalVisible && visible) animateIn();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [internalVisible]);
+  }, [visible, backdropAnim, panelAnim, animateIn]);
 
   const handleClose = useCallback(() => {
     if (isClosingRef.current) return;
@@ -256,7 +258,7 @@ export default function PropertyNotificationsModal({ visible, onClose, onBadgeUp
             </TouchableOpacity>
           </View>
 
-          {loading ? (
+          {loading && notifs.length === 0 ? (
             <View style={s.stateWrap}>
               <ActivityIndicator size="large" color="#9E9E9E" />
             </View>
@@ -311,6 +313,7 @@ const s = StyleSheet.create({
     backgroundColor: SHEET_BG,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    minHeight: 280,
     maxHeight: MAX_SHEET_HEIGHT,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
