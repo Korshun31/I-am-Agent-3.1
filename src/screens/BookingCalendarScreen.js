@@ -249,8 +249,11 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
 
     // Префильтр «Мои бронирования / Бронирования компании» по умолчанию ВКЛ.
     // Юзер может выключить через чекбокс в модалке фильтров — тогда myBookings === false.
+    // Если календарь открыт «изнутри» карточки (propertyIdsFilter задан) — префильтр
+    // выключаем, иначе объекты без актуальных броней отсекаются и пустые строки не видны.
     const myBookingsOn = !filterValues || filterValues.myBookings !== false;
-    const prefilterActive = myBookingsOn && propertyIdsWithActiveBooking !== null;
+    const hasDirectIdsFilter = !!(propertyIdsFilter && propertyIdsFilter.length > 0);
+    const prefilterActive = myBookingsOn && propertyIdsWithActiveBooking !== null && !hasDirectIdsFilter;
 
     let units = [];
     if (filterValues) {
