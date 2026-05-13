@@ -17,6 +17,7 @@ import {
 import { IconFolderClosed, IconFolderOpen } from '../components/FolderIcons';
 import { Ionicons } from '@expo/vector-icons';
 import { FONT } from '../utils/scale';
+import { compareCode } from '../utils/codeSort';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -40,26 +41,11 @@ import { TAB_BAR_CONTENT_HEIGHT } from '../components/BottomNav';
 
 const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
-/** Parse code/name for sort: letter part + optional trailing digits (e.g. A1, B2, 30). */
-function parseSortKey(s) {
-  const str = String(s ?? '').trim();
-  const m = str.match(/^(.*?)(\d+)$/);
-  if (m) return { prefix: m[1], num: parseInt(m[2], 10) };
-  return { prefix: str, num: null };
-}
-
-/** Sort by code/name: alphabetically by prefix; if same prefix and both end with digits, by numbers ascending. */
+/** Sort by code/name: natural-sort через общую утилиту codeSort. */
 function compareByCodeOrName(a, b) {
   const codeA = (a.code || a.name || '').trim();
   const codeB = (b.code || b.name || '').trim();
-  const ka = parseSortKey(codeA);
-  const kb = parseSortKey(codeB);
-  const cmp = ka.prefix.localeCompare(kb.prefix);
-  if (cmp !== 0) return cmp;
-  if (ka.num != null && kb.num != null) return ka.num - kb.num;
-  if (ka.num != null) return 1;
-  if (kb.num != null) return -1;
-  return 0;
+  return compareCode(codeA, codeB);
 }
 
 const COLORS = {
@@ -328,7 +314,7 @@ export default function RealEstateScreen({ onReady }) {
       const flatUnits = [];
       topLevel.filter(p => HOUSE_LIKE_TYPES.has(p.type)).forEach(p => {
         if (filterFn(p, null) && searchMatch(p, null))
-          flatUnits.push({ ...p, _parentName: null, _parentType: null });
+          flatUnits.push({ ...p, _parentName: null, _parentType: null, _parentCode: p.code || '' });
       });
       children.forEach(p => {
         const parent = getParent(p.parent_id);
@@ -337,14 +323,15 @@ export default function RealEstateScreen({ onReady }) {
             ...p,
             _parentName: parent?.name || '',
             _parentType: parent?.type || null,
+            _parentCode: parent?.code || '',
             district: parent?.district ?? p.district,
           });
         }
       });
       list = [...flatUnits].sort((a, b) => {
-        const codeA = (a._parentName ? a._parentName + ' ' : '') + (a.code || '') + (a.code_suffix ? ` ${a.code_suffix}` : '');
-        const codeB = (b._parentName ? b._parentName + ' ' : '') + (b.code || '') + (b.code_suffix ? ` ${b.code_suffix}` : '');
-        return compareByCodeOrName({ code: codeA, name: a.name }, { code: codeB, name: b.name });
+        const codeA = (a._parentCode ? a._parentCode + ' ' : '') + (a.code_suffix ?? a.code ?? '');
+        const codeB = (b._parentCode ? b._parentCode + ' ' : '') + (b.code_suffix ?? b.code ?? '');
+        return compareCode(codeA, codeB);
       });
     } else {
       const searchFiltered = q

@@ -29,6 +29,7 @@ import { useUser } from '../context/UserContext';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { FONT } from '../utils/scale';
+import { compareCode } from '../utils/codeSort';
 import { deleteProperty } from '../services/propertiesService';
 import { deleteBooking } from '../services/bookingsService';
 import { cancelBookingReminders } from '../services/bookingRemindersService';
@@ -87,24 +88,10 @@ function getBookingNumber(booking, samePropertyBookings) {
   return `${seq}/${String(yearShort).padStart(2, '0')}`;
 }
 
-function parseSortKey(s) {
-  const str = String(s ?? '').trim();
-  const m = str.match(/^(.*?)(\d+)$/);
-  if (m) return { prefix: m[1], num: parseInt(m[2], 10) };
-  return { prefix: str, num: null };
-}
-
 function compareByCodeOrName(a, b) {
   const codeA = (a.code || a.name || '').trim();
   const codeB = (b.code || b.name || '').trim();
-  const ka = parseSortKey(codeA);
-  const kb = parseSortKey(codeB);
-  const cmp = ka.prefix.localeCompare(kb.prefix);
-  if (cmp !== 0) return cmp;
-  if (ka.num != null && kb.num != null) return ka.num - kb.num;
-  if (ka.num != null) return 1;
-  if (kb.num != null) return -1;
-  return 0;
+  return compareCode(codeA, codeB);
 }
 
 /** Глобальные цвета: ≤7 бронирований — все разные; >7 — одинаковые как можно дальше (round-robin) */

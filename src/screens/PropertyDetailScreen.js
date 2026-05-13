@@ -30,6 +30,7 @@ import { IconFolderClosed, IconFolderOpen } from '../components/FolderIcons';
 import OwnerInfoRow from '../components/OwnerInfoRow';
 import PhotoGalleryModal from '../components/PhotoGalleryModal';
 import { TYPE_COLORS } from '../components/PropertyItem';
+import { compareByCode } from '../utils/codeSort';
 import Constants from 'expo-constants';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
@@ -51,22 +52,7 @@ const TOP_INSET = (Constants.statusBarHeight ?? 44) + 12;
 
 /** Sort houses/apartments by internal code: numbers ascending (30,35,37), letters alphabetically */
 function sortByInternalCode(items) {
-  const key = (x) => String(x?.code_suffix ?? x?.code ?? '').trim();
-  return [...items].sort((a, b) => {
-    const sa = key(a);
-    const sb = key(b);
-    const aNum = parseFloat(sa);
-    const bNum = parseFloat(sb);
-    const aDigit = /^\d/.test(sa);
-    const bDigit = /^\d/.test(sb);
-    if (aDigit && bDigit) {
-      if (aNum !== bNum) return aNum - bNum;
-      return sa.localeCompare(sb);
-    }
-    if (aDigit && !bDigit) return -1;
-    if (!aDigit && bDigit) return 1;
-    return sa.localeCompare(sb);
-  });
+  return [...items].sort(compareByCode);
 }
 
 // Палитра контуров секций — приглушённая радуга от красного к фиолетовому.
