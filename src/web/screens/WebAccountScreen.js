@@ -522,7 +522,7 @@ export default function WebAccountScreen({ user: initialUser, onLogout, onUserUp
         onSaved={setUser}
       />
       <WebLocationsModal
-        visible={locationsVisible}
+        visible={locationsVisible && !user?.isAgentRole}
         onClose={() => setLocationsVisible(false)}
         onSaved={loadData}
       />

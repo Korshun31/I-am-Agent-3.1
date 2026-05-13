@@ -30,7 +30,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useUser } from '../context/UserContext';
 import { PLANS } from '../constants/roleFeatures';
 import { updateUserProfile, getCurrentUser, canChangePassword, deleteOwnAccount, signOut } from '../services/authService';
-import { getLocations, createLocation, updateLocation, deleteLocation, setLocationDistricts } from '../services/locationsService';
+import { getLocations, getLocationsForAgent, createLocation, updateLocation, deleteLocation, setLocationDistricts } from '../services/locationsService';
 
 const COLORS = {
   background: '#F5F5F7',
@@ -76,6 +76,7 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
   const prevTabVisible = useRef(false);
   const { email = '', name = '', lastName = '', phone = '', telegram = '', documentNumber = '', extraPhones = [], extraEmails = [], whatsapp = '', photoUri = '', workAs = '', companyInfo = {}, plan = 'standard' } = user;
   const isAdmin = plan === PLANS.KORSHUN;
+  const isAgent = !!user?.isAgentRole;
 
   const displayName = [name, lastName].filter(Boolean).join(' ') || name || null;
 
@@ -155,7 +156,13 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
 
   const loadLocations = async () => {
     try {
-      const locs = await getLocations();
+      // Агент видит ТОЛЬКО назначенные локации (через agent_location_access).
+      // Админ — все свои. Это JS-страховка поверх RLS на случай если миграция
+      // RLS не применена в проде до конца.
+      const companyId = user?.teamMembership?.companyId;
+      const locs = isAgent && user?.id && companyId
+        ? await getLocationsForAgent(user.id, companyId)
+        : await getLocations();
       setLocations(locs);
     } catch {}
   };
@@ -390,13 +397,18 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
         >
           {locations.map((loc) => (
             <View key={loc.id} style={styles.locationsItemWrap}>
-              <View style={styles.locationsItemPencilPlaceholder} />
+              {!isAgent && <View style={styles.locationsItemPencilPlaceholder} />}
               <Text style={styles.locationsItem} numberOfLines={1}>{loc.displayName}</Text>
             </View>
           ))}
-          <TouchableOpacity style={styles.locationsAddRow} activeOpacity={0.7}>
-            <Text style={styles.locationsAddLink}>{t('locationsAddRemove')}</Text>
-          </TouchableOpacity>
+          {isAgent && locations.length === 0 && (
+            <Text style={styles.locationsEmptyHint}>{t('noLocationsAssigned')}</Text>
+          )}
+          {!isAgent && (
+            <TouchableOpacity style={styles.locationsAddRow} activeOpacity={0.7}>
+              <Text style={styles.locationsAddLink}>{t('locationsAddRemove')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
         <View style={styles.collapsibleCard}>
           <View style={[styles.collapsibleStripe, { backgroundColor: '#8BAF8E' }]} />
@@ -411,29 +423,40 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
           <Animated.View style={{ height: locationsHeight, overflow: 'hidden' }}>
             <View style={styles.locationsExpandedInner}>
               {locations.map((loc) => (
+                isAgent ? (
+                  <View key={loc.id} style={styles.locationsItemWrap}>
+                    <Text style={styles.locationsItem} numberOfLines={1}>{loc.displayName}</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    key={loc.id}
+                    style={styles.locationsItemWrap}
+                    onPress={() => {
+                      setEditLocationData(loc);
+                      setAddLocationsModalVisible(true);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Image source={require('../../assets/pencil-icon.png')} style={styles.locationsItemPencil} resizeMode="contain" />
+                    <Text style={styles.locationsItem} numberOfLines={1}>{loc.displayName}</Text>
+                  </TouchableOpacity>
+                )
+              ))}
+              {isAgent && locations.length === 0 && (
+                <Text style={styles.locationsEmptyHint}>{t('noLocationsAssigned')}</Text>
+              )}
+              {!isAgent && (
                 <TouchableOpacity
-                  key={loc.id}
-                  style={styles.locationsItemWrap}
+                  style={styles.locationsAddRow}
                   onPress={() => {
-                    setEditLocationData(loc);
+                    setEditLocationData(null);
                     setAddLocationsModalVisible(true);
                   }}
                   activeOpacity={0.7}
                 >
-                  <Image source={require('../../assets/pencil-icon.png')} style={styles.locationsItemPencil} resizeMode="contain" />
-                  <Text style={styles.locationsItem} numberOfLines={1}>{loc.displayName}</Text>
+                  <Text style={styles.locationsAddLink}>{t('locationsAddRemove')}</Text>
                 </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                style={styles.locationsAddRow}
-                onPress={() => {
-                  setEditLocationData(null);
-                  setAddLocationsModalVisible(true);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.locationsAddLink}>{t('locationsAddRemove')}</Text>
-              </TouchableOpacity>
+              )}
             </View>
           </Animated.View>
         </View>
@@ -650,7 +673,7 @@ export default function AccountScreen({ onLogout, onUserUpdate, onOpenCompany, o
     />
 
     <AddLocationsModal
-      visible={addLocationsModalVisible}
+      visible={addLocationsModalVisible && !isAgent}
       onClose={() => {
         setAddLocationsModalVisible(false);
         setEditLocationData(null);
@@ -932,6 +955,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#3D7D82',
+  },
+  locationsEmptyHint: {
+    fontSize: 14,
+    color: '#999',
+    fontStyle: 'italic',
   },
   menuBlockLabel: {
     fontSize: 16,

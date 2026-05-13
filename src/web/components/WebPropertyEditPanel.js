@@ -884,8 +884,8 @@ export default function WebPropertyEditPanel({
                   disabled={!form.location_id || districts.length === 0}
                   readOnly={readOnly}
                 />
-                {/* TD-070: добавить новый район — доступно и админу, и агенту. */}
-                {!readOnly && form.location_id && (
+                {/* Добавление нового района — только админ. Агент работает в готовом справочнике. */}
+                {!readOnly && form.location_id && !isAgent && (
                   <>
                     <View style={s.addDistrictRow}>
                       <TextInput
