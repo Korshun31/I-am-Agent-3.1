@@ -189,10 +189,28 @@ function PercentMoneyField({ label, sym, priceMonthly, checkIn, checkOut, monthl
           keyboardType="numeric"
         />
         <View style={{ flexDirection: 'row', borderRadius: 7, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' }}>
-          <TouchableOpacity onPress={() => handleToggle(false)} style={{ paddingHorizontal: 12, paddingVertical: 13, backgroundColor: !isPercent ? COLORS.accentBg : COLORS.inputBg }}>
+          <TouchableOpacity
+            onPress={() => handleToggle(false)}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 13,
+              borderWidth: 1,
+              borderColor: !isPercent ? COLORS.accent : 'transparent',
+              backgroundColor: !isPercent ? COLORS.accentBg : COLORS.inputBg,
+            }}
+          >
             <Text style={{ fontSize: 13, fontWeight: '700', color: !isPercent ? COLORS.accent : '#666' }}>{sym}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleToggle(true)} style={{ paddingHorizontal: 12, paddingVertical: 13, backgroundColor: isPercent ? COLORS.accentBg : COLORS.inputBg }}>
+          <TouchableOpacity
+            onPress={() => handleToggle(true)}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 13,
+              borderWidth: 1,
+              borderColor: isPercent ? COLORS.accent : 'transparent',
+              backgroundColor: isPercent ? COLORS.accentBg : COLORS.inputBg,
+            }}
+          >
             <Text style={{ fontSize: 13, fontWeight: '700', color: isPercent ? COLORS.accent : '#666' }}>%</Text>
           </TouchableOpacity>
         </View>
@@ -214,7 +232,7 @@ const CALENDAR_LOCALES = {
   th: { monthNames: ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'], dayNames: ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'], today: 'วันนี้', year: '' },
 };
 
-export default function AddBookingModal({ visible, onClose, onSaved, property, editBooking, initialMonth }) {
+export default function AddBookingModal({ visible, onClose, onSaved, property, editBooking }) {
   const { t, language, currency, currencySymbol: globalSym } = useLanguage();
   const { contacts, bookings, refreshContacts: refreshGlobalContacts } = useAppData();
   const { user } = useUser();
@@ -333,13 +351,8 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         setSelectedClient(null);
         setResponsibleAgentId(null);
         setPassportId('');
-        if (initialMonth && initialMonth.year != null && initialMonth.month != null) {
-          setCheckIn(new Date(initialMonth.year, initialMonth.month, 1));
-          setCheckOut(null);
-        } else {
-          setCheckIn(null);
-          setCheckOut(null);
-        }
+        setCheckIn(null);
+        setCheckOut(null);
         setCheckInTime('14:00');
         setCheckOutTime('12:00');
         setPhotos([]);
@@ -347,7 +360,7 @@ export default function AddBookingModal({ visible, onClose, onSaved, property, e
         setMonthlyBreakdown([]);
       }
     }
-  }, [visible, editBooking?.id, initialMonth?.year, initialMonth?.month]);
+  }, [visible, editBooking?.id]);
 
   useEffect(() => {
     if (step === 3 && property && !editBooking) {

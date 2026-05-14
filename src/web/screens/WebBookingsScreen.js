@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useId } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, TextInput, Pressable,
 } from 'react-native';
 import dayjs from 'dayjs';
+import Svg, { Defs, Pattern, Line as SvgLine, Rect, Text as SvgText } from 'react-native-svg';
 import { useLanguage } from '../../context/LanguageContext';
 import { getCurrencySymbol } from '../../utils/currency';
 import { getPropertyTypeColors } from '../constants/propertyTypeColors';
@@ -29,6 +30,13 @@ const C = {
 };
 
 const MONTH_W = 130;   // px per month column
+// Дневной режим: единица — неделя (7 столбиков-дней).
+// 52 недели = ~год вокруг сегодня, ~9.5k px ленты — комфортная нагрузка для
+// react-native-web ScrollView (выше 15k px начинаются лаги repaint).
+const DAY_W = 26;
+const WEEK_W = DAY_W * 7; // 182
+// Пастельно-красный для чисел выходных в шапке D режима (как на мобайле).
+const WEEKEND_TEXT_COLOR = '#C97A7A';
 const ROW_H   = 48;    // px per property row
 const LEFT_W  = 130;   // px for left property name column
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
@@ -52,7 +60,8 @@ function getEffectiveType(prop) {
 }
 
   // Build timeline: 36 months back → 36 months forward (~6 лет вокруг сегодня).
-  // TD-097: расширили окно, чтобы пикер года мог скроллить по диапазону.
+  // TD-097: расширили окно, чтобы пикер года мог скроллить по диапазону
+  // и старые брони (2023–2024) оставались видны.
   function buildMonths() {
     const today = dayjs();
     const start = today.subtract(36, 'month').startOf('month');
@@ -65,36 +74,6 @@ function getEffectiveType(prop) {
     }
     return months;
   }
-
-// Convert a date to X pixel offset within the timeline
-function dateToPx(dateStr, months) {
-  if (!dateStr) return 0;
-  const d = dayjs(dateStr);
-  const start = months[0];
-  const end = months[months.length - 1].endOf('month');
-  if (d.isBefore(start)) return 0;
-  if (d.isAfter(end)) return months.length * MONTH_W;
-  const totalDays = end.diff(start, 'day') + 1;
-  const dayOffset = d.diff(start, 'day');
-  return (dayOffset / totalDays) * months.length * MONTH_W;
-}
-
-// Обратная функция: X-пиксель → дата
-function pxToDate(x, months) {
-  if (!months || months.length === 0) return null;
-  const start = months[0];
-  const end = months[months.length - 1].endOf('month');
-  const totalDays = end.diff(start, 'day') + 1;
-  const totalW = months.length * MONTH_W;
-  if (x < 0 || x > totalW) return null;
-  const dayOffset = Math.min(Math.round((x / totalW) * totalDays), totalDays - 1);
-  return start.add(dayOffset, 'day').format('YYYY-MM-DD');
-}
-
-// Total timeline width
-function timelineWidth(months) {
-  return months.length * MONTH_W;
-}
 
 // Assign colors to bookings (round-robin, grey for notMyCustomer)
 function assignColors(bookings) {
@@ -199,16 +178,152 @@ function WebBookingsScreenInner({ user }) {
   const [createTemplate, setCreateTemplate]   = useState(null);
   const [propDetailProperty, setPropDetailProperty] = useState(null);
   const [search, setSearch]         = useState('');
+  // Режим отображения календаря. 'month' — единица «месяц», 'day' — «неделя»
+  // с дневной разметкой внутри. Выбор сохраняется в localStorage.
+  const [viewMode, setViewMode] = useState(() => {
+    if (typeof window === 'undefined') return 'month';
+    const saved = window.localStorage?.getItem('webBookings:viewMode');
+    return saved === 'day' || saved === 'month' ? saved : 'month';
+  });
+  // Уникальный id SVG-паттерна разделителей дней — защищает от коллизий,
+  // если на странице окажется два экземпляра календаря.
+  const headerDayDividerPatternId = `hdd-${useId()}`;
+  const handleViewModeChange = (next) => {
+    if (next !== 'month' && next !== 'day') return;
+    if (next === viewMode) return;
+    setViewMode(next);
+    try { window.localStorage?.setItem('webBookings:viewMode', next); } catch {}
+  };
 
   const months   = useMemo(() => buildMonths(), []);
-  const totalW   = useMemo(() => timelineWidth(months), [months]);
+  // Массив недель для дневного режима. 10 назад + 42 вперёд = 52 единицы.
+  // Понедельник считается руками: dayjs.startOf('week') зависит от локали
+  // (англ — воскресенье, рус — понедельник), плагин isoWeek в проект не
+  // подключён.
+  const weeks = useMemo(() => {
+    const today = dayjs();
+    // Начало диапазона — понедельник недели, в которой лежит «сегодня минус 3 месяца».
+    const back = today.subtract(3, 'month').startOf('day');
+    const backDow = back.day();
+    const backOffsetToMonday = backDow === 0 ? -6 : 1 - backDow;
+    const firstMonday = back.add(backOffsetToMonday, 'day');
+    // Конец диапазона — последний день месяца, который через 12 месяцев от текущего.
+    const forwardEnd = today.add(12, 'month').endOf('month');
+    const totalDays = forwardEnd.diff(firstMonday, 'day') + 1;
+    const numWeeks = Math.ceil(totalDays / 7);
+    const arr = [];
+    for (let i = 0; i < numWeeks; i++) {
+      const start = firstMonday.add(i * 7, 'day');
+      const end = start.add(6, 'day');
+      const sameMonth = start.month() === end.month();
+      const label = sameMonth
+        ? `${start.format('D')}-${end.format('D MMM')}`
+        : `${start.format('D MMM')}-${end.format('D MMM')}`;
+      arr.push({
+        key: start.format('YYYY-MM-DD'),
+        startDate: start.format('YYYY-MM-DD'),
+        endDate: end.format('YYYY-MM-DD'),
+        year: start.year(),
+        label,
+      });
+    }
+    return arr;
+  }, []);
+  // Прекомпьют дня ленты в число/день недели — для чисел в шапке D режима.
+  // 52 × 7 = 364 элемента, считается один раз.
+  const monthOfDay = useMemo(() => {
+    if (viewMode !== 'day') return null;
+    const startStr = weeks[0]?.startDate;
+    if (!startStr) return null;
+    const start = dayjs(startStr);
+    const total = weeks.length * 7;
+    const arr = new Array(total);
+    for (let i = 0; i < total; i++) {
+      const d = start.add(i, 'day');
+      arr[i] = { date: d.date(), dow: d.day(), year: d.year(), month: d.month() };
+    }
+    return arr;
+  }, [viewMode, weeks]);
+  // Блоки месяцев для верхнего яруса шапки D. Сливаем соседние дни одного месяца.
+  const monthBlocks = useMemo(() => {
+    if (!monthOfDay) return null;
+    const blocks = [];
+    let current = null;
+    for (let i = 0; i < monthOfDay.length; i++) {
+      const d = monthOfDay[i];
+      if (current && current.year === d.year && current.month === d.month) {
+        current.days += 1;
+      } else {
+        current = { startIdx: i, days: 1, year: d.year, month: d.month };
+        blocks.push(current);
+      }
+    }
+    return blocks.map(b => {
+      const first = dayjs().year(b.year).month(b.month).date(1);
+      return {
+        ...b,
+        label: `${first.format('MMMM')[0].toUpperCase()}${first.format('MMMM').slice(1)} ${b.year}`,
+        isCurrent: dayjs().year() === b.year && dayjs().month() === b.month,
+      };
+    });
+  }, [monthOfDay]);
+  // Геометрия ленты — единая точка правды на оба режима.
+  const unitWidth = viewMode === 'day' ? WEEK_W : MONTH_W;
+  const unitCount = viewMode === 'day' ? weeks.length : months.length;
+  const totalW = unitCount * unitWidth;
+  // Позиция даты в пикселях на ленте. В M режиме считаем пропорцию внутри
+  // месяца (как раньше), в D — «дни от старта × DAY_W».
+  const dateToPx = useCallback((dateStr) => {
+    if (!dateStr) return 0;
+    const d = dayjs(dateStr);
+    if (viewMode === 'day') {
+      const startStr = weeks[0]?.startDate;
+      if (!startStr) return 0;
+      const start = dayjs(startStr);
+      const totalDays = weeks.length * 7;
+      const dayOffset = d.diff(start, 'day');
+      if (dayOffset < 0) return 0;
+      if (dayOffset >= totalDays) return totalDays * DAY_W;
+      return dayOffset * DAY_W;
+    }
+    const start = months[0];
+    const end = months[months.length - 1].endOf('month');
+    if (d.isBefore(start)) return 0;
+    if (d.isAfter(end)) return months.length * MONTH_W;
+    const totalDays = end.diff(start, 'day') + 1;
+    const dayOffset = d.diff(start, 'day');
+    return (dayOffset / totalDays) * months.length * MONTH_W;
+  }, [viewMode, months, weeks]);
+
+  // Обратная функция: пиксель → дата YYYY-MM-DD. Нужна для клика по пустой
+  // ячейке (создание новой брони на дате клика).
+  const pxToDate = useCallback((x) => {
+    if (!Number.isFinite(x)) return null;
+    if (viewMode === 'day') {
+      const startStr = weeks[0]?.startDate;
+      if (!startStr) return null;
+      const start = dayjs(startStr);
+      const totalDays = weeks.length * 7;
+      if (x < 0 || x > totalDays * DAY_W) return null;
+      const dayOffset = Math.min(Math.round(x / DAY_W), totalDays - 1);
+      return start.add(dayOffset, 'day').format('YYYY-MM-DD');
+    }
+    if (!months || months.length === 0) return null;
+    const start = months[0];
+    const end = months[months.length - 1].endOf('month');
+    const totalDays = end.diff(start, 'day') + 1;
+    const tW = months.length * MONTH_W;
+    if (x < 0 || x > tW) return null;
+    const dayOffset = Math.min(Math.round((x / tW) * totalDays), totalDays - 1);
+    return start.add(dayOffset, 'day').format('YYYY-MM-DD');
+  }, [viewMode, months, weeks]);
   // TD-097: список годов для пикера — на основе диапазона months.
   const yearOptions = useMemo(() => {
     const set = new Set(months.map(m => m.year()));
     return [...set].sort((a, b) => a - b);
   }, [months]);
   const handleYearJump = (year) => {
-    const targetX = dateToPx(`${year}-01-01`, months);
+    const targetX = dateToPx(`${year}-01-01`);
     const node = ganttScrollRef.current;
     if (node) node.scrollLeft = Math.max(0, targetX);
     setYearOpen(false);
@@ -264,17 +379,19 @@ function WebBookingsScreenInner({ user }) {
   }, [refreshBookings, refreshProperties]);
 
 
-  // Auto-scroll gantt so current month is the 2nd visible column
+  // Auto-scroll gantt: M → текущий месяц вторым видимым; D → текущая неделя
+  // примерно по центру видимой части (за вычетом левой колонки).
   useEffect(() => {
-    if (!loading) {
-      const currentMonthX = dateToPx(dayjs().startOf('month').format('YYYY-MM-DD'), months);
-      const offset = Math.max(0, currentMonthX - MONTH_W);
-      setTimeout(() => {
-        const node = ganttScrollRef.current;
-        if (node) node.scrollLeft = offset;
-      }, 150);
-    }
-  }, [loading]);
+    if (loading) return;
+    const targetX = dateToPx(dayjs().format('YYYY-MM-DD'));
+    setTimeout(() => {
+      const node = ganttScrollRef.current;
+      if (!node) return;
+      const viewportW = Math.max(1, node.clientWidth - LEFT_W);
+      const offset = Math.max(0, targetX - Math.max(unitWidth, viewportW / 2 - unitWidth / 2));
+      node.scrollLeft = offset;
+    }, 150);
+  }, [loading, viewMode, dateToPx, unitWidth]);
 
   const selectedProperty = selectedBooking
     ? properties.find(p => p.id === selectedBooking.propertyId)
@@ -422,6 +539,22 @@ function WebBookingsScreenInner({ user }) {
               <Text style={s.addBtnText}>+ {t('bookingsAddBtn')}</Text>
             </TouchableOpacity>
           )}
+          <View style={s.viewModeWrap}>
+            <TouchableOpacity
+              style={[s.viewModeBtn, viewMode === 'month' && s.viewModeBtnActiveLeft]}
+              activeOpacity={0.7}
+              onPress={() => handleViewModeChange('month')}
+            >
+              <Text style={[s.viewModeText, viewMode === 'month' && s.viewModeTextActive]}>M</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.viewModeBtn, viewMode === 'day' && s.viewModeBtnActiveRight]}
+              activeOpacity={0.7}
+              onPress={() => handleViewModeChange('day')}
+            >
+              <Text style={[s.viewModeText, viewMode === 'day' && s.viewModeTextActive]}>D</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Row 2: Filters + View toggle */}
@@ -824,17 +957,103 @@ function WebBookingsScreenInner({ user }) {
                     <View style={[s.ganttHeaderRow, { position: 'sticky', top: 0, zIndex: 10 }]}>
                       {/* Corner cell — sticky left + top */}
                       <View style={[s.ganttLeftHeader, { position: 'sticky', left: 0, zIndex: 11 }]} />
-                      {months.map((m, i) => {
-                        const today = dayjs();
-                        const isCurrent = m.isSame(today, 'month');
-                        const isPast = m.isBefore(today, 'month');
-                        return (
-                          <View key={i} style={[s.monthCell, isCurrent && s.monthCellCurrent, isPast && s.monthCellPast]}>
-                            <Text style={[s.monthName, isCurrent && s.monthNameCurrent]}>{m.format('MMM')}</Text>
-                            <Text style={[s.yearName, isCurrent && { color: '#E53935' }]}>{m.format('YY')}</Text>
+                      {viewMode === 'day' ? (
+                        <View style={{ flexDirection: 'column', width: totalW }}>
+                          {/* Верхний ярус — месяц/год, 18px */}
+                          <View style={{ flexDirection: 'row', height: 18, backgroundColor: '#F7F7F7' }}>
+                            {monthBlocks && monthBlocks.map((b, bi) => {
+                              const yearStr = String(b.year);
+                              const headPart = `${b.label.replace(/\s\d{4}$/, '')} ${yearStr.slice(0, 2)}`;
+                              const tailPart = yearStr.slice(2);
+                              return (
+                                <View
+                                  key={bi}
+                                  style={{
+                                    width: b.days * DAY_W,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRightWidth: 2,
+                                    borderRightColor: 'rgba(0,0,0,0.22)',
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      fontSize: 10,
+                                      fontWeight: '600',
+                                      color: b.isCurrent ? '#2A7A50' : '#6B6B6B',
+                                      textAlign: 'center',
+                                    }}
+                                    numberOfLines={1}
+                                  >
+                                    {headPart}<Text style={{ color: WEEKEND_TEXT_COLOR }}>{tailPart}</Text>
+                                  </Text>
+                                </View>
+                              );
+                            })}
                           </View>
-                        );
-                      })}
+                          {/* Нижний ярус — числа дней + делители, 29px */}
+                          <View style={{ flexDirection: 'row', height: 29, backgroundColor: '#FFFFFF', position: 'relative' }}>
+                            {weeks.map((w) => (
+                              <View key={w.key} style={{ width: WEEK_W, height: 29 }} />
+                            ))}
+                            {monthOfDay && (
+                              <Svg
+                                style={{ position: 'absolute', top: 0, left: 0 }}
+                                width={totalW}
+                                height={29}
+                                pointerEvents="none"
+                              >
+                                <Defs>
+                                  <Pattern
+                                    id={headerDayDividerPatternId}
+                                    width={DAY_W}
+                                    height={29}
+                                    patternUnits="userSpaceOnUse"
+                                  >
+                                    <SvgLine
+                                      x1={DAY_W - 0.5}
+                                      y1="0"
+                                      x2={DAY_W - 0.5}
+                                      y2={29}
+                                      stroke="rgba(0,0,0,0.12)"
+                                      strokeWidth="1"
+                                    />
+                                  </Pattern>
+                                </Defs>
+                                <Rect width={totalW} height={29} fill={`url(#${headerDayDividerPatternId})`} />
+                                {monthOfDay.map((entry, i) => {
+                                  const isWeekend = entry.dow === 0 || entry.dow === 6;
+                                  return (
+                                    <SvgText
+                                      key={i}
+                                      x={i * DAY_W + DAY_W / 2}
+                                      y={29 / 2 + 4}
+                                      textAnchor="middle"
+                                      fontSize="12"
+                                      fontWeight="700"
+                                      fill={isWeekend ? WEEKEND_TEXT_COLOR : '#2C2C2C'}
+                                    >
+                                      {entry.date}
+                                    </SvgText>
+                                  );
+                                })}
+                              </Svg>
+                            )}
+                          </View>
+                        </View>
+                      ) : (
+                        months.map((m, i) => {
+                          const today = dayjs();
+                          const isCurrent = m.isSame(today, 'month');
+                          const isPast = m.isBefore(today, 'month');
+                          return (
+                            <View key={i} style={[s.monthCell, isCurrent && s.monthCellCurrent, isPast && s.monthCellPast]}>
+                              <Text style={[s.monthName, isCurrent && s.monthNameCurrent]}>{m.format('MMM')}</Text>
+                              <Text style={[s.yearName, isCurrent && { color: '#E53935' }]}>{m.format('YY')}</Text>
+                            </View>
+                          );
+                        })
+                      )}
                     </View>
 
                     {/* Property rows */}
@@ -845,7 +1064,7 @@ function WebBookingsScreenInner({ user }) {
                       // Contract flags (company-first)
                       const isAgent              = !!user?.teamMembership;
                       const isResponsibleProperty = isAgent && prop.responsible_agent_id === user?.id;
-                      const todayX = dateToPx(dayjs().format('YYYY-MM-DD'), months);
+                      const todayX = dateToPx(dayjs().format('YYYY-MM-DD'));
                       return (
                         <View key={prop.id} style={s.ganttRowWrap}>
                           {/* Sticky left cell — clickable to open/close property detail */}
@@ -860,37 +1079,81 @@ function WebBookingsScreenInner({ user }) {
 
                           {/* Timeline */}
                           <Pressable
-                            style={[s.ganttRow, { width: totalW }]}
+                            style={[
+                              s.ganttRow,
+                              { width: totalW },
+                              viewMode === 'day' && {
+                                backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${WEEK_W - 1}px, rgba(0,0,0,0.22) ${WEEK_W - 1}px, rgba(0,0,0,0.22) ${WEEK_W}px), repeating-linear-gradient(to right, transparent 0, transparent ${DAY_W - 0.5}px, rgba(0,0,0,0.12) ${DAY_W - 0.5}px, rgba(0,0,0,0.12) ${DAY_W}px)`,
+                              },
+                            ]}
                             onPress={canCreate ? (e) => {
                               const x = e.nativeEvent.locationX;
-                              const date = pxToDate(x, months);
+                              const date = pxToDate(x);
                               if (date) handleGanttCellPress(prop, date);
                             } : undefined}
                           >
-                            {/* Подсветка прошлых/текущего месяцев — только для тех, где она нужна.
-                                Остальная сетка (границы месяцев + разделители недель) идёт CSS-фоном на ganttRow. */}
-                            {months.map((m, mi) => {
-                              const now = dayjs();
-                              const isMPast = m.isBefore(now, 'month');
-                              const isMCurrent = m.isSame(now, 'month');
-                              if (!isMPast && !isMCurrent) return null;
+                            {viewMode === 'day' ? (() => {
+                              // Дневной режим: подсветка прошлого одним прямоугольником
+                              // от начала ленты до сегодняшнего столбика, и один
+                              // тонкий столбик DAY_W для сегодня.
+                              const startStr = weeks[0]?.startDate;
+                              if (!startStr) return null;
+                              const start = dayjs(startStr);
+                              const totalDays = weeks.length * 7;
+                              const daysSinceStart = dayjs().startOf('day').diff(start, 'day');
+                              const pastWidth = Math.max(0, Math.min(daysSinceStart, totalDays)) * DAY_W;
+                              const todayLeft = daysSinceStart >= 0 && daysSinceStart < totalDays
+                                ? daysSinceStart * DAY_W
+                                : -1;
                               return (
-                                <View
-                                  key={mi}
-                                  pointerEvents="none"
-                                  style={[
-                                    s.monthBand,
-                                    { left: mi * MONTH_W },
-                                    isMPast && s.monthBandPast,
-                                    isMCurrent && s.monthBandCurrent,
-                                  ]}
-                                />
+                                <>
+                                  {pastWidth > 0 && (
+                                    <View
+                                      pointerEvents="none"
+                                      style={[s.monthBand, s.monthBandPast, { left: 0, width: pastWidth, borderRightWidth: 0 }]}
+                                    />
+                                  )}
+                                  {todayLeft >= 0 && (
+                                    <View
+                                      pointerEvents="none"
+                                      style={[s.monthBand, s.monthBandCurrent, { left: todayLeft, width: DAY_W, borderRightWidth: 0 }]}
+                                    />
+                                  )}
+                                </>
                               );
-                            })}
-                            <View style={[s.todayLine, { left: todayX }]} />
+                            })() : (
+                              <>
+                                {months.map((m, mi) => {
+                                  const now = dayjs();
+                                  const isMPast = m.isBefore(now, 'month');
+                                  const isMCurrent = m.isSame(now, 'month');
+                                  if (!isMPast && !isMCurrent) return null;
+                                  return (
+                                    <View
+                                      key={mi}
+                                      pointerEvents="none"
+                                      style={[
+                                        s.monthBand,
+                                        { left: mi * MONTH_W },
+                                        isMPast && s.monthBandPast,
+                                        isMCurrent && s.monthBandCurrent,
+                                      ]}
+                                    />
+                                  );
+                                })}
+                                <View style={[s.todayLine, { left: todayX }]} />
+                              </>
+                            )}
                             {propBookings.map(bk => {
-                              const x1 = dateToPx(bk.checkIn, months);
-                              const x2 = dateToPx(bk.checkOut, months);
+                              // Полудневный сдвиг в D-режиме: полоска начинается с середины
+                              // дня заезда и заканчивается серединой дня выезда — стыковые
+                              // брони визуально не наезжают друг на друга. На мобайле так же.
+                              const bookingBarInset = viewMode === 'day' ? DAY_W / 2 : 0;
+                              const checkOutPx = viewMode === 'day'
+                                ? dateToPx(dayjs(bk.checkOut).add(1, 'day').format('YYYY-MM-DD'))
+                                : dateToPx(bk.checkOut);
+                              const x1 = dateToPx(bk.checkIn) + bookingBarInset;
+                              const x2 = checkOutPx - bookingBarInset;
                               const w  = Math.max(x2 - x1, 6);
                               const color = colorMap[bk.id] || '#90A4AE';
                               const isSelected = bk.id === selectedBooking?.id;
@@ -1036,6 +1299,39 @@ const s = StyleSheet.create({
   },
   addBtnText: { fontSize: 14, color: '#3D7D82', fontWeight: '700' },
 
+  // View mode toggle (M/D)
+  viewModeWrap: {
+    flexDirection: 'row',
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D1D1D6',
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  viewModeBtn: {
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    backgroundColor: '#F7F7F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewModeBtnActiveLeft: {
+    borderColor: '#3D7D82',
+    backgroundColor: 'rgba(61,125,130,0.06)',
+    borderTopLeftRadius: 11,
+    borderBottomLeftRadius: 11,
+  },
+  viewModeBtnActiveRight: {
+    borderColor: '#3D7D82',
+    backgroundColor: 'rgba(61,125,130,0.06)',
+    borderTopRightRadius: 11,
+    borderBottomRightRadius: 11,
+  },
+  viewModeText: { fontSize: 13, fontWeight: '700', color: '#666' },
+  viewModeTextActive: { color: '#3D7D82' },
+
   // Filter group (row 2 left)
   filterGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
@@ -1140,7 +1436,7 @@ const s = StyleSheet.create({
     borderRightWidth: 1, borderRightColor: C.border,
     backgroundColor: C.surface,
   },
-  monthCell: { width: MONTH_W, flexShrink: 0, alignItems: 'center', paddingVertical: 8, borderRightWidth: 1, borderRightColor: C.border, backgroundColor: '#FAFAFA' },
+  monthCell: { width: MONTH_W, minHeight: 47, flexShrink: 0, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderRightWidth: 1, borderRightColor: C.border, backgroundColor: '#FAFAFA' },
   monthCellCurrent: { backgroundColor: '#E8F5E9' },
   monthCellPast: { backgroundColor: '#F5F3EF' },
   monthName: { fontSize: 12, fontWeight: '600', color: C.text, textTransform: 'capitalize' },
@@ -1171,7 +1467,7 @@ const s = StyleSheet.create({
     position: 'absolute', top: 0, bottom: 1, width: MONTH_W,
     borderRightWidth: 1, borderRightColor: 'rgba(0,0,0,0.1)',
   },
-  monthBandPast:    { backgroundColor: '#EDE9E3' },
+  monthBandPast:    { backgroundColor: 'rgba(237,233,227,0.55)' },
   monthBandCurrent: { backgroundColor: 'rgba(212,237,218,0.55)' },
   weekDivider: {
     position: 'absolute', top: 0, bottom: 0,
