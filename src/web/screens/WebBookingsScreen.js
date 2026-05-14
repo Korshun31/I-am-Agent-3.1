@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, useId } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useId } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, TextInput, Pressable,
@@ -381,16 +381,16 @@ function WebBookingsScreenInner({ user }) {
 
   // Auto-scroll gantt: M → текущий месяц вторым видимым; D → текущая неделя
   // примерно по центру видимой части (за вычетом левой колонки).
-  useEffect(() => {
+  // useLayoutEffect — синхронно до отрисовки кадра, чтобы при переключении
+  // режима не мелькала старая позиция скролла на новой ленте.
+  useLayoutEffect(() => {
     if (loading) return;
+    const node = ganttScrollRef.current;
+    if (!node) return;
     const targetX = dateToPx(dayjs().format('YYYY-MM-DD'));
-    setTimeout(() => {
-      const node = ganttScrollRef.current;
-      if (!node) return;
-      const viewportW = Math.max(1, node.clientWidth - LEFT_W);
-      const offset = Math.max(0, targetX - Math.max(unitWidth, viewportW / 2 - unitWidth / 2));
-      node.scrollLeft = offset;
-    }, 150);
+    const viewportW = Math.max(1, node.clientWidth - LEFT_W);
+    const offset = Math.max(0, targetX - Math.max(unitWidth, viewportW / 2 - unitWidth / 2));
+    node.scrollLeft = offset;
   }, [loading, viewMode, dateToPx, unitWidth]);
 
   const selectedProperty = selectedBooking
