@@ -154,7 +154,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const [filterVisible, setFilterVisible] = useState(false);
   const [filterValues, setFilterValues] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [centerMonthIdx, setCenterMonthIdx] = useState(3);
   // Месяц/год по центру видимой ленты — общий стейт для обоих режимов.
   // Используется в левой верхней ячейке как «2026» (M) или «05.2026» (D).
   // setState вызывается через ref-сравнение, не на каждый кадр прокрутки.
@@ -950,7 +949,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                 let idx = Math.floor(centerX / unitWidth);
                 if (idx < 0) idx = 0;
                 if (idx > unitCount - 1) idx = unitCount - 1;
-                setCenterMonthIdx((prev) => (prev === idx ? prev : idx));
                 // Месяц/год по центру — обновляем стейт только при пересечении
                 // границы месяца. Ref-сравнение защищает от setState 60 раз/сек.
                 let nextKey = null;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useId } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, TextInput, Pressable,
@@ -60,12 +60,12 @@ function getEffectiveType(prop) {
 }
 
   // Build timeline: 36 months back → 36 months forward (~6 лет вокруг сегодня).
-  // TD-097: расширили окно, чтобы пикер года мог скроллить по диапазону.
+  // TD-097: расширили окно, чтобы пикер года мог скроллить по диапазону
+  // и старые брони (2023–2024) оставались видны.
   function buildMonths() {
     const today = dayjs();
-    // 6 месяцев назад + текущий + 12 вперёд = 19 единиц.
-    const start = today.subtract(6, 'month').startOf('month');
-    const end   = today.add(12, 'month').endOf('month');
+    const start = today.subtract(36, 'month').startOf('month');
+    const end   = today.add(36, 'month').endOf('month');
     const months = [];
     let m = start;
     while (m.isBefore(end) || m.isSame(end, 'month')) {
@@ -185,6 +185,9 @@ function WebBookingsScreenInner({ user }) {
     const saved = window.localStorage?.getItem('webBookings:viewMode');
     return saved === 'day' || saved === 'month' ? saved : 'month';
   });
+  // Уникальный id SVG-паттерна разделителей дней — защищает от коллизий,
+  // если на странице окажется два экземпляра календаря.
+  const headerDayDividerPatternId = `hdd-${useId()}`;
   const handleViewModeChange = (next) => {
     if (next !== 'month' && next !== 'day') return;
     if (next === viewMode) return;
@@ -1002,7 +1005,7 @@ function WebBookingsScreenInner({ user }) {
                               >
                                 <Defs>
                                   <Pattern
-                                    id="webHeaderDayDivider"
+                                    id={headerDayDividerPatternId}
                                     width={DAY_W}
                                     height={29}
                                     patternUnits="userSpaceOnUse"
@@ -1017,7 +1020,7 @@ function WebBookingsScreenInner({ user }) {
                                     />
                                   </Pattern>
                                 </Defs>
-                                <Rect width={totalW} height={29} fill="url(#webHeaderDayDivider)" />
+                                <Rect width={totalW} height={29} fill={`url(#${headerDayDividerPatternId})`} />
                                 {monthOfDay.map((entry, i) => {
                                   const isWeekend = entry.dow === 0 || entry.dow === 6;
                                   return (
@@ -1142,8 +1145,15 @@ function WebBookingsScreenInner({ user }) {
                               </>
                             )}
                             {propBookings.map(bk => {
-                              const x1 = dateToPx(bk.checkIn);
-                              const x2 = dateToPx(bk.checkOut);
+                              // Полудневный сдвиг в D-режиме: полоска начинается с середины
+                              // дня заезда и заканчивается серединой дня выезда — стыковые
+                              // брони визуально не наезжают друг на друга. На мобайле так же.
+                              const bookingBarInset = viewMode === 'day' ? DAY_W / 2 : 0;
+                              const checkOutPx = viewMode === 'day'
+                                ? dateToPx(dayjs(bk.checkOut).add(1, 'day').format('YYYY-MM-DD'))
+                                : dateToPx(bk.checkOut);
+                              const x1 = dateToPx(bk.checkIn) + bookingBarInset;
+                              const x2 = checkOutPx - bookingBarInset;
                               const w  = Math.max(x2 - x1, 6);
                               const color = colorMap[bk.id] || '#90A4AE';
                               const isSelected = bk.id === selectedBooking?.id;
