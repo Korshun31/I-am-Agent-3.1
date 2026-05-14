@@ -890,11 +890,18 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
           <View style={styles.calendarRow}>
             <View style={[styles.leftColWrap, { width: leftColWidth }]}>
               <View style={[styles.yearCell, styles.cornerCell]}>
-                <Text style={styles.yearText}>
-                  {viewMode === 'day'
-                    ? `${String(centerYearMonth.month + 1).padStart(2, '0')}.${centerYearMonth.year}`
-                    : centerYearMonth.year}
-                </Text>
+                {viewMode === 'day' ? (() => {
+                  const raw = dayjs().year(centerYearMonth.year).month(centerYearMonth.month).format('MMM');
+                  const monthLabel = raw.charAt(0).toUpperCase() + raw.slice(1);
+                  const yy = String(centerYearMonth.year).slice(-2);
+                  return (
+                    <Text style={styles.yearText}>
+                      {monthLabel} <Text style={{ color: WEEKEND_TEXT_COLOR }}>{yy}</Text>
+                    </Text>
+                  );
+                })() : (
+                  <Text style={styles.yearText}>{centerYearMonth.year}</Text>
+                )}
               </View>
             <View style={[styles.leftCol, { overflow: 'hidden' }]}>
               <Animated.View
