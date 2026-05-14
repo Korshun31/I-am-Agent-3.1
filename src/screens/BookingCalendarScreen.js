@@ -19,6 +19,8 @@ import {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Svg, { Defs, Pattern, Line as SvgLine, Rect } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
@@ -51,6 +53,11 @@ const MIN_COL_WIDTH = 100;
 const MAX_COL_WIDTH = 150;
 const MONTH_WIDTH = 100; // 83 + 20%
 const NUM_MONTHS = 16;
+// Дневной режим: единица — неделя (7 дней внутри). Подключится в следующем подшаге.
+const DAY_WIDTH = 28;
+const WEEK_WIDTH = DAY_WIDTH * 7; // 196
+const NUM_WEEKS = 70;
+const VIEW_MODE_STORAGE_KEY = 'bookingCalendar:viewMode';
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
 // 6 приглушённых цветов вместо 16 кислотных. Каждый читается на белом и сером фоне,
 // различим между соседями по строке. На гант-таймлайне цвет нужен для различия
@@ -159,6 +166,8 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const [selectedOwnerContact, setSelectedOwnerContact] = useState(null);
   const [selectedPropertyForDetail, setSelectedPropertyForDetail] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState('month'); // 'month' | 'day'
+  const [viewModeReady, setViewModeReady] = useState(false);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
@@ -356,6 +365,85 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     notifModalVisibleRef.current = notifModalVisible;
   }, [notifModalVisible]);
 
+  // Восстанавливаем сохранённый режим календаря при первом монтировании.
+  // Флаг viewModeReady блокирует рендер ленты до завершения чтения, чтобы
+  // эффекты прокрутки не успели сработать на дефолтном режиме и потом не
+  // дёргать геометрию задним числом, если сохранён другой режим.
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(VIEW_MODE_STORAGE_KEY)
+      .then((saved) => {
+        if (cancelled) return;
+        if (saved === 'month' || saved === 'day') setViewMode(saved);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setViewModeReady(true);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Уникальный id для SVG-паттерна делителей дней. Несколько экземпляров экрана
+  // не должны коллизировать по id внутри одного React-дерева.
+  const dayDividerPatternId = `dd-${React.useId()}`;
+
+  // Две геометрические функции, общие для обеих веток. Вычисляются в родителе,
+  // передаются в CalendarRow как пропсы — мемоизация CalendarRow по `dateToPx` /
+  // `pxToMonthKey` сохраняется, потому что useCallback стабилен по deps.
+  const dateToPx = useCallback((d) => {
+    if (viewMode === 'day') {
+      const startStr = weeks[0]?.startDate;
+      if (!startStr) return 0;
+      const start = dayjs(startStr);
+      const days = d.diff(start, 'day');
+      if (days < 0) return 0;
+      const maxDays = NUM_WEEKS * 7;
+      if (days >= maxDays) return totalWidth;
+      return days * DAY_WIDTH;
+    }
+    const idx = months.findIndex(m => m.year === d.year() && m.month === d.month());
+    if (idx >= 0) {
+      const daysInMonth = d.daysInMonth();
+      const dayOfMonth = d.date();
+      return idx * MONTH_WIDTH + ((dayOfMonth - 1) / daysInMonth) * MONTH_WIDTH;
+    }
+    if (months.length === 0) return 0;
+    const first = dayjs().year(months[0].year).month(months[0].month).startOf('month');
+    if (d.isBefore(first)) return 0;
+    return totalWidth;
+  }, [viewMode, months, weeks, totalWidth]);
+
+  // Сдвиг кромок полоски брони на половину дневного столбика — чтобы стыковые
+  // даты (выезд одного клиента и заезд следующего в один день) не перекрывали
+  // друг друга, а делили столбик пополам: левая половина — выезд, правая — заезд.
+  const bookingBarInset = viewMode === 'day' ? DAY_WIDTH / 2 : 0;
+
+  const pxToMonthKey = useCallback((x) => {
+    if (!Number.isFinite(x)) return null;
+    if (viewMode === 'day') {
+      const startStr = weeks[0]?.startDate;
+      if (!startStr) return null;
+      const start = dayjs(startStr);
+      const dayIdx = Math.floor(x / DAY_WIDTH);
+      if (dayIdx < 0 || dayIdx >= NUM_WEEKS * 7) return null;
+      return start.add(dayIdx, 'day').format('YYYY-MM');
+    }
+    const monthIdx = Math.floor(x / MONTH_WIDTH);
+    if (monthIdx < 0 || monthIdx >= months.length) return null;
+    return months[monthIdx].key;
+  }, [viewMode, months, weeks]);
+
+  const handleViewModeChange = useCallback((next) => {
+    if (next !== 'month' && next !== 'day') return;
+    if (next === viewMode) return;
+    // При смене режима сбрасываем «уже прокрутили» и текущую позицию, чтобы
+    // эффект скролла после ре-рендера отработал на новой initialScrollX.
+    hasScrolledOnceRef.current = false;
+    timelineScrollXRef.current = 0;
+    setViewMode(next);
+    AsyncStorage.setItem(VIEW_MODE_STORAGE_KEY, next).catch(() => {});
+  }, [viewMode]);
+
   useEffect(() => {
     if (!effectiveVisible || !user?.id) return;
     refreshBadge();
@@ -440,6 +528,13 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return Math.max(MIN_COL_WIDTH, w);
   }, [listToShow, getParent]);
 
+  // Геометрия ленты: единая точка правды для ширины одной единицы и их количества.
+  // Месячный режим — единица «месяц» (100px × 16). Дневной — «неделя» (196px × 70),
+  // внутри которой через SVG-паттерн рисуются 7 столбиков-дней.
+  const unitWidth = viewMode === 'day' ? WEEK_WIDTH : MONTH_WIDTH;
+  const unitCount = viewMode === 'day' ? NUM_WEEKS : NUM_MONTHS;
+  const totalWidth = unitCount * unitWidth;
+
   const months = React.useMemo(() => {
     const loc = language === 'ru' ? 'ru' : language === 'th' ? 'th' : 'en';
     const base = dayjs().startOf('month');
@@ -457,15 +552,57 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return arr;
   }, [language]);
 
+  // Массив недель для дневного режима. 10 недель назад + 60 вперёд = 70 единиц,
+  // понедельник считается вручную (без плагина isoWeek), потому что в dayjs
+  // startOf('week') зависит от локали (англ. — воскресенье, рус. — понедельник).
+  // Label показывает диапазон «12-18 май» или «28 апр-4 май» если неделя
+  // пересекает границу месяца. key — дата понедельника, по нему позиционируем.
+  const weeks = React.useMemo(() => {
+    const loc = language === 'ru' ? 'ru' : language === 'th' ? 'th' : 'en';
+    const today = dayjs();
+    const dow = today.day(); // 0=вск..6=сб
+    const offsetToMonday = dow === 0 ? -6 : 1 - dow;
+    const baseMonday = today.add(offsetToMonday, 'day').startOf('day');
+    const arr = [];
+    for (let i = -10; i < NUM_WEEKS - 10; i++) {
+      const start = baseMonday.add(i * 7, 'day').locale(loc);
+      const end = start.add(6, 'day');
+      const sameMonth = start.month() === end.month();
+      const label = sameMonth
+        ? `${start.format('D')}-${end.format('D MMM')}`
+        : `${start.format('D MMM')}-${end.format('D MMM')}`;
+      arr.push({
+        key: start.format('YYYY-MM-DD'),
+        startDate: start.format('YYYY-MM-DD'),
+        endDate: end.format('YYYY-MM-DD'),
+        year: start.year(),
+        label,
+      });
+    }
+    return arr;
+  }, [language]);
+
   const year = months[centerMonthIdx]?.year ?? dayjs().year();
 
   const initialScrollX = React.useMemo(() => {
+    // Центрируем «сегодня» в видимой части ленты (экран минус левая колонка).
+    const viewportW = Math.max(1, SCREEN_WIDTH - leftColWidth);
+    if (viewMode === 'day') {
+      const startStr = weeks[0]?.startDate;
+      if (!startStr) return 0;
+      const start = dayjs(startStr);
+      const todayIdx = dayjs().startOf('day').diff(start, 'day');
+      if (todayIdx < 0) return 0;
+      const todayCenter = todayIdx * DAY_WIDTH + DAY_WIDTH / 2;
+      return Math.max(0, todayCenter - viewportW / 2);
+    }
     const curYear = dayjs().year();
     const curMonth = dayjs().month();
     const idx = months.findIndex(m => m.year === curYear && m.month === curMonth);
     if (idx < 0) return 0;
-    return Math.max(0, idx * MONTH_WIDTH - SCREEN_WIDTH / 2 + MONTH_WIDTH / 2);
-  }, [months]);
+    const monthCenter = idx * unitWidth + unitWidth / 2;
+    return Math.max(0, monthCenter - viewportW / 2);
+  }, [months, weeks, viewMode, unitWidth, leftColWidth]);
 
   useEffect(() => {
     if (timelineScrollXRef.current === 0) {
@@ -474,6 +611,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   }, [initialScrollX]);
 
   const todayLineX = React.useMemo(() => {
+    if (viewMode === 'day') return -1; // в дневном «сегодня» уже подсвечен столбиком DAY_WIDTH
     if (months.length === 0) return -1;
     const timelineStart = dayjs().year(months[0].year).month(months[0].month).startOf('month');
     const timelineEnd = dayjs().year(months[months.length - 1].year).month(months[months.length - 1].month).endOf('month');
@@ -481,9 +619,9 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     const today = dayjs();
     const dayIndex = today.diff(timelineStart, 'day');
     if (dayIndex < 0 || dayIndex >= totalDays) return -1;
-    const rowWidth = months.length * MONTH_WIDTH;
+    const rowWidth = totalWidth;
     return (dayIndex / totalDays) * rowWidth;
-  }, [months]);
+  }, [months, viewMode, totalWidth]);
 
   // contactNamesByBookingId: считаем имена клиентов один раз для всех броней
   // вместо setState на каждом ряду (раньше CalendarRow делал useState+useEffect
@@ -503,70 +641,42 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   }, [bookings, contacts]);
 
 
-  const rightScrollRefReady = useRef(false);
-  const hasOpenedDetailRef = useRef(false);
+  // Единственная точка управления горизонтальной прокруткой. Раньше за scrollTo
+  // конкурировали пять разных useEffect, которые при смене режима/возврате с
+  // деталей могли срабатывать в неопределённом порядке. Теперь приоритеты явные:
+  //  1) первый раз (включая после смены режима) — initialScrollX
+  //  2) только что закрыли детали брони — initialScrollX
+  //  3) иначе — восстановить сохранённую позицию из timelineScrollXRef
+  const prevSelectedBookingRef = useRef(null);
   useEffect(() => {
-    if (!rightScrollRefReady.current && rightScrollRef.current && initialScrollX > 0) {
-      rightScrollRefReady.current = true;
-      const id = requestAnimationFrame(() => {
-        rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
-      });
-      return () => cancelAnimationFrame(id);
+    if (!effectiveVisible || !rightScrollRef.current) {
+      prevSelectedBookingRef.current = selectedBooking;
+      return;
     }
-  }, [initialScrollX, listToShow.length]);
+    if (listToShow.length === 0) {
+      prevSelectedBookingRef.current = selectedBooking;
+      return;
+    }
+    const bookingJustClosed = prevSelectedBookingRef.current !== null && selectedBooking === null;
+    prevSelectedBookingRef.current = selectedBooking;
 
-  useEffect(() => {
-    if (effectiveVisible && rightScrollRef.current) {
-      const id = requestAnimationFrame(() => {
-        if (!hasScrolledOnceRef.current) {
-          hasScrolledOnceRef.current = true;
-          rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
-        } else {
-          const targetX = timelineScrollXRef.current > 0
-            ? timelineScrollXRef.current
-            : initialScrollX;
-          rightScrollRef.current?.scrollTo({ x: targetX, animated: false });
-        }
-      });
-      return () => cancelAnimationFrame(id);
+    let targetX;
+    if (!hasScrolledOnceRef.current) {
+      hasScrolledOnceRef.current = true;
+      targetX = initialScrollX;
+    } else if (bookingJustClosed) {
+      targetX = initialScrollX;
+    } else {
+      targetX = timelineScrollXRef.current > 0
+        ? timelineScrollXRef.current
+        : initialScrollX;
     }
-  }, [effectiveVisible, initialScrollX]);
 
-  // При возврате с экрана брони — прокрутить к текущему месяцу
-  useEffect(() => {
-    if (hasOpenedDetailRef.current && selectedBooking === null) {
-      hasOpenedDetailRef.current = false;
-      const id = requestAnimationFrame(() => {
-        rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
-      });
-      return () => cancelAnimationFrame(id);
-    }
-    if (selectedBooking) hasOpenedDetailRef.current = true;
-  }, [selectedBooking, initialScrollX]);
-
-  useEffect(() => {
-    if (!selectedPropertyForDetail && rightScrollRef.current) {
-      const id = requestAnimationFrame(() => {
-        const targetX = timelineScrollXRef.current > 0
-          ? timelineScrollXRef.current
-          : initialScrollX;
-        rightScrollRef.current?.scrollTo({ x: targetX, animated: false });
-      });
-      return () => cancelAnimationFrame(id);
-    }
-  }, [selectedPropertyForDetail]);
-
-  useEffect(() => {
-    if (listToShow.length > 0 && rightScrollRef.current) {
-      const id = requestAnimationFrame(() => {
-        const targetX = timelineScrollXRef.current > 0
-          ? timelineScrollXRef.current
-          : initialScrollX;
-        rightScrollRef.current?.scrollTo({ x: targetX, animated: false });
-      });
-      return () => cancelAnimationFrame(id);
-    }
-  }, [listToShow.length]);
+    const id = requestAnimationFrame(() => {
+      rightScrollRef.current?.scrollTo({ x: targetX, animated: false });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [effectiveVisible, initialScrollX, selectedBooking, selectedPropertyForDetail, listToShow.length]);
 
   const handleAddPress = useCallback((property, monthKey) => {
     setSelectedProperty(property);
@@ -639,7 +749,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const currentYear = dayjs().year();
   const currentMonth = dayjs().month();
 
-  if (loading) {
+  if (loading || !viewModeReady) {
     return (
       <View style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color="#999" />
@@ -745,6 +855,22 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
             >
               <Ionicons name="funnel-outline" size={18} color={hasActiveFilter ? '#3D7D82' : '#888'} />
             </TouchableOpacity>
+            <View style={styles.viewModeWrap}>
+              <TouchableOpacity
+                style={[styles.viewModeBtn, viewMode === 'month' && styles.viewModeBtnActiveLeft]}
+                activeOpacity={0.7}
+                onPress={() => handleViewModeChange('month')}
+              >
+                <Text style={[styles.viewModeText, viewMode === 'month' && styles.viewModeTextActive]}>M</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.viewModeBtn, viewMode === 'day' && styles.viewModeBtnActiveRight]}
+                activeOpacity={0.7}
+                onPress={() => handleViewModeChange('day')}
+              >
+                <Text style={[styles.viewModeText, viewMode === 'day' && styles.viewModeTextActive]}>D</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}
@@ -794,47 +920,55 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               style={styles.rightArea}
               horizontal
               showsHorizontalScrollIndicator={true}
-              contentContainerStyle={{ width: NUM_MONTHS * MONTH_WIDTH }}
+              contentContainerStyle={{ width: totalWidth }}
               onScroll={(e) => {
                 const x = e?.nativeEvent?.contentOffset?.x;
                 timelineScrollXRef.current = Number.isFinite(x) ? x : 0;
                 const viewportW = e?.nativeEvent?.layoutMeasurement?.width;
                 if (!Number.isFinite(viewportW) || viewportW <= 0) return;
                 const centerX = (Number.isFinite(x) ? x : 0) + viewportW / 2;
-                let idx = Math.floor(centerX / MONTH_WIDTH);
+                let idx = Math.floor(centerX / unitWidth);
                 if (idx < 0) idx = 0;
-                if (idx > NUM_MONTHS - 1) idx = NUM_MONTHS - 1;
+                if (idx > unitCount - 1) idx = unitCount - 1;
                 setCenterMonthIdx((prev) => (prev === idx ? prev : idx));
               }}
               scrollEventThrottle={16}
             >
-              <View style={{ width: NUM_MONTHS * MONTH_WIDTH, flexDirection: 'column' }}>
+              <View style={{ width: totalWidth, flexDirection: 'column' }}>
                 <View style={styles.monthsHeader}>
-                  {months.map((m) => {
-                    const isPast = m.year < currentYear || (m.year === currentYear && m.month < currentMonth);
-                    const isCurrent = m.year === currentYear && m.month === currentMonth;
-                    return (
-                      <View
-                        key={m.key}
-                        style={[
-                          styles.monthCell,
-                          isPast && styles.monthPast,
-                          isCurrent && styles.monthCurrent,
-                          !isPast && !isCurrent && styles.monthFuture,
-                        ]}
-                      >
-                        <Text style={styles.monthLabel} numberOfLines={1}>
-                          <Text style={styles.monthLabelBold}>{m.label}</Text>
-                          <Text style={styles.monthYearRed}> {String(m.year % 100).padStart(2, '0')}</Text>
-                        </Text>
-                        <View style={styles.monthDivisions}>
-                          <View style={styles.division} />
-                          <View style={styles.division} />
-                          <View style={styles.division} />
-                        </View>
+                  {viewMode === 'day' ? (
+                    weeks.map((w) => (
+                      <View key={w.key} style={[styles.monthCell, styles.monthFuture, { width: WEEK_WIDTH }]}>
+                        <Text style={styles.monthLabel} numberOfLines={1}>{w.label}</Text>
                       </View>
-                    );
-                  })}
+                    ))
+                  ) : (
+                    months.map((m) => {
+                      const isPast = m.year < currentYear || (m.year === currentYear && m.month < currentMonth);
+                      const isCurrent = m.year === currentYear && m.month === currentMonth;
+                      return (
+                        <View
+                          key={m.key}
+                          style={[
+                            styles.monthCell,
+                            isPast && styles.monthPast,
+                            isCurrent && styles.monthCurrent,
+                            !isPast && !isCurrent && styles.monthFuture,
+                          ]}
+                        >
+                          <Text style={styles.monthLabel} numberOfLines={1}>
+                            <Text style={styles.monthLabelBold}>{m.label}</Text>
+                            <Text style={styles.monthYearRed}> {String(m.year % 100).padStart(2, '0')}</Text>
+                          </Text>
+                          <View style={styles.monthDivisions}>
+                            <View style={styles.division} />
+                            <View style={styles.division} />
+                            <View style={styles.division} />
+                          </View>
+                        </View>
+                      );
+                    })
+                  )}
                 </View>
 
                 <Animated.ScrollView
@@ -855,41 +989,128 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                       position: 'absolute',
                       top: 0,
                       left: 0,
-                      width: NUM_MONTHS * MONTH_WIDTH,
+                      width: totalWidth,
                       height: listToShow.length * ROW_HEIGHT,
                     }}
                   >
-                    {months.map((m, mi) => {
-                      const isPast = m.year < currentYear || (m.year === currentYear && m.month < currentMonth);
-                      const isCurrent = m.year === currentYear && m.month === currentMonth;
-                      if (!isPast && !isCurrent) return null;
+                    {viewMode === 'day' ? (() => {
+                      // Дневной режим: подсветка прошлое/сегодня двумя прямоугольниками,
+                      // вместо 16 квадратов месяцев. Старт ленты — startDate первой недели.
+                      const startStr = weeks[0]?.startDate;
+                      if (!startStr) return null;
+                      const start = dayjs(startStr);
+                      const totalDays = NUM_WEEKS * 7;
+                      const daysSinceStart = dayjs().startOf('day').diff(start, 'day');
+                      const pastWidth = Math.max(0, Math.min(daysSinceStart, totalDays)) * DAY_WIDTH;
+                      const todayLeft = daysSinceStart >= 0 && daysSinceStart < totalDays
+                        ? daysSinceStart * DAY_WIDTH
+                        : -1;
+                      const slabHeight = Math.max(1, listToShow.length * ROW_HEIGHT);
                       return (
-                        <View
-                          key={m.key}
-                          style={{
-                            position: 'absolute',
-                            left: mi * MONTH_WIDTH,
-                            top: 0,
-                            bottom: 0,
-                            width: MONTH_WIDTH,
-                            backgroundColor: isPast ? COLORS.monthPast : COLORS.monthCurrent,
-                          }}
-                        />
+                        <>
+                          {pastWidth > 0 && (
+                            <View
+                              style={{
+                                position: 'absolute',
+                                left: 0,
+                                top: 0,
+                                bottom: 0,
+                                width: pastWidth,
+                                backgroundColor: COLORS.monthPast,
+                              }}
+                            />
+                          )}
+                          {todayLeft >= 0 && (
+                            <View
+                              style={{
+                                position: 'absolute',
+                                left: todayLeft,
+                                top: 0,
+                                bottom: 0,
+                                width: DAY_WIDTH,
+                                backgroundColor: COLORS.monthCurrent,
+                              }}
+                            />
+                          )}
+                          {/* Тонкие делители дней — один SVG с повторяющимся паттерном
+                              вместо 490 View. patternUnits=userSpaceOnUse обязателен,
+                              иначе Android отдаёт пустоту. id уникален на инстанс. */}
+                          <Svg
+                            style={{ position: 'absolute', top: 0, left: 0 }}
+                            width={totalWidth}
+                            height={slabHeight}
+                            pointerEvents="none"
+                          >
+                            <Defs>
+                              <Pattern
+                                id={dayDividerPatternId}
+                                width={DAY_WIDTH}
+                                height={slabHeight}
+                                patternUnits="userSpaceOnUse"
+                              >
+                                <SvgLine
+                                  x1={DAY_WIDTH - 0.5}
+                                  y1="0"
+                                  x2={DAY_WIDTH - 0.5}
+                                  y2={slabHeight}
+                                  stroke="rgba(0,0,0,0.05)"
+                                  strokeWidth="1"
+                                />
+                              </Pattern>
+                            </Defs>
+                            <Rect width={totalWidth} height={slabHeight} fill={`url(#${dayDividerPatternId})`} />
+                          </Svg>
+                          {/* Жирные линии границ недель — поверх паттерна дней. */}
+                          {weeks.map((w, wi) => (
+                            <View
+                              key={`wdiv-${w.key}`}
+                              style={{
+                                position: 'absolute',
+                                left: (wi + 1) * WEEK_WIDTH - 1,
+                                top: 0,
+                                bottom: 0,
+                                width: 1,
+                                backgroundColor: 'rgba(0,0,0,0.12)',
+                              }}
+                            />
+                          ))}
+                        </>
                       );
-                    })}
-                    {months.map((m, mi) => (
-                      <View
-                        key={`div-${m.key}`}
-                        style={{
-                          position: 'absolute',
-                          left: (mi + 1) * MONTH_WIDTH - 1,
-                          top: 0,
-                          bottom: 0,
-                          width: 1,
-                          backgroundColor: 'rgba(0,0,0,0.06)',
-                        }}
-                      />
-                    ))}
+                    })() : (
+                      <>
+                        {months.map((m, mi) => {
+                          const isPast = m.year < currentYear || (m.year === currentYear && m.month < currentMonth);
+                          const isCurrent = m.year === currentYear && m.month === currentMonth;
+                          if (!isPast && !isCurrent) return null;
+                          return (
+                            <View
+                              key={m.key}
+                              style={{
+                                position: 'absolute',
+                                left: mi * MONTH_WIDTH,
+                                top: 0,
+                                bottom: 0,
+                                width: MONTH_WIDTH,
+                                backgroundColor: isPast ? COLORS.monthPast : COLORS.monthCurrent,
+                              }}
+                            />
+                          );
+                        })}
+                        {months.map((m, mi) => (
+                          <View
+                            key={`div-${m.key}`}
+                            style={{
+                              position: 'absolute',
+                              left: (mi + 1) * MONTH_WIDTH - 1,
+                              top: 0,
+                              bottom: 0,
+                              width: 1,
+                              backgroundColor: 'rgba(0,0,0,0.06)',
+                            }}
+                          />
+                        ))}
+                      </>
+                    )}
                   </View>
                   {todayLineX >= 0 && (
                     <View
@@ -913,8 +1134,10 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                         <CalendarRow
                           key={unit.id}
                           unit={unit}
-                          months={months}
-                          monthWidth={MONTH_WIDTH}
+                          rowWidth={totalWidth}
+                          dateToPx={dateToPx}
+                          pxToMonthKey={pxToMonthKey}
+                          bookingBarInset={bookingBarInset}
                           rowHeight={ROW_HEIGHT}
                           currentYear={currentYear}
                           currentMonth={currentMonth}
@@ -1033,8 +1256,10 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
 
 const CalendarRow = React.memo(function CalendarRow({
   unit,
-  months,
-  monthWidth,
+  rowWidth,
+  dateToPx,
+  pxToMonthKey,
+  bookingBarInset,
   rowHeight,
   bookings,
   contactNamesByBookingId,
@@ -1045,14 +1270,10 @@ const CalendarRow = React.memo(function CalendarRow({
   onCellPress,
   onBookingPress,
   ownerLabels,
-  currentYear,
-  currentMonth,
   isAgentMode,
   currentUserId,
   companyName,
 }) {
-  const rowWidth = months.length * monthWidth;
-
   const resolveAbsolutePressX = (e) => {
     const localX = e?.nativeEvent?.locationX;
     const scrollX = timelineScrollXRef?.current;
@@ -1062,35 +1283,14 @@ const CalendarRow = React.memo(function CalendarRow({
     return absoluteX;
   };
 
-  const dateToPx = (d) => {
-    const idx = months.findIndex(m => m.year === d.year() && m.month === d.month());
-    if (idx >= 0) {
-      const daysInMonth = d.daysInMonth();
-      const dayOfMonth = d.date();
-      return idx * monthWidth + ((dayOfMonth - 1) / daysInMonth) * monthWidth;
-    }
-    if (months.length === 0) return 0;
-    const first = dayjs().year(months[0].year).month(months[0].month).startOf('month');
-    if (d.isBefore(first)) return 0;
-    return rowWidth;
-  };
-
   return (
     <View style={[rowStyles.row, { height: rowHeight, width: rowWidth }]}>
       <Pressable
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         onPress={onCellPress ? (e) => {
           const x = resolveAbsolutePressX(e);
-          if (!Number.isFinite(x) || !Number.isFinite(monthWidth) || monthWidth <= 0 || months.length === 0) {
-            onCellPress(unit, null);
-            return;
-          }
-          const monthIdx = Math.floor(x / monthWidth);
-          if (!Number.isInteger(monthIdx) || monthIdx < 0 || monthIdx >= months.length) {
-            onCellPress(unit, null);
-            return;
-          }
-          onCellPress(unit, months[monthIdx].key);
+          const key = pxToMonthKey(x);
+          onCellPress(unit, key);
         } : undefined}
       />
       {bookings.map((b) => {
@@ -1098,8 +1298,8 @@ const CalendarRow = React.memo(function CalendarRow({
         const checkOutStr = typeof b.checkOut === 'string' && b.checkOut.length >= 10 ? b.checkOut.substring(0, 10) : b.checkOut;
         const cin = dayjs(checkInStr);
         const cout = dayjs(checkOutStr);
-        const leftPx = Math.max(0, dateToPx(cin));
-        const rightPx = Math.min(rowWidth, dateToPx(cout.add(1, 'day')));
+        const leftPx = Math.max(0, dateToPx(cin) + bookingBarInset);
+        const rightPx = Math.min(rowWidth, dateToPx(cout.add(1, 'day')) - bookingBarInset);
         const widthPx = Math.max(2, rightPx - leftPx);
         const rawColor = b.notMyCustomer ? COLORS.ownerBar : (globalColorMap[b.id] || PASTEL_COLORS[0]);
         const barColor = b.notMyCustomer ? rawColor : rawColor.replace(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i, (_, r, g, b) => `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, 0.6)`);
@@ -1299,6 +1499,42 @@ const styles = StyleSheet.create({
   },
   filterBtnActive: {
     borderColor: '#3D7D82',
+  },
+  viewModeWrap: {
+    flexDirection: 'row',
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D1D1D6',
+    overflow: 'hidden',
+  },
+  viewModeBtn: {
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    backgroundColor: '#F7F7F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewModeBtnActiveLeft: {
+    borderColor: '#3D7D82',
+    backgroundColor: 'rgba(61,125,130,0.06)',
+    borderTopLeftRadius: 11,
+    borderBottomLeftRadius: 11,
+  },
+  viewModeBtnActiveRight: {
+    borderColor: '#3D7D82',
+    backgroundColor: 'rgba(61,125,130,0.06)',
+    borderTopRightRadius: 11,
+    borderBottomRightRadius: 11,
+  },
+  viewModeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#666',
+  },
+  viewModeTextActive: {
+    color: '#3D7D82',
   },
   emptyWrap: {
     flex: 1,
