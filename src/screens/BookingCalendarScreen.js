@@ -20,7 +20,7 @@ import {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Svg, { Defs, Pattern, Line as SvgLine, Rect } from 'react-native-svg';
+import Svg, { Defs, Pattern, Line as SvgLine, Rect, Text as SvgText } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
@@ -70,6 +70,8 @@ const PASTEL_COLORS = [
   '#B8D0D0',  // дымчатый teal
   '#D4C4B0',  // какао-бежевый
 ];
+// Пастельно-красный для выходных дней (суббота/воскресенье) в шапке D режима.
+const WEEKEND_TEXT_COLOR = '#C97A7A';
 
 const COLORS = {
   background:   '#F5F5F7',
@@ -155,12 +157,19 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const [filterValues, setFilterValues] = useState(null);
   const [loading, setLoading] = useState(false);
   const [centerMonthIdx, setCenterMonthIdx] = useState(3);
+  // Месяц/год по центру видимой ленты — общий стейт для обоих режимов.
+  // Используется в левой верхней ячейке как «2026» (M) или «05.2026» (D).
+  // setState вызывается через ref-сравнение, не на каждый кадр прокрутки.
+  const [centerYearMonth, setCenterYearMonth] = useState(() => {
+    const d = dayjs();
+    return { year: d.year(), month: d.month() };
+  });
+  const lastMonthKeyRef = useRef(null);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [detailVisible, setDetailVisible] = useState(false);
-  const [initialMonth, setInitialMonth] = useState(null);
   const [preloadedProperty, setPreloadedProperty] = useState(null);
   const [preloadedContact, setPreloadedContact] = useState(null);
   const [selectedOwnerContact, setSelectedOwnerContact] = useState(null);
@@ -386,10 +395,11 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   // Уникальный id для SVG-паттерна делителей дней. Несколько экземпляров экрана
   // не должны коллизировать по id внутри одного React-дерева.
   const dayDividerPatternId = `dd-${React.useId()}`;
+  const headerDayDividerPatternId = `hdd-${React.useId()}`;
 
-  // Две геометрические функции, общие для обеих веток. Вычисляются в родителе,
-  // передаются в CalendarRow как пропсы — мемоизация CalendarRow по `dateToPx` /
-  // `pxToMonthKey` сохраняется, потому что useCallback стабилен по deps.
+  // Функция позиции брони на ленте — общая для обеих веток. Вычисляется в
+  // родителе, передаётся в CalendarRow как пропс; useCallback стабилен по deps,
+  // мемоизация CalendarRow сохраняется.
   const dateToPx = useCallback((d) => {
     if (viewMode === 'day') {
       const startStr = weeks[0]?.startDate;
@@ -417,21 +427,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   // даты (выезд одного клиента и заезд следующего в один день) не перекрывали
   // друг друга, а делили столбик пополам: левая половина — выезд, правая — заезд.
   const bookingBarInset = viewMode === 'day' ? DAY_WIDTH / 2 : 0;
-
-  const pxToMonthKey = useCallback((x) => {
-    if (!Number.isFinite(x)) return null;
-    if (viewMode === 'day') {
-      const startStr = weeks[0]?.startDate;
-      if (!startStr) return null;
-      const start = dayjs(startStr);
-      const dayIdx = Math.floor(x / DAY_WIDTH);
-      if (dayIdx < 0 || dayIdx >= NUM_WEEKS * 7) return null;
-      return start.add(dayIdx, 'day').format('YYYY-MM');
-    }
-    const monthIdx = Math.floor(x / MONTH_WIDTH);
-    if (monthIdx < 0 || monthIdx >= months.length) return null;
-    return months[monthIdx].key;
-  }, [viewMode, months, weeks]);
 
   const handleViewModeChange = useCallback((next) => {
     if (next !== 'month' && next !== 'day') return;
@@ -582,7 +577,23 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return arr;
   }, [language]);
 
-  const year = months[centerMonthIdx]?.year ?? dayjs().year();
+  // Прекомпьют дня ленты в день/месяц/год для двух вещей:
+  // — SVG-числа в шапке D режима (`date`)
+  // — определение «текущего месяца по центру» в onScroll (через dayIdx из x).
+  // Считается один раз при смене языка/режима, чтобы не дёргать dayjs() 60 раз/сек.
+  const monthOfDay = React.useMemo(() => {
+    if (viewMode !== 'day') return null;
+    const startStr = weeks[0]?.startDate;
+    if (!startStr) return null;
+    const start = dayjs(startStr);
+    const total = NUM_WEEKS * 7;
+    const arr = new Array(total);
+    for (let i = 0; i < total; i++) {
+      const d = start.add(i, 'day');
+      arr[i] = { year: d.year(), month: d.month(), date: d.date(), dow: d.day() };
+    }
+    return arr;
+  }, [viewMode, weeks]);
 
   const initialScrollX = React.useMemo(() => {
     // Центрируем «сегодня» в видимой части ленты (экран минус левая колонка).
@@ -678,21 +689,9 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return () => cancelAnimationFrame(id);
   }, [effectiveVisible, initialScrollX, selectedBooking, selectedPropertyForDetail, listToShow.length]);
 
-  const handleAddPress = useCallback((property, monthKey) => {
+  const handleAddPress = useCallback((property) => {
     setSelectedProperty(property);
     setSelectedBooking(null);
-    const isValidMonthKey = typeof monthKey === 'string' && /^\d{4}-\d{2}$/.test(monthKey);
-    if (isValidMonthKey) {
-      const [y, m] = monthKey.split('-').map(Number);
-      if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) {
-        setInitialMonth(null);
-        setAddModalVisible(true);
-        return;
-      }
-      setInitialMonth({ year: y, month: m - 1 });
-    } else {
-      setInitialMonth(null);
-    }
     setAddModalVisible(true);
   }, []);
 
@@ -704,7 +703,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
       return;
     }
 
-    setInitialMonth(null);
     setEditModalVisible(false);
 
     const prop = booking?.propertyId ? properties.find(p => p.id === booking.propertyId) : null;
@@ -886,7 +884,11 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
           <View style={styles.calendarRow}>
             <View style={[styles.leftColWrap, { width: leftColWidth }]}>
               <View style={[styles.yearCell, styles.cornerCell]}>
-                <Text style={styles.yearText}>{year}</Text>
+                <Text style={styles.yearText}>
+                  {viewMode === 'day'
+                    ? `${String(centerYearMonth.month + 1).padStart(2, '0')}.${centerYearMonth.year}`
+                    : centerYearMonth.year}
+                </Text>
               </View>
             <View style={[styles.leftCol, { overflow: 'hidden' }]}>
               <Animated.View
@@ -931,17 +933,79 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                 if (idx < 0) idx = 0;
                 if (idx > unitCount - 1) idx = unitCount - 1;
                 setCenterMonthIdx((prev) => (prev === idx ? prev : idx));
+                // Месяц/год по центру — обновляем стейт только при пересечении
+                // границы месяца. Ref-сравнение защищает от setState 60 раз/сек.
+                let nextKey = null;
+                if (viewMode === 'day' && monthOfDay) {
+                  const dayIdx = Math.floor(centerX / DAY_WIDTH);
+                  if (dayIdx >= 0 && dayIdx < monthOfDay.length) {
+                    const entry = monthOfDay[dayIdx];
+                    nextKey = `${entry.year}-${entry.month}`;
+                  }
+                } else if (viewMode === 'month' && months[idx]) {
+                  const m = months[idx];
+                  nextKey = `${m.year}-${m.month}`;
+                }
+                if (nextKey && nextKey !== lastMonthKeyRef.current) {
+                  lastMonthKeyRef.current = nextKey;
+                  const [y, mo] = nextKey.split('-').map(Number);
+                  setCenterYearMonth({ year: y, month: mo });
+                }
               }}
               scrollEventThrottle={16}
             >
               <View style={{ width: totalWidth, flexDirection: 'column' }}>
                 <View style={styles.monthsHeader}>
                   {viewMode === 'day' ? (
-                    weeks.map((w) => (
-                      <View key={w.key} style={[styles.monthCell, styles.monthFuture, { width: WEEK_WIDTH }]}>
-                        <Text style={styles.monthLabel} numberOfLines={1}>{w.label}</Text>
-                      </View>
-                    ))
+                    <>
+                      {weeks.map((w) => (
+                        <View key={w.key} style={[styles.monthCell, styles.monthFuture, { width: WEEK_WIDTH }]} />
+                      ))}
+                      {/* 490 чисел дней одним SVG-слоем — нативный рендер, шапка
+                          не дёргается при горизонтальном скролле. */}
+                      {monthOfDay && (
+                        <Svg
+                          style={{ position: 'absolute', top: 0, left: 0 }}
+                          width={totalWidth}
+                          height={ROW_HEIGHT}
+                          pointerEvents="none"
+                        >
+                          <Defs>
+                            <Pattern
+                              id={headerDayDividerPatternId}
+                              width={DAY_WIDTH}
+                              height={ROW_HEIGHT}
+                              patternUnits="userSpaceOnUse"
+                            >
+                              <SvgLine
+                                x1={DAY_WIDTH - 0.5}
+                                y1="0"
+                                x2={DAY_WIDTH - 0.5}
+                                y2={ROW_HEIGHT}
+                                stroke="rgba(0,0,0,0.06)"
+                                strokeWidth="1"
+                              />
+                            </Pattern>
+                          </Defs>
+                          <Rect width={totalWidth} height={ROW_HEIGHT} fill={`url(#${headerDayDividerPatternId})`} />
+                          {monthOfDay.map((entry, i) => {
+                            const isWeekend = entry.dow === 0 || entry.dow === 6;
+                            return (
+                              <SvgText
+                                key={i}
+                                x={i * DAY_WIDTH + DAY_WIDTH / 2}
+                                y={ROW_HEIGHT / 2 + 4}
+                                textAnchor="middle"
+                                fontSize="12"
+                                fill={isWeekend ? WEEKEND_TEXT_COLOR : COLORS.title}
+                              >
+                                {entry.date}
+                              </SvgText>
+                            );
+                          })}
+                        </Svg>
+                      )}
+                    </>
                   ) : (
                     months.map((m) => {
                       const isPast = m.year < currentYear || (m.year === currentYear && m.month < currentMonth);
@@ -1136,7 +1200,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                           unit={unit}
                           rowWidth={totalWidth}
                           dateToPx={dateToPx}
-                          pxToMonthKey={pxToMonthKey}
                           bookingBarInset={bookingBarInset}
                           rowHeight={ROW_HEIGHT}
                           currentYear={currentYear}
@@ -1146,7 +1209,6 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                           getOwnerLabel={getOwnerLabel}
                           globalColorMap={globalColorMap}
                           truncateLabel={truncateLabel}
-                          timelineScrollXRef={timelineScrollXRef}
                           onCellPress={canAddBooking ? handleAddPress : undefined}
                           onBookingPress={handleBookingPress}
                           ownerLabels={{ full: t('ownerCustomer'), mid: t('ownerCustomerShort'), min: t('ownerCustomerMin') }}
@@ -1176,10 +1238,9 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
 
       <AddBookingModal
         visible={addModalVisible}
-        onClose={() => { setAddModalVisible(false); setSelectedProperty(null); setInitialMonth(null); }}
-        onSaved={() => { setAddModalVisible(false); setSelectedProperty(null); setInitialMonth(null); handleSaved(); }}
+        onClose={() => { setAddModalVisible(false); setSelectedProperty(null); }}
+        onSaved={() => { setAddModalVisible(false); setSelectedProperty(null); handleSaved(); }}
         property={selectedProperty}
-        initialMonth={initialMonth}
       />
 
       <PropertyNotificationsModal
@@ -1258,7 +1319,6 @@ const CalendarRow = React.memo(function CalendarRow({
   unit,
   rowWidth,
   dateToPx,
-  pxToMonthKey,
   bookingBarInset,
   rowHeight,
   bookings,
@@ -1266,7 +1326,6 @@ const CalendarRow = React.memo(function CalendarRow({
   getOwnerLabel,
   globalColorMap,
   truncateLabel,
-  timelineScrollXRef,
   onCellPress,
   onBookingPress,
   ownerLabels,
@@ -1274,24 +1333,11 @@ const CalendarRow = React.memo(function CalendarRow({
   currentUserId,
   companyName,
 }) {
-  const resolveAbsolutePressX = (e) => {
-    const localX = e?.nativeEvent?.locationX;
-    const scrollX = timelineScrollXRef?.current;
-    if (!Number.isFinite(localX) || !Number.isFinite(scrollX)) return null;
-    const absoluteX = localX + scrollX;
-    if (!Number.isFinite(absoluteX)) return null;
-    return absoluteX;
-  };
-
   return (
     <View style={[rowStyles.row, { height: rowHeight, width: rowWidth }]}>
       <Pressable
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-        onPress={onCellPress ? (e) => {
-          const x = resolveAbsolutePressX(e);
-          const key = pxToMonthKey(x);
-          onCellPress(unit, key);
-        } : undefined}
+        onPress={onCellPress ? () => onCellPress(unit) : undefined}
       />
       {bookings.map((b) => {
         const checkInStr = typeof b.checkIn === 'string' && b.checkIn.length >= 10 ? b.checkIn.substring(0, 10) : b.checkIn;
