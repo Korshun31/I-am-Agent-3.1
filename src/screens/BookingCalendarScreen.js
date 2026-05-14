@@ -52,11 +52,9 @@ const COL_PADDING = 20;
 const MIN_COL_WIDTH = 100;
 const MAX_COL_WIDTH = 150;
 const MONTH_WIDTH = 100; // 83 + 20%
-const NUM_MONTHS = 16;
 // Дневной режим: единица — неделя (7 дней внутри). Подключится в следующем подшаге.
 const DAY_WIDTH = 28;
 const WEEK_WIDTH = DAY_WIDTH * 7; // 196
-const NUM_WEEKS = 70;
 const VIEW_MODE_STORAGE_KEY = 'bookingCalendar:viewMode';
 const HOUSE_LIKE_TYPES = new Set(['house', 'resort_house', 'condo_apartment']);
 // 6 приглушённых цветов вместо 16 кислотных. Каждый читается на белом и сером фоне,
@@ -185,6 +183,11 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const timelineScrollXRef = useRef(0);
   const prevVisibleRef = useRef(false);
   const hasScrolledOnceRef = useRef(false);
+  // Отдельный флаг для onContentSizeChange — не зависит от hasScrolledOnceRef.
+  // Гарантирует доскролл к сегодня после того как ScrollView сообщил о готовом
+  // contentSize, даже если ранний эффект пытался scrollTo при contentSize=0
+  // и не попал.
+  const initialContentScrollDoneRef = useRef(false);
   const notifModalVisibleRef = useRef(false);
 
   // TD: вертикальная синхронизация левой колонки с правым таймлайном через
@@ -397,43 +400,13 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   const dayDividerPatternId = `dd-${React.useId()}`;
   const headerDayDividerPatternId = `hdd-${React.useId()}`;
 
-  // Функция позиции брони на ленте — общая для обеих веток. Вычисляется в
-  // родителе, передаётся в CalendarRow как пропс; useCallback стабилен по deps,
-  // мемоизация CalendarRow сохраняется.
-  const dateToPx = useCallback((d) => {
-    if (viewMode === 'day') {
-      const startStr = weeks[0]?.startDate;
-      if (!startStr) return 0;
-      const start = dayjs(startStr);
-      const days = d.diff(start, 'day');
-      if (days < 0) return 0;
-      const maxDays = NUM_WEEKS * 7;
-      if (days >= maxDays) return totalWidth;
-      return days * DAY_WIDTH;
-    }
-    const idx = months.findIndex(m => m.year === d.year() && m.month === d.month());
-    if (idx >= 0) {
-      const daysInMonth = d.daysInMonth();
-      const dayOfMonth = d.date();
-      return idx * MONTH_WIDTH + ((dayOfMonth - 1) / daysInMonth) * MONTH_WIDTH;
-    }
-    if (months.length === 0) return 0;
-    const first = dayjs().year(months[0].year).month(months[0].month).startOf('month');
-    if (d.isBefore(first)) return 0;
-    return totalWidth;
-  }, [viewMode, months, weeks, totalWidth]);
-
-  // Сдвиг кромок полоски брони на половину дневного столбика — чтобы стыковые
-  // даты (выезд одного клиента и заезд следующего в один день) не перекрывали
-  // друг друга, а делили столбик пополам: левая половина — выезд, правая — заезд.
-  const bookingBarInset = viewMode === 'day' ? DAY_WIDTH / 2 : 0;
-
   const handleViewModeChange = useCallback((next) => {
     if (next !== 'month' && next !== 'day') return;
     if (next === viewMode) return;
     // При смене режима сбрасываем «уже прокрутили» и текущую позицию, чтобы
     // эффект скролла после ре-рендера отработал на новой initialScrollX.
     hasScrolledOnceRef.current = false;
+    initialContentScrollDoneRef.current = false;
     timelineScrollXRef.current = 0;
     setViewMode(next);
     AsyncStorage.setItem(VIEW_MODE_STORAGE_KEY, next).catch(() => {});
@@ -524,17 +497,12 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
   }, [listToShow, getParent]);
 
   // Геометрия ленты: единая точка правды для ширины одной единицы и их количества.
-  // Месячный режим — единица «месяц» (100px × 16). Дневной — «неделя» (196px × 70),
-  // внутри которой через SVG-паттерн рисуются 7 столбиков-дней.
-  const unitWidth = viewMode === 'day' ? WEEK_WIDTH : MONTH_WIDTH;
-  const unitCount = viewMode === 'day' ? NUM_WEEKS : NUM_MONTHS;
-  const totalWidth = unitCount * unitWidth;
-
   const months = React.useMemo(() => {
     const loc = language === 'ru' ? 'ru' : language === 'th' ? 'th' : 'en';
     const base = dayjs().startOf('month');
     const arr = [];
-    for (let i = -3; i < NUM_MONTHS - 3; i++) {
+    // 6 месяцев назад + текущий + 12 вперёд = 19 единиц.
+    for (let i = -6; i <= 12; i++) {
       const d = base.add(i, 'month').locale(loc);
       const raw = d.format('MMM');
       arr.push({
@@ -547,20 +515,25 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return arr;
   }, [language]);
 
-  // Массив недель для дневного режима. 10 недель назад + 60 вперёд = 70 единиц,
-  // понедельник считается вручную (без плагина isoWeek), потому что в dayjs
-  // startOf('week') зависит от локали (англ. — воскресенье, рус. — понедельник).
+  // Массив недель для дневного режима. Старт — понедельник недели, в которую
+  // попадает «сегодня минус 3 месяца». Конец — последний день месяца через
+  // 12 месяцев от текущего. Понедельник считается вручную (без плагина isoWeek),
+  // потому что в dayjs startOf('week') зависит от локали.
   // Label показывает диапазон «12-18 май» или «28 апр-4 май» если неделя
   // пересекает границу месяца. key — дата понедельника, по нему позиционируем.
   const weeks = React.useMemo(() => {
     const loc = language === 'ru' ? 'ru' : language === 'th' ? 'th' : 'en';
     const today = dayjs();
-    const dow = today.day(); // 0=вск..6=сб
-    const offsetToMonday = dow === 0 ? -6 : 1 - dow;
-    const baseMonday = today.add(offsetToMonday, 'day').startOf('day');
+    const back = today.subtract(3, 'month').startOf('day');
+    const backDow = back.day();
+    const backOffsetToMonday = backDow === 0 ? -6 : 1 - backDow;
+    const firstMonday = back.add(backOffsetToMonday, 'day');
+    const forwardEnd = today.add(12, 'month').endOf('month');
+    const totalDays = forwardEnd.diff(firstMonday, 'day') + 1;
+    const numWeeks = Math.ceil(totalDays / 7);
     const arr = [];
-    for (let i = -10; i < NUM_WEEKS - 10; i++) {
-      const start = baseMonday.add(i * 7, 'day').locale(loc);
+    for (let i = 0; i < numWeeks; i++) {
+      const start = firstMonday.add(i * 7, 'day').locale(loc);
       const end = start.add(6, 'day');
       const sameMonth = start.month() === end.month();
       const label = sameMonth
@@ -577,6 +550,40 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     return arr;
   }, [language]);
 
+  // Геометрия ленты: единая точка правды для ширины одной единицы и их количества.
+  // M — единица «месяц» (100px). D — «неделя» (196px), внутри 7 столбиков-дней.
+  const unitWidth = viewMode === 'day' ? WEEK_WIDTH : MONTH_WIDTH;
+  const unitCount = viewMode === 'day' ? weeks.length : months.length;
+  const totalWidth = unitCount * unitWidth;
+
+  // Функция позиции брони на ленте — общая для обеих веток. Объявляется ПОСЛЕ
+  // months/weeks/totalWidth (TDZ): deps useCallback читаются при выполнении.
+  const dateToPx = useCallback((d) => {
+    if (viewMode === 'day') {
+      const startStr = weeks[0]?.startDate;
+      if (!startStr) return 0;
+      const start = dayjs(startStr);
+      const days = d.diff(start, 'day');
+      if (days < 0) return 0;
+      const maxDays = weeks.length * 7;
+      if (days >= maxDays) return totalWidth;
+      return days * DAY_WIDTH;
+    }
+    const idx = months.findIndex(m => m.year === d.year() && m.month === d.month());
+    if (idx >= 0) {
+      const daysInMonth = d.daysInMonth();
+      const dayOfMonth = d.date();
+      return idx * MONTH_WIDTH + ((dayOfMonth - 1) / daysInMonth) * MONTH_WIDTH;
+    }
+    if (months.length === 0) return 0;
+    const first = dayjs().year(months[0].year).month(months[0].month).startOf('month');
+    if (d.isBefore(first)) return 0;
+    return totalWidth;
+  }, [viewMode, months, weeks, totalWidth]);
+
+  // Полудневный сдвиг полоски брони — D-режим делит стыковой столбик пополам.
+  const bookingBarInset = viewMode === 'day' ? DAY_WIDTH / 2 : 0;
+
   // Прекомпьют дня ленты в день/месяц/год для двух вещей:
   // — SVG-числа в шапке D режима (`date`)
   // — определение «текущего месяца по центру» в onScroll (через dayIdx из x).
@@ -586,7 +593,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
     const startStr = weeks[0]?.startDate;
     if (!startStr) return null;
     const start = dayjs(startStr);
-    const total = NUM_WEEKS * 7;
+    const total = weeks.length * 7;
     const arr = new Array(total);
     for (let i = 0; i < total; i++) {
       const d = start.add(i, 'day');
@@ -923,6 +930,17 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
               horizontal
               showsHorizontalScrollIndicator={true}
               contentContainerStyle={{ width: totalWidth }}
+              onContentSizeChange={(w) => {
+                // Доcкролл к сегодня после первого готового layout. Использует
+                // СВОЙ флаг, не hasScrolledOnceRef — ранний эффект мог уже
+                // выставить hasScrolledOnceRef в true даже если physical
+                // scrollTo промахнулся (contentSize был 0). Здесь мы точно
+                // знаем, что лента шириной w готова.
+                if (!initialContentScrollDoneRef.current && w > 0 && initialScrollX > 0) {
+                  initialContentScrollDoneRef.current = true;
+                  rightScrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
+                }
+              }}
               onScroll={(e) => {
                 const x = e?.nativeEvent?.contentOffset?.x;
                 timelineScrollXRef.current = Number.isFinite(x) ? x : 0;
@@ -1063,7 +1081,7 @@ export default function BookingCalendarScreen({ isVisible = true, propertyIdsFil
                       const startStr = weeks[0]?.startDate;
                       if (!startStr) return null;
                       const start = dayjs(startStr);
-                      const totalDays = NUM_WEEKS * 7;
+                      const totalDays = weeks.length * 7;
                       const daysSinceStart = dayjs().startOf('day').diff(start, 'day');
                       const pastWidth = Math.max(0, Math.min(daysSinceStart, totalDays)) * DAY_WIDTH;
                       const todayLeft = daysSinceStart >= 0 && daysSinceStart < totalDays
