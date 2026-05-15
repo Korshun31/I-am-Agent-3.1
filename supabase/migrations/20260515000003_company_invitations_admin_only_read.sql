@@ -1,0 +1,35 @@
+-- Закрываем чтение company_invitations рядовым агентам компании.
+--
+-- ПРОБЛЕМА. На таблице public.company_invitations висело две RLS-политики:
+--   1) "company_invitations: members can read" FOR SELECT
+--      USING auth_is_company_member(company_id)
+--   2) "company_invitations: owner full access" FOR ALL
+--      USING/WITH CHECK auth_is_company_owner(company_id)
+-- Политика (1) давала рядовому агенту прямой SELECT на ВСЕ инвайты его
+-- компании, включая чувствительные invite_token, secret_code, attempts.
+-- Через DevTools агент мог перехватить ещё не использованные magic-link'и
+-- коллег.
+--
+-- РЕШЕНИЕ. DROP политики (1). Остаётся (2) — FOR ALL, покрывает чтение
+-- и изменение для owner компании (companies.owner_id = auth.uid()).
+-- Агент теряет любой прямой доступ к таблице.
+--
+-- ПОБОЧНЫХ ЭФФЕКТОВ НЕТ:
+-- * Realtime: companyChannel подписан на company_invitations у всех юзеров;
+--   Supabase Realtime фильтрует postgres_changes по SELECT-RLS подписчика —
+--   у агента события company_invitations просто перестанут приходить, канал
+--   останется SUBSCRIBED, остальные 6 подписок продолжат работу.
+-- * JS-чтение: getTeamData / revokeInvitation / deactivateCompany под
+--   двойным UI-гардом role+companyId, у агента не вызываются (companyId=null,
+--   workAs='private').
+-- * Edge function invite-agent работает под service_role — RLS минует.
+-- * Backup-таблица company_invitations_backup_2026_04_27 отдельная, не
+--   затронута.
+--
+-- ROLLBACK при необходимости:
+--   CREATE POLICY "company_invitations: members can read"
+--     ON public.company_invitations FOR SELECT
+--     USING (public.auth_is_company_member(company_id));
+
+DROP POLICY IF EXISTS "company_invitations: members can read"
+  ON public.company_invitations;

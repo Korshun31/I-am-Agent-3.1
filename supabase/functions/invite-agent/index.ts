@@ -32,33 +32,63 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SITE_URL = 'https://crm.iamagent.app'
 const RATE_LIMIT_PER_MIN = 10
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+// Whitelist of origins allowed by browser CORS.
+// Requests without Origin header (native mobile fetch, curl, server-to-server)
+// are not gated here — they are protected by JWT + admin check below.
+// We DO NOT allow *.vercel.app wildcard (any malicious actor could spin up
+// evil-x.vercel.app); only this project's preview URLs are matched.
+const ALLOWED_ORIGINS = new Set<string>([
+  'https://crm.iamagent.app',
+  'http://localhost:8081',   // Metro web dev
+  'http://localhost:19006',  // Expo Web dev
+])
+const ALLOWED_ORIGIN_REGEX =
+  /^https:\/\/i-am-agent-3-1(-[a-z0-9-]+)*\.vercel\.app$/
+
+function isOriginAllowed(origin: string | null): boolean {
+  if (!origin) return false
+  if (ALLOWED_ORIGINS.has(origin)) return true
+  return ALLOWED_ORIGIN_REGEX.test(origin)
 }
 
-function jsonResp(body: unknown, status: number) {
+function buildCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get('origin')
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
+  }
+  // If origin is missing (native mobile, curl) — do not emit ACAO.
+  // Native clients ignore CORS entirely; protection is JWT + admin check.
+  // If origin present but not whitelisted — also do not emit ACAO,
+  // browser of a third-party site will block the response.
+  if (isOriginAllowed(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin as string
+  }
+  return headers
+}
+
+function jsonResp(body: unknown, status: number, req: Request) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...buildCorsHeaders(req), 'Content-Type': 'application/json' },
   })
 }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: buildCorsHeaders(req) })
   }
 
   if (req.method !== 'POST') {
-    return jsonResp({ error: 'Method not allowed' }, 405)
+    return jsonResp({ error: 'Method not allowed' }, 405, req)
   }
 
   try {
     // 1. Identify caller via JWT
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return jsonResp({ error: 'Missing authorization header' }, 401)
+      return jsonResp({ error: 'Missing authorization header' }, 401, req)
     }
 
     const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -66,7 +96,7 @@ Deno.serve(async (req) => {
     })
     const { data: userData, error: authError } = await userClient.auth.getUser()
     if (authError || !userData?.user) {
-      return jsonResp({ error: 'Invalid or expired token' }, 401)
+      return jsonResp({ error: 'Invalid or expired token' }, 401, req)
     }
     const callerUserId = userData.user.id
 
@@ -75,12 +105,12 @@ Deno.serve(async (req) => {
     try {
       body = await req.json()
     } catch {
-      return jsonResp({ error: 'Invalid JSON body' }, 400)
+      return jsonResp({ error: 'Invalid JSON body' }, 400, req)
     }
 
     const email = (body.email ?? '').toString().trim().toLowerCase()
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return jsonResp({ error: 'Invalid email format' }, 400)
+      return jsonResp({ error: 'Invalid email format' }, 400, req)
     }
     const isResend = body.resend === true
 
@@ -97,10 +127,10 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (memErr) {
-      return jsonResp({ error: 'DB error reading membership', details: memErr.message }, 500)
+      return jsonResp({ error: 'DB error reading membership', details: memErr.message }, 500, req)
     }
     if (!membership) {
-      return jsonResp({ error: 'Caller is not a company admin', code: 'NOT_ADMIN' }, 403)
+      return jsonResp({ error: 'Caller is not a company admin', code: 'NOT_ADMIN' }, 403, req)
     }
 
     const companyId: string = membership.company_id
@@ -111,6 +141,7 @@ Deno.serve(async (req) => {
       return jsonResp(
         { error: 'Company is not activated (empty name)', code: 'COMPANY_NOT_ACTIVATED' },
         400,
+        req,
       )
     }
 
@@ -123,12 +154,13 @@ Deno.serve(async (req) => {
       .gte('created_at', oneMinuteAgo)
 
     if (rlErr) {
-      return jsonResp({ error: 'DB error on rate-limit check', details: rlErr.message }, 500)
+      return jsonResp({ error: 'DB error on rate-limit check', details: rlErr.message }, 500, req)
     }
     if ((recentCount ?? 0) >= RATE_LIMIT_PER_MIN) {
       return jsonResp(
         { error: `Rate limit exceeded (max ${RATE_LIMIT_PER_MIN}/min)`, code: 'RATE_LIMITED' },
         429,
+        req,
       )
     }
 
@@ -147,12 +179,13 @@ Deno.serve(async (req) => {
         .maybeSingle()
 
       if (findErr) {
-        return jsonResp({ error: 'DB error finding invitation', details: findErr.message }, 500)
+        return jsonResp({ error: 'DB error finding invitation', details: findErr.message }, 500, req)
       }
       if (!existing) {
         return jsonResp(
           { error: 'No active invitation to resend', code: 'INVITATION_NOT_FOUND' },
           404,
+          req,
         )
       }
 
@@ -163,7 +196,7 @@ Deno.serve(async (req) => {
         .eq('id', existing.id)
 
       if (updErr) {
-        return jsonResp({ error: 'Failed to refresh invitation', details: updErr.message }, 500)
+        return jsonResp({ error: 'Failed to refresh invitation', details: updErr.message }, 500, req)
       }
 
       const { error: resendErr } = await adminClient.auth.admin.inviteUserByEmail(email, {
@@ -178,6 +211,7 @@ Deno.serve(async (req) => {
         return jsonResp(
           { error: 'Failed to resend invitation email', details: resendErr.message },
           500,
+          req,
         )
       }
 
@@ -190,6 +224,7 @@ Deno.serve(async (req) => {
           resent: true,
         },
         200,
+        req,
       )
     }
 
@@ -198,10 +233,10 @@ Deno.serve(async (req) => {
       p_email: email,
     })
     if (esErr) {
-      return jsonResp({ error: 'DB error on email check', details: esErr.message }, 500)
+      return jsonResp({ error: 'DB error on email check', details: esErr.message }, 500, req)
     }
     if (emailStatus === 'occupied') {
-      return jsonResp({ error: 'Email already registered', code: 'EMAIL_OCCUPIED' }, 409)
+      return jsonResp({ error: 'Email already registered', code: 'EMAIL_OCCUPIED' }, 409, req)
     }
     if (emailStatus === 'orphan') {
       // Orphan = auth.users row exists but no users_profile.
@@ -226,6 +261,7 @@ Deno.serve(async (req) => {
         return jsonResp(
           { error: 'DB error reading last invitation', details: lastInvErr.message },
           500,
+          req,
         )
       }
 
@@ -242,6 +278,7 @@ Deno.serve(async (req) => {
             code: 'EMAIL_OCCUPIED_ORPHAN_PENDING',
           },
           409,
+          req,
         )
       }
 
@@ -255,6 +292,7 @@ Deno.serve(async (req) => {
         return jsonResp(
           { error: 'Failed to lookup orphan auth user id', details: orphanIdErr.message },
           500,
+          req,
         )
       }
       if (orphanId) {
@@ -263,6 +301,7 @@ Deno.serve(async (req) => {
           return jsonResp(
             { error: 'Failed to remove orphan auth user', details: delErr.message },
             500,
+            req,
           )
         }
       }
@@ -276,6 +315,7 @@ Deno.serve(async (req) => {
         return jsonResp(
           { error: 'DB error on email recheck', details: recheckErr.message },
           500,
+          req,
         )
       }
       if (recheck !== 'free') {
@@ -285,6 +325,7 @@ Deno.serve(async (req) => {
             code: 'EMAIL_RACE',
           },
           409,
+          req,
         )
       }
       // Fall through to normal invite-flow below.
@@ -305,6 +346,7 @@ Deno.serve(async (req) => {
       return jsonResp(
         { error: 'Failed to create invitation', details: insErr?.message },
         500,
+        req,
       )
     }
 
@@ -326,6 +368,7 @@ Deno.serve(async (req) => {
       return jsonResp(
         { error: 'Failed to send invitation email', details: invErr.message },
         500,
+        req,
       )
     }
 
@@ -337,8 +380,9 @@ Deno.serve(async (req) => {
         email,
       },
       200,
+      req,
     )
   } catch (e) {
-    return jsonResp({ error: 'Internal server error', details: String(e) }, 500)
+    return jsonResp({ error: 'Internal server error', details: String(e) }, 500, req)
   }
 })
